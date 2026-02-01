@@ -1,0 +1,5 @@
+# F1 Muse ETL Dependencies
+fastf1>=3.0.0
+psycopg2-binary>=2.9.0
+pandas>=2.0.0
+numpy>=1.24.0
