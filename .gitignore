@@ -35,3 +35,19 @@ AWSCLIV2.pkg
 
 # Output files
 repomix-output.xml
+
+# local data / imports
+f1db-import/
+etl/.fastf1_cache/
+
+# local ai/editor state
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+
+# local envs
+venv/
+.env
+
