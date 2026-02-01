@@ -1,0 +1,227 @@
+{
+  "description": "NL Parsing Snapshot Tests - Ensures intent routing remains stable",
+  "version": "1.0.0",
+  "generated_at": "2026-01-12",
+  "snapshots": [
+    {
+      "id": "verstappen_season_summary",
+      "query": "How did Verstappen do this year?",
+      "expected_kind": "driver_season_summary",
+      "expected_entities": {
+        "driver_ids": ["verstappen"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Single driver query with implied current season"
+    },
+    {
+      "id": "norris_vs_piastri_teammates",
+      "query": "Norris vs Piastri",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["norris", "piastri"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Teammate comparison without track - should use teammate_gap"
+    },
+    {
+      "id": "fastest_monza_ranking",
+      "query": "Fastest driver at Monza",
+      "expected_kind": "track_fastest_drivers",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "monza",
+        "season": 2025
+      },
+      "notes": "Track ranking query"
+    },
+    {
+      "id": "italian_gp_winner",
+      "query": "Who won the Italian GP 2025?",
+      "expected_kind": "race_results_summary",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "monza",
+        "season": 2025
+      },
+      "notes": "Race results query - winner question"
+    },
+    {
+      "id": "verstappen_career",
+      "query": "Verstappen career stats",
+      "expected_kind": "driver_career_summary",
+      "expected_entities": {
+        "driver_ids": ["verstappen"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Career summary triggered by 'career' keyword"
+    },
+    {
+      "id": "leclerc_vs_sainz_teammates",
+      "query": "Compare Leclerc and Sainz 2025",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["leclerc", "sainz"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Ferrari teammate comparison"
+    },
+    {
+      "id": "verstappen_norris_silverstone",
+      "query": "Compare Verstappen and Norris at Silverstone 2025",
+      "expected_kind": "cross_team_track_scoped_driver_comparison",
+      "expected_entities": {
+        "driver_ids": ["verstappen", "norris"],
+        "track_id": "silverstone",
+        "season": 2025
+      },
+      "notes": "Cross-team track-scoped comparison"
+    },
+    {
+      "id": "hamilton_season_2025",
+      "query": "Hamilton 2025 season",
+      "expected_kind": "driver_season_summary",
+      "expected_entities": {
+        "driver_ids": ["hamilton"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Season summary with explicit season"
+    },
+    {
+      "id": "monaco_results",
+      "query": "Results of Monaco 2025",
+      "expected_kind": "race_results_summary",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "monaco",
+        "season": 2025
+      },
+      "notes": "Race results with 'results of' trigger"
+    },
+    {
+      "id": "fastest_suzuka",
+      "query": "Who was fastest at Suzuka 2025",
+      "expected_kind": "track_fastest_drivers",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "suzuka",
+        "season": 2025
+      },
+      "notes": "Track ranking with 'fastest' trigger"
+    },
+    {
+      "id": "russell_vs_hamilton_teammates",
+      "query": "Russell vs Hamilton",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["russell", "hamilton"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Mercedes teammate comparison"
+    },
+    {
+      "id": "alonso_career_summary",
+      "query": "Show Alonso career summary",
+      "expected_kind": "driver_career_summary",
+      "expected_entities": {
+        "driver_ids": ["alonso"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Career summary with explicit 'career' keyword"
+    },
+    {
+      "id": "spa_podium",
+      "query": "Podium at Spa 2025",
+      "expected_kind": "race_results_summary",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "spa-francorchamps",
+        "season": 2025
+      },
+      "notes": "Race results with 'podium' trigger"
+    },
+    {
+      "id": "perez_vs_verstappen_teammates",
+      "query": "How much faster was Verstappen than Perez?",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["verstappen", "perez"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Red Bull teammate comparison with pace question"
+    },
+    {
+      "id": "leclerc_season_summary",
+      "query": "Leclerc season summary",
+      "expected_kind": "driver_season_summary",
+      "expected_entities": {
+        "driver_ids": ["leclerc"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Season summary with 'season' keyword"
+    },
+    {
+      "id": "max_lando_bahrain",
+      "query": "Max vs Lando Bahrain 2025",
+      "expected_kind": "cross_team_track_scoped_driver_comparison",
+      "expected_entities": {
+        "driver_ids": ["verstappen", "norris"],
+        "track_id": "bahrain",
+        "season": 2025
+      },
+      "notes": "Cross-team track comparison with first names"
+    },
+    {
+      "id": "abu_dhabi_winner",
+      "query": "Who won Abu Dhabi 2025?",
+      "expected_kind": "race_results_summary",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "yas-marina",
+        "season": 2025
+      },
+      "notes": "Race results with 'who won' trigger"
+    },
+    {
+      "id": "sainz_vs_leclerc_season",
+      "query": "Sainz vs Leclerc full season",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["sainz", "leclerc"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Teammate comparison with 'full season' context"
+    },
+    {
+      "id": "albon_vs_sargeant",
+      "query": "Albon vs Sargeant 2025",
+      "expected_kind": "teammate_gap_summary_season",
+      "expected_entities": {
+        "driver_ids": ["albon", "sargeant"],
+        "track_id": null,
+        "season": 2025
+      },
+      "notes": "Williams teammate comparison"
+    },
+    {
+      "id": "fastest_at_jeddah",
+      "query": "Fastest at Jeddah",
+      "expected_kind": "track_fastest_drivers",
+      "expected_entities": {
+        "driver_ids": [],
+        "track_id": "jeddah",
+        "season": 2025
+      },
+      "notes": "Track ranking without explicit season"
+    }
+  ]
+}
