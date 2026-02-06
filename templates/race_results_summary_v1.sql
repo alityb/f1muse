@@ -5,7 +5,10 @@
 --
 -- Parameters:
 --   $1: season (INTEGER)
---   $2: track_id (TEXT) - F1DB circuit.id or grand_prix.id
+--   $2: track_id (TEXT) - Accepts multiple formats:
+--       - F1DB circuit.id (e.g., 'monaco')
+--       - F1DB grand_prix.id (e.g., 'monaco-grand-prix')
+--       - laps_normalized format (e.g., 'monaco_grand_prix')
 --
 -- Returns:
 --   - season
@@ -47,7 +50,12 @@ FROM
   INNER JOIN constructor con ON rd.constructor_id = con.id
 WHERE
   r.year = $1
-  AND (gp.id = $2 OR c.id = $2)
+  AND (
+    gp.id = $2
+    OR gp.id = REPLACE($2, '_', '-')
+    OR c.id = $2
+    OR c.id = SPLIT_PART(REPLACE($2, '_', '-'), '-grand-prix', 1)
+  )
   AND rd.type IN ('RACE_RESULT', 'race')
 ORDER BY
   rd.position_number ASC;

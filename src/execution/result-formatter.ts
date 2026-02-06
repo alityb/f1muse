@@ -417,6 +417,8 @@ export class ResultFormatter {
       race_name: rows[0]?.race_name ?? null,
       race_date: rows[0]?.race_date ?? null,
       circuit_name: rows[0]?.circuit_name ?? null,
+      winner: winner?.driver_id ?? null,
+      winner_name: winner?.driver_name ?? null,
       podium: entries.slice(0, 3),
       top10: entries.slice(0, 10),
       laps_completed: winner?.laps_completed ?? null,
