@@ -124,9 +124,10 @@ function buildProfileQuery(): string {
         COALESCE(d.total_race_wins, 0) AS total_wins,
         COALESCE(d.total_podiums, 0) AS total_podiums,
         COALESCE(d.total_pole_positions, 0) AS total_poles,
-        (SELECT MIN(year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS first_season,
-        (SELECT MAX(year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS latest_season,
-        (SELECT COUNT(DISTINCT year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS seasons_raced
+        d.total_race_starts,
+        (SELECT MIN(year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS first_season,
+        (SELECT MAX(year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS latest_season,
+        (SELECT COUNT(DISTINCT year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS seasons_raced
       FROM driver d
       WHERE d.id = $1
     )

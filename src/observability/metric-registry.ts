@@ -177,8 +177,14 @@ export class MetricRegistryValidator {
     }
 
     // 3. Check if normalization matches registry
-    // STATMUSE REFACTOR: No special cases - normalization must match exactly
-    if (normalization !== entry.normalization) {
+    // Special case: season_driver_vs_driver allows session_median_percent normalization
+    // for avg_true_pace and clean_air_pace as a cross-circuit comparable alternative
+    const allowsSessionMedianPercent =
+      context === 'season_driver_vs_driver' &&
+      (metric === 'avg_true_pace' || metric === 'clean_air_pace') &&
+      normalization === 'session_median_percent';
+
+    if (normalization !== entry.normalization && !allowsSessionMedianPercent) {
       return {
         valid: false,
         reason: `VALIDATION_FAILED: Metric "${metric}" requires normalization="${entry.normalization}". ` +

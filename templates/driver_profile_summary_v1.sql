@@ -22,6 +22,7 @@
 
 WITH career_stats AS (
   -- Career statistics from F1DB driver table
+  -- seasons_raced from season_driver_standing (authoritative, complete history 1950-present)
   SELECT
     d.id AS driver_id,
     d.full_name AS driver_name,
@@ -29,9 +30,9 @@ WITH career_stats AS (
     COALESCE(d.total_race_wins, 0) AS total_wins,
     COALESCE(d.total_podiums, 0) AS total_podiums,
     COALESCE(d.total_pole_positions, 0) AS total_poles,
-    (SELECT MIN(year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS first_season,
-    (SELECT MAX(year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS latest_season,
-    (SELECT COUNT(DISTINCT year) FROM season_entrant_driver WHERE driver_id = d.id AND NOT test_driver) AS seasons_raced
+    (SELECT MIN(year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS first_season,
+    (SELECT MAX(year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS latest_season,
+    (SELECT COUNT(DISTINCT year) FROM season_driver_standing WHERE driver_id = d.id OR driver_id = REPLACE(d.id, '_', '-')) AS seasons_raced
   FROM driver d
   WHERE d.id = $1
 ),

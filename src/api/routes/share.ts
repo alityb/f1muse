@@ -15,8 +15,31 @@ export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool
   const writePool = cachePool || pool;
   const shareService = new ShareService(writePool);
 
+  // ensure table exists on startup (non-blocking)
+  let tableReady = false;
+  shareService.ensureTable()
+    .then(() => {
+      tableReady = true;
+      console.log('[Share] Table ready');
+    })
+    .catch((err) => {
+      console.warn('[Share] Table setup failed - share features disabled:', err.message);
+    });
+
+  // middleware to check if share is available
+  const requireTable = (_req: Request, res: Response, next: () => void): void => {
+    if (!tableReady) {
+      res.status(503).json({
+        error: 'share_unavailable',
+        reason: 'Share feature is initializing or unavailable'
+      });
+      return;
+    }
+    next();
+  };
+
   // read-only feed endpoint (no llm, no sql templates)
-  router.get('/share-feed', async (_req: Request, res: Response) => {
+  router.get('/share-feed', requireTable, async (_req: Request, res: Response) => {
     try {
       const feed = await shareService.getFeed();
 
@@ -35,7 +58,7 @@ export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool
     }
   });
 
-  router.post('/share', shareRateLimiter.middleware(), async (req: Request, res: Response) => {
+  router.post('/share', requireTable, shareRateLimiter.middleware(), async (req: Request, res: Response) => {
     try {
       const intent = req.body as QueryIntent;
 
@@ -99,7 +122,7 @@ export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool
   });
 
   // retrieve shared result (no llm, no sql execution - answer is immutable)
-  router.get('/share/:id', async (req: Request, res: Response) => {
+  router.get('/share/:id', requireTable, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const wantsJson = req.accepts(['json', 'html']) === 'json';

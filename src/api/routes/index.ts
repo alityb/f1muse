@@ -26,8 +26,12 @@ export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   router.use('/', createCapabilitiesRoutes());
   router.use('/', createQueryRoutes(pool, executor, logger));
   router.use('/', createDriverRoutes(pool));
-  router.use('/', createDebugRoutes(pool));
   router.use('/', createShareRoutes(pool, executor, cachePool));
+
+  // Debug routes only in development
+  if (process.env.NODE_ENV !== 'production') {
+    router.use('/', createDebugRoutes(pool));
+  }
 
   router.get('/', (_req: Request, res: Response) => {
     const endpoints = buildEndpointList();
@@ -53,11 +57,15 @@ function buildEndpointList(): Record<string, string> {
     'GET /health/coverage/teammate-gap': 'Teammate gap coverage stats',
     'GET /capabilities': 'System capabilities',
     'GET /suggestions': 'Query suggestions',
-    'GET /debug/coverage/teammate-gap': 'Teammate gap coverage introspection',
     'GET /driver/:driver_id/profile': 'Driver profile summary',
     'GET /driver/:driver_id/trend': 'Driver trend analysis',
     'GET /': 'API information'
   };
+
+  // Debug endpoints only in development
+  if (process.env.NODE_ENV !== 'production') {
+    endpoints['GET /debug/coverage/teammate-gap'] = 'Teammate gap coverage introspection (dev only)';
+  }
 
   const llmConfigured = process.env.ANTHROPIC_API_KEY ||
                         process.env.CLAUDE_API_KEY ||

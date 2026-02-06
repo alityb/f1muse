@@ -18,6 +18,7 @@ import {
   logError
 } from './api/middleware/production-safety';
 import { getConfig } from './llm/config';
+import { logInvariantMode } from './execution/invariants';
 
 /**
  * F1 Muse API - Production Entry Point
@@ -44,6 +45,9 @@ async function main() {
     console.log('  ⚠️  CORPUS TEST MODE ENABLED');
     console.log(`  Inter-call delay: ${llmConfig.corpusTestDelayMs}ms`);
   }
+
+  // Log invariant enforcement mode
+  logInvariantMode();
 
   // Metrics middleware (must be first to capture all requests)
   app.use(metricsMiddleware());
@@ -110,22 +114,27 @@ async function main() {
     console.error('⚠ Primary database connection failed - cache writes disabled');
   }
 
-  // Initialize Redis cache (graceful degradation if unavailable)
+  // Initialize Redis cache (optional - graceful degradation if unavailable)
   let redisConnected = false;
   if (process.env.REDIS_URL) {
     try {
       const redis = await initRedisCache();
       redisConnected = redis.isAvailable();
       if (redisConnected) {
-        console.log(`✓ Redis cache connected`);
+        console.log('✓ Redis cache connected');
       } else {
-        console.log('⚠ Redis cache unavailable - operating without cache');
+        console.log('✓ Redis cache: disabled (connection unavailable)');
       }
     } catch (err) {
-      console.log('⚠ Redis cache connection failed - operating without cache');
+      console.log('✓ Redis cache: disabled (connection failed)');
     }
   } else {
-    console.log('⚠ REDIS_URL not set - operating without Redis cache');
+    // Only show warning in development - in production, this is an intentional configuration
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✓ Redis cache: disabled (REDIS_URL not set)');
+    } else {
+      console.log('✓ Redis cache: disabled');
+    }
   }
 
   // Start background cache maintenance (Postgres cache, every 60 minutes)

@@ -121,7 +121,8 @@ export const APPROVED_SQL_TEMPLATES = [
   'driver_head_to_head_count_conditional_v1',    // driver_head_to_head_count (with filters)
   'driver_performance_vector_v1',                // driver_performance_vector (PART 4)
   'driver_multi_comparison_v1',                  // driver_multi_comparison (PART 5)
-  'season_driver_vs_driver_v1',                  // season_driver_vs_driver
+  'season_driver_vs_driver_v1',                  // season_driver_vs_driver (raw pace)
+  'season_driver_vs_driver_normalized_v1',       // season_driver_vs_driver (normalized %)
   'cross_team_track_scoped_driver_comparison_v1', // cross_team_track_scoped_driver_comparison
   'teammate_gap_summary_season_v1',              // teammate_gap_summary_season
   'teammate_gap_dual_comparison_v1',             // teammate_gap_dual_comparison

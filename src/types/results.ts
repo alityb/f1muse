@@ -17,6 +17,10 @@ export interface SeasonDriverSummaryPayload {
 
 /**
  * Season driver vs driver result payload
+ *
+ * Supports two modes:
+ * - Normalized (default): session_median_percent normalization, values in %
+ * - Raw pace: normalization='none', values in seconds
  */
 export interface SeasonDriverVsDriverPayload {
   type: 'season_driver_vs_driver';
@@ -31,6 +35,12 @@ export interface SeasonDriverVsDriverPayload {
   driver_a_laps: number;
   driver_b_laps: number;
   laps_considered: number;
+  /** Number of shared races (normalized mode only) */
+  shared_races?: number;
+  /** Coverage status based on shared races (normalized mode only) */
+  coverage_status?: 'valid' | 'low_coverage' | 'insufficient';
+  /** Units: 'percent' for normalized, 'seconds' for raw */
+  units?: 'percent' | 'seconds';
 }
 
 

@@ -27,6 +27,10 @@ import {
 } from '../types/results';
 import { classifyGapBand } from '../observability/gap-bands';
 import { getCoverageStatus } from '../config/teammate-gap';
+import {
+  assertNormalizationMatch,
+  assertValidCoverage
+} from './invariants';
 
 /**
  * Formats raw database results into structured result payloads
@@ -128,6 +132,42 @@ export class ResultFormatter {
     const driver_a_laps = parseInt(row.driver_a_laps || '0');
     const driver_b_laps = parseInt(row.driver_b_laps || '0');
 
+    // check if this is normalized output (has shared_races and coverage_status)
+    const isNormalized = row.shared_races !== undefined;
+
+    if (isNormalized) {
+      // Invariant: normalized output MUST have session_median_percent normalization
+      assertNormalizationMatch(isNormalized, intent.normalization, 'ResultFormatter.formatSeasonDriverVsDriver');
+
+      // normalized percent pace mode
+      const sharedRaces = parseInt(row.shared_races || '0');
+      const coverageStatus = row.coverage_status as 'valid' | 'low_coverage' | 'insufficient';
+
+      // Invariant: coverage status must be valid
+      assertValidCoverage(coverageStatus, 'season_driver_vs_driver', 'ResultFormatter.formatSeasonDriverVsDriver');
+
+      return {
+        type: 'season_driver_vs_driver',
+        season: intent.season,
+        driver_a: row.driver_a_id,
+        driver_b: row.driver_b_id,
+        metric: 'normalized_percent_pace' as any,
+        driver_a_value,
+        driver_b_value,
+        difference: row.difference_percent !== undefined
+          ? parseFloat(row.difference_percent)
+          : driver_a_value - driver_b_value,
+        normalization: 'session_median_percent',
+        driver_a_laps,
+        driver_b_laps,
+        laps_considered: driver_a_laps + driver_b_laps,
+        shared_races: sharedRaces,
+        coverage_status: coverageStatus,
+        units: 'percent'
+      };
+    }
+
+    // raw pace mode (normalization='none')
     return {
       type: 'season_driver_vs_driver',
       season: intent.season,
@@ -140,7 +180,8 @@ export class ResultFormatter {
       normalization: intent.normalization,
       driver_a_laps,
       driver_b_laps,
-      laps_considered: driver_a_laps + driver_b_laps
+      laps_considered: driver_a_laps + driver_b_laps,
+      units: 'seconds'
     };
   }
 

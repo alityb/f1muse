@@ -5,7 +5,7 @@ import { hasActiveFilters } from './build-params';
 const TEMPLATE_MAP: Record<string, ApprovedSqlTemplateId> = {
   driver_season_summary: 'driver_season_summary_v1',
   driver_career_summary: 'driver_career_summary_v1',
-  season_driver_vs_driver: 'season_driver_vs_driver_v1',
+  // season_driver_vs_driver uses dynamic selection - see selectSeasonDriverVsDriverTemplate
   cross_team_track_scoped_driver_comparison: 'cross_team_track_scoped_driver_comparison_v1',
   teammate_gap_summary_season: 'teammate_gap_summary_season_v1',
   teammate_gap_dual_comparison: 'teammate_gap_dual_comparison_v1',
@@ -28,12 +28,32 @@ export function selectTemplate(intent: QueryIntent): ApprovedSqlTemplateId {
     return selectHeadToHeadTemplate(intent);
   }
 
+  if (intent.kind === 'season_driver_vs_driver') {
+    return selectSeasonDriverVsDriverTemplate(intent);
+  }
+
   const template = TEMPLATE_MAP[intent.kind];
   if (!template) {
     throw new Error(`No template mapping for intent kind: ${intent.kind}`);
   }
 
   return template;
+}
+
+/**
+ * Select template for season_driver_vs_driver based on normalization.
+ * Default: session_median_percent (normalized)
+ * Raw pace: only when normalization='none' is explicitly requested
+ */
+function selectSeasonDriverVsDriverTemplate(
+  intent: Extract<QueryIntent, { kind: 'season_driver_vs_driver' }>
+): ApprovedSqlTemplateId {
+  // use raw pace template only when explicitly requested
+  if (intent.normalization === 'none') {
+    return 'season_driver_vs_driver_v1';
+  }
+  // default (including 'session_median_percent') to normalized percent pace
+  return 'season_driver_vs_driver_normalized_v1';
 }
 
 function selectHeadToHeadTemplate(

@@ -53,11 +53,12 @@ STATMUSE-STYLE BEHAVIOR:
    - Use when: Question compares 2 drivers for a full season WITHOUT mentioning a specific track
    - This is the DEFAULT for driver comparisons (no track mentioned)
 
-### 6. season_driver_vs_driver - Cross-team season comparison (raw pace, NO normalization)
+### 6. season_driver_vs_driver - Cross-team season comparison (session-median normalized)
    - Example: "Compare Verstappen and Norris 2025" (if not teammates)
-   - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
+   - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "session_median_percent", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question compares 2 drivers from DIFFERENT TEAMS for a full season WITHOUT mentioning a specific track
-   - IMPORTANT: Answer must state "This comparison does not normalize for car performance"
+   - Default normalization is "session_median_percent" (per-lap normalization against session median)
+   - ONLY use normalization: "none" if user explicitly asks for "raw pace" or "raw lap times"
 
 ### 7. driver_season_summary - Single driver season statistics
    - Example: "Show Verstappen 2025 season"
@@ -272,15 +273,19 @@ export class QueryTranslator {
   }
 
   async translate(naturalLanguageQuery: string): Promise<QueryIntent> {
+    console.log(`[QueryTranslator] translate() called for: "${naturalLanguageQuery}"`);
+
     // check cache first
     const cached = await getCachedIntent(naturalLanguageQuery);
     if (cached) {
-      console.log('[QueryTranslator] Cache hit');
-      return cached;
+      console.log('[QueryTranslator] Cache hit - applying defaults to cached intent');
+      // Apply defaults even to cached intents to ensure consistency
+      return this.applyIntentDefaults(cached, naturalLanguageQuery);
     }
 
     // use concurrency limiter for llm call
     try {
+      console.log('[QueryTranslator] Cache miss - calling LLM');
       const intent = await withConcurrencyLimit(async () => {
         return this.executeTranslation(naturalLanguageQuery);
       });
@@ -299,7 +304,7 @@ export class QueryTranslator {
   private async executeTranslation(naturalLanguageQuery: string): Promise<QueryIntent> {
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-haiku-20241022',
+        model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [
@@ -317,13 +322,44 @@ export class QueryTranslator {
       // Parse JSON
       const queryIntent = JSON.parse(responseText) as QueryIntent;
 
-      return queryIntent;
+      // Post-process: Apply default normalization for season_driver_vs_driver
+      // The LLM may return 'none' but we want session_median_percent as the default
+      return this.applyIntentDefaults(queryIntent, naturalLanguageQuery);
     } catch (error: any) {
       if (error instanceof SyntaxError) {
         throw new Error(`LLM returned invalid JSON: ${error.message}`);
       }
       throw new Error(`LLM translation failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Apply default values to the intent after LLM generation.
+   * This ensures consistent defaults regardless of what the LLM returns.
+   */
+  private applyIntentDefaults(intent: QueryIntent, rawQuery: string): QueryIntent {
+    console.log(`[QueryTranslator] applyIntentDefaults called: kind=${intent.kind}`);
+    const updated = { ...intent } as any;
+
+    // For season_driver_vs_driver, use session_median_percent as default normalization
+    // Only use 'none' if the user explicitly requested "raw pace" or "raw lap times"
+    if (intent.kind === 'season_driver_vs_driver') {
+      const lowerQuery = rawQuery.toLowerCase();
+      const wantsRawPace = lowerQuery.includes('raw pace') ||
+                          lowerQuery.includes('raw lap') ||
+                          lowerQuery.includes('raw times') ||
+                          lowerQuery.includes('absolute pace') ||
+                          lowerQuery.includes('actual lap time');
+
+      console.log(`[QueryTranslator] season_driver_vs_driver: normalization=${updated.normalization}, wantsRawPace=${wantsRawPace}`);
+
+      if (!wantsRawPace && (updated.normalization === 'none' || !updated.normalization)) {
+        console.log('[QueryTranslator] Applying session_median_percent normalization');
+        updated.normalization = 'session_median_percent';
+      }
+    }
+
+    return updated as QueryIntent;
   }
 
   /**

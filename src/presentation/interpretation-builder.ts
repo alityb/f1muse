@@ -378,6 +378,9 @@ function withDefaults(intent: MetricIntent): MetricIntent {
   if (!updated.normalization) {
     if (intent.kind === 'teammate_gap_summary_season') {
       updated.normalization = 'team_baseline';
+    } else if (intent.kind === 'season_driver_vs_driver') {
+      // Default to session-median percent normalization for cross-team season comparisons
+      updated.normalization = 'session_median_percent';
     } else {
       updated.normalization = 'none';
     }
@@ -406,7 +409,7 @@ function buildSeasonComparisonIntent(base: MetricIntent): MetricIntent {
     driver_b_id: (base as any).driver_b_id,
     season: base.season,
     metric: 'avg_true_pace',
-    normalization: 'none',
+    normalization: 'session_median_percent',
     clean_air_only: false,
     compound_context: 'mixed',
     session_scope: 'all',
@@ -696,22 +699,34 @@ function summarizeSeasonComparison(
   const faster = determineFasterDriver(difference, driverA, driverB);
   const overlapPct = overlapPercent(payload.driver_a_laps, payload.driver_b_laps);
 
+  // Determine if normalized or raw pace
+  const isNormalized = payload.normalization === 'session_median_percent';
+  const units = isNormalized ? '%' : 's';
+  const unitLabel = isNormalized ? '% vs field median' : 's';
+
   const summary = `${faster || 'Neither driver'} was faster over the ${intent.season} season by ` +
-    `${formatDecimal(Math.abs(difference))}s per lap on average.`;
+    `${formatDecimal(Math.abs(difference))}${units} per lap on average.`;
 
   const coverageLevel = resolveCoverageLevel(confidence.coverage_level);
   const coverage = coverageSummary('Season laps', payload.laps_considered, coverageLevel);
 
-  const bullets = [
-    `${driverA} avg pace: ${formatDecimal(payload.driver_a_value)}s`,
-    `${driverB} avg pace: ${formatDecimal(payload.driver_b_value)}s`,
-    `Coverage overlap: ${overlapPct}% (${formatInt(payload.driver_a_laps)} vs ${formatInt(payload.driver_b_laps)} laps)`,
-    'Scope: raw pace (no normalization)'
-  ];
-
-  if (confidence.sample_balance_flag === 'imbalanced') {
-    bullets[bullets.length - 1] = 'Scope: raw pace (no normalization); sample imbalance';
+  // Build scope bullet based on actual normalization used
+  let scopeBullet: string;
+  if (isNormalized) {
+    scopeBullet = 'Scope: session-median normalized (cross-circuit comparable)';
+  } else {
+    scopeBullet = 'Scope: raw pace (no normalization)';
   }
+  if (confidence.sample_balance_flag === 'imbalanced') {
+    scopeBullet += '; sample imbalance';
+  }
+
+  const bullets = [
+    `${driverA} avg pace: ${formatDecimal(payload.driver_a_value)}${unitLabel}`,
+    `${driverB} avg pace: ${formatDecimal(payload.driver_b_value)}${unitLabel}`,
+    `Coverage overlap: ${overlapPct}% (${formatInt(payload.driver_a_laps)} vs ${formatInt(payload.driver_b_laps)} laps)`,
+    scopeBullet
+  ];
 
   return {
     query_kind: intent.kind,

@@ -30,7 +30,8 @@ export function computeConfidence(intent: QueryIntent, rows: any[]): ConfidenceM
       return buildDualComparisonConfidenceFromRow(row);
 
     case 'driver_career_summary':
-      return buildLooseConfidence(parseInt(row.seasons_raced || '0'));
+      // career stats come from F1DB official records, not lap data
+      return { coverage_level: 'high', laps_considered: 0, notes: ['Official career statistics from F1DB'] };
 
     case 'race_results_summary':
       return { coverage_level: 'high', laps_considered: 0, notes: ['Official race results from F1DB'] };
@@ -68,6 +69,12 @@ export function computeConfidence(intent: QueryIntent, rows: any[]): ConfidenceM
 }
 
 function buildComparisonConfidence(row: any): ConfidenceMetadata {
+  // Check if this is normalized mode (has shared_races field)
+  if (row.shared_races !== undefined && row.shared_races !== null) {
+    return buildNormalizedComparisonConfidence(row);
+  }
+
+  // Raw pace mode - use lap counts
   const laps_a = parseInt(row.driver_a_laps || '0');
   const laps_b = parseInt(row.driver_b_laps || '0');
   const clean_air_laps_a = row.driver_a_clean_air_laps ? parseInt(row.driver_a_clean_air_laps) : undefined;
@@ -75,6 +82,38 @@ function buildComparisonConfidence(row: any): ConfidenceMetadata {
   const shared_valid_laps = row.shared_valid_laps ? parseInt(row.shared_valid_laps) : undefined;
 
   return computeComparisonConfidence(laps_a, laps_b, clean_air_laps_a, clean_air_laps_b, shared_valid_laps);
+}
+
+/**
+ * Build confidence for normalized percent pace mode.
+ * Confidence is based on shared_races count, not lap counts.
+ * Thresholds: valid ≥8 races, low_coverage ≥4 races, insufficient <4 races
+ */
+function buildNormalizedComparisonConfidence(row: any): ConfidenceMetadata {
+  const sharedRaces = parseInt(row.shared_races || '0', 10);
+  const coverageStatus = row.coverage_status || 'insufficient';
+
+  let coverage_level: CoverageLevel;
+  if (coverageStatus === 'valid') {
+    coverage_level = sharedRaces >= 15 ? 'high' : 'moderate';
+  } else if (coverageStatus === 'low_coverage') {
+    coverage_level = 'low';
+  } else {
+    coverage_level = 'insufficient';
+  }
+
+  const notes: string[] = [
+    `Based on ${sharedRaces} shared races (session-median normalized)`,
+    'Equal weight per race (not lap count)'
+  ];
+
+  if (coverageStatus === 'low_coverage') {
+    notes.push('Low coverage: 4-7 shared races');
+  } else if (coverageStatus === 'insufficient') {
+    notes.push('Insufficient coverage: fewer than 4 shared races');
+  }
+
+  return { coverage_level, laps_considered: sharedRaces, notes };
 }
 
 function buildRankingConfidence(rows: any[]): ConfidenceMetadata {

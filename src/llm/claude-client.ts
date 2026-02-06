@@ -19,7 +19,7 @@ import { getConfig } from './config';
 
 // Configuration
 const CONFIG = {
-  MODEL: 'claude-3-5-haiku-20241022',
+  MODEL: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
   MAX_TOKENS: 512,
   TEMPERATURE: 0,
   TIMEOUT_MS: 10000,
@@ -70,7 +70,8 @@ QUERY TYPES:
    {"kind":"teammate_gap_summary_season","driver_a_id":"Norris","driver_b_id":"Piastri","season":2025,"metric":"teammate_gap_raw","normalization":"team_baseline","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
 
 5. season_driver_vs_driver - cross-team comparison (no track)
-   {"kind":"season_driver_vs_driver","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   {"kind":"season_driver_vs_driver","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025,"metric":"avg_true_pace","normalization":"session_median_percent","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   Note: Use normalization:"session_median_percent" by default for cross-circuit comparable results. Only use "none" if user asks for "raw pace" or "raw lap times".
 
 6. driver_season_summary - single driver stats
    {"kind":"driver_season_summary","driver_id":"Verstappen","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
@@ -97,8 +98,10 @@ QUERY TYPES:
     {"kind":"qualifying_gap_drivers","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025}
 
 RULES:
+- If ANY track name appears (Monaco, Monza, Silverstone, Spa, Bahrain, Suzuka, Melbourne, Imola, Miami, Barcelona, Montreal, Spielberg, Budapest, Zandvoort, Baku, Singapore, Austin, COTA, Interlagos, Las Vegas, Qatar, Abu Dhabi, Shanghai, Jeddah) → use track-scoped query (cross_team_track_scoped_driver_comparison or track_fastest_drivers)
 - If "at [track]" → use track-scoped query
-- If no track + 2 drivers → teammate_gap_summary_season
+- If no track + 2 drivers from SAME team → teammate_gap_summary_season
+- If no track + 2 drivers from DIFFERENT teams → season_driver_vs_driver
 - If "clean air" → clean_air_only:true, metric:"clean_air_pace"
 - Use driver names as-is (Verstappen, Hamilton, Norris)
 - Use track names as-is (Monaco, Silverstone, Monza)
@@ -318,12 +321,93 @@ export class ClaudeClient {
       throw new Error(`Invalid query kind: ${parsed.kind}`);
     }
 
-    if (!parsed.season) {
-      parsed.season = 2025; // Default season
+    // Extract year from raw query - always trust explicit year in query over LLM parsing
+    const yearMatch = rawQuery.match(/\b(20\d{2})\b/);
+    if (yearMatch) {
+      const explicitYear = parseInt(yearMatch[1], 10);
+      // Override if LLM returned different year or no year
+      if (!parsed.season || parsed.season !== explicitYear) {
+        console.log(`[Claude] Overriding LLM season ${parsed.season} with explicit year ${explicitYear} from query`);
+        parsed.season = explicitYear;
+      }
+    } else if (!parsed.season) {
+      parsed.season = 2025; // default season when no year specified
     }
 
     // Ensure raw_query is set
     parsed.raw_query = rawQuery;
+
+    // Extract track from raw query - upgrade to track-scoped if track detected
+    const lowerQuery = rawQuery.toLowerCase();
+    const TRACK_PATTERNS: Record<string, string> = {
+      'monza': 'Monza',
+      'monaco': 'Monaco',
+      'silverstone': 'Silverstone',
+      'spa': 'Spa',
+      'suzuka': 'Suzuka',
+      'bahrain': 'Bahrain',
+      'jeddah': 'Jeddah',
+      'melbourne': 'Melbourne',
+      'albert park': 'Melbourne',
+      'imola': 'Imola',
+      'miami': 'Miami',
+      'barcelona': 'Barcelona',
+      'montreal': 'Montreal',
+      'spielberg': 'Spielberg',
+      'red bull ring': 'Spielberg',
+      'hungaroring': 'Budapest',
+      'budapest': 'Budapest',
+      'zandvoort': 'Zandvoort',
+      'baku': 'Baku',
+      'singapore': 'Singapore',
+      'cota': 'Austin',
+      'austin': 'Austin',
+      'mexico': 'Mexico City',
+      'interlagos': 'Interlagos',
+      'sao paulo': 'Interlagos',
+      'las vegas': 'Las Vegas',
+      'qatar': 'Qatar',
+      'lusail': 'Qatar',
+      'abu dhabi': 'Abu Dhabi',
+      'yas marina': 'Abu Dhabi',
+      'shanghai': 'Shanghai',
+      'china': 'Shanghai',
+    };
+
+    let detectedTrack: string | null = null;
+    for (const [pattern, trackId] of Object.entries(TRACK_PATTERNS)) {
+      if (lowerQuery.includes(pattern)) {
+        detectedTrack = trackId;
+        break;
+      }
+    }
+
+    // If track detected and query is season-scoped driver comparison, upgrade to track-scoped
+    if (detectedTrack && !parsed.track_id) {
+      parsed.track_id = detectedTrack;
+      console.log(`[Claude] Detected track "${detectedTrack}" from query, adding to intent`);
+
+      // Upgrade query kind to track-scoped if it was season-scoped
+      if (parsed.kind === 'season_driver_vs_driver') {
+        parsed.kind = 'cross_team_track_scoped_driver_comparison';
+        console.log(`[Claude] Upgraded query kind to cross_team_track_scoped_driver_comparison`);
+      }
+    }
+
+    // Apply default normalization for season_driver_vs_driver
+    // Use session_median_percent unless user explicitly asked for raw pace
+    if (parsed.kind === 'season_driver_vs_driver') {
+      const lowerQuery = rawQuery.toLowerCase();
+      const wantsRawPace = lowerQuery.includes('raw pace') ||
+                          lowerQuery.includes('raw lap') ||
+                          lowerQuery.includes('raw times') ||
+                          lowerQuery.includes('absolute pace') ||
+                          lowerQuery.includes('actual lap time');
+
+      if (!wantsRawPace && (parsed.normalization === 'none' || !parsed.normalization)) {
+        parsed.normalization = 'session_median_percent';
+      }
+    }
 
     return parsed as QueryIntent;
   }

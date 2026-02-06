@@ -319,3 +319,84 @@ returned when driver/track cannot be resolved:
 recommended for production:
 - `/nl-query`: 10 req/min (llm calls are expensive)
 - `/query`: 100 req/min
+
+---
+
+## track id resolution (2025 update)
+
+### the two-id problem
+
+two id systems exist in the database:
+- `race.circuit_id`: circuit names (e.g., `monza`, `silverstone`, `bahrain`)
+- `laps_normalized.track_id`: grand prix names (e.g., `italian_grand_prix`, `british_grand_prix`, `bahrain_grand_prix`)
+
+**resolution**: the `TrackResolver` class (`src/identity/track-resolver.ts`) handles conversion:
+
+```
+user input    →    trackresolver    →    laps_normalized.track_id
+"monza"       →         →           →    "italian_grand_prix"
+"monaco"      →         →           →    "monaco_grand_prix"
+"silverstone" →         →           →    "british_grand_prix"
+```
+
+**join strategy**: all cross-table joins use `season + round` instead of track_id to avoid id mismatches.
+
+### verified tracks (2025-02-06)
+
+- monza → italian_grand_prix ✓
+- monaco → monaco_grand_prix ✓
+- all 24 races in 2024 and 2025 verified complete
+
+---
+
+## redis caching (2025 update)
+
+### decision: redis is optional
+
+redis caching is designed for high-traffic deployments but is NOT required:
+
+| environment | REDIS_URL | behavior |
+|-------------|-----------|----------|
+| development | not set | normal operation, no cache |
+| development | set | redis cache enabled |
+| production | not set | normal operation, no cache, no warning |
+| production | set | redis cache enabled |
+
+**rationale**:
+- postgresql query caching (`api_query_cache` table) provides baseline caching
+- redis adds millisecond-level response times but requires infrastructure
+- most deployments work fine without redis
+
+### cache layers
+
+1. **intent cache**: postgresql-backed, caches llm translations
+2. **query cache**: postgresql-backed, caches sql results
+3. **redis cache** (optional): in-memory, millisecond latency
+
+---
+
+## production invariants (2025 update)
+
+see `docs/PRODUCTION_INVARIANTS.md` for enforced data integrity rules.
+
+**enforced invariants**:
+1. `NORMALIZATION_MISMATCH`: normalized output must match intent
+2. `UNKNOWN_NORMALIZATION`: only recognized types allowed
+3. `INVALID_COVERAGE`: coverage status must be present for comparison queries
+
+**configuration**:
+- development: always throw on violations
+- production: throw if `STRICT_INVARIANTS=true`, log loudly otherwise
+
+---
+
+## data completeness (2025 update)
+
+see `docs/DATA_INGESTION_FREEZE.md` for verified data state.
+
+**status**: 2024 and 2025 seasons are 100% complete and frozen.
+
+**audit command**:
+```bash
+npx ts-node scripts/audit-data-completeness.ts
+```

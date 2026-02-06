@@ -8,21 +8,8 @@ import { computeConfidence } from './compute-confidence';
 export function buildInterpretation(intent: QueryIntent, rows: any[]): Interpretation {
   const rowCoverage = computeRowCoverage(intent, rows);
 
-  if (rowCoverage.rows_excluded_reason) {
-    const requirementLabel = intent.kind === 'teammate_gap_summary_season' ? 'shared races' : 'laps';
-    throw new Error(
-      `INSUFFICIENT_DATA: ${rowCoverage.rows_excluded_reason}. ` +
-      `Minimum requirement is ${rowCoverage.min_lap_requirement} ${requirementLabel}.`
-    );
-  }
-
-  if (rows.length === 0) {
-    const requirementLabel = intent.kind === 'teammate_gap_summary_season' ? 'shared races' : 'laps';
-    throw new Error(
-      `INSUFFICIENT_DATA: No data found for the specified query. ` +
-      `Minimum requirement is ${rowCoverage.min_lap_requirement} ${requirementLabel}.`
-    );
-  }
+  // coverage is descriptive only - never blocks execution
+  // confidence.level is computed separately in compute-confidence.ts
 
   const confidence = computeConfidence(intent, rows);
   const metricDefinition = getMetricDefinition(intent);
@@ -49,6 +36,11 @@ function getMetricDefinition(intent: QueryIntent): string {
     return 'Race results (no pace metrics)';
   }
 
+  // check for normalized percent pace (season_driver_vs_driver default)
+  if (intent.kind === 'season_driver_vs_driver' && intent.normalization !== 'none') {
+    return 'Session-median normalized percent pace. Each lap normalized as (lap_time - session_median) / session_median * 100. Negative = faster than field median, positive = slower. Aggregated: median per race, then mean across races (equal weight per race).';
+  }
+
   switch (intent.metric) {
     case 'avg_true_pace':
       return 'Average true pace in seconds (lower is faster). Excludes invalid, pit, and heavily traffic-affected laps.';
@@ -63,8 +55,16 @@ function getMetricDefinition(intent: QueryIntent): string {
 
 function getComparisonBasis(intent: QueryIntent): string {
   const asAny = intent as any;
+
+  // dynamic basis for season_driver_vs_driver based on normalization
+  if (intent.kind === 'season_driver_vs_driver') {
+    if (intent.normalization === 'none') {
+      return 'Season-scoped cross-team comparison (raw pace, no normalization)';
+    }
+    return 'Season-scoped cross-team comparison (session-median normalized percent pace)';
+  }
+
   const basisMap: Record<string, string> = {
-    season_driver_vs_driver: 'Season-scoped cross-team comparison (raw pace, no normalization)',
     driver_season_summary: `Season summary for ${asAny.driver_id}`,
     driver_career_summary: `Career summary for ${asAny.driver_id}`,
     cross_team_track_scoped_driver_comparison: `Cross-team track-scoped comparison at ${(intent as any).track_id} (raw pace, track-bounded)`,
@@ -89,6 +89,14 @@ function getComparisonBasis(intent: QueryIntent): string {
 }
 
 function getNormalizationScope(intent: QueryIntent): string {
+  // dynamic scope for season_driver_vs_driver based on normalization
+  if (intent.kind === 'season_driver_vs_driver') {
+    if (intent.normalization === 'none') {
+      return 'No normalization (raw pace in seconds)';
+    }
+    return 'Session-median percent normalization (cross-circuit comparable)';
+  }
+
   const scopeMap: Record<string, string> = {
     driver_season_summary: 'Non-normalized summary statistics',
     driver_career_summary: 'Non-normalized summary statistics',
@@ -146,6 +154,24 @@ function buildConfidenceNotes(intent: QueryIntent, rows: any[]): string[] {
     }
   }
 
+  // add confidence notes for normalized season_driver_vs_driver
+  if (intent.kind === 'season_driver_vs_driver' && rows.length > 0) {
+    const row = rows[0];
+    if (row.shared_races !== undefined) {
+      // normalized mode
+      const coverageStatus = row.coverage_status || 'unknown';
+      const sharedRaces = row.shared_races || 0;
+
+      notes.push(`coverage_status: ${coverageStatus}`);
+      notes.push(`shared_races: ${sharedRaces}`);
+      notes.push('Confidence based on shared race count, not lap count.');
+
+      if (coverageStatus === 'low_coverage') {
+        notes.push('Low coverage: Analysis based on fewer than 8 shared races.');
+      }
+    }
+  }
+
   return notes;
 }
 
@@ -173,6 +199,18 @@ function getOtherConstraints(intent: QueryIntent): string[] {
 
 function getKindSpecificConstraints(intent: QueryIntent): string[] {
   const constraints: string[] = [];
+
+  if (intent.kind === 'season_driver_vs_driver') {
+    if (intent.normalization === 'none') {
+      constraints.push('Raw average lap time comparison');
+      constraints.push('Not normalized for track differences');
+    } else {
+      constraints.push('Session-median percent normalized');
+      constraints.push('Equal weight per race (not lap count)');
+      constraints.push('Cross-circuit comparable');
+      constraints.push('Coverage: valid ≥8 shared races, low_coverage ≥4 shared races');
+    }
+  }
 
   if (intent.kind === 'teammate_gap_summary_season') {
     constraints.push('Requires valid teammate pair (same team, same season)');

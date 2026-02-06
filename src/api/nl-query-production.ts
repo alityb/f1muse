@@ -31,6 +31,14 @@ import {
 } from './nl-query-errors';
 import { nlQueryRateLimiter, MAX_NL_QUERY_LENGTH } from '../middleware/rate-limiter';
 
+// debug info attached to every response
+interface ExecutionDebugInfo {
+  intent_cache_hit: boolean;
+  sql_executed: boolean;
+  rows_returned: number;
+  coverage_reason: string | null;
+}
+
 // Request/Response types
 interface NLQueryRequest {
   question: string;
@@ -203,6 +211,14 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
           total_latency_ms: totalLatencyMs,
         });
 
+        // debug info for cached response
+        const cachedDebug: ExecutionDebugInfo = {
+          intent_cache_hit: true,
+          sql_executed: false,
+          rows_returned: cacheResult.data.result?.metadata?.rows ?? 0,
+          coverage_reason: null
+        };
+
         metrics.decrementConcurrentRequests();
         nlQueryCounters.incrementSuccess();
         return res.json({
@@ -214,6 +230,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
           result: cacheResult.data.result,
           answer: cacheResult.data.answer,
           cached: true,
+          debug: cachedDebug,
           metadata: {
             llm_latency_ms: llmLatencyMs,
             sql_latency_ms: 0,
@@ -252,6 +269,14 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
           error: interpretation.result.reason,
         });
 
+        // build debug info for error case - sql was still executed
+        const errorDebug: ExecutionDebugInfo = {
+          intent_cache_hit: false,
+          sql_executed: true,
+          rows_returned: 0,
+          coverage_reason: interpretation.result.reason || null
+        };
+
         metrics.decrementConcurrentRequests();
         const error = buildErrorResponse(
           requestId,
@@ -262,6 +287,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
             details: {
               answer: interpretation.answer,
               fallbacks: interpretation.fallbacks,
+              debug: errorDebug,
             },
           }
         );
@@ -292,6 +318,18 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
         total_latency_ms: totalLatencyMs,
       });
 
+      // build debug info from interpretation
+      const debug: ExecutionDebugInfo = {
+        intent_cache_hit: false,
+        sql_executed: true,
+        rows_returned: interpretation.result && 'metadata' in interpretation.result
+          ? (interpretation.result as any).metadata?.rows ?? 0
+          : 0,
+        coverage_reason: interpretation.result && 'interpretation' in interpretation.result
+          ? (interpretation.result as any).interpretation?.constraints?.rows_excluded_reason ?? null
+          : null
+      };
+
       metrics.decrementConcurrentRequests();
       nlQueryCounters.incrementSuccess();
       return res.json({
@@ -306,6 +344,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
         fallbacks: interpretation.fallbacks,
         supplemental_results: interpretation.supplemental_results,
         canonical_response: interpretation.canonical_response,
+        debug,
         metadata: {
           llm_latency_ms: llmLatencyMs,
           sql_latency_ms: sqlLatencyMs,

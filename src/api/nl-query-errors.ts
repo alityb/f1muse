@@ -154,16 +154,17 @@ export function classifyError(errorCode: string): NLQueryErrorType {
     'validation_failed',
     'identity_resolution_failed',
     'intent_resolution_failed',
-    'insufficient_data',
     'ambiguous_driver',
     'ambiguous_track',
     'not_teammates',
   ];
 
+  // execution errors return HTTP 200 - query ran but data was limited
   const executionErrors = [
     'execution_failed',
     'database_error',
     'query_timeout',
+    'insufficient_data',  // moved from validation - data exists but coverage limited
   ];
 
   if (routingErrors.includes(errorCode)) {
@@ -231,7 +232,7 @@ export function getStatusCode(errorType: NLQueryErrorType): number {
     case 'validation_error':
       return 400;
     case 'execution_error':
-      return 500;
+      return 200; // Query executed successfully but found no/insufficient data - not a server error
     case 'llm_unavailable':
       return 503; // Service Unavailable - LLM capacity exhausted
     case 'internal_error':

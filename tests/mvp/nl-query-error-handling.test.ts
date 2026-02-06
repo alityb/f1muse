@@ -33,13 +33,14 @@ describe('Structured Error Typing', () => {
       expect(classifyError('ambiguous_driver')).toBe('validation_error');
       expect(classifyError('ambiguous_track')).toBe('validation_error');
       expect(classifyError('not_teammates')).toBe('validation_error');
-      expect(classifyError('insufficient_data')).toBe('validation_error');
     });
 
     it('should classify execution errors', () => {
       expect(classifyError('execution_failed')).toBe('execution_error');
       expect(classifyError('database_error')).toBe('execution_error');
       expect(classifyError('query_timeout')).toBe('execution_error');
+      // insufficient_data is execution_error - query ran but data was limited
+      expect(classifyError('insufficient_data')).toBe('execution_error');
     });
 
     it('should default to internal_error for unknown codes', () => {
@@ -61,8 +62,10 @@ describe('Structured Error Typing', () => {
       expect(getStatusCode('validation_error')).toBe(400);
     });
 
-    it('should return 500 for execution errors', () => {
-      expect(getStatusCode('execution_error')).toBe(500);
+    it('should return 200 for execution errors (query ran but data limited)', () => {
+      // execution_error returns 200 because the query executed successfully
+      // but found no/insufficient data - this is not a server error
+      expect(getStatusCode('execution_error')).toBe(200);
     });
 
     it('should return 500 for internal errors', () => {
@@ -215,8 +218,8 @@ describe('Error Response Contract', () => {
     expect(errorWithoutKind).toHaveProperty('query_kind', null);
   });
 
-  it('should return 4xx for client errors and 5xx for server errors', () => {
-    // 4xx range
+  it('should return appropriate status codes for error types', () => {
+    // 4xx range - client errors
     expect(getStatusCode('routing_error')).toBeGreaterThanOrEqual(400);
     expect(getStatusCode('routing_error')).toBeLessThan(500);
     expect(getStatusCode('intent_resolution_error')).toBeGreaterThanOrEqual(400);
@@ -224,8 +227,10 @@ describe('Error Response Contract', () => {
     expect(getStatusCode('validation_error')).toBeGreaterThanOrEqual(400);
     expect(getStatusCode('validation_error')).toBeLessThan(500);
 
-    // 5xx range
-    expect(getStatusCode('execution_error')).toBeGreaterThanOrEqual(500);
+    // 200 - execution errors (query ran successfully but data limited)
+    expect(getStatusCode('execution_error')).toBe(200);
+
+    // 5xx range - server errors
     expect(getStatusCode('internal_error')).toBeGreaterThanOrEqual(500);
   });
 });

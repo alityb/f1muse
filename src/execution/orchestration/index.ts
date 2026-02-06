@@ -1,1 +1,1 @@
-export { QueryOrchestrator, ExecuteOptions } from './query-orchestrator';
+export { QueryOrchestrator, ExecuteOptions, ExecutionDebugInfo, ExecuteResult } from './query-orchestrator';

@@ -21,6 +21,7 @@ export type ApprovedMetric =
  */
 export type NormalizationStrategy =
   | 'team_baseline'           // teammate-relative (only for teammate_gap_raw)
+  | 'session_median_percent'  // session-median normalized percent pace (cross-team default)
   | 'none';                   // no normalization (raw pace)
 
 /**

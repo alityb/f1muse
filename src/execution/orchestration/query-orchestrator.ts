@@ -24,9 +24,24 @@ import {
   buildDualComparisonErrorResponse
 } from '../pipeline';
 
+// debug info attached to every response
+export interface ExecutionDebugInfo {
+  intent_cache_hit: boolean;
+  sql_executed: boolean;
+  rows_returned: number;
+  coverage_reason: string | null;
+  template_id?: string;
+}
+
 export interface ExecuteOptions {
   force_refresh?: boolean;
   tracer?: DebugTracer;
+}
+
+// execution result with debug info
+export interface ExecuteResult {
+  result: QueryResult | QueryError;
+  debug: ExecutionDebugInfo;
 }
 
 export class QueryOrchestrator {
@@ -57,30 +72,58 @@ export class QueryOrchestrator {
     intent: QueryIntent,
     tracerOrOptions?: DebugTracer | ExecuteOptions
   ): Promise<QueryResult | QueryError> {
+    const { result } = await this.executeWithDebug(intent, tracerOrOptions);
+    return result;
+  }
+
+  async executeWithDebug(
+    intent: QueryIntent,
+    tracerOrOptions?: DebugTracer | ExecuteOptions
+  ): Promise<ExecuteResult> {
     const options = normalizeOptions(tracerOrOptions);
     const tracer = options.tracer;
     const forceRefresh = options.force_refresh ?? false;
+
+    const debug: ExecutionDebugInfo = {
+      intent_cache_hit: false,
+      sql_executed: false,
+      rows_returned: 0,
+      coverage_reason: null
+    };
 
     try {
       tracer?.start();
       tracer?.setIntent(intent as unknown as Record<string, unknown>);
 
       const validationResult = await this.validateIntent(intent, tracer);
-      if (!validationResult.ok) { return validationResult.error; }
+      if (!validationResult.ok) {
+        return { result: validationResult.error, debug };
+      }
 
       const resolvedIntent = await this.resolveIntent(intent, tracer);
-      if (!resolvedIntent.ok) { return resolvedIntent.error; }
+      if (!resolvedIntent.ok) {
+        return { result: resolvedIntent.error, debug };
+      }
 
       const cacheResult = await this.checkCache(resolvedIntent.data, tracer, forceRefresh);
-      if (cacheResult) { return cacheResult; }
+      if (cacheResult) {
+        debug.intent_cache_hit = true;
+        debug.sql_executed = false;
+        debug.rows_returned = cacheResult.metadata?.rows ?? 0;
+        return { result: cacheResult, debug };
+      }
 
-      return await this.executeQuery(resolvedIntent.data, tracer);
+      const queryResult = await this.executeQuery(resolvedIntent.data, tracer, debug);
+      return { result: queryResult, debug };
     } catch (err) {
       tracer?.recordError(String(err));
       return {
-        error: 'execution_failed',
-        reason: `Query execution failed: ${err}`,
-        details: { error: String(err) }
+        result: {
+          error: 'execution_failed',
+          reason: `Query execution failed: ${err}`,
+          details: { error: String(err) }
+        },
+        debug
       };
     }
   }
@@ -200,10 +243,12 @@ export class QueryOrchestrator {
 
   private async executeQuery(
     intent: QueryIntent,
-    tracer?: DebugTracer
+    tracer?: DebugTracer,
+    debug?: ExecutionDebugInfo
   ): Promise<QueryResult | QueryError> {
     const templateId = selectTemplate(intent);
     tracer?.setSqlTemplate(templateId);
+    if (debug) { debug.template_id = templateId; }
 
     const sql = this.templateLoader.load(templateId);
     tracer?.setSqlQueryPattern(sanitizeSqlForDebug(sql));
@@ -214,11 +259,22 @@ export class QueryOrchestrator {
     const result = await this.pool.query(sql, params);
     stopSqlTiming();
 
+    // always mark sql as executed
+    if (debug) {
+      debug.sql_executed = true;
+      debug.rows_returned = result.rows.length;
+    }
+
     tracer?.setRowsReturned(result.rows.length);
     tracer?.setDataSource('database');
 
+    // 0 rows is a valid result that should not be cached but should return gracefully
     if (result.rows.length === 0) {
       tracer?.recordError('No rows returned');
+      if (debug) {
+        debug.coverage_reason = 'no data found for query scope';
+      }
+      // return error but DO NOT cache - this is key
       return {
         error: 'execution_failed',
         reason: 'INSUFFICIENT_DATA: No data found for the specified query. This may indicate insufficient laps or missing data for the requested scope.'
@@ -232,6 +288,11 @@ export class QueryOrchestrator {
       data_scope: getDataScope(intent),
       rows: result.rows.length
     };
+
+    // capture coverage reason from interpretation for debug
+    if (debug && interpretation.constraints.rows_excluded_reason) {
+      debug.coverage_reason = interpretation.constraints.rows_excluded_reason;
+    }
 
     const queryResult: QueryResult = {
       intent,

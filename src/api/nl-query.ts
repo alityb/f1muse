@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { QueryTranslator } from '../llm/query-translator';
 import { MistralIntentClient } from '../llm/mistral-client';
 import { QueryExecutor } from '../execution/query-executor';
+import { ExecutionDebugInfo } from '../execution/orchestration';
 import { QueryIntent } from '../types/query-intent';
 import { buildInterpretationResponse } from '../presentation/interpretation-builder';
 import { applyConversationContext } from '../conversation/context-resolver';
@@ -126,6 +127,7 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
       } else if (backend === 'claude' && claudeTranslator) {
         try {
           queryIntent = await claudeTranslator.translate(question);
+          console.log(`[NL Query] After translate - normalization: ${(queryIntent as any).normalization}`);
         } catch (err: any) {
           const fallbackIntent = buildFallbackIntent(question);
           if (!fallbackIntent) {
@@ -180,6 +182,15 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
 
       if ('error' in interpretation.result) {
         const errorCode = interpretation.result.error as string;
+
+        // build debug info for error case - sql was still executed
+        const errorDebug: ExecutionDebugInfo = {
+          intent_cache_hit: false,
+          sql_executed: true,  // sql ran but returned error/no data
+          rows_returned: 0,
+          coverage_reason: interpretation.result.reason || null
+        };
+
         const error = buildErrorResponse(
           requestId,
           errorCode,
@@ -191,6 +202,7 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
               fallbacks: interpretation.fallbacks,
               supplemental_results: interpretation.supplemental_results,
               canonical_response: interpretation.canonical_response,
+              debug: errorDebug,
             },
           }
         );
@@ -199,6 +211,19 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
 
       const answer = interpretation.answer;
       nlQueryCounters.incrementSuccess();
+
+      // build debug info from interpretation
+      const debug: ExecutionDebugInfo = {
+        intent_cache_hit: false,  // intent cache is separate from query cache
+        sql_executed: !('error' in interpretation.result),
+        rows_returned: interpretation.result && 'metadata' in interpretation.result
+          ? (interpretation.result as any).metadata?.rows ?? 0
+          : 0,
+        coverage_reason: interpretation.result && 'interpretation' in interpretation.result
+          ? (interpretation.result as any).interpretation?.constraints?.rows_excluded_reason ?? null
+          : null
+      };
+
       const response: any = {
         request_id: requestId,
         error_type: null,
@@ -210,6 +235,7 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
         fallbacks: interpretation.fallbacks,
         supplemental_results: interpretation.supplemental_results,
         canonical_response: interpretation.canonical_response,
+        debug,
         metadata: {
           llmBackend: backend,
           fallbackUsed

@@ -1,27 +1,19 @@
 -- Driver career summary (championships, seasons raced, podiums, wins, pace trend)
 -- Parameters: $1=driver_id
+--
+-- seasons_raced comes from F1DB season_driver_standing table (complete history 1950-present)
 
-WITH season_list AS (
-  SELECT sed.year
-  FROM season_entrant_driver sed
-  WHERE sed.driver_id = $1
-    AND sed.test_driver IS NOT TRUE
-  UNION
-  SELECT dse.year
-  FROM driver_season_entries dse
-  WHERE dse.driver_id = $1
-),
-season_stats AS (
-  SELECT
-    COUNT(*) AS seasons_raced,
-    MIN(year) AS first_season,
-    MAX(year) AS last_season
-  FROM season_list
+WITH seasons_from_standings AS (
+  -- Use season_driver_standing for accurate seasons count (F1DB authoritative)
+  -- Handle both underscore and hyphen formats
+  SELECT COUNT(DISTINCT year) AS seasons_raced
+  FROM season_driver_standing
+  WHERE driver_id = $1 OR driver_id = REPLACE($1, '_', '-')
 ),
 championships AS (
   SELECT COUNT(*) AS championships
   FROM season_driver_standing sds
-  WHERE sds.driver_id = $1
+  WHERE (sds.driver_id = $1 OR sds.driver_id = REPLACE($1, '_', '-'))
     AND sds.position_number = 1
 ),
 career_results AS (
@@ -56,9 +48,11 @@ pace_bounds AS (
 SELECT
   d.id AS driver_id,
   COALESCE(d.total_championship_wins, championships.championships, 0) AS championships,
-  COALESCE(season_stats.seasons_raced, 0) AS seasons_raced,
+  -- seasons_raced from F1DB season_driver_standing (authoritative, complete history)
+  COALESCE(seasons_from_standings.seasons_raced, 0) AS seasons_raced,
   COALESCE(d.total_podiums, career_results.career_podiums, 0) AS career_podiums,
   COALESCE(d.total_race_wins, career_results.career_wins, 0) AS career_wins,
+  d.total_race_starts AS total_race_entries,
   pace_bounds.start_season,
   pace_bounds.start_value,
   pace_bounds.end_season,
@@ -73,7 +67,7 @@ SELECT
     ELSE NULL
   END AS pace_trend_per_season
 FROM driver d
-LEFT JOIN season_stats ON TRUE
+LEFT JOIN seasons_from_standings ON TRUE
 LEFT JOIN championships ON TRUE
 LEFT JOIN career_results ON TRUE
 LEFT JOIN pace_bounds ON TRUE
