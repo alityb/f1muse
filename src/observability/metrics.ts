@@ -58,6 +58,10 @@ class MetricsCollector {
   private intentCacheHits: number = 0;
   private intentCacheMisses: number = 0;
 
+  // Rate limiting and bot protection metrics
+  private rateLimitBlocks: Map<string, number> = new Map();
+  private botBlocks: Map<string, number> = new Map();
+
   constructor() {
     this.nlParseLatency = this.createHistogram();
     this.sqlExecutionLatency = this.createHistogram();
@@ -163,6 +167,17 @@ class MetricsCollector {
   getIntentCacheHitRate(): number {
     const total = this.intentCacheHits + this.intentCacheMisses;
     return total > 0 ? this.intentCacheHits / total : 0;
+  }
+
+  // Rate limiting metrics
+  incrementRateLimitBlock(limiterName: string, reason: 'burst' | 'window'): void {
+    const key = `${limiterName}:${reason}`;
+    this.rateLimitBlocks.set(key, (this.rateLimitBlocks.get(key) || 0) + 1);
+  }
+
+  // Bot protection metrics
+  incrementBotBlock(reason: 'missing_ua' | 'bot_ua'): void {
+    this.botBlocks.set(reason, (this.botBlocks.get(reason) || 0) + 1);
   }
 
   // Get cache hit rate
@@ -294,6 +309,31 @@ class MetricsCollector {
     sections.push(`# TYPE f1muse_intent_cache_hit_rate gauge`);
     sections.push(`f1muse_intent_cache_hit_rate ${this.getIntentCacheHitRate().toFixed(4)}`);
 
+    // Rate limit blocks
+    sections.push(`# HELP f1muse_rate_limit_blocks_total Rate limit blocks by limiter and reason`);
+    sections.push(`# TYPE f1muse_rate_limit_blocks_total counter`);
+    if (this.rateLimitBlocks.size === 0) {
+      sections.push(`f1muse_rate_limit_blocks_total{limiter="nl-query",reason="burst"} 0`);
+      sections.push(`f1muse_rate_limit_blocks_total{limiter="nl-query",reason="window"} 0`);
+    } else {
+      for (const [key, count] of this.rateLimitBlocks) {
+        const [limiter, reason] = key.split(':');
+        sections.push(`f1muse_rate_limit_blocks_total{limiter="${limiter}",reason="${reason}"} ${count}`);
+      }
+    }
+
+    // Bot blocks
+    sections.push(`# HELP f1muse_bot_blocks_total Bot protection blocks by reason`);
+    sections.push(`# TYPE f1muse_bot_blocks_total counter`);
+    if (this.botBlocks.size === 0) {
+      sections.push(`f1muse_bot_blocks_total{reason="missing_ua"} 0`);
+      sections.push(`f1muse_bot_blocks_total{reason="bot_ua"} 0`);
+    } else {
+      for (const [reason, count] of this.botBlocks) {
+        sections.push(`f1muse_bot_blocks_total{reason="${reason}"} ${count}`);
+      }
+    }
+
     return sections.join('\n\n') + '\n';
   }
 
@@ -345,6 +385,8 @@ class MetricsCollector {
         misses: this.intentCacheMisses,
         hit_rate: this.getIntentCacheHitRate(),
       },
+      rate_limit_blocks: Object.fromEntries(this.rateLimitBlocks),
+      bot_blocks: Object.fromEntries(this.botBlocks),
     };
   }
 
@@ -366,6 +408,8 @@ class MetricsCollector {
     this.llmQueueDepth = 0;
     this.intentCacheHits = 0;
     this.intentCacheMisses = 0;
+    this.rateLimitBlocks.clear();
+    this.botBlocks.clear();
   }
 }
 

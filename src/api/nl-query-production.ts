@@ -14,7 +14,7 @@
  * 7. Response
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeClient, getClaudeClient } from '../llm/claude-client';
@@ -29,7 +29,31 @@ import {
   getStatusCode,
   nlQueryCounters,
 } from './nl-query-errors';
-import { nlQueryRateLimiter, MAX_NL_QUERY_LENGTH } from '../middleware/rate-limiter';
+import {
+  nlQueryRateLimiter,
+  MAX_NL_QUERY_LENGTH,
+  botProtection,
+  applyBotProtectionDelay,
+} from '../middleware/rate-limiter';
+
+/**
+ * Emergency kill switch middleware
+ * Set DISABLE_NL_QUERY=true to instantly disable the endpoint without redeploying
+ */
+function emergencyKillSwitch(_req: Request, res: Response, next: NextFunction): void {
+  const disabled = process.env.DISABLE_NL_QUERY === 'true';
+  if (disabled) {
+    res.status(503).json({
+      error_type: 'service_unavailable',
+      error_code: 'endpoint_disabled',
+      reason: 'The natural language query endpoint is temporarily disabled for maintenance.',
+      retry_after_seconds: 300,
+    });
+    return;
+  }
+  next();
+}
+
 
 // debug info attached to every response
 interface ExecutionDebugInfo {
@@ -97,7 +121,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
     }
   };
 
-  router.post('/nl-query', nlQueryRateLimiter.middleware(), async (req: Request, res: Response) => {
+  router.post('/nl-query', emergencyKillSwitch, botProtection({ delayMs: 150 }), nlQueryRateLimiter.middleware(), async (req: Request, res: Response) => {
     const requestId = uuidv4();
     const startTime = Date.now();
     let queryKind: string | null = null;
@@ -240,6 +264,9 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
         });
       }
 
+      // Apply bot protection delay after cache miss (before expensive operations)
+      await applyBotProtectionDelay(req);
+
       // Step 3: Execute query
       const sqlStartTime = Date.now();
       const interpretation = await buildInterpretationResponse({
@@ -300,7 +327,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
         answer: interpretation.answer,
         canonical_response: interpretation.canonical_response,
       };
-      redisCache.set(cacheKey, cacheData, queryIntent.season).catch((err) => {
+      redisCache.set(cacheKey, cacheData, queryIntent.season, queryIntent.kind).catch((err) => {
         console.warn(`[Redis] Failed to cache result: ${err.message}`);
       });
 
