@@ -104,7 +104,8 @@ SELECT
   r.official_name AS race_name,
   r.date AS race_date,
   c.name AS circuit_name,
-  rd.position_number AS position,
+  -- Use position_text for display (handles DNF, DSQ, DNS, etc.)
+  COALESCE(rd.position_number::TEXT, rd.position_text, 'N/A') AS position,
   d.id AS driver_id,
   CONCAT(d.first_name, ' ', d.last_name) AS driver_name,
   con.name AS constructor_name,
@@ -112,11 +113,14 @@ SELECT
   -- P1 gets full race time, P2+ get gap from leader (or laps behind, or DNF reason)
   CASE
     WHEN rd.position_number = 1 THEN rd.race_time
+    WHEN rd.position_number IS NULL THEN COALESCE(rd.race_reason_retired, rd.position_text, 'N/A')
     ELSE COALESCE(rd.race_gap, rd.race_reason_retired, 'N/A')
   END AS race_time,
   rd.fastest_lap_time AS fastest_lap,
   rd.race_grid_position_number AS grid_position,
-  rd.race_points AS points
+  rd.race_points AS points,
+  -- Sort order: classified first by position, then DNF/DSQ/etc by laps completed
+  COALESCE(rd.position_number, 999) AS sort_position
 FROM
   race r
   INNER JOIN grand_prix gp ON r.grand_prix_id = gp.id
@@ -144,4 +148,4 @@ WHERE
   )
   AND rd.type IN ('RACE_RESULT', 'race')
 ORDER BY
-  rd.position_number ASC;
+  COALESCE(rd.position_number, 999) ASC, rd.race_laps DESC NULLS LAST;
