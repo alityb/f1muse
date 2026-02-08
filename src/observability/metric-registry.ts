@@ -130,7 +130,7 @@ export interface MetricValidationError {
  */
 export interface MetricValidationSuccess {
   valid: true;
-  entry: MetricRegistryEntry;
+  entry?: MetricRegistryEntry;  // Optional for query kinds that don't use metrics
 }
 
 /**
@@ -158,6 +158,20 @@ export class MetricRegistryValidator {
     context: QueryIntentKind,
     normalization: NormalizationStrategy
   ): MetricValidationResult {
+    // Skip metric validation for query kinds that don't use lap-based metrics
+    // These use race results from F1DB instead of lap data
+    const METRIC_FREE_CONTEXTS: QueryIntentKind[] = [
+      'race_results_summary',
+      'driver_career_summary',
+      'driver_career_wins_by_circuit',
+      'teammate_comparison_career',
+      'driver_vs_driver_comprehensive',
+    ];
+
+    if (METRIC_FREE_CONTEXTS.includes(context)) {
+      return { valid: true, entry: undefined };
+    }
+
     // 1. Check if metric exists in registry
     const entry = METRIC_REGISTRY[metric];
     if (!entry) {

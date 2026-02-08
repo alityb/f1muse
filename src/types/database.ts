@@ -121,6 +121,9 @@ export const APPROVED_SQL_TEMPLATES = [
   'driver_head_to_head_count_conditional_v1',    // driver_head_to_head_count (with filters)
   'driver_performance_vector_v1',                // driver_performance_vector (PART 4)
   'driver_multi_comparison_v1',                  // driver_multi_comparison (PART 5)
+  'driver_vs_driver_comprehensive_v1',           // driver_vs_driver_comprehensive (NEW)
+  'driver_career_wins_by_circuit_v1',            // driver_career_wins_by_circuit (NEW)
+  'teammate_comparison_career_v1',               // teammate_comparison_career (NEW)
   'season_driver_vs_driver_v1',                  // season_driver_vs_driver (raw pace)
   'season_driver_vs_driver_normalized_v1',       // season_driver_vs_driver (normalized %)
   'cross_team_track_scoped_driver_comparison_v1', // cross_team_track_scoped_driver_comparison
@@ -130,10 +133,12 @@ export const APPROVED_SQL_TEMPLATES = [
   'race_results_summary_v1',                     // race_results_summary
   'driver_matchup_lookup_v1',                    // driver_matchup_lookup (PART 6)
   'driver_pole_count_v1',                        // driver_pole_count (QUALIFYING)
+  'driver_career_pole_count_v1',                 // driver_career_pole_count (QUALIFYING)
   'driver_q3_count_v1',                          // driver_q3_count (QUALIFYING)
   'season_q3_rankings_v1',                       // season_q3_rankings (QUALIFYING)
   'qualifying_gap_teammates_v1',                 // qualifying_gap_teammates (QUALIFYING)
-  'qualifying_gap_drivers_v1'                    // qualifying_gap_drivers (QUALIFYING)
+  'qualifying_gap_drivers_v1',                   // qualifying_gap_drivers (QUALIFYING)
+  'qualifying_results_summary_v1'                // qualifying_results_summary (QUALIFYING)
 ] as const;
 
 export type ApprovedSqlTemplateId = typeof APPROVED_SQL_TEMPLATES[number];

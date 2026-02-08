@@ -12,7 +12,8 @@ export type ResolveResult<T> =
 const TRACK_REQUIRED_KINDS = new Set<string>([
   'cross_team_track_scoped_driver_comparison',
   'track_fastest_drivers',
-  'race_results_summary'
+  'race_results_summary',
+  'qualifying_results_summary'
 ]);
 
 const TEAMMATE_GAP_KINDS = new Set<string>([

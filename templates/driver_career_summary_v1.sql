@@ -52,6 +52,7 @@ SELECT
   COALESCE(seasons_from_standings.seasons_raced, 0) AS seasons_raced,
   COALESCE(d.total_podiums, career_results.career_podiums, 0) AS career_podiums,
   COALESCE(d.total_race_wins, career_results.career_wins, 0) AS career_wins,
+  COALESCE(d.total_pole_positions, 0) AS career_poles,
   d.total_race_starts AS total_race_entries,
   pace_bounds.start_season,
   pace_bounds.start_value,

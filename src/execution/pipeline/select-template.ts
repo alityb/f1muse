@@ -17,10 +17,17 @@ const TEMPLATE_MAP: Record<string, ApprovedSqlTemplateId> = {
   driver_profile_summary: 'driver_profile_summary_v1',
   driver_trend_summary: 'driver_trend_summary_v1',
   driver_pole_count: 'driver_pole_count_v1',
+  driver_career_pole_count: 'driver_career_pole_count_v1',
   driver_q3_count: 'driver_q3_count_v1',
   season_q3_rankings: 'season_q3_rankings_v1',
   qualifying_gap_teammates: 'qualifying_gap_teammates_v1',
-  qualifying_gap_drivers: 'qualifying_gap_drivers_v1'
+  qualifying_gap_drivers: 'qualifying_gap_drivers_v1',
+  // New comprehensive query kinds
+  driver_vs_driver_comprehensive: 'driver_vs_driver_comprehensive_v1',
+  driver_career_wins_by_circuit: 'driver_career_wins_by_circuit_v1',
+  teammate_comparison_career: 'teammate_comparison_career_v1',
+  // Qualifying results
+  qualifying_results_summary: 'qualifying_results_summary_v1'
 };
 
 export function selectTemplate(intent: QueryIntent): ApprovedSqlTemplateId {

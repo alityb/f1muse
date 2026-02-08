@@ -9,7 +9,7 @@ import { getRedisCache } from '../cache/redis-cache';
 import { metrics } from '../observability/metrics';
 
 const CACHE_PREFIX = 'intent';
-const CACHE_VERSION = 'v2'; // bumped for normalization change
+const CACHE_VERSION = 'v5'; // bumped to add career pole count support
 const CURRENT_SEASON = 2025;
 
 // ttl: 1 hour for current season, 24 hours for past
@@ -127,7 +127,13 @@ function shouldCache(intent: QueryIntent): boolean {
     return false;
   }
 
-  // must have a season
+  // Career queries don't require a season
+  const careerKinds = ['driver_career_summary', 'driver_career_pole_count', 'driver_career_wins_by_circuit', 'teammate_comparison_career'];
+  if (careerKinds.includes(intent.kind)) {
+    return true;
+  }
+
+  // must have a season for non-career queries
   if (!intent.season) {
     return false;
   }

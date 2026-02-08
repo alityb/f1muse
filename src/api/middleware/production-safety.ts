@@ -79,7 +79,12 @@ export function configureCORS(allowedOrigins?: string[]) {
   // Default: allow localhost in development, restrict in production
   const origins = allowedOrigins || [
     'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176',
     'http://localhost:8080',
     'https://f1muse.com',
     'https://www.f1muse.com'

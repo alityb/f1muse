@@ -36,6 +36,10 @@ function getMetricDefinition(intent: QueryIntent): string {
     return 'Race results (no pace metrics)';
   }
 
+  if (intent.kind === 'qualifying_results_summary') {
+    return 'Qualifying results (Q1/Q2/Q3 positions and times)';
+  }
+
   // check for normalized percent pace (season_driver_vs_driver default)
   if (intent.kind === 'season_driver_vs_driver' && intent.normalization !== 'none') {
     return 'Session-median normalized percent pace. Each lap normalized as (lap_time - session_median) / session_median * 100. Negative = faster than field median, positive = slower. Aggregated: median per race, then mean across races (equal weight per race).';
@@ -72,6 +76,7 @@ function getComparisonBasis(intent: QueryIntent): string {
     teammate_gap_dual_comparison: 'Dual comparison: qualifying gap vs race pace gap (signed primary - secondary)',
     track_fastest_drivers: `Driver ranking at ${(intent as any).track_id}`,
     race_results_summary: 'Official race results from F1DB',
+    qualifying_results_summary: 'Official qualifying results from F1DB',
     driver_head_to_head_count: 'Position-based head-to-head comparison (who finished/qualified ahead)',
     driver_performance_vector: 'Cross-metric performance profile (percentiles, consistency, contextual performance)',
     driver_multi_comparison: 'Multi-driver comparison (2-6 drivers ranked by metric)',
@@ -103,6 +108,7 @@ function getNormalizationScope(intent: QueryIntent): string {
     teammate_gap_summary_season: 'Team-bounded, season-scoped, teammate-relative gap',
     teammate_gap_dual_comparison: 'Dual metric comparison: qualifying and race pace gaps (symmetric percent difference)',
     race_results_summary: 'Pure race results (no pace metrics)',
+    qualifying_results_summary: 'Official qualifying results (position-based)',
     driver_head_to_head_count: 'Position-based comparison (no pace normalization)',
     driver_performance_vector: 'Grid-relative percentiles and contextual deltas',
     driver_multi_comparison: 'Raw metric comparison (no normalization)',

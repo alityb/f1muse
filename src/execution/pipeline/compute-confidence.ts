@@ -36,6 +36,9 @@ export function computeConfidence(intent: QueryIntent, rows: any[]): ConfidenceM
     case 'race_results_summary':
       return { coverage_level: 'high', laps_considered: 0, notes: ['Official race results from F1DB'] };
 
+    case 'qualifying_results_summary':
+      return { coverage_level: 'high', laps_considered: 0, notes: ['Official qualifying results from F1DB'] };
+
     case 'driver_head_to_head_count':
       return buildHeadToHeadConfidence(row);
 
@@ -56,12 +59,37 @@ export function computeConfidence(intent: QueryIntent, rows: any[]): ConfidenceM
     case 'driver_q3_count':
       return buildQualifyingStatsConfidence(row);
 
+    case 'driver_career_pole_count':
+      return {
+        coverage_level: 'high',
+        laps_considered: 0,
+        notes: ['Official career pole statistics from F1DB']
+      };
+
     case 'season_q3_rankings':
       return buildQ3RankingsConfidence(rows);
 
     case 'qualifying_gap_teammates':
     case 'qualifying_gap_drivers':
       return buildQualifyingGapConfidence(row);
+
+    // NEW: Career-spanning query kinds
+    case 'driver_career_wins_by_circuit':
+      return {
+        coverage_level: 'high',
+        laps_considered: 0,
+        notes: ['Official race results from F1DB - career wins']
+      };
+
+    case 'teammate_comparison_career':
+      return buildTeammateCareerConfidence(rows);
+
+    case 'driver_vs_driver_comprehensive':
+      return {
+        coverage_level: 'high',
+        laps_considered: 0,
+        notes: ['Combined pace data and official results']
+      };
 
     default:
       throw new Error(`Cannot compute confidence for intent kind: ${(intent as any).kind}`);
@@ -75,13 +103,13 @@ function buildComparisonConfidence(row: any): ConfidenceMetadata {
   }
 
   // Raw pace mode - use lap counts
-  const laps_a = parseInt(row.driver_a_laps || '0');
-  const laps_b = parseInt(row.driver_b_laps || '0');
+  // Support both old (driver_a_laps) and new (driver_a_valid_laps) column names
+  const laps_a = parseInt(row.driver_a_valid_laps || row.driver_a_laps || '0');
+  const laps_b = parseInt(row.driver_b_valid_laps || row.driver_b_laps || '0');
   const clean_air_laps_a = row.driver_a_clean_air_laps ? parseInt(row.driver_a_clean_air_laps) : undefined;
   const clean_air_laps_b = row.driver_b_clean_air_laps ? parseInt(row.driver_b_clean_air_laps) : undefined;
-  const shared_valid_laps = row.shared_valid_laps ? parseInt(row.shared_valid_laps) : undefined;
 
-  return computeComparisonConfidence(laps_a, laps_b, clean_air_laps_a, clean_air_laps_b, shared_valid_laps);
+  return computeComparisonConfidence(laps_a, laps_b, clean_air_laps_a, clean_air_laps_b);
 }
 
 /**
@@ -394,4 +422,29 @@ export function buildLooseConfidence(laps_considered: number): ConfidenceMetadat
   }
 
   return { coverage_level, laps_considered, notes };
+}
+
+function buildTeammateCareerConfidence(rows: any[]): ConfidenceMetadata {
+  const seasonsCount = rows.length;
+  const totalSharedRaces = rows.reduce((sum, r) => sum + parseInt(r.shared_races || '0', 10), 0);
+
+  let coverage_level: CoverageLevel;
+  if (seasonsCount >= 2 && totalSharedRaces >= 30) {
+    coverage_level = 'high';
+  } else if (seasonsCount >= 1 && totalSharedRaces >= 15) {
+    coverage_level = 'moderate';
+  } else if (totalSharedRaces >= 5) {
+    coverage_level = 'low';
+  } else {
+    coverage_level = 'insufficient';
+  }
+
+  const notes: string[] = [`${seasonsCount} seasons, ${totalSharedRaces} shared races total`];
+  if (coverage_level === 'low') {
+    notes.push('Low coverage: limited seasons or shared races');
+  } else if (coverage_level === 'insufficient') {
+    notes.push('Insufficient coverage: drivers may not have been teammates');
+  }
+
+  return { coverage_level, laps_considered: totalSharedRaces, notes };
 }

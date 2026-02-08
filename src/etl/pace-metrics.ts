@@ -80,7 +80,54 @@ async function run(): Promise<void> {
 
     await client.query('COMMIT');
 
-    console.log(`OK Track metrics upserted: ${trackMetricsResult.rowCount}`);
+    console.log(`OK Track metrics (all laps) upserted: ${trackMetricsResult.rowCount}`);
+
+    // === CLEAN AIR TRACK METRICS ===
+    await client.query('BEGIN');
+
+    await client.query(
+      `
+      DELETE FROM pace_metric_summary_driver_track
+      WHERE season = $1
+        AND metric_name = 'avg_true_pace'
+        AND normalization = 'none'
+        AND clean_air_only = true
+        AND compound_context = 'mixed'
+        AND session_scope = 'race'
+      `,
+      [season]
+    );
+
+    const cleanAirTrackMetricsResult = await client.query(
+      `
+      INSERT INTO pace_metric_summary_driver_track
+      (season, track_id, driver_id, metric_name, metric_value, normalization,
+       laps_considered, clean_air_only, compound_context, session_scope)
+      SELECT
+        season,
+        track_id,
+        driver_id,
+        'avg_true_pace' AS metric_name,
+        AVG(lap_time_seconds)::numeric AS metric_value,
+        'none' AS normalization,
+        COUNT(*)::int AS laps_considered,
+        true AS clean_air_only,
+        'mixed' AS compound_context,
+        'race' AS session_scope
+      FROM laps_normalized
+      WHERE season = $1
+        AND is_valid_lap = true
+        AND lap_time_seconds IS NOT NULL
+        AND clean_air_flag = true
+      GROUP BY season, track_id, driver_id
+      HAVING COUNT(*) >= 10  -- Minimum clean air laps for statistical validity
+      `,
+      [season]
+    );
+
+    await client.query('COMMIT');
+
+    console.log(`OK Track metrics (clean air) upserted: ${cleanAirTrackMetricsResult.rowCount}`);
 
     await client.query('BEGIN');
 

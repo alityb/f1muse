@@ -174,3 +174,50 @@ export function logInvariantMode(): void {
     console.log('[Invariants] Set STRICT_INVARIANTS=true to enable strict mode in production');
   }
 }
+
+/**
+ * Assert that pace metrics are normalized for cross-session aggregations.
+ * Raw seconds are meaningless when aggregating across tracks with different lengths.
+ */
+export function assertNormalizedPaceForAggregation(
+  queryKind: string,
+  units: string | undefined,
+  location: string
+): void {
+  const requiresNormalization = [
+    'driver_season_summary',
+    'season_driver_vs_driver',
+  ].includes(queryKind);
+
+  if (requiresNormalization && units === 'seconds') {
+    handleInvariantViolation(
+      'NORMALIZATION_MISMATCH',
+      `${queryKind} requires normalized pace (percent), got raw seconds. ` +
+      `Cross-session aggregates must use session-median normalization.`,
+      { location, expected: 'percent', actual: 'seconds' }
+    );
+  }
+}
+
+/**
+ * Assert that aggregation queries return multiple rows (not a single race)
+ */
+export function assertAggregationNotDowngraded(
+  queryKind: string,
+  rowCount: number,
+  location: string
+): void {
+  const aggregationKinds = [
+    'driver_career_wins_by_circuit',
+    'teammate_comparison_career',
+    'track_fastest_drivers',
+    'season_q3_rankings',
+  ];
+
+  if (aggregationKinds.includes(queryKind) && rowCount === 1) {
+    console.warn(
+      `[AGGREGATION WARNING] ${queryKind} returned single row at ${location}. ` +
+      `Check for accidental downgrade to race-scoped query.`
+    );
+  }
+}

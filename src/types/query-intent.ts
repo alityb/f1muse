@@ -122,17 +122,22 @@ export type QueryIntentKind =
   | 'driver_performance_vector'                 // PART 4: Cross-metric performance profile
   | 'driver_multi_comparison'                   // PART 5: Multi-driver comparison (2-6 drivers)
   | 'driver_matchup_lookup'                     // PART 6: Fast h2h lookup from precomputed matrix
+  | 'driver_vs_driver_comprehensive'            // NEW: Comprehensive driver vs driver (pace + achievements)
+  | 'driver_career_wins_by_circuit'             // NEW: Driver career wins breakdown by circuit
+  | 'teammate_comparison_career'                // NEW: Multi-season teammate comparison
   | 'season_driver_vs_driver'                   // Cross-team season comparison (raw pace only, no baseline)
   | 'cross_team_track_scoped_driver_comparison' // Track-scoped comparison (raw pace)
   | 'teammate_gap_summary_season'               // PRIMARY performance metric: teammate gap
   | 'teammate_gap_dual_comparison'              // Qualifying vs race pace comparison
   | 'track_fastest_drivers'                     // Rank drivers at track (renamed from driver_ranking_track)
   | 'race_results_summary'                      // Race results from F1DB
-  | 'driver_pole_count'                         // QUALIFYING: Count pole positions
+  | 'driver_pole_count'                         // QUALIFYING: Count pole positions (season)
+  | 'driver_career_pole_count'                  // QUALIFYING: Career pole positions
   | 'driver_q3_count'                           // QUALIFYING: Count Q3 appearances
   | 'season_q3_rankings'                        // QUALIFYING: Rank drivers by Q3 appearances
   | 'qualifying_gap_teammates'                  // QUALIFYING: Teammate qualifying gap
-  | 'qualifying_gap_drivers';                   // QUALIFYING: Cross-team qualifying gap
+  | 'qualifying_gap_drivers'                    // QUALIFYING: Cross-team qualifying gap
+  | 'qualifying_results_summary';               // QUALIFYING: Full qualifying results (pole, grid)
 
 /**
  * Base QueryIntent fields (common to most kinds)
@@ -239,6 +244,17 @@ export interface TrackFastestDriversIntent extends BaseQueryIntent {
  */
 export interface RaceResultsSummaryIntent extends BaseQueryIntent {
   kind: 'race_results_summary';
+  track_id: string;      // F1DB circuit.id or grand_prix.id
+}
+
+/**
+ * 7b. Qualifying results summary - Full qualifying grid and times
+ *
+ * Returns qualifying positions and times for a specific track/season.
+ * P1 shows full time, P2+ show gap from pole.
+ */
+export interface QualifyingResultsSummaryIntent extends BaseQueryIntent {
+  kind: 'qualifying_results_summary';
   track_id: string;      // F1DB circuit.id or grand_prix.id
 }
 
@@ -357,6 +373,10 @@ export interface DriverMultiComparisonIntent extends BaseQueryIntent {
  * Examples:
  * - "Head to head Verstappen vs Norris 2025"
  * - "Who beats whom more often, Hamilton or Russell?"
+ *
+ * @deprecated This query kind is being consolidated into driver_head_to_head_count.
+ * The orchestrator will check the precomputed matrix first, then fall back to runtime.
+ * Kept for backwards compatibility during migration.
  */
 export interface DriverMatchupLookupIntent extends BaseQueryIntent {
   kind: 'driver_matchup_lookup';
@@ -381,6 +401,25 @@ export interface DriverMatchupLookupIntent extends BaseQueryIntent {
  */
 export interface DriverPoleCountIntent extends BaseQueryIntent {
   kind: 'driver_pole_count';
+  driver_id: string;  // F1DB driver.id
+}
+
+/**
+ * 14b. Driver career pole count - Career pole position statistics (QUALIFYING)
+ *
+ * Returns career pole positions from F1DB driver table.
+ * No season parameter needed - aggregates all-time statistics.
+ *
+ * Examples:
+ * - "How many poles does Verstappen have in his career?"
+ * - "Hamilton career pole positions"
+ * - "Total poles for Schumacher"
+ *
+ * Note: Extends BaseQueryIntent for type compatibility.
+ * The season field is present but not used for career queries.
+ */
+export interface DriverCareerPoleCountIntent extends BaseQueryIntent {
+  kind: 'driver_career_pole_count';
   driver_id: string;  // F1DB driver.id
 }
 
@@ -449,8 +488,62 @@ export interface QualifyingGapDriversIntent extends BaseQueryIntent {
   driver_b_id: string;  // F1DB driver.id
 }
 
+// =====================================================
+// NEW COMPREHENSIVE QUERY TYPES (3 NEW TYPES)
+// =====================================================
+
 /**
- * Union type of all QueryIntent variants (19 TYPES)
+ * 19. Driver vs Driver Comprehensive - Full comparison with pace and achievements
+ *
+ * Combines pace data with achievement stats (wins, podiums, poles, DNFs, points).
+ * Also includes head-to-head qualifying and race finish counts.
+ *
+ * Examples:
+ * - "Verstappen vs Norris full comparison 2024"
+ * - "Complete head to head Leclerc Hamilton 2023"
+ * - "Compare all stats between Sainz and Alonso 2024"
+ */
+export interface DriverVsDriverComprehensiveIntent extends BaseQueryIntent {
+  kind: 'driver_vs_driver_comprehensive';
+  driver_a_id: string;  // F1DB driver.id
+  driver_b_id: string;  // F1DB driver.id
+}
+
+/**
+ * 20. Driver Career Wins by Circuit - Career wins breakdown
+ *
+ * Shows all circuits where a driver has won, ranked by win count.
+ * Includes total wins and last win year for each circuit.
+ *
+ * Examples:
+ * - "Hamilton wins by circuit"
+ * - "Where has Verstappen won?"
+ * - "Schumacher circuit victories"
+ */
+export interface DriverCareerWinsByCircuitIntent extends BaseQueryIntent {
+  kind: 'driver_career_wins_by_circuit';
+  driver_id: string;  // F1DB driver.id
+}
+
+/**
+ * 21. Teammate Comparison Career - Multi-season teammate comparison
+ *
+ * Auto-detects all seasons two drivers were teammates.
+ * Returns per-season breakdown plus aggregated statistics.
+ *
+ * Examples:
+ * - "Hamilton vs Russell as teammates"
+ * - "Norris vs Piastri all seasons"
+ * - "Verstappen Ricciardo teammate history"
+ */
+export interface TeammateComparisonCareerIntent extends BaseQueryIntent {
+  kind: 'teammate_comparison_career';
+  driver_a_id: string;  // F1DB driver.id
+  driver_b_id: string;  // F1DB driver.id
+}
+
+/**
+ * Union type of all QueryIntent variants (22 TYPES)
  */
 export type QueryIntent =
   | DriverSeasonSummaryIntent
@@ -461,13 +554,18 @@ export type QueryIntent =
   | DriverPerformanceVectorIntent
   | DriverMultiComparisonIntent
   | DriverMatchupLookupIntent
+  | DriverVsDriverComprehensiveIntent
+  | DriverCareerWinsByCircuitIntent
+  | TeammateComparisonCareerIntent
   | SeasonDriverVsDriverIntent
   | CrossTeamTrackScopedDriverComparisonIntent
   | TeammateGapSummarySeasonIntent
   | TeammateGapDualComparisonIntent
   | TrackFastestDriversIntent
   | RaceResultsSummaryIntent
+  | QualifyingResultsSummaryIntent
   | DriverPoleCountIntent
+  | DriverCareerPoleCountIntent
   | DriverQ3CountIntent
   | SeasonQ3RankingsIntent
   | QualifyingGapTeammatesIntent

@@ -66,6 +66,9 @@ export function buildParameters(intent: QueryIntent): any[] {
     case 'driver_q3_count':
       return [intent.season, intent.driver_id];
 
+    case 'driver_career_pole_count':
+      return [intent.driver_id];
+
     case 'season_q3_rankings':
       return [intent.season];
 
@@ -74,6 +77,18 @@ export function buildParameters(intent: QueryIntent): any[] {
 
     case 'qualifying_gap_drivers':
       return [intent.season, intent.driver_a_id, intent.driver_b_id];
+
+    case 'driver_vs_driver_comprehensive':
+      return [intent.season, intent.driver_a_id, intent.driver_b_id];
+
+    case 'driver_career_wins_by_circuit':
+      return [intent.driver_id];
+
+    case 'teammate_comparison_career':
+      return [intent.driver_a_id, intent.driver_b_id];
+
+    case 'qualifying_results_summary':
+      return [intent.season, intent.track_id];
 
     default:
       throw new Error(`Cannot build parameters for intent kind: ${(intent as any).kind}`);

@@ -16,4 +16,5 @@ WHERE pms.season = $1
   AND pms.clean_air_only = $5
   AND pms.compound_context = $6
   AND pms.session_scope = $7
+  AND pms.laps_considered >= 10  -- Minimum laps for statistical validity
 ORDER BY pms.metric_value ASC;  -- Lower is faster for avg_true_pace

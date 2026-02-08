@@ -31,6 +31,7 @@ const CONFIG = {
 // Valid query kinds for validation
 const VALID_QUERY_KINDS: Set<QueryIntentKind> = new Set([
   'race_results_summary',
+  'qualifying_results_summary',  // Added for qualifying results queries
   'driver_career_summary',
   'driver_season_summary',
   'season_driver_vs_driver',
@@ -39,6 +40,7 @@ const VALID_QUERY_KINDS: Set<QueryIntentKind> = new Set([
   'teammate_gap_summary_season',
   'teammate_gap_dual_comparison',
   'driver_pole_count',
+  'driver_career_pole_count',  // Career pole positions
   'driver_q3_count',
   'season_q3_rankings',
   'qualifying_gap_teammates',
@@ -49,6 +51,10 @@ const VALID_QUERY_KINDS: Set<QueryIntentKind> = new Set([
   'driver_matchup_lookup',
   'driver_profile_summary',
   'driver_trend_summary',
+  // NEW: Comprehensive comparison types
+  'driver_vs_driver_comprehensive',
+  'driver_career_wins_by_circuit',
+  'teammate_comparison_career',
 ]);
 
 const SYSTEM_PROMPT = `Convert F1 questions to JSON. Output ONLY JSON, no text.
@@ -57,8 +63,12 @@ DEFAULT SEASON: 2025 (always use if not specified)
 
 QUERY TYPES:
 
-1. race_results_summary - "who won", "results of", "podium"
+1. race_results_summary - "who won", "race results", "podium"
    {"kind":"race_results_summary","track_id":"Monaco","season":2025}
+
+1b. qualifying_results_summary - "who got pole", "qualifying results", "qualifying grid"
+   {"kind":"qualifying_results_summary","track_id":"Monaco","season":2025}
+   Note: Use this for pole position at a specific track, NOT driver_pole_count
 
 2. track_fastest_drivers - "fastest at [track]", "rankings at [track]"
    {"kind":"track_fastest_drivers","track_id":"Monaco","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"race"}
@@ -82,8 +92,12 @@ QUERY TYPES:
 8. teammate_gap_dual_comparison - "qualifying vs race", "quali and race"
    {"kind":"teammate_gap_dual_comparison","driver_a_id":"Norris","driver_b_id":"Piastri","season":2025}
 
-9. driver_pole_count - "poles", "pole positions"
+9. driver_pole_count - "poles in [YEAR]", "pole positions [YEAR]" (season-specific)
    {"kind":"driver_pole_count","driver_id":"Verstappen","season":2025}
+
+9b. driver_career_pole_count - "career poles", "total poles", "how many poles" (no year)
+    {"kind":"driver_career_pole_count","driver_id":"Verstappen","season":2025}
+    Trigger: "career poles", "total poles", "how many poles does X have" WITHOUT a year
 
 10. driver_q3_count - "Q3 appearances"
     {"kind":"driver_q3_count","driver_id":"Verstappen","season":2025}
@@ -97,12 +111,24 @@ QUERY TYPES:
 13. qualifying_gap_drivers - cross-team qualifying
     {"kind":"qualifying_gap_drivers","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025}
 
+14. driver_career_wins_by_circuit - "wins by circuit", "where has [driver] won"
+    {"kind":"driver_career_wins_by_circuit","driver_id":"Hamilton","season":2025}
+    Trigger: "wins by circuit", "circuit victories", "where has won", "which circuits"
+
+15. teammate_comparison_career - "as teammates" (no year), "teammate history"
+    {"kind":"teammate_comparison_career","driver_a_id":"Hamilton","driver_b_id":"Russell","season":2025}
+    Trigger: "as teammates" WITHOUT explicit year, auto-detects all shared seasons
+
+16. driver_vs_driver_comprehensive - "head to head", "h2h", comprehensive comparison
+    {"kind":"driver_vs_driver_comprehensive","driver_a_id":"Norris","driver_b_id":"Piastri","season":2024}
+    Trigger: "head to head", "h2h" - returns BOTH qualifying AND race H2H records
+
 RULES:
 - If ANY track name appears (Monaco, Monza, Silverstone, Spa, Bahrain, Suzuka, Melbourne, Imola, Miami, Barcelona, Montreal, Spielberg, Budapest, Zandvoort, Baku, Singapore, Austin, COTA, Interlagos, Las Vegas, Qatar, Abu Dhabi, Shanghai, Jeddah) → use track-scoped query (cross_team_track_scoped_driver_comparison or track_fastest_drivers)
 - If "at [track]" → use track-scoped query
 - If no track + 2 drivers from SAME team → teammate_gap_summary_season
 - If no track + 2 drivers from DIFFERENT teams → season_driver_vs_driver
-- If "clean air" → clean_air_only:true, metric:"clean_air_pace"
+- If "clean air" → clean_air_only:true, metric:"avg_true_pace"
 - Use driver names as-is (Verstappen, Hamilton, Norris)
 - Use track names as-is (Monaco, Silverstone, Monza)
 
@@ -397,7 +423,6 @@ export class ClaudeClient {
     // Apply default normalization for season_driver_vs_driver
     // Use session_median_percent unless user explicitly asked for raw pace
     if (parsed.kind === 'season_driver_vs_driver') {
-      const lowerQuery = rawQuery.toLowerCase();
       const wantsRawPace = lowerQuery.includes('raw pace') ||
                           lowerQuery.includes('raw lap') ||
                           lowerQuery.includes('raw times') ||
@@ -407,6 +432,136 @@ export class ClaudeClient {
       if (!wantsRawPace && (parsed.normalization === 'none' || !parsed.normalization)) {
         parsed.normalization = 'session_median_percent';
       }
+    }
+
+    // =================================================================
+    // HARD ROUTING OVERRIDES - cannot be bypassed by LLM
+    // =================================================================
+
+    // HARD RULE 1: "wins by circuit" → driver_career_wins_by_circuit
+    const isWinsByCircuitQuery =
+      lowerQuery.includes('wins by circuit') ||
+      lowerQuery.includes('wins at each circuit') ||
+      lowerQuery.includes('circuit victories') ||
+      lowerQuery.includes('track victories') ||
+      (lowerQuery.includes('where has') && lowerQuery.includes('won')) ||
+      (lowerQuery.includes('where did') && lowerQuery.includes('win'));
+
+    if (isWinsByCircuitQuery && parsed.kind !== 'driver_career_wins_by_circuit') {
+      console.log(`[Claude] Hard override: ${parsed.kind} → driver_career_wins_by_circuit`);
+      parsed.kind = 'driver_career_wins_by_circuit';
+      // Ensure driver_id is set (might be in driver_a_id from wrong routing)
+      if (!parsed.driver_id && parsed.driver_a_id) {
+        parsed.driver_id = parsed.driver_a_id;
+      }
+    }
+
+    // HARD RULE 2: "as teammates" without explicit season → teammate_comparison_career
+    const isTeammateCareerQuery =
+      lowerQuery.includes('as teammates') ||
+      lowerQuery.includes('teammate history') ||
+      lowerQuery.includes('all seasons together') ||
+      lowerQuery.includes('complete teammate') ||
+      lowerQuery.includes('all seasons as');
+
+    const hasExplicitSeason = /\b20[1-2]\d\b/.test(rawQuery);
+
+    if (isTeammateCareerQuery && !hasExplicitSeason) {
+      if (parsed.kind !== 'teammate_comparison_career') {
+        console.log(`[Claude] Hard override: ${parsed.kind} → teammate_comparison_career`);
+        parsed.kind = 'teammate_comparison_career';
+      }
+    }
+
+    // HARD RULE 3: Qualifying results with track context → qualifying_results_summary
+    const hasTrackContext = lowerQuery.includes(' at ') ||
+      /\b(monaco|silverstone|monza|spa|suzuka|interlagos|bahrain|jeddah|australia|miami|imola|canada|barcelona|austria|hungary|netherlands|singapore|mexico|vegas|qatar|abu dhabi|albert park|shanghai|baku|zandvoort|las vegas|sakhir|yas marina|melbourne|montreal|hungaroring|red bull ring)\b/i.test(lowerQuery);
+
+    const isQualifyingResultsQuery = hasTrackContext && (
+      (lowerQuery.includes('qualifying') && (lowerQuery.includes('result') || lowerQuery.includes('grid'))) ||
+      lowerQuery.includes('quali result') ||
+      lowerQuery.includes('quali grid') ||
+      lowerQuery.includes('qualifying grid') ||
+      lowerQuery.includes('who got pole') ||
+      (lowerQuery.includes('who qualified') && lowerQuery.includes('pole')) ||
+      (lowerQuery.includes('pole') && lowerQuery.includes(' at '))
+    );
+
+    const isQualifyingExcluded =
+      lowerQuery.includes('how many poles') ||
+      lowerQuery.includes('pole count') ||
+      lowerQuery.includes('poles did') ||
+      lowerQuery.includes('qualifying gap') ||
+      lowerQuery.includes('outqualified');
+
+    if (isQualifyingResultsQuery && !isQualifyingExcluded && parsed.kind !== 'qualifying_results_summary') {
+      console.log(`[Claude] Hard override: ${parsed.kind} → qualifying_results_summary`);
+      parsed.kind = 'qualifying_results_summary';
+      // Ensure track_id is set
+      if (!parsed.track_id && detectedTrack) {
+        parsed.track_id = detectedTrack;
+      }
+    }
+
+    // HARD RULE 4: Generic "head to head" → driver_vs_driver_comprehensive
+    const hasHeadToHead =
+      lowerQuery.includes('head to head') ||
+      lowerQuery.includes('h2h') ||
+      lowerQuery.includes('head-to-head');
+
+    const isSpecificH2H =
+      lowerQuery.includes('qualifying head to head') ||
+      lowerQuery.includes('race head to head') ||
+      lowerQuery.includes('outqualified') ||
+      lowerQuery.includes('outfinish') ||
+      lowerQuery.includes('who finished ahead') ||
+      lowerQuery.includes('who qualified ahead');
+
+    if (hasHeadToHead && !isSpecificH2H && parsed.kind !== 'driver_vs_driver_comprehensive') {
+      console.log(`[Claude] Hard override: ${parsed.kind} → driver_vs_driver_comprehensive`);
+      parsed.kind = 'driver_vs_driver_comprehensive';
+    }
+
+    // HARD RULE 4b: Generic "driver vs driver" queries (no track, no specific metric) → driver_vs_driver_comprehensive
+    // Pattern: "X vs Y 2024" or "X versus Y" without pace/gap/time keywords
+    const isGenericVsQuery = /\b(vs|versus)\b/i.test(lowerQuery);
+    const hasSpecificMetric = /\b(pace|gap|time|faster|slower|quicker|speed|lap times?)\b/i.test(lowerQuery);
+    const hasTrack = detectedTrack !== null;
+    const isTeammateQuery = /\b(teammate|team[- ]?mate)\b/i.test(lowerQuery);
+
+    if (isGenericVsQuery && !hasSpecificMetric && !hasTrack && !isTeammateQuery &&
+        parsed.kind === 'season_driver_vs_driver') {
+      console.log(`[Claude] Hard override: ${parsed.kind} → driver_vs_driver_comprehensive (generic vs query)`);
+      parsed.kind = 'driver_vs_driver_comprehensive';
+    }
+
+    // HARD RULE 5: Career pole queries → driver_career_pole_count
+    // "how many poles does X have" without year = career query
+    const isPoleQuery = /\b(poles?|pole positions?)\b/i.test(lowerQuery) &&
+      /\b(how many|total|career|all[- ]time|does.+have|has.+got)\b/i.test(lowerQuery);
+    const hasCareerIndicator = /\b(career|all[- ]time|total|in his career|lifetime)\b/i.test(lowerQuery);
+
+    if (isPoleQuery && (!hasExplicitSeason || hasCareerIndicator) && parsed.kind !== 'driver_career_pole_count') {
+      console.log(`[Claude] Hard override: ${parsed.kind} → driver_career_pole_count`);
+      parsed.kind = 'driver_career_pole_count';
+      // Ensure driver_id is set
+      if (!parsed.driver_id && parsed.driver_a_id) {
+        parsed.driver_id = parsed.driver_a_id;
+      }
+    }
+
+    // HARD RULE 6: Clean air queries → set clean_air_only=true
+    // Triggered by "clean air", "clear air", or "without traffic" in query
+    const isCleanAirQuery =
+      lowerQuery.includes('clean air') ||
+      lowerQuery.includes('clear air') ||
+      lowerQuery.includes('without traffic');
+
+    if (isCleanAirQuery) {
+      console.log(`[Claude] Clean air query detected: setting clean_air_only=true`);
+      parsed.clean_air_only = true;
+      // Always override metric to avg_true_pace - the database uses same metric name for clean air laps
+      parsed.metric = 'avg_true_pace';
     }
 
     return parsed as QueryIntent;

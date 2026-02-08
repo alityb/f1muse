@@ -59,6 +59,23 @@ function normalizeMatch(value: string): string {
 }
 
 /**
+ * Convert a driver ID to a human-readable display name.
+ * Used as fallback when the driver isn't found in the database.
+ *
+ * Examples:
+ * - "max_verstappen" → "Max Verstappen"
+ * - "charles_leclerc" → "Charles Leclerc"
+ * - "de_vries" → "De Vries"
+ */
+export function humanizeId(driverId: string): string {
+  return driverId
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+/**
  * Resolves driver names to canonical driver_id
  *
  * Rules:

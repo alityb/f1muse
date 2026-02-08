@@ -11,6 +11,8 @@ import { TemplateLoader } from '../template-loader';
 import { ResultFormatter } from '../result-formatter';
 import { QueryValidator } from '../../validation/query-validator';
 import { DriverResolver } from '../../identity/driver-resolver';
+import { DriverRefService } from '../../identity/driver-ref-service';
+import { TrackRefService } from '../../identity/track-ref-service';
 import { TrackResolver } from '../../identity/track-resolver';
 import { DebugTracer, sanitizeSqlForDebug } from '../debug-tracer';
 import { CacheService, createCacheEntry } from '../../cache/query-cache';
@@ -50,15 +52,21 @@ export class QueryOrchestrator {
   private validator: QueryValidator;
   private intentResolver: IntentResolver;
   private cacheService: CacheService | null;
+  private driverRefService: DriverRefService;
+  private trackRefService: TrackRefService;
 
   constructor(private pool: Pool, templatesDir?: string, cachePool?: Pool) {
     this.templateLoader = new TemplateLoader(templatesDir);
-    this.resultFormatter = new ResultFormatter();
     this.validator = new QueryValidator();
 
     const driverResolver = new DriverResolver(pool);
     const trackResolver = new TrackResolver(pool);
     this.intentResolver = new IntentResolver(pool, driverResolver, trackResolver);
+
+    // Create ref services for name resolution
+    this.driverRefService = new DriverRefService(pool);
+    this.trackRefService = new TrackRefService(pool);
+    this.resultFormatter = new ResultFormatter(this.driverRefService, this.trackRefService);
 
     this.cacheService = cachePool ? new CacheService(cachePool) : null;
     this.templateLoader.preloadAll();
@@ -281,7 +289,7 @@ export class QueryOrchestrator {
       };
     }
 
-    const payload = this.resultFormatter.format(intent, result.rows);
+    const payload = await this.resultFormatter.format(intent, result.rows);
     const interpretation = buildInterpretation(intent, result.rows);
     const metadata: Metadata = {
       sql_template_id: templateId,

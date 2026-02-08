@@ -17,7 +17,7 @@ const MAX_SEASON = 2100;
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
-type MetricIntent = Exclude<QueryIntent, { kind: 'race_results_summary' }>;
+type MetricIntent = Exclude<QueryIntent, { kind: 'race_results_summary' } | { kind: 'qualifying_results_summary' }>;
 
 /**
  * Minimal QueryIntent validator
@@ -29,7 +29,7 @@ export class QueryValidator {
       return seasonValidation;
     }
 
-    if (intent.kind === 'race_results_summary') {
+    if (intent.kind === 'race_results_summary' || intent.kind === 'qualifying_results_summary') {
       return this.validateKindSpecific(intent);
     }
 
@@ -47,7 +47,8 @@ export class QueryValidator {
       'driver_multi_comparison',    // Multi-driver comparison (uses comparison_metric)
       'driver_matchup_lookup',      // Precomputed matchup lookup (position-based)
       // QUALIFYING QUERY TYPES
-      'driver_pole_count',          // Position-based count
+      'driver_pole_count',          // Position-based count (season)
+      'driver_career_pole_count',   // Position-based count (career)
       'driver_q3_count',            // Q3 appearance count
       'season_q3_rankings',         // Rankings by Q3 appearances
       'qualifying_gap_teammates',   // Teammate qualifying gap
@@ -180,6 +181,14 @@ export class QueryValidator {
 
       case 'race_results_summary': {
         // NEW: Race results validation
+        if (!isNonEmptyString((intent as any).track_id)) {
+          return this.fail('track_id is required');
+        }
+        return { valid: true };
+      }
+
+      case 'qualifying_results_summary': {
+        // Qualifying results validation
         if (!isNonEmptyString((intent as any).track_id)) {
           return this.fail('track_id is required');
         }
@@ -327,6 +336,14 @@ export class QueryValidator {
         return { valid: true };
       }
 
+      case 'driver_career_pole_count': {
+        const driverId = (intent as any).driver_id;
+        if (!isNonEmptyString(driverId)) {
+          return this.fail('driver_id is required');
+        }
+        return { valid: true };
+      }
+
       case 'driver_q3_count': {
         const driverId = (intent as any).driver_id;
         if (!isNonEmptyString(driverId)) {
@@ -376,6 +393,52 @@ export class QueryValidator {
           return this.fail('Cannot compare a driver to themselves');
         }
 
+        return { valid: true };
+      }
+
+      // =====================================================
+      // NEW COMPREHENSIVE QUERY TYPES (3 NEW TYPES)
+      // =====================================================
+
+      case 'driver_vs_driver_comprehensive': {
+        const driverA = (intent as any).driver_a_id;
+        const driverB = (intent as any).driver_b_id;
+
+        if (!isNonEmptyString(driverA)) {
+          return this.fail('driver_a_id is required');
+        }
+        if (!isNonEmptyString(driverB)) {
+          return this.fail('driver_b_id is required');
+        }
+
+        // Reject same driver comparison
+        if (driverA.toLowerCase() === driverB.toLowerCase()) {
+          return this.fail('Cannot compare a driver to themselves');
+        }
+
+        return { valid: true };
+      }
+
+      case 'driver_career_wins_by_circuit': {
+        const driverId = (intent as any).driver_id;
+        if (!isNonEmptyString(driverId)) {
+          return this.fail('driver_id is required');
+        }
+        return { valid: true };
+      }
+
+      case 'teammate_comparison_career': {
+        const driverA = (intent as any).driver_a_id;
+        const driverB = (intent as any).driver_b_id;
+
+        if (!isNonEmptyString(driverA)) {
+          return this.fail('driver_a_id is required');
+        }
+        if (!isNonEmptyString(driverB)) {
+          return this.fail('driver_b_id is required');
+        }
+
+        // Note: No season validation needed - auto-detects shared seasons from SQL
         return { valid: true };
       }
 

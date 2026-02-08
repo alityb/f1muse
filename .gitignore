@@ -15,7 +15,7 @@ __pycache__/
 .pytest_cache/
 
 # FastF1 cache
-cache/
+/cache/
 
 # IDE/Editor
 .idea/

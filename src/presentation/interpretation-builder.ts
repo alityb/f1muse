@@ -13,7 +13,11 @@ import {
   TeammateGapSummarySeasonPayload,
   TeammateGapDualComparisonPayload,
   DriverCareerSummaryPayload,
-  RaceResultsSummaryPayload
+  RaceResultsSummaryPayload,
+  QualifyingResultsSummaryPayload,
+  DriverCareerWinsByCircuitPayload,
+  TeammateComparisonCareerPayload,
+  DriverVsDriverComprehensivePayload
 } from '../types/results';
 import { TEAMMATE_GAP_THRESHOLDS } from '../config/teammate-gap';
 
@@ -410,7 +414,8 @@ function buildSeasonComparisonIntent(base: MetricIntent): MetricIntent {
     season: base.season,
     metric: 'avg_true_pace',
     normalization: 'session_median_percent',
-    clean_air_only: false,
+    // Preserve clean_air_only from the original intent
+    clean_air_only: (base as any).clean_air_only ?? false,
     compound_context: 'mixed',
     session_scope: 'all',
     raw_query: base.raw_query
@@ -745,8 +750,9 @@ function summarizeSeasonSummary(
   fallbacks: FallbackStep[]
 ): BuiltAnswer {
   const driver = humanizeId(payload.driver_id);
+  // avg_race_pace is now session-median normalized PERCENT (not raw seconds)
   const avgPace = payload.avg_race_pace !== null
-    ? `${formatDecimal(payload.avg_race_pace)}s`
+    ? `${formatSignedDecimal(payload.avg_race_pace)}% vs median`
     : 'n/a';
 
   const summary = `${driver} ${intent.season}: ${formatInt(payload.wins)} wins, ` +
@@ -932,6 +938,41 @@ function summarizeCareerSummary(
   };
 }
 
+function summarizeCareerPoleCount(
+  intent: QueryIntent,
+  payload: any,
+  confidence: any,
+  fallbacks: FallbackStep[]
+): BuiltAnswer {
+  const driver = payload.driver_name || humanizeId(payload.driver_id);
+  const totalPoles = payload.total_poles || 0;
+  const poleRate = payload.pole_rate_percent !== null
+    ? `${payload.pole_rate_percent}% pole rate`
+    : '';
+
+  const summary = `${driver} has ${totalPoles} career pole positions.`;
+
+  const coverageLevel = resolveCoverageLevel(confidence.coverage_level || 'high');
+  const coverage = coverageSummary('Career', payload.total_race_starts || 0, coverageLevel);
+
+  const bullets = [
+    `Career poles: ${totalPoles}`,
+    `Race starts: ${payload.total_race_starts || 0}`,
+    `Wins/Podiums: ${payload.total_wins || 0} wins, ${payload.total_podiums || 0} podiums`,
+    poleRate ? `Pole rate: ${poleRate}` : null,
+    payload.championships ? `Championships: ${payload.championships}` : null
+  ].filter(Boolean) as string[];
+
+  return {
+    query_kind: intent.kind,
+    headline: buildHeadline(summary, fallbacks),
+    bullets,
+    coverage,
+    followups: buildFollowups(intent),
+    fallbacks: fallbacks.length > 0 ? fallbacks : undefined
+  };
+}
+
 function buildRaceResultsInterpretation(
   result: QueryResult
 ): InterpretationBuilderOutput {
@@ -985,6 +1026,54 @@ function buildRaceResultsInterpretation(
   };
 }
 
+function buildQualifyingResultsInterpretation(
+  result: QueryResult
+): InterpretationBuilderOutput {
+  const intent = result.intent as Extract<QueryIntent, { kind: 'qualifying_results_summary' }>;
+  const payload = result.result.payload as QualifyingResultsSummaryPayload;
+  const fallbacks: FallbackStep[] = [];
+
+  const trackLabel = payload.track_name || humanizeId(intent.track_id);
+  const frontRow = payload.front_row || [];
+  const poleSitter = frontRow[0];
+
+  const summary = poleSitter
+    ? `${poleSitter.driver_name} took pole at ${trackLabel} ${intent.season}.`
+    : `${trackLabel} ${intent.season} qualifying results.`;
+
+  const frontRowLabel = frontRow.length > 0
+    ? frontRow.map(entry => `${entry.driver_name} (${entry.constructor_name})`).join(', ')
+    : 'n/a';
+
+  const topFive = (payload.top10 || []).slice(0, 5).map(entry => entry.driver_name).join(', ');
+
+  const bullets = [
+    `Front row: ${frontRowLabel}`,
+    topFive ? `Top 5: ${topFive}` : undefined,
+    poleSitter?.qualifying_time ? `Pole time: ${poleSitter.qualifying_time}` : undefined
+  ].filter((bullet): bullet is string => Boolean(bullet)).slice(0, 4);
+
+  return {
+    intent,
+    result,
+    answer: {
+      query_kind: intent.kind,
+      headline: buildHeadline(summary, fallbacks),
+      bullets,
+      coverage: {
+        level: 'high',
+        summary: 'Official qualifying results'
+      },
+      followups: [
+        `Show ${trackLabel} ${intent.season} race results`,
+        `Compare drivers' pace at ${trackLabel}`,
+        `Show other qualifying results from ${intent.season}`
+      ]
+    },
+    fallbacks
+  };
+}
+
 function buildTrackFastestDriversInterpretation(
   result: QueryResult
 ): InterpretationBuilderOutput {
@@ -1021,6 +1110,133 @@ function buildTrackFastestDriversInterpretation(
       bullets,
       coverage,
       followups: buildFollowups(intent)
+    },
+    fallbacks
+  };
+}
+
+/**
+ * Build interpretation for driver career wins by circuit
+ */
+function buildCareerWinsByCircuitInterpretation(
+  result: QueryResult
+): InterpretationBuilderOutput {
+  const intent = result.intent;
+  const payload = result.result.payload as DriverCareerWinsByCircuitPayload;
+  const fallbacks: FallbackStep[] = [];
+
+  const driverName = payload.driver?.name || humanizeId((intent as any).driver_id || 'driver');
+  const totalWins = payload.total_wins || 0;
+  const circuitCount = payload.circuits?.length || 0;
+
+  const headline = `${driverName} has won at ${circuitCount} different circuits (${totalWins} total wins)`;
+
+  return {
+    intent,
+    result,
+    answer: {
+      query_kind: intent.kind,
+      headline,
+      bullets: [],
+      coverage: {
+        level: 'high',
+        summary: ''
+      },
+      followups: [
+        `Show ${driverName.split(' ')[0]} career summary`,
+        `Compare ${driverName.split(' ')[0]} to another driver`,
+        `Show ${driverName.split(' ')[0]} in a specific season`
+      ]
+    },
+    fallbacks
+  };
+}
+
+/**
+ * Build interpretation for teammate comparison career
+ */
+function buildTeammateComparisonCareerInterpretation(
+  result: QueryResult
+): InterpretationBuilderOutput {
+  const intent = result.intent;
+  const payload = result.result.payload as TeammateComparisonCareerPayload;
+  const fallbacks: FallbackStep[] = [];
+
+  const drivers = payload.drivers?.drivers || [];
+  const driverAShort = drivers[0]?.short_name || humanizeId((intent as any).driver_a_id || 'Driver A').split(' ')[0];
+  const driverBShort = drivers[1]?.short_name || humanizeId((intent as any).driver_b_id || 'Driver B').split(' ')[0];
+
+  const seasons = payload.seasons || [];
+  const validSeasons = seasons.filter(s => s.shared_races > 0);
+
+  const headline = validSeasons.length > 0
+    ? `${driverAShort} vs ${driverBShort}: ${validSeasons.length} season${validSeasons.length > 1 ? 's' : ''} as teammates`
+    : `${driverAShort} and ${driverBShort} have no shared seasons as teammates`;
+
+  return {
+    intent,
+    result,
+    answer: {
+      query_kind: intent.kind,
+      headline,
+      bullets: [],
+      coverage: {
+        level: 'high',
+        summary: ''
+      },
+      followups: [
+        `Compare ${driverAShort} vs ${driverBShort} in a specific season`,
+        `Show ${driverAShort} career summary`,
+        `Show ${driverBShort} career summary`
+      ]
+    },
+    fallbacks
+  };
+}
+
+/**
+ * Build interpretation for driver vs driver comprehensive comparison
+ * Shows head-to-head records in both race and qualifying
+ */
+function buildDriverVsDriverComprehensiveInterpretation(
+  result: QueryResult
+): InterpretationBuilderOutput {
+  const intent = result.intent as Extract<QueryIntent, { kind: 'driver_vs_driver_comprehensive' }>;
+  const payload = result.result.payload as DriverVsDriverComprehensivePayload;
+  const fallbacks: FallbackStep[] = [];
+
+  const drivers = payload.drivers?.drivers || [];
+  const driverAName = drivers[0]?.name || humanizeId(intent.driver_a_id);
+  const driverBName = drivers[1]?.name || humanizeId(intent.driver_b_id);
+  const driverAShort = drivers[0]?.short_name || driverAName.split(' ')[0];
+  const driverBShort = drivers[1]?.short_name || driverBName.split(' ')[0];
+
+  // Head-to-head records
+  const qualH2H = payload.head_to_head?.qualifying || { a_wins: 0, b_wins: 0, ties: 0 };
+  const raceH2H = payload.head_to_head?.race_finish || { a_wins: 0, b_wins: 0, ties: 0 };
+
+  // Format head-to-head as "X-Y"
+  const raceRecord = `${raceH2H.a_wins}-${raceH2H.b_wins}`;
+  const qualRecord = `${qualH2H.a_wins}-${qualH2H.b_wins}`;
+
+  const headline = `${driverAShort} vs ${driverBShort} ${intent.season}: Race ${raceRecord}, Qualifying ${qualRecord}`;
+
+  return {
+    intent,
+    result,
+    answer: {
+      query_kind: intent.kind,
+      headline,
+      bullets: [],
+      coverage: {
+        level: 'high',
+        summary: ''
+      },
+      followups: [
+        `Show ${driverAShort} season summary ${intent.season}`,
+        `Show ${driverBShort} season summary ${intent.season}`,
+        `Compare pace between ${driverAShort} and ${driverBShort}`
+      ]
     },
     fallbacks
   };
@@ -1091,6 +1307,19 @@ export async function buildInterpretationResponse(
     return buildRaceResultsInterpretation(result);
   }
 
+  if (intent.kind === 'qualifying_results_summary') {
+    const result = await executor.execute(intent);
+    if ('error' in result) {
+      return {
+        intent,
+        result,
+        answer: buildFailClosedAnswer(intent, []),
+        fallbacks: []
+      };
+    }
+    return buildQualifyingResultsInterpretation(result);
+  }
+
   if (intent.kind === 'track_fastest_drivers') {
     // Apply defaults for track_fastest_drivers (metric, normalization, etc.)
     const intentWithDefaults = withDefaults(intent) as typeof intent;
@@ -1104,6 +1333,48 @@ export async function buildInterpretationResponse(
       };
     }
     return buildTrackFastestDriversInterpretation(result);
+  }
+
+  // Handle career wins by circuit - simple direct execution with custom summary
+  if (intent.kind === 'driver_career_wins_by_circuit') {
+    const result = await executor.execute(intent);
+    if ('error' in result) {
+      return {
+        intent,
+        result,
+        answer: buildFailClosedAnswer(intent, []),
+        fallbacks: []
+      };
+    }
+    return buildCareerWinsByCircuitInterpretation(result);
+  }
+
+  // Handle teammate comparison career - simple direct execution with custom summary
+  if (intent.kind === 'teammate_comparison_career') {
+    const result = await executor.execute(intent);
+    if ('error' in result) {
+      return {
+        intent,
+        result,
+        answer: buildFailClosedAnswer(intent, []),
+        fallbacks: []
+      };
+    }
+    return buildTeammateComparisonCareerInterpretation(result);
+  }
+
+  // Handle driver_vs_driver_comprehensive with custom interpretation
+  if (intent.kind === 'driver_vs_driver_comprehensive') {
+    const result = await executor.execute(intent);
+    if ('error' in result) {
+      return {
+        intent,
+        result,
+        answer: buildFailClosedAnswer(intent, []),
+        fallbacks: []
+      };
+    }
+    return buildDriverVsDriverComprehensiveInterpretation(result);
   }
 
   const directExecutionKinds = new Set([
@@ -1251,6 +1522,14 @@ export async function buildInterpretationResponse(
           intent: currentIntent,
           result,
           answer: summarizeCareerSummary(currentIntent, payload as DriverCareerSummaryPayload, confidence, fallbacks),
+          fallbacks
+        };
+
+      case 'driver_career_pole_count':
+        return {
+          intent: currentIntent,
+          result,
+          answer: summarizeCareerPoleCount(currentIntent, payload, confidence, fallbacks),
           fallbacks
         };
 
