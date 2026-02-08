@@ -1,5 +1,3 @@
-"use client"
-
 interface F1MuseIconProps {
   size?: number
   className?: string
@@ -36,12 +34,7 @@ export function F1MuseIcon({ size = 40, className }: F1MuseIconProps) {
   )
 }
 
-// Backwards compatible alias
-export function F1MuseLogo({ size = 28 }: { size?: number }) {
-  return <F1MuseIcon size={size} />
-}
-
-interface F1MuseWordmarkProps {
+interface F1MuseLogoProps {
   size?: "sm" | "md" | "lg"
   className?: string
   showIcon?: boolean
@@ -59,11 +52,11 @@ const sizeConfig = {
  * The wordmark uses tight tracking on "F1" with a lighter weight on "Muse"
  * to create visual hierarchy that mirrors the icon's bold/subtle duality.
  */
-export function F1MuseWordmark({
-  size = "sm",
+export function F1MuseLogo({
+  size = "md",
   className,
   showIcon = true,
-}: F1MuseWordmarkProps) {
+}: F1MuseLogoProps) {
   const config = sizeConfig[size]
 
   return (

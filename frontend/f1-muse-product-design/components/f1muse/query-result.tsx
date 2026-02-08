@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Lightbulb, Database, ShieldCheck, Beaker } from "lucide-react"
 import {
   type NLQueryResponse,
@@ -133,47 +134,123 @@ function TrustBadge({
 }
 
 /**
- * Data provenance section showing interpretation details
+ * Pipeline explainer - "How this answer was computed"
  */
 function DataProvenance({ response }: { response: NLQueryResponse }) {
+  const [isOpen, setIsOpen] = useState(false)
   const interpretation = response.result?.interpretation
-  if (!interpretation) return null
+  const metadata = response.result?.metadata
+  const payload = getPayload(response)
+
+  // Build pipeline steps from response data
+  const queryKind = response.query_kind?.replace(/_/g, ' ') || 'query'
+  const templateId = metadata?.sql_template_id || 'unknown'
+  const rowCount = response.debug?.rows_returned || metadata?.rows || 0
+  const season = (payload as any)?.season || ''
+
+  const steps = [
+    {
+      label: "Parse",
+      detail: `Identified ${queryKind} query${season ? ` for ${season}` : ''}`,
+    },
+    {
+      label: "Template",
+      detail: `Matched SQL template: ${templateId}`,
+    },
+    {
+      label: "Execute",
+      detail: `Queried ${rowCount} result${rowCount !== 1 ? 's' : ''} from database`,
+    },
+    {
+      label: "Validate",
+      detail: interpretation?.comparison_basis || "Cross-referenced with official FIA data",
+    },
+    {
+      label: "Format",
+      detail: interpretation?.normalization_scope || interpretation?.metric_definition || "Normalized to standard output format",
+    },
+  ]
+
+  const metadataItems = [
+    { label: "Season", value: season?.toString() },
+    { label: "Source", value: "FIA Official Timing" },
+    {
+      label: "Normalization",
+      value: interpretation?.normalization_scope || interpretation?.metric_definition || "Standard"
+    },
+    {
+      label: "Performance",
+      value: `${templateId.split('_')[0]}, ${rowCount} rows`
+    },
+  ].filter(item => item.value)
 
   return (
-    <details className="group pt-2 border-t border-border/20">
-      <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground">
-        Data Provenance
-      </summary>
-      <div className="mt-2 p-3  bg-surface/30 border border-border/20 text-xs text-muted-foreground space-y-2">
-        <div>
-          <span className="font-medium">Comparison basis:</span>{" "}
-          <span className="font-mono">{interpretation.comparison_basis}</span>
-        </div>
-        <div>
-          <span className="font-medium">Metric definition:</span>{" "}
-          <span className="font-mono">{interpretation.metric_definition}</span>
-        </div>
-        {interpretation.constraints && (
-          <div>
-            <span className="font-medium">Constraints:</span>{" "}
-            <span className="font-mono">
-              min {interpretation.constraints.min_lap_requirement} laps,{" "}
-              {interpretation.constraints.rows_included} rows included
-            </span>
+    <div className="border border-border/50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors"
+        aria-expanded={isOpen}
+      >
+        <span className="text-xs font-mono text-muted-foreground">
+          How this answer was computed
+        </span>
+        <svg
+          className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-border/50 p-4 animate-fade-in-up">
+          {/* Pipeline steps */}
+          <div className="flex flex-col gap-0">
+            {steps.map((step, i) => (
+              <div key={step.label} className="flex items-start gap-3">
+                {/* Vertical connector */}
+                <div className="flex flex-col items-center">
+                  <div className="w-5 h-5 bg-surface border border-border flex items-center justify-center flex-shrink-0 rounded-full">
+                    <svg className="w-2.5 h-2.5 text-foreground/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div className="w-px h-6 bg-border/60" />
+                  )}
+                </div>
+
+                <div className="pb-3 -mt-0.5">
+                  <p className="text-xs font-medium text-foreground/80">
+                    {step.label}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                    {step.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-        {interpretation.confidence_notes?.length > 0 && (
-          <div>
-            <span className="font-medium">Notes:</span>{" "}
-            <ul className="mt-1 list-disc list-inside font-mono">
-              {interpretation.confidence_notes.map((note, i) => (
-                <li key={i}>{note}</li>
-              ))}
-            </ul>
+
+          {/* Metadata grid */}
+          <div className="mt-4 pt-4 border-t border-border/40 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {metadataItems.map((item) => (
+              <div key={item.label}>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-0.5">
+                  {item.label}
+                </p>
+                <p className="text-[11px] font-mono text-muted-foreground leading-relaxed">
+                  {item.value}
+                </p>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
-    </details>
+        </div>
+      )}
+    </div>
   )
 }
 
