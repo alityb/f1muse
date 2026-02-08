@@ -6,7 +6,7 @@ import { ExternalLink } from "lucide-react"
 const NAV_LINKS = [
   { label: "Docs", href: "#" },
   { label: "Methodology", href: "#" },
-  { label: "GitHub", href: "#", external: true },
+  { label: "GitHub", href: "https://github.com/alityb/f1muse", external: true },
 ]
 
 export function Header() {
@@ -18,7 +18,7 @@ export function Header() {
           <a
             key={link.label}
             href={link.href}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-surface"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors hover:bg-surface"
             {...(link.external
               ? { target: "_blank", rel: "noopener noreferrer" }
               : {})}
@@ -29,7 +29,7 @@ export function Header() {
             )}
           </a>
         ))}
-        <div className="ml-3 hidden sm:flex items-center gap-1.5 px-2 py-1 rounded border border-border text-[10px] text-muted-foreground font-mono">
+        <div className="ml-3 hidden sm:flex items-center gap-1.5 px-2 py-1 border border-border text-[10px] text-muted-foreground font-mono">
           <kbd className="text-foreground/70">{"/"}</kbd>
           <span>to search</span>
         </div>

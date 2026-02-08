@@ -71,7 +71,7 @@ export function SuggestedQueries({ onSelect, visible }: SuggestedQueriesProps) {
             key={suggestion.query}
             type="button"
             onClick={() => onSelect(suggestion.query)}
-            className="group flex items-start justify-between gap-3 p-3.5 rounded-lg border border-border/60 hover:border-border hover:bg-surface transition-all text-left"
+            className="group flex items-start justify-between gap-3 p-3.5  border border-border/60 hover:border-border hover:bg-surface transition-all text-left"
           >
             <div className="flex-1 min-w-0">
               <p className="font-mono text-sm text-foreground/90 group-hover:text-foreground transition-colors truncate">

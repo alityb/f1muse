@@ -144,7 +144,7 @@ function DataProvenance({ response }: { response: NLQueryResponse }) {
       <summary className="cursor-pointer text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground">
         Data Provenance
       </summary>
-      <div className="mt-2 p-3 rounded-lg bg-surface/30 border border-border/20 text-xs text-muted-foreground space-y-2">
+      <div className="mt-2 p-3  bg-surface/30 border border-border/20 text-xs text-muted-foreground space-y-2">
         <div>
           <span className="font-medium">Comparison basis:</span>{" "}
           <span className="font-mono">{interpretation.comparison_basis}</span>
@@ -184,9 +184,9 @@ function AnswerSection({ answer }: { answer: StructuredAnswer | string }) {
   // Handle legacy string format
   if (typeof answer === 'string') {
     return (
-      <div className="p-3 rounded-lg bg-surface/50 border border-border/30">
-        <div className="flex items-start gap-2.5">
-          <Lightbulb className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+      <div className="p-4 bg-surface/50 border border-border/30">
+        <div className="flex items-start gap-3">
+          <Lightbulb className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
             {answer}
           </p>
@@ -199,9 +199,9 @@ function AnswerSection({ answer }: { answer: StructuredAnswer | string }) {
   return (
     <div className="space-y-3">
       {/* Headline */}
-      <div className="p-3 rounded-lg bg-surface/50 border border-border/30">
-        <div className="flex items-start gap-2.5">
-          <Lightbulb className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+      <div className="p-4 bg-surface/50 border border-border/30">
+        <div className="flex items-start gap-3">
+          <Lightbulb className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <p className="text-sm text-foreground leading-relaxed">
             {answer.headline}
           </p>
@@ -236,7 +236,7 @@ function RelatedQueries({ followups }: { followups: string[] }) {
         {followups.map((followup, i) => (
           <span
             key={i}
-            className="text-[11px] px-2 py-1 rounded bg-surface border border-border/30 text-muted-foreground font-mono cursor-pointer hover:bg-surface/80 transition-colors"
+            className="text-[11px] px-2 py-1 bg-surface border border-border/30 text-muted-foreground font-mono cursor-pointer hover:bg-surface/80 transition-colors"
           >
             {followup}
           </span>
@@ -426,7 +426,7 @@ function DriverComparisonView({ payload }: { payload: any }) {
       {/* Main comparison cards */}
       <div className="grid grid-cols-2 gap-3">
         {/* Driver A */}
-        <div className={`p-4 rounded-lg border ${aFaster ? 'bg-green-500/5 border-green-500/20' : 'bg-surface/30 border-border/20'}`}>
+        <div className={`p-4  border ${aFaster ? 'bg-green-500/5 border-green-500/20' : 'bg-surface/30 border-border/20'}`}>
           <span className="text-xs text-muted-foreground uppercase tracking-wider">
             {getShortName(driverA)}
           </span>
@@ -439,7 +439,7 @@ function DriverComparisonView({ payload }: { payload: any }) {
         </div>
 
         {/* Driver B */}
-        <div className={`p-4 rounded-lg border ${bFaster ? 'bg-green-500/5 border-green-500/20' : 'bg-surface/30 border-border/20'}`}>
+        <div className={`p-4  border ${bFaster ? 'bg-green-500/5 border-green-500/20' : 'bg-surface/30 border-border/20'}`}>
           <span className="text-xs text-muted-foreground uppercase tracking-wider">
             {getShortName(driverB)}
           </span>
@@ -454,7 +454,7 @@ function DriverComparisonView({ payload }: { payload: any }) {
 
       {/* Coverage indicator */}
       <div className="flex items-center gap-2">
-        <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${confidenceColors[confidence]}`}>
+        <span className={`px-2 py-0.5 text-[10px] font-mono ${confidenceColors[confidence]}`}>
           {confidence}
         </span>
         <span className="text-[10px] text-muted-foreground/50 font-mono">
@@ -555,8 +555,8 @@ function DriverRankingView({ payload }: { payload: any }) {
  */
 function RaceResultsView({ payload }: { payload: any }) {
   const podium = payload.podium || []
-  const top10 = payload.top10 || []
-  const results = top10.length > 0 ? top10 : podium
+  const fullResults = payload.full_results || payload.top10 || []
+  const results = fullResults.length > 0 ? fullResults : podium
 
   return (
     <div className="space-y-4">
@@ -572,7 +572,7 @@ function RaceResultsView({ payload }: { payload: any }) {
       </div>
 
       {payload.winner_name && (
-        <div className="p-3 rounded-lg bg-surface/50 border border-border/30">
+        <div className="p-3  bg-surface/50 border border-border/30">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Winner</span>
           <p className="text-sm font-medium text-foreground mt-1">{payload.winner_name}</p>
           {payload.winner_time && (
@@ -651,13 +651,13 @@ function TeammateGapView({ payload }: { payload: any }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className={`p-4 rounded-lg border ${faster === 'A' ? 'border-foreground/20 bg-surface/50' : 'border-border/30'}`}>
+        <div className={`p-4  border ${faster === 'A' ? 'border-foreground/20 bg-surface/50' : 'border-border/30'}`}>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
             {faster === 'A' ? 'Faster' : ''}
           </span>
           <p className="text-sm font-medium text-foreground mt-1">{getDriverName(driverA)}</p>
         </div>
-        <div className={`p-4 rounded-lg border ${faster === 'B' ? 'border-foreground/20 bg-surface/50' : 'border-border/30'}`}>
+        <div className={`p-4  border ${faster === 'B' ? 'border-foreground/20 bg-surface/50' : 'border-border/30'}`}>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
             {faster === 'B' ? 'Faster' : ''}
           </span>
@@ -708,7 +708,7 @@ function TeammateGapDualView({ payload }: { payload: any }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg border border-border/30">
+        <div className="p-4  border border-border/30">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Qualifying</span>
           <p className="text-sm font-medium text-foreground mt-1">
             {payload.qualifying?.available
@@ -721,7 +721,7 @@ function TeammateGapDualView({ payload }: { payload: any }) {
             </p>
           )}
         </div>
-        <div className="p-4 rounded-lg border border-border/30">
+        <div className="p-4  border border-border/30">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Race Pace</span>
           <p className="text-sm font-medium text-foreground mt-1">
             {payload.race_pace?.available
@@ -736,7 +736,7 @@ function TeammateGapDualView({ payload }: { payload: any }) {
         </div>
       </div>
 
-      <div className="p-3 rounded-lg bg-surface/30 border border-border/20">
+      <div className="p-3  bg-surface/30 border border-border/20">
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Summary</span>
         <p className="text-xs text-foreground mt-1">
           {payload.overall_summary?.same_winner === true
@@ -1223,7 +1223,7 @@ function WinsByCircuitView({ payload }: { payload: any }) {
           <tbody>
             {circuits.map((circuit: any, i: number) => (
               <tr
-                key={circuit.track?.id || i}
+                key={`${circuit.track?.id || 'track'}-${i}`}
                 className={`border-b border-border/20 ${i % 2 === 0 ? '' : 'bg-surface/30'}`}
               >
                 <td className="py-2.5 pr-4 text-xs font-mono text-foreground/90">
@@ -1365,7 +1365,7 @@ function QualifyingResultsView({ payload }: { payload: any }) {
       </div>
 
       {payload.pole_sitter_name && (
-        <div className="p-3 rounded-lg bg-surface/50 border border-border/30">
+        <div className="p-3  bg-surface/50 border border-border/30">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Pole Position</span>
           <p className="text-sm font-medium text-foreground mt-1">{payload.pole_sitter_name}</p>
           {payload.pole_time && (
@@ -1493,7 +1493,7 @@ function CareerPoleCountView({ payload }: { payload: any }) {
         <StatCard label="Pole Rate" value={payload.pole_rate_percent !== null ? `${payload.pole_rate_percent}%` : '-'} />
       </div>
       {payload.championships > 0 && (
-        <div className="p-3 rounded-lg bg-surface/50 border border-border/30 text-center">
+        <div className="p-3  bg-surface/50 border border-border/30 text-center">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">World Championships</span>
           <p className="text-lg font-medium text-foreground mt-1">{payload.championships}</p>
         </div>
@@ -1618,7 +1618,7 @@ function QualifyingGapView({ payload }: { payload: any }) {
       </div>
 
       {payload.avg_gap_percent !== undefined && (
-        <div className="p-3 rounded-lg bg-surface/30 border border-border/20 text-center">
+        <div className="p-3  bg-surface/30 border border-border/20 text-center">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
             Average Gap
           </span>
@@ -1642,7 +1642,7 @@ function QualifyingGapView({ payload }: { payload: any }) {
  */
 function GenericResultView({ payload }: { payload: ResultPayload }) {
   return (
-    <div className="p-4 rounded-lg bg-surface/30 border border-border/20">
+    <div className="p-4  bg-surface/30 border border-border/20">
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">
         Query Type: {payload.type}
       </span>
@@ -1666,7 +1666,7 @@ function StatCard({
   subtitle?: string
 }) {
   return (
-    <div className="p-3 rounded-lg bg-surface/30 border border-border/20">
+    <div className="p-3  bg-surface/30 border border-border/20">
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">{label}</span>
       <p className="text-lg font-medium text-foreground mt-1">{value}</p>
       {subtitle && (
@@ -1690,7 +1690,7 @@ function CoverageIndicator({ coverage, className }: { coverage?: Coverage; class
 
   return (
     <div className={`flex items-center gap-2 ${className || ''}`}>
-      <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${statusColors[coverage.status] || ''}`}>
+      <span className={`px-2 py-0.5 text-[10px] font-mono ${statusColors[coverage.status] || ''}`}>
         {coverage.status.replace('_', ' ')}
       </span>
       <span className="text-[10px] text-muted-foreground/50 font-mono">

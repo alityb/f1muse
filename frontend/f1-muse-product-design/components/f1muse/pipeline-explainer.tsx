@@ -41,7 +41,7 @@ export function PipelineExplainer({ steps, metadata }: PipelineExplainerProps) {
   }
 
   return (
-    <div className="border border-border/50 rounded-lg overflow-hidden">
+    <div className="border border-border/50 overflow-hidden">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -65,7 +65,7 @@ export function PipelineExplainer({ steps, metadata }: PipelineExplainerProps) {
                 <div key={step.label} className="flex items-start gap-3">
                   {/* Vertical connector */}
                   <div className="flex flex-col items-center">
-                    <div className="w-5 h-5 rounded-full bg-surface border border-border flex items-center justify-center flex-shrink-0">
+                    <div className="w-5 h-5 bg-surface border border-border flex items-center justify-center flex-shrink-0">
                       <Check className="w-2.5 h-2.5 text-foreground/70" />
                     </div>
                     {i < steps.length - 1 && (

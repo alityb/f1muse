@@ -34,7 +34,7 @@
     --chart-3: 0 0% 40%;
     --chart-4: 0 0% 30%;
     --chart-5: 0 0% 20%;
-    --radius: 0.5rem;
+    --radius: 0;
     --surface: 0 0% 7%;
     --surface-hover: 0 0% 10%;
     --subtle: 0 0% 66%;
@@ -60,7 +60,6 @@
 }
 ::-webkit-scrollbar-thumb {
   background: hsl(0 0% 20%);
-  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(0 0% 30%);

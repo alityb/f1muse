@@ -114,9 +114,9 @@ export default function Page() {
           {isLoading && (
             <div className="flex items-center gap-3 py-12">
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-foreground/40 pulse-dot" />
-                <span className="w-1.5 h-1.5 rounded-full bg-foreground/40 pulse-dot" />
-                <span className="w-1.5 h-1.5 rounded-full bg-foreground/40 pulse-dot" />
+                <span className="w-1.5 h-1.5 bg-foreground/40 pulse-dot" />
+                <span className="w-1.5 h-1.5 bg-foreground/40 pulse-dot" />
+                <span className="w-1.5 h-1.5 bg-foreground/40 pulse-dot" />
               </div>
               <span className="text-xs font-mono text-muted-foreground/50">
                 Processing query...
@@ -153,9 +153,9 @@ export default function Page() {
 
 function ErrorDisplay({ error }: { error: APIError }) {
   return (
-    <div className="w-full p-6 rounded-lg border border-red-500/20 bg-red-500/5">
+    <div className="w-full p-6 border border-red-500/20 bg-red-500/5">
       <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
+        <div className="flex-shrink-0 w-5 h-5 bg-red-500/20 flex items-center justify-center">
           <span className="text-red-500 text-xs">!</span>
         </div>
         <div className="flex-1">

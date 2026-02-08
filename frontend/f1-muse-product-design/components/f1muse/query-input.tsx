@@ -100,8 +100,8 @@ export function QueryInput({ value, onChange, onSubmit, isLoading }: QueryInputP
     <form onSubmit={handleSubmit} className="w-full">
       <div className="relative group">
         {/* Outer glow on focus */}
-        <div className="absolute -inset-px rounded-lg bg-border/0 group-focus-within:bg-border/50 transition-colors" />
-        <div className="relative flex items-center bg-surface rounded-lg border border-border group-focus-within:border-border/80 transition-colors">
+        <div className="absolute -inset-px bg-border/0 group-focus-within:bg-border/50 transition-colors" />
+        <div className="relative flex items-center bg-surface border border-border group-focus-within:border-border/80 transition-colors">
           {/* Prompt indicator */}
           <div className="flex items-center pl-4 pr-2">
             <span className="text-muted-foreground font-mono text-sm select-none">
@@ -129,7 +129,7 @@ export function QueryInput({ value, onChange, onSubmit, isLoading }: QueryInputP
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-foreground bg-foreground/10 hover:bg-foreground/15 rounded transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono text-foreground bg-foreground/10 hover:bg-foreground/15 transition-colors disabled:opacity-50"
                 aria-label="Run query"
               >
                 <span className="hidden sm:inline">run</span>
@@ -153,9 +153,9 @@ export function QueryInput({ value, onChange, onSubmit, isLoading }: QueryInputP
         </p>
         {isLoading && (
           <div className="flex items-center gap-1" aria-label="Processing query">
-            <span className="w-1 h-1 rounded-full bg-foreground/60 pulse-dot" />
-            <span className="w-1 h-1 rounded-full bg-foreground/60 pulse-dot" />
-            <span className="w-1 h-1 rounded-full bg-foreground/60 pulse-dot" />
+            <span className="w-1 h-1 bg-foreground/60 pulse-dot" />
+            <span className="w-1 h-1 bg-foreground/60 pulse-dot" />
+            <span className="w-1 h-1 bg-foreground/60 pulse-dot" />
           </div>
         )}
       </div>
