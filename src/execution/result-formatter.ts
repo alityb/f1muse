@@ -1545,7 +1545,69 @@ export class ResultFormatter {
       'user_query'
     );
 
-    // Build per-season data
+    // Get aggregate from first row (same for all rows)
+    const firstRow = rows[0] || {};
+
+    // Check if this is position-based (new template) or pace-based (old template)
+    const isPositionBased = firstRow.career_h2h_a !== undefined;
+
+    if (isPositionBased) {
+      // Position-based results from teammate_comparison_career_results_v1
+      const seasons = rows.map(row => ({
+        season: parseInt(row.season || '0', 10),
+        team: {
+          id: row.team_name?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
+          name: row.team_name || 'Unknown',
+        } as TeamRef,
+        team_id: row.team_name?.toLowerCase().replace(/\s+/g, '-') || 'unknown',
+        // Position-based: use H2H as "faster" metric
+        gap_seconds: 0,  // Not available in position-based
+        gap_pct: null,   // Not available in position-based
+        shared_races: parseInt(row.a_races || '0', 10),
+        faster_primary_count: parseInt(row.season_h2h_a || '0', 10),
+        // Additional position-based data
+        a_wins: parseInt(row.a_wins || '0', 10),
+        a_podiums: parseInt(row.a_podiums || '0', 10),
+        a_points: parseFloat(row.a_points || '0'),
+        b_wins: parseInt(row.b_wins || '0', 10),
+        b_podiums: parseInt(row.b_podiums || '0', 10),
+        b_points: parseFloat(row.b_points || '0'),
+        h2h_a: parseInt(row.season_h2h_a || '0', 10),
+        h2h_b: parseInt(row.season_h2h_b || '0', 10),
+      }));
+
+      const careerH2hA = parseInt(firstRow.career_h2h_a || '0', 10);
+      const careerH2hB = parseInt(firstRow.career_h2h_b || '0', 10);
+
+      const aggregate = {
+        total_shared_races: parseInt(firstRow.total_classified_races || '0', 10),
+        total_faster_primary_count: careerH2hA,
+        avg_gap_seconds: 0,  // Not available
+        avg_gap_pct: null,   // Not available
+        seasons_together: parseInt(firstRow.seasons_together || '0', 10),
+        overall_winner: (firstRow.overall_h2h_winner === 'driver_a' ? 'primary' :
+                        firstRow.overall_h2h_winner === 'driver_b' ? 'secondary' : 'draw') as 'primary' | 'secondary' | 'draw',
+        // Position-based career totals
+        career_a_wins: parseInt(firstRow.career_a_wins || '0', 10),
+        career_a_podiums: parseInt(firstRow.career_a_podiums || '0', 10),
+        career_a_points: parseFloat(firstRow.career_a_points || '0'),
+        career_b_wins: parseInt(firstRow.career_b_wins || '0', 10),
+        career_b_podiums: parseInt(firstRow.career_b_podiums || '0', 10),
+        career_b_points: parseFloat(firstRow.career_b_points || '0'),
+        career_h2h_a: careerH2hA,
+        career_h2h_b: careerH2hB,
+        comparison_type: 'position' as const,
+      };
+
+      return {
+        type: 'teammate_comparison_career',
+        drivers: orderedPair,
+        seasons,
+        aggregate,
+      };
+    }
+
+    // Pace-based results from teammate_comparison_career_v1 (original logic)
     const seasons = rows.map(row => ({
       season: parseInt(row.season || '0', 10),
       team: {
@@ -1558,9 +1620,6 @@ export class ResultFormatter {
       shared_races: parseInt(row.shared_races || '0', 10),
       faster_primary_count: parseInt(row.faster_primary_count || '0', 10),
     }));
-
-    // Get aggregate from first row (same for all rows)
-    const firstRow = rows[0] || {};
 
     // Calculate avg_gap_pct from seasons data (weighted by shared_races)
     const totalRaces = seasons.reduce((sum, s) => sum + s.shared_races, 0);
@@ -1580,6 +1639,7 @@ export class ResultFormatter {
       avg_gap_pct: avgGapPct,
       seasons_together: parseInt(firstRow.seasons_together || '0', 10),
       overall_winner: (firstRow.overall_winner || 'draw') as 'primary' | 'secondary' | 'draw',
+      comparison_type: 'pace' as const,
     };
 
     return {

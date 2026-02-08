@@ -25,7 +25,7 @@ const TEMPLATE_MAP: Record<string, ApprovedSqlTemplateId> = {
   // New comprehensive query kinds
   driver_vs_driver_comprehensive: 'driver_vs_driver_comprehensive_v1',
   driver_career_wins_by_circuit: 'driver_career_wins_by_circuit_v1',
-  teammate_comparison_career: 'teammate_comparison_career_v1',
+  teammate_comparison_career: 'teammate_comparison_career_results_v1',  // Position-based (full history)
   // Qualifying results
   qualifying_results_summary: 'qualifying_results_summary_v1'
 };

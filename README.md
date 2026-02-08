@@ -2,13 +2,17 @@
 
 F1Muse is a natural language query engine for Formula 1 statistics and analysis. Ask questions in plain English—driver comparisons, race pace, historical stats—and get accurate, data-backed answers. The system uses normalized lap-level analysis, session-median pace deltas, and teammate-aware comparisons to produce meaningful results. Backed by official FIA timing data where applicable, with Redis caching and rate limiting built in for production use.
 
-> **Note**: Lap-level pace data is available for 2022-2025 seasons. Career statistics (wins, poles, championships) cover the full modern era.
+> **Note**: Lap-level pace data is available for 2018-2025 seasons. Career statistics (wins, poles, championships) cover the full modern era (1950-present).
 
 ## Methodology & Design
 
 All pace comparisons use **session-median normalization**: each lap time is expressed as a percentage deviation from the session median, making metrics comparable across any track or session. A driver at -0.3% was three-tenths of a percent faster than the field—this holds whether it's Monaco or Monza.
 
 Cross-team comparisons require shared races. Teammate analysis enforces that both drivers actually raced for the same team. Coverage thresholds (10+ valid laps per driver, 3+ shared sessions for season comparisons) prevent spurious results. The system rejects or warns on queries that don't meet these thresholds rather than returning misleading data.
+
+**Data coverage by era:**
+- **Pace-based analysis (2018-2025)**: Lap-level timing with clean air detection, enabling normalized pace comparisons
+- **Position-based analysis (1950-present)**: Race results and finishing positions from F1DB for career H2H and historical queries
 
 ---
 
@@ -74,11 +78,11 @@ curl -X POST http://localhost:3000/nl-query \
 
 | Query | Returns |
 |-------|---------|
-| `"Verstappen vs Norris 2024"` | Season pace comparison with normalized differential *(lap data: 2022-2025)* |
+| `"Verstappen vs Norris 2024"` | Season pace comparison with normalized differential *(lap data: 2018-2025)* |
 | `"Hamilton wins by circuit"` | Career victory count at each track *(full career from F1DB)* |
 | `"Alonso 2024 season summary"` | Wins, podiums, points, best finish |
-| `"Hamilton vs Russell as teammates"` | Head-to-head pace delta across shared races *(lap data: 2022-2025)* |
-| `"Fastest drivers at Monaco 2024"` | Ranked list by normalized pace *(lap data: 2022-2025)* |
+| `"Hamilton vs Russell as teammates"` | Head-to-head pace delta across shared races *(lap data: 2018-2025)* |
+| `"Fastest drivers at Monaco 2024"` | Ranked list by normalized pace *(lap data: 2018-2025)* |
 | `"Leclerc pole count 2024"` | Poles, front rows, Q3 rate, average grid |
 
 The system handles driver name variations (`VER`, `Verstappen`, `max verstappen`) and track aliases (`Monaco`, `Monte Carlo`).
@@ -126,9 +130,9 @@ Question → Intent Parser (Claude) → SQL Template Selection → PostgreSQL �
 
 ## Data Sources
 
-**Lap Timing ([FastF1](https://docs.fastf1.dev/))**: Session-by-session lap times for 2022-2025 seasons. Individual lap times with validity flags, batch ingested after each race weekend.
+**Lap Timing ([FastF1](https://docs.fastf1.dev/))**: Session-by-session lap times for 2018-2025 seasons (~161,000 laps). Individual lap times with validity flags, batch ingested after each race weekend. Clean air detection uses gap-to-leader data for 2022+ seasons; for 2018-2021, gaps are calculated from cumulative lap times (FastF1 limitation—no real-time gap data for older seasons).
 
-**Official Records ([F1DB](https://github.com/f1db/f1db))**: Career statistics, race results, qualifying positions, and championship standings from official FIA records spanning the modern era.
+**Official Records ([F1DB](https://github.com/f1db/f1db))**: Career statistics, race results, qualifying positions, and championship standings from official FIA records spanning 1950-present (~243,000 race entries).
 
 ---
 

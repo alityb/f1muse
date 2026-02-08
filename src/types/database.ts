@@ -123,7 +123,8 @@ export const APPROVED_SQL_TEMPLATES = [
   'driver_multi_comparison_v1',                  // driver_multi_comparison (PART 5)
   'driver_vs_driver_comprehensive_v1',           // driver_vs_driver_comprehensive (NEW)
   'driver_career_wins_by_circuit_v1',            // driver_career_wins_by_circuit (NEW)
-  'teammate_comparison_career_v1',               // teammate_comparison_career (NEW)
+  'teammate_comparison_career_v1',               // teammate_comparison_career (pace-based, 2022+)
+  'teammate_comparison_career_results_v1',       // teammate_comparison_career (position-based, full history)
   'season_driver_vs_driver_v1',                  // season_driver_vs_driver (raw pace)
   'season_driver_vs_driver_normalized_v1',       // season_driver_vs_driver (normalized %)
   'cross_team_track_scoped_driver_comparison_v1', // cross_team_track_scoped_driver_comparison

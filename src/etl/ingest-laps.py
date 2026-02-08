@@ -42,6 +42,10 @@ CLEAN_AIR_GAP_THRESHOLD = 2.0  # seconds - gap to car ahead to be considered "cl
 
 # Season race counts
 SEASON_RACE_COUNTS = {
+    2018: 21,
+    2019: 21,
+    2020: 17,  # COVID shortened season
+    2021: 22,
     2022: 22,
     2023: 22,
     2024: 24,
@@ -240,18 +244,36 @@ def detect_clean_air(laps_df: pd.DataFrame, threshold: float = CLEAN_AIR_GAP_THR
     - Gap to car ahead > threshold (2.0 seconds)
     - OR driver is in P1 (no car ahead)
     - AND not in traffic situation
+
+    Uses GapToLeader if available (2022+), otherwise calculates from cumulative lap times.
     """
     laps_df = laps_df.copy()
 
     # Default to True (clean air)
     laps_df['clean_air_flag'] = True
 
-    # Group by lap number to find gaps
+    # Check if GapToLeader is available and has data
+    has_gap_to_leader = (
+        'GapToLeader' in laps_df.columns and
+        laps_df['GapToLeader'].notna().sum() > len(laps_df) * 0.5  # At least 50% have gap data
+    )
+
+    if has_gap_to_leader:
+        # Use GapToLeader method (2022+ seasons)
+        _detect_clean_air_from_gap(laps_df, threshold)
+    else:
+        # Calculate gaps from cumulative lap times (pre-2022 seasons)
+        _detect_clean_air_from_cumulative(laps_df, threshold)
+
+    return laps_df
+
+
+def _detect_clean_air_from_gap(laps_df: pd.DataFrame, threshold: float) -> None:
+    """Detect clean air using GapToLeader data (mutates laps_df in place)"""
     for lap_num in laps_df['LapNumber'].unique():
         lap_mask = laps_df['LapNumber'] == lap_num
         lap_data = laps_df[lap_mask].copy()
 
-        # Sort by position at end of lap
         if 'Position' in lap_data.columns:
             lap_data = lap_data.sort_values('Position')
 
@@ -262,20 +284,68 @@ def detect_clean_air(laps_df: pd.DataFrame, threshold: float = CLEAN_AIR_GAP_THR
                 if position == 1:
                     continue
 
-                # Check gap to car ahead (if available)
-                if 'GapToLeader' in row and pd.notna(row['GapToLeader']):
-                    # Find car directly ahead
+                if pd.notna(row.get('GapToLeader')):
                     ahead_position = position - 1
                     car_ahead = lap_data[lap_data['Position'] == ahead_position]
 
-                    if not car_ahead.empty:
+                    if not car_ahead.empty and pd.notna(car_ahead.iloc[0]['GapToLeader']):
                         gap_to_ahead = row['GapToLeader'] - car_ahead.iloc[0]['GapToLeader']
 
-                        # Mark as traffic if gap < threshold
                         if gap_to_ahead < threshold:
                             laps_df.loc[idx, 'clean_air_flag'] = False
 
-    return laps_df
+
+def _detect_clean_air_from_cumulative(laps_df: pd.DataFrame, threshold: float) -> None:
+    """
+    Detect clean air by calculating gaps from cumulative lap times (mutates laps_df in place).
+
+    For each lap:
+    1. Calculate cumulative race time for each driver
+    2. Sort by cumulative time to get on-track order
+    3. Gap to car ahead = my_cumulative - car_ahead_cumulative
+    4. If gap < threshold, mark as dirty air
+    """
+    # First, compute cumulative lap time for each driver
+    laps_df['_lap_time_sec'] = laps_df['LapTime'].apply(
+        lambda x: x.total_seconds() if pd.notna(x) else None
+    )
+
+    # Sort in place by driver and lap number for cumsum to work correctly
+    laps_df.sort_values(['DriverNumber', 'LapNumber'], inplace=True)
+
+    # Calculate cumulative time per driver
+    laps_df['_cumulative_time'] = laps_df.groupby('DriverNumber')['_lap_time_sec'].cumsum()
+
+    # Now process each lap to detect clean air
+    for lap_num in laps_df['LapNumber'].unique():
+        lap_mask = laps_df['LapNumber'] == lap_num
+
+        # Get indices and cumulative times for this lap
+        lap_indices = laps_df.index[lap_mask].tolist()
+        lap_cumtimes = laps_df.loc[lap_indices, '_cumulative_time'].values
+
+        # Filter to valid cumulative times
+        valid_mask = ~pd.isna(lap_cumtimes)
+        valid_indices = [idx for idx, valid in zip(lap_indices, valid_mask) if valid]
+        valid_cumtimes = lap_cumtimes[valid_mask]
+
+        if len(valid_indices) < 2:
+            continue
+
+        # Sort by cumulative time (on-track order)
+        sorted_order = valid_cumtimes.argsort()
+        sorted_indices = [valid_indices[i] for i in sorted_order]
+        sorted_cumtimes = valid_cumtimes[sorted_order]
+
+        # Calculate gap to car ahead and mark dirty air
+        for i in range(1, len(sorted_indices)):  # Skip leader (i=0)
+            gap_to_ahead = sorted_cumtimes[i] - sorted_cumtimes[i - 1]
+
+            if gap_to_ahead < threshold:
+                laps_df.loc[sorted_indices[i], 'clean_air_flag'] = False
+
+    # Clean up temporary columns
+    laps_df.drop(columns=['_lap_time_sec', '_cumulative_time'], inplace=True, errors='ignore')
 
 
 def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number: int, track_id: str, identity_map: Dict[str, str]) -> List[Dict[str, Any]]:
@@ -451,8 +521,7 @@ def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str,
                         stint_lap_index = EXCLUDED.stint_lap_index,
                         is_pit_lap = EXCLUDED.is_pit_lap,
                         is_out_lap = EXCLUDED.is_out_lap,
-                        is_in_lap = EXCLUDED.is_in_lap,
-                        updated_at = NOW()
+                        is_in_lap = EXCLUDED.is_in_lap
                 """
 
                 values = [

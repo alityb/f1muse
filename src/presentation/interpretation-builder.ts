@@ -1168,10 +1168,39 @@ function buildTeammateComparisonCareerInterpretation(
 
   const seasons = payload.seasons || [];
   const validSeasons = seasons.filter(s => s.shared_races > 0);
+  const aggregate = payload.aggregate || {};
 
-  const headline = validSeasons.length > 0
-    ? `${driverAShort} vs ${driverBShort}: ${validSeasons.length} season${validSeasons.length > 1 ? 's' : ''} as teammates`
-    : `${driverAShort} and ${driverBShort} have no shared seasons as teammates`;
+  // Check if this is position-based comparison (has H2H data)
+  const isPositionBased = (aggregate as any).career_h2h_a !== undefined;
+
+  let headline: string;
+  let bullets: string[] = [];
+
+  if (validSeasons.length === 0) {
+    headline = `${driverAShort} and ${driverBShort} have no shared seasons as teammates`;
+  } else if (isPositionBased) {
+    // Position-based: show H2H record
+    const h2hA = (aggregate as any).career_h2h_a || 0;
+    const h2hB = (aggregate as any).career_h2h_b || 0;
+    const seasonsCount = aggregate.seasons_together || validSeasons.length;
+    headline = `${driverAShort} vs ${driverBShort} as teammates: ${h2hA}-${h2hB} head-to-head (${seasonsCount} season${seasonsCount > 1 ? 's' : ''})`;
+
+    // Add bullets for wins/podiums if available
+    const aWins = (aggregate as any).career_a_wins || 0;
+    const bWins = (aggregate as any).career_b_wins || 0;
+    const aPodiums = (aggregate as any).career_a_podiums || 0;
+    const bPodiums = (aggregate as any).career_b_podiums || 0;
+
+    if (aWins > 0 || bWins > 0) {
+      bullets.push(`Wins: ${driverAShort} ${aWins}, ${driverBShort} ${bWins}`);
+    }
+    if (aPodiums > 0 || bPodiums > 0) {
+      bullets.push(`Podiums: ${driverAShort} ${aPodiums}, ${driverBShort} ${bPodiums}`);
+    }
+  } else {
+    // Pace-based: original logic
+    headline = `${driverAShort} vs ${driverBShort}: ${validSeasons.length} season${validSeasons.length > 1 ? 's' : ''} as teammates`;
+  }
 
   return {
     intent,
@@ -1179,7 +1208,7 @@ function buildTeammateComparisonCareerInterpretation(
     answer: {
       query_kind: intent.kind,
       headline,
-      bullets: [],
+      bullets,
       coverage: {
         level: 'high',
         summary: ''
