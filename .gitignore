@@ -51,3 +51,7 @@ etl/.fastf1_cache/
 venv/
 .env
 
+debug-*
+prod_test_*.json
+*.tsbuildinfo
+
