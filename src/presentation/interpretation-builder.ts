@@ -91,7 +91,7 @@ function humanizeId(value: string): string {
     return value;
   }
   return value
-    .replace(/_/g, ' ')
+    .replace(/[-_]/g, ' ')
     .split(' ')
     .filter(part => part.length > 0)
     .map(part => part[0]?.toUpperCase() + part.slice(1))
@@ -985,9 +985,10 @@ function buildRaceResultsInterpretation(
   const podium = payload.podium && payload.podium.length > 0 ? payload.podium : top10.slice(0, 3);
   const winner = podium[0];
 
+  // Note: raceLabel (official race name) often includes the year already
   const summary = winner
-    ? `${winner.driver_name} won ${raceLabel} ${intent.season}.`
-    : `${raceLabel} ${intent.season} race results.`;
+    ? `${winner.driver_name} won ${raceLabel}.`
+    : `${raceLabel} race results.`;
 
   const podiumLabel = podium.length > 0
     ? podium.map(entry => `${entry.driver_name} (${entry.constructor_name})`).join(', ')

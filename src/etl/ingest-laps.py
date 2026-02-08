@@ -142,14 +142,14 @@ def validate_database_schema(conn) -> bool:
         return False
 
 
-def check_race_already_loaded(conn, season: int, round_number: int) -> bool:
-    """Check if race data already exists"""
+def check_race_already_loaded(conn, season: int, round_number: int, session_type: str = 'R') -> bool:
+    """Check if race/qualifying data already exists"""
     with conn.cursor() as cur:
         cur.execute("""
             SELECT COUNT(*)
             FROM laps_normalized
-            WHERE season = %s AND round = %s
-        """, (season, round_number))
+            WHERE season = %s AND round = %s AND session_type = %s
+        """, (season, round_number, session_type))
 
         count = cur.fetchone()[0]
         return count > 0
@@ -348,9 +348,12 @@ def _detect_clean_air_from_cumulative(laps_df: pd.DataFrame, threshold: float) -
     laps_df.drop(columns=['_lap_time_sec', '_cumulative_time'], inplace=True, errors='ignore')
 
 
-def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number: int, track_id: str, identity_map: Dict[str, str]) -> List[Dict[str, Any]]:
+def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number: int, track_id: str, identity_map: Dict[str, str], session_type: str = 'R') -> List[Dict[str, Any]]:
     """
     Transform FastF1 lap data into laps_normalized schema
+
+    Args:
+        session_type: 'R' for Race, 'Q' for Qualifying
 
     FAIL-CLOSED: Rejects laps with missing critical data
     """
@@ -382,11 +385,11 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
             if abbrev in identity_map:
                 driver_map[driver_num] = identity_map[abbrev]
             else:
-                # Fallback: construct from first/last name
+                # Fallback: construct from first/last name (using hyphens to match F1DB format)
                 first_name = driver.get('FirstName', '').lower()
                 last_name = driver.get('LastName', '').lower()
                 if first_name and last_name:
-                    driver_map[driver_num] = f"{first_name}_{last_name}"
+                    driver_map[driver_num] = f"{first_name}-{last_name}"
                     print(f"  ⚠ Driver {abbrev} not in identity map, using: {driver_map[driver_num]}")
                 else:
                     driver_map[driver_num] = abbrev.lower()
@@ -422,7 +425,7 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
             'round': round_number,
             'track_id': track_id,
             'driver_id': driver_id,
-            'session_type': 'R',  # Race session
+            'session_type': session_type,  # 'R' for Race, 'Q' for Qualifying
             'lap_number': int(row['LapNumber']),
             'stint_id': int(row['stint_id']),
             'stint_lap_index': int(row['stint_lap_index']),
@@ -445,18 +448,22 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
     return transformed_laps
 
 
-def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str, str]) -> Dict[str, Any]:
+def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str, str], session_type: str = 'R') -> Dict[str, Any]:
     """
-    Load a single race worth of lap data
+    Load a single race/qualifying session worth of lap data
+
+    Args:
+        session_type: 'R' for Race, 'Q' for Qualifying
 
     Returns metrics about the load operation
     """
-    print(f"\n→ Processing {season} Round {round_number}...")
+    session_name = 'Race' if session_type == 'R' else 'Qualifying'
+    print(f"\n→ Processing {season} Round {round_number} ({session_name})...")
 
     try:
         # Load FastF1 session
         print(f"  → Loading FastF1 data...")
-        session = fastf1.get_session(season, round_number, 'R')  # 'R' = Race
+        session = fastf1.get_session(season, round_number, session_type)
         session.load()
 
         # Get event info
@@ -466,8 +473,8 @@ def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str,
         print(f"  ✓ Loaded: {event['EventName']} (Round {round_number})")
 
         # Check if already loaded
-        if check_race_already_loaded(conn, season, round_number):
-            print(f"  ⊘ Race already loaded - skipping")
+        if check_race_already_loaded(conn, season, round_number, session_type):
+            print(f"  ⊘ {session_name} already loaded - skipping")
             return {
                 'status': 'skipped',
                 'laps_inserted': 0,
@@ -487,7 +494,7 @@ def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str,
             }
 
         # Transform data
-        transformed_laps = transform_lap_data(laps, session, season, round_number, track_id, identity_map)
+        transformed_laps = transform_lap_data(laps, session, season, round_number, track_id, identity_map, session_type)
 
         if not transformed_laps:
             print(f"  ✗ FAIL_CLOSED: No valid laps after transformation")
@@ -618,16 +625,19 @@ def main():
     parser = argparse.ArgumentParser(description='ETL for laps_normalized table')
     parser.add_argument('--season', type=int, required=True, help='Season year (e.g., 2022, 2023, 2024, 2025)')
     parser.add_argument('--round', type=int, help='Specific round to load')
+    parser.add_argument('--session', type=str, default='R', choices=['R', 'Q'], help='Session type: R=Race (default), Q=Qualifying')
     args = parser.parse_args()
 
     season = args.season
+    session_type = args.session
 
     if season not in SEASON_RACE_COUNTS:
         print(f"✗ FAIL_CLOSED: Season {season} not supported. Supported: {list(SEASON_RACE_COUNTS.keys())}")
         sys.exit(1)
 
-    print(f"\n=== LAPS NORMALIZED ETL - {season} SEASON ===\n")
-    print(f"Season: {season}")
+    session_name = 'RACE' if session_type == 'R' else 'QUALIFYING'
+    print(f"\n=== LAPS NORMALIZED ETL - {season} SEASON ({session_name}) ===\n")
+    print(f"Season: {season}, Session: {session_name}")
 
     started_at = datetime.now()
     print(f"Started: {started_at.isoformat()}\n")
@@ -668,7 +678,7 @@ def main():
     metrics = ETLMetrics()
 
     for round_num in rounds_to_process:
-        result = load_race_data(conn, season, round_num, identity_map)
+        result = load_race_data(conn, season, round_num, identity_map, session_type)
 
         if result['status'] == 'success':
             metrics.races_processed += 1

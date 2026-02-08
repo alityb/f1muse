@@ -229,12 +229,35 @@ export class IntentResolver {
       return { ok: true, data: undefined };
     }
 
-    const value = resolved.track_surface ?? resolved.track_id;
+    let value = resolved.track_surface ?? resolved.track_id;
     if (typeof value !== 'string' || value.trim().length === 0) {
       return {
         ok: false,
         error: { error: 'intent_resolution_failed', reason: 'Missing track_id' }
       };
+    }
+
+    // 2020 special events: override track based on raw query keywords
+    // These events were one-offs at circuits that host other GPs (e.g., Styrian GP at Red Bull Ring)
+    const rawQuery = (resolved.raw_query || '').toLowerCase();
+    const specialEventOverrides: Record<string, string> = {
+      'styria': 'styrian_grand_prix',
+      'styrian': 'styrian_grand_prix',
+      'tuscan': 'tuscan_grand_prix',
+      'mugello': 'tuscan_grand_prix',
+      'eifel': 'eifel_grand_prix',
+      'nurburgring': 'eifel_grand_prix',
+      '70th anniversary': '70th_anniversary_grand_prix',
+      'sakhir grand prix': 'sakhir_grand_prix',
+      'turkish': 'turkish_grand_prix',
+      'istanbul': 'turkish_grand_prix',
+    };
+    for (const [keyword, overrideTrackId] of Object.entries(specialEventOverrides)) {
+      if (rawQuery.includes(keyword)) {
+        console.log(`[IntentResolver] Special event override: "${keyword}" found in query → using "${overrideTrackId}"`);
+        value = overrideTrackId;
+        break;
+      }
     }
 
     const result = await this.trackResolver.resolve(value);

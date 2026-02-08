@@ -675,6 +675,7 @@ export class ResultFormatter {
       winner_name: winner?.driver.name ?? winner?.driver_name ?? null,
       podium: entries.slice(0, 3),
       top10: entries.slice(0, 10),
+      full_results: entries,
       laps_completed: winner?.laps_completed ?? null,
       winner_time: winner?.race_time ?? null
     };

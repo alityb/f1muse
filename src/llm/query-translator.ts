@@ -542,6 +542,33 @@ export class QueryTranslator {
       }
     }
 
+    // HARD RULE 6: 2020 special events - override track_id based on keywords
+    // The LLM doesn't know about these special one-off GPs, so we detect them from the raw query
+    const specialEventMap: Record<string, string> = {
+      'styria': 'styrian_grand_prix',
+      'styrian': 'styrian_grand_prix',
+      'tuscan': 'tuscan_grand_prix',
+      'mugello': 'tuscan_grand_prix',
+      'tuscany': 'tuscan_grand_prix',
+      'eifel': 'eifel_grand_prix',
+      'nurburgring': 'eifel_grand_prix',
+      'nürburgring': 'eifel_grand_prix',
+      '70th anniversary': '70th_anniversary_grand_prix',
+      'sakhir': 'sakhir_grand_prix',
+      'turkish': 'turkish_grand_prix',
+      'istanbul': 'turkish_grand_prix',
+      'turkey': 'turkish_grand_prix',
+      'portuguese': 'portuguese_grand_prix',
+      'portimao': 'portuguese_grand_prix',
+    };
+    for (const [keyword, trackId] of Object.entries(specialEventMap)) {
+      if (lowerQuery.includes(keyword) && updated.track_id !== trackId) {
+        console.log(`[QueryTranslator] Special event override: track_id "${updated.track_id}" → "${trackId}" (matched "${keyword}")`);
+        updated.track_id = trackId;
+        break;
+      }
+    }
+
     // For season_driver_vs_driver, use session_median_percent as default normalization
     // Only use 'none' if the user explicitly requested "raw pace" or "raw lap times"
     if (updated.kind === 'season_driver_vs_driver') {

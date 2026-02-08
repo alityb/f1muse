@@ -72,13 +72,30 @@ WITH track_alias AS (
     ('miami', 'miami'),
     ('imola', 'emilia-romagna'),
     ('portimao', 'portugal'),
+    ('portuguese', 'portugal'),
+    ('portuguese_grand_prix', 'portugal'),
+    ('portugal', 'portugal'),
     ('paul ricard', 'france'),
     ('le castellet', 'france'),
     ('french', 'france'),
     ('mexican', 'mexico'),
     ('monaco', 'monaco'),
     ('canadian', 'canada'),
-    ('montreal', 'canada')
+    ('montreal', 'canada'),
+    ('tuscan', 'tuscany'),
+    ('tuscan_grand_prix', 'tuscany'),
+    ('mugello', 'tuscany'),
+    ('tuscany', 'tuscany'),
+    ('eifel', 'eifel'),
+    ('eifel_grand_prix', 'eifel'),
+    ('nurburgring', 'eifel'),
+    ('styrian', 'styria'),
+    ('styrian_grand_prix', 'styria'),
+    ('sakhir_grand_prix', 'sakhir'),
+    ('turkish', 'turkey'),
+    ('turkish_grand_prix', 'turkey'),
+    ('istanbul', 'turkey'),
+    ('70th_anniversary_grand_prix', '70th-anniversary')
   ) AS t(alias, canonical)
 )
 SELECT
@@ -113,6 +130,7 @@ WHERE
     -- Direct match on grand_prix.id
     gp.id = $2
     OR gp.id = REPLACE($2, '_', '-')
+    OR gp.id = SPLIT_PART(REPLACE($2, '_', '-'), '-grand-prix', 1)
     -- Direct match on circuit.id
     OR c.id = $2
     OR c.id = SPLIT_PART(REPLACE($2, '_', '-'), '-grand-prix', 1)

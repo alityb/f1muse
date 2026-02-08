@@ -96,7 +96,8 @@ export class DriverResolver {
 
     try {
       const driverRows = await this.fetchDriverRows();
-      const candidates = this.findLiteralCandidates(normalizedInput, driverRows);
+      const aliases = await this.fetchAliases();
+      const candidates = this.findLiteralCandidates(normalizedInput, driverRows, aliases);
 
       if (candidates.length === 0) {
         return { success: false, error: 'unknown_driver' };
@@ -139,7 +140,28 @@ export class DriverResolver {
     return result.rows;
   }
 
-  private findLiteralCandidates(normalizedInput: string, rows: DriverRow[]): string[] {
+  private async fetchAliases(): Promise<Map<string, string[]>> {
+    const aliasMap = new Map<string, string[]>();
+    try {
+      const result = await this.pool.query(
+        `SELECT driver_id, alias FROM driver_aliases`
+      );
+      for (const row of result.rows) {
+        const existing = aliasMap.get(row.driver_id) || [];
+        existing.push(row.alias);
+        aliasMap.set(row.driver_id, existing);
+      }
+    } catch {
+      // Ignore if table missing
+    }
+    return aliasMap;
+  }
+
+  private findLiteralCandidates(
+    normalizedInput: string,
+    rows: DriverRow[],
+    aliases: Map<string, string[]>
+  ): string[] {
     const matches = new Set<string>();
 
     const maybeMatch = (driverId: string, value?: string | null) => {
@@ -157,6 +179,12 @@ export class DriverResolver {
       maybeMatch(row.id, row.first_name || null);
       maybeMatch(row.id, row.last_name || null);
       maybeMatch(row.id, row.abbreviation || null);
+
+      // Check aliases
+      const driverAliases = aliases.get(row.id) || [];
+      for (const alias of driverAliases) {
+        maybeMatch(row.id, alias);
+      }
     }
 
     return Array.from(matches);

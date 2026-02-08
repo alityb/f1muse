@@ -46,8 +46,17 @@ qualifying_data AS (
       )
       ELSE NULL
     END AS q3_time,
-    -- Best time in ms for gap calculation (Q3 > Q2 > Q1)
-    COALESCE(qr.q3_time_ms, qr.q2_time_ms, qr.q1_time_ms) AS best_time_ms,
+    -- Format overall best time (for pre-2006 single-session qualifying)
+    CASE WHEN qr.best_time_ms IS NOT NULL
+      THEN CONCAT(
+        FLOOR(qr.best_time_ms / 60000)::TEXT, ':',
+        LPAD(FLOOR((qr.best_time_ms % 60000) / 1000)::TEXT, 2, '0'), '.',
+        LPAD((qr.best_time_ms % 1000)::TEXT, 3, '0')
+      )
+      ELSE NULL
+    END AS best_time,
+    -- Best time in ms for gap calculation (Q3 > Q2 > Q1 > overall best)
+    COALESCE(qr.q3_time_ms, qr.q2_time_ms, qr.q1_time_ms, qr.best_time_ms) AS best_time_ms,
     qr.is_dns
   FROM qualifying_results qr
   LEFT JOIN driver d ON d.id = REPLACE(qr.driver_id, '_', '-')
@@ -70,10 +79,11 @@ SELECT
   qd.q1_time,
   qd.q2_time,
   qd.q3_time,
+  qd.best_time,
   -- P1 shows best time, P2+ show gap from P1
   CASE
     WHEN qd.is_dns THEN 'DNS'
-    WHEN qd.position = 1 THEN COALESCE(qd.q3_time, qd.q2_time, qd.q1_time)
+    WHEN qd.position = 1 THEN COALESCE(qd.q3_time, qd.q2_time, qd.q1_time, qd.best_time)
     WHEN qd.best_time_ms IS NOT NULL AND p1.best_time_ms IS NOT NULL
       THEN CONCAT('+', ROUND((qd.best_time_ms - p1.best_time_ms)::NUMERIC / 1000, 3)::TEXT)
     ELSE 'N/A'
