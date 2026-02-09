@@ -169,6 +169,7 @@ export interface RaceResultsSummaryPayload {
   winner_name: string | null;
   podium: RaceResultsEntry[];
   top10: RaceResultsEntry[];
+  full_results: RaceResultsEntry[];
   laps_completed: number | null;
   winner_time: string | null;
 }
