@@ -71,12 +71,30 @@ export function requestTimeout(timeoutMs: number = 30000) {
 }
 
 /**
+ * Check if origin matches allowed dynamic patterns (Vercel preview deployments, etc.)
+ */
+function isAllowedDynamicOrigin(origin: string): boolean {
+  // Allow Vercel preview deployments (*.vercel.app)
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+  // Allow Vercel production deployments with project name
+  if (/^https:\/\/f1muse[a-z0-9-]*\.vercel\.app$/.test(origin)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * CORS configuration for production
  * - Restricts origins to known domains
  * - Allows credentials if needed
  */
 export function configureCORS(allowedOrigins?: string[]) {
   // Default: allow localhost in development, restrict in production
+  // CORS_ALLOWED_ORIGINS env var can be comma-separated list of additional origins
+  const envOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
+
   const origins = allowedOrigins || [
     'http://localhost:3000',
     'http://localhost:3001',
@@ -87,7 +105,8 @@ export function configureCORS(allowedOrigins?: string[]) {
     'http://localhost:5176',
     'http://localhost:8080',
     'https://f1muse.com',
-    'https://www.f1muse.com'
+    'https://www.f1muse.com',
+    ...envOrigins
   ];
 
   return (req: Request, res: Response, next: NextFunction) => {
@@ -96,7 +115,7 @@ export function configureCORS(allowedOrigins?: string[]) {
     // Allow requests with no origin (like curl or Postman)
     if (!origin) {
       res.header('Access-Control-Allow-Origin', '*');
-    } else if (origins.includes(origin)) {
+    } else if (origins.includes(origin) || isAllowedDynamicOrigin(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Credentials', 'true');
     }
