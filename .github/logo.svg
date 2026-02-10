@@ -1,0 +1,15 @@
+<svg width="280" height="80" viewBox="0 0 280 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Icon: Three stacked parallelogram slashes -->
+  <g transform="translate(0, 8)">
+    <!-- Top slash - shortest, brightest -->
+    <polygon points="26,8 46,8 40,20 20,20" fill="#e5e5e5"/>
+    <!-- Middle slash - medium -->
+    <polygon points="18,26 50,26 44,38 12,38" fill="#a3a3a3"/>
+    <!-- Bottom slash - widest, darkest -->
+    <polygon points="10,44 54,44 48,56 4,56" fill="#737373"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="70" y="52" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" fill="#171717">F1</text>
+  <text x="120" y="52" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="300" fill="#525252">Muse</text>
+</svg>

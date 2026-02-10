@@ -1,31 +1,28 @@
-# F1Muse — Formula 1 Statistical Intelligence Engine
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/logo-light.svg">
+    <img alt="F1Muse" src=".github/logo.svg" width="280">
+  </picture>
+</p>
 
-F1Muse is a natural language query engine for Formula 1 statistics and analysis. Ask questions in plain English—driver comparisons, race pace, historical stats—and get accurate, data-backed answers. The system uses normalized lap-level analysis, session-median pace deltas, and teammate-aware comparisons to produce meaningful results. Backed by official FIA timing data where applicable, with Redis caching and rate limiting built in for production use.
+<p align="center">
+  <strong>Formula 1 Statistical Intelligence Engine</strong><br>
+  Ask questions in plain English. Get data-backed answers.
+</p>
 
-> **Note**: Lap-level pace data is available for 2018-2025 seasons. Career statistics (wins, poles, championships) cover the full modern era (1950-present).
-
-## Methodology & Design
-
-All pace comparisons use **session-median normalization**: each lap time is expressed as a percentage deviation from the session median, making metrics comparable across any track or session. A driver at -0.3% was three-tenths of a percent faster than the field—this holds whether it's Monaco or Monza.
-
-Cross-team comparisons require shared races. Teammate analysis enforces that both drivers actually raced for the same team. Coverage thresholds (10+ valid laps per driver, 3+ shared sessions for season comparisons) prevent spurious results. The system rejects or warns on queries that don't meet these thresholds rather than returning misleading data.
-
-**Data coverage by era:**
-- **Pace-based analysis (2018-2025)**: Lap-level timing with clean air detection, enabling normalized pace comparisons
-- **Position-based analysis (1950-present)**: Race results and finishing positions from F1DB for career H2H and historical queries
-
----
-
-## What It Does
-
-- **Driver vs driver comparisons** — Cross-team pace analysis with normalized lap time differentials
-- **Teammate head-to-head** — Single season and career comparisons with race-by-race breakdowns
-- **Wins by circuit** — Career victory counts at specific tracks
-- **Race & qualifying pace analysis** — Pole counts, Q3 rates, grid position statistics
-- **Historical summaries** — Career stats, season summaries, race results
-- **Track-specific rankings** — Fastest drivers at any circuit in a given season
+<p align="center">
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#example-queries">Examples</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#supported-queries">Query Types</a>
+</p>
 
 ---
+
+F1Muse is a natural language query engine for Formula 1 statistics. Ask questions about driver comparisons, race results, qualifying performance, and career statistics—the system parses your question, selects the appropriate SQL template, and returns accurate, formatted answers.
+
+> **Data coverage**: Lap-level pace data for 2018-2025 seasons. Career statistics and race results from 1950-present via F1DB.
 
 ## Quickstart
 
@@ -76,72 +73,153 @@ curl -X POST http://localhost:3000/nl-query \
 
 ## Example Queries
 
-| Query | Returns |
-|-------|---------|
-| `"Verstappen vs Norris 2024"` | Season pace comparison with normalized differential *(lap data: 2018-2025)* |
-| `"Hamilton wins by circuit"` | Career victory count at each track *(full career from F1DB)* |
+| Query | What it returns |
+|-------|-----------------|
+| `"Verstappen vs Norris 2024"` | Season pace comparison with normalized differential |
+| `"Hamilton wins by circuit"` | Career victory count at each track |
 | `"Alonso 2024 season summary"` | Wins, podiums, points, best finish |
-| `"Hamilton vs Russell as teammates"` | Head-to-head pace delta across shared races *(lap data: 2018-2025)* |
-| `"Fastest drivers at Monaco 2024"` | Ranked list by normalized pace *(lap data: 2018-2025)* |
-| `"Leclerc pole count 2024"` | Poles, front rows, Q3 rate, average grid |
+| `"Hamilton vs Russell as teammates"` | Head-to-head across all shared seasons |
+| `"Fastest drivers at Monaco 2024"` | Ranked list by normalized pace |
+| `"Leclerc pole count 2024"` | Pole positions in the season |
+| `"Results Monaco 2024"` | Official race results with positions |
+| `"Qualifying results Bahrain 2024"` | Full qualifying grid and times |
+| `"Head to head Norris vs Piastri"` | Position-based comparison (who finished ahead) |
 
 The system handles driver name variations (`VER`, `Verstappen`, `max verstappen`) and track aliases (`Monaco`, `Monte Carlo`).
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
-Question → Intent Parser (Claude) → SQL Template Selection → PostgreSQL → Formatter → Response
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              F1Muse Architecture                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────┐      ┌────────────────┐      ┌────────────────┐      ┌─────────────┐
+  │   User   │─────▶│    Frontend    │─────▶│   API Server   │─────▶│  Claude API │
+  │          │      │   (Next.js)    │      │   (Express)    │      │  (Anthropic)│
+  └──────────┘      │    Vercel      │      │    Railway     │      │             │
+       │            └────────────────┘      └───────┬────────┘      └──────┬──────┘
+       │                                           │                       │
+       │            "verstappen vs norris"         │                       │
+       └───────────────────────────────────────────┘                       │
+                                                                          │
+                                    ┌──────────────────────────────────────┘
+                                    │  { kind: "season_driver_vs_driver",
+                                    │    driver_a_id: "max-verstappen",
+                                    │    driver_b_id: "lando-norris" }
+                                    ▼
+                    ┌───────────────────────────────────────┐
+                    │         Execution Pipeline            │
+                    │                                       │
+                    │  Parse → Validate → Template Select   │◀──┐
+                    │          → Execute → Format           │   │
+                    └───────────────────┬───────────────────┘   │
+                                        │                       │
+                         ┌──────────────┼──────────────┐        │
+                         │              │              │        │
+                         ▼              ▼              ▼        │
+                   ┌──────────┐  ┌────────────┐  ┌─────────┐    │
+                   │   SQL    │  │  PostgreSQL │  │  Redis  │───┘
+                   │ Templates│  │  (Supabase) │  │  Cache  │
+                   │          │  │             │  │         │
+                   │ 27 types │  │ F1DB + Laps │  │ TTL-    │
+                   │ approved │  │ 1950-2025   │  │ based   │
+                   └──────────┘  └─────────────┘  └─────────┘
 ```
 
-1. **Intent parsing**: Natural language is converted to a structured query intent via Claude API
-2. **Validation**: Semantic rules enforce constraints (teammates must share a team, seasons must exist, etc.)
-3. **Template execution**: Pre-approved SQL templates run against the database—no dynamic SQL generation
-4. **Formatting**: Results are enriched with confidence scores, sample sizes, and methodology notes
-5. **Caching**: Redis stores results with TTLs based on data volatility (5 min for current season, 1 hour for historical)
+### Pipeline Steps
 
-### Production Hardening
+1. **Parse**: Claude API converts natural language to structured QueryIntent
+2. **Validate**: Semantic rules enforce constraints (teammates must share team, seasons must exist)
+3. **Template Select**: Maps intent kind to pre-approved SQL template
+4. **Execute**: Runs parameterized SQL against PostgreSQL
+5. **Format**: Enriches results with confidence scores and methodology notes
 
-- **Rate limiting**: Redis-backed with burst protection (120 req/min, 40 req/10s burst)
-- **Bot protection**: Blocks known automation UAs, requires User-Agent header
-- **Emergency kill switch**: Set `DISABLE_NL_QUERY=true` to disable the endpoint without redeploying
-- **Graceful degradation**: Falls back to in-memory rate limiting if Redis is unavailable
+### Production Features
+
+- **Rate limiting**: Redis-backed with burst protection (120 req/min)
+- **Bot protection**: Blocks automation UAs, requires User-Agent header
+- **Kill switch**: Set `DISABLE_NL_QUERY=true` to disable endpoint
+- **Graceful degradation**: Falls back to in-memory rate limiting if Redis unavailable
 
 ---
 
-## Supported Query Types
+## Supported Queries
 
-| Category | Type | Description |
-|----------|------|-------------|
-| **Comparisons** | `season_driver_vs_driver` | Cross-team pace comparison |
-| | `cross_team_track_scoped_driver_comparison` | Track-specific comparison |
-| | `track_fastest_drivers` | Ranked driver list at a circuit |
-| **Teammate** | `teammate_gap_summary_season` | Season-long teammate gap |
-| | `teammate_comparison_career` | Career head-to-head |
-| **Qualifying** | `driver_career_pole_count` | Pole position statistics |
-| | `qualifying_results_summary` | Session results |
-| **Summaries** | `driver_career_summary` | Career statistics |
-| | `driver_season_summary` | Single season stats |
-| | `race_results_summary` | Official race results |
-| | `driver_career_wins_by_circuit` | Wins at each track |
+### Comparisons
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `season_driver_vs_driver` | Cross-team pace comparison | "Verstappen vs Norris 2024" |
+| `cross_team_track_scoped_driver_comparison` | Track-specific comparison | "Leclerc vs Sainz at Monaco 2024" |
+| `track_fastest_drivers` | Ranked driver list at circuit | "Fastest drivers Silverstone 2024" |
+| `driver_multi_comparison` | Compare 2-6 drivers | "Compare Verstappen, Norris, Leclerc" |
+| `driver_head_to_head_count` | Position-based head-to-head | "Head to head Norris vs Piastri" |
+| `driver_vs_driver_comprehensive` | Full comparison (pace + stats) | "Complete comparison Hamilton Russell" |
+
+### Teammate Analysis
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `teammate_gap_summary_season` | Season-long teammate gap | "Norris vs Piastri gap 2024" |
+| `teammate_gap_dual_comparison` | Qualifying vs race gap | "McLaren teammate gap qualifying vs race" |
+| `teammate_comparison_career` | Multi-season teammate H2H | "Hamilton vs Russell as teammates" |
+
+### Qualifying
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `qualifying_results_summary` | Full qualifying grid | "Qualifying results Monaco 2024" |
+| `driver_pole_count` | Season pole positions | "Verstappen poles 2024" |
+| `driver_career_pole_count` | Career pole positions | "Hamilton career poles" |
+| `driver_q3_count` | Q3 appearances | "Sainz Q3 count 2024" |
+| `season_q3_rankings` | Ranked by Q3 appearances | "Q3 rankings 2024" |
+| `qualifying_gap_teammates` | Teammate qualifying gap | "Qualifying gap Norris Piastri" |
+
+### Results & Summaries
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `race_results_summary` | Official race results | "Results Monaco 2024" |
+| `driver_season_summary` | Single season stats | "Alonso 2024 summary" |
+| `driver_career_summary` | Career statistics | "Vettel career stats" |
+| `driver_career_wins_by_circuit` | Wins at each track | "Hamilton wins by circuit" |
+| `driver_profile_summary` | Comprehensive profile | "Verstappen profile" |
+| `driver_trend_summary` | Performance trend | "Is Leclerc improving?" |
+
+---
+
+## Methodology
+
+### Pace Normalization
+
+All pace comparisons use **session-median normalization**: each lap time is expressed as a percentage deviation from the session median. A driver at -0.3% was three-tenths of a percent faster than the field—comparable across any track.
+
+### Coverage Thresholds
+
+- Cross-team comparisons require shared races
+- Teammate analysis enforces same-team constraint
+- Minimum 10 valid laps per driver for pace metrics
+- Minimum 3 shared sessions for season comparisons
+
+The system rejects or warns on queries that don't meet thresholds rather than returning misleading data.
+
+### Data Eras
+
+| Era | Data Available |
+|-----|----------------|
+| **1950-2017** | Race results, qualifying positions, career stats (F1DB) |
+| **2018-2025** | Above + lap-level timing with clean air detection (FastF1) |
 
 ---
 
 ## Data Sources
 
-**Lap Timing ([FastF1](https://docs.fastf1.dev/))**: Session-by-session lap times for 2018-2025 seasons (~161,000 laps). Individual lap times with validity flags, batch ingested after each race weekend. Clean air detection uses gap-to-leader data for 2022+ seasons; for 2018-2021, gaps are calculated from cumulative lap times (FastF1 limitation—no real-time gap data for older seasons).
+**[FastF1](https://docs.fastf1.dev/)**: Session-by-session lap times for 2018-2025 (~161,000 laps). Individual lap times with validity flags.
 
-**Official Records ([F1DB](https://github.com/f1db/f1db))**: Career statistics, race results, qualifying positions, and championship standings from official FIA records spanning 1950-present (~243,000 race entries).
-
----
-
-## Non-Goals
-
-- **Not real-time telemetry** — Data is ingested post-session, not live
-- **Not a betting tool** — No odds, predictions, or gambling features
-- **Not a fantasy optimizer** — No lineup recommendations or points projections
-- **Not official** — Independent analysis tool, not affiliated with F1/FIA
+**[F1DB](https://github.com/f1db/f1db)**: Official FIA records spanning 1950-present (~243,000 race entries). Career statistics, race results, qualifying positions.
 
 ---
 
@@ -158,8 +236,17 @@ Question → Intent Parser (Claude) → SQL Template Selection → PostgreSQL �
 
 ---
 
-## License & Disclaimer
+## Non-Goals
+
+- **Not real-time telemetry** — Data is ingested post-session
+- **Not a betting tool** — No odds, predictions, or gambling features
+- **Not a fantasy optimizer** — No lineup recommendations
+- **Not official** — Independent analysis, not affiliated with F1/FIA
+
+---
+
+## License
 
 MIT License. See [LICENSE](LICENSE) for details.
 
-Timing data sourced from [FastF1](https://docs.fastf1.dev/). Historical records from [F1DB](https://github.com/f1db/f1db). This project is not affiliated with Formula 1, the FIA, or any teams or drivers. All trademarks belong to their respective owners.
+Timing data from [FastF1](https://docs.fastf1.dev/). Historical records from [F1DB](https://github.com/f1db/f1db). Not affiliated with Formula 1, the FIA, or any teams/drivers.
