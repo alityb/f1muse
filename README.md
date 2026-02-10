@@ -91,43 +91,9 @@ The system handles driver name variations (`VER`, `Verstappen`, `max verstappen`
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              F1Muse Architecture                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  ┌──────────┐      ┌────────────────┐      ┌────────────────┐      ┌─────────────┐
-  │   User   │─────▶│    Frontend    │─────▶│   API Server   │─────▶│  Claude API │
-  │          │      │   (Next.js)    │      │   (Express)    │      │  (Anthropic)│
-  └──────────┘      │    Vercel      │      │    Railway     │      │             │
-       │            └────────────────┘      └───────┬────────┘      └──────┬──────┘
-       │                                           │                       │
-       │            "verstappen vs norris"         │                       │
-       └───────────────────────────────────────────┘                       │
-                                                                          │
-                                    ┌──────────────────────────────────────┘
-                                    │  { kind: "season_driver_vs_driver",
-                                    │    driver_a_id: "max-verstappen",
-                                    │    driver_b_id: "lando-norris" }
-                                    ▼
-                    ┌───────────────────────────────────────┐
-                    │         Execution Pipeline            │
-                    │                                       │
-                    │  Parse → Validate → Template Select   │◀──┐
-                    │          → Execute → Format           │   │
-                    └───────────────────┬───────────────────┘   │
-                                        │                       │
-                         ┌──────────────┼──────────────┐        │
-                         │              │              │        │
-                         ▼              ▼              ▼        │
-                   ┌──────────┐  ┌────────────┐  ┌─────────┐    │
-                   │   SQL    │  │  PostgreSQL │  │  Redis  │───┘
-                   │ Templates│  │  (Supabase) │  │  Cache  │
-                   │          │  │             │  │         │
-                   │ 27 types │  │ F1DB + Laps │  │ TTL-    │
-                   │ approved │  │ 1950-2025   │  │ based   │
-                   └──────────┘  └─────────────┘  └─────────┘
-```
+<p align="center">
+  <img src="f1muse.png" alt="F1Muse Architecture" width="700">
+</p>
 
 ### Pipeline Steps
 
