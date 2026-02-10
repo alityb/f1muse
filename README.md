@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>Formula 1 Statistical Intelligence Engine</strong><br>
+  <strong>Formula 1 Query Engine</strong><br>
   Ask questions in plain English. Get data-backed answers.
 </p>
 
