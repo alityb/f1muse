@@ -461,24 +461,47 @@ function DriverComparisonView({ payload }: { payload: any }) {
   const gap = metrics?.pace_delta?.value ?? metrics?.difference?.value ?? payload.pace_delta ?? payload.difference ?? 0
   const lapsA = metrics?.driver_a_laps?.value ?? payload.driver_a_laps ?? payload.coverage?.driver_a_laps ?? 0
   const lapsB = metrics?.driver_b_laps?.value ?? payload.driver_b_laps ?? payload.coverage?.driver_b_laps ?? 0
-  const timeA = metrics?.driver_a_value?.value ?? payload.driver_a_value ?? 0
-  const timeB = metrics?.driver_b_value?.value ?? payload.driver_b_value ?? 0
+  const valueA = metrics?.driver_a_value?.value ?? payload.driver_a_value ?? 0
+  const valueB = metrics?.driver_b_value?.value ?? payload.driver_b_value ?? 0
+
+  // Detect if values are percentages or lap times
+  // Check explicit units field, or infer from value magnitude (lap times are typically 60-120+ seconds)
+  const units = metrics?.driver_a_value?.units ?? payload.units
+  const isPercent = units === 'percent' || (Math.abs(valueA) < 10 && Math.abs(valueB) < 10)
 
   // Coverage model
   const coverage = payload.coverage as { driver_a_laps: number; driver_b_laps: number; basis_laps: number; confidence: 'high' | 'medium' | 'low' } | undefined
   const basisLaps = coverage?.basis_laps ?? Math.min(lapsA, lapsB)
   const confidence = coverage?.confidence ?? (basisLaps >= 30 ? 'high' : basisLaps >= 10 ? 'medium' : 'low')
 
-  // Determine who's faster (negative gap = A faster)
-  const aFaster = gap < 0
-  const bFaster = gap > 0
+  // Determine who's faster (negative = faster for both percent and seconds)
+  const aFaster = valueA < valueB
+  const bFaster = valueB < valueA
   const absGap = Math.abs(gap)
 
   // Format lap time as m:ss.xxx
   const formatLapTime = (seconds: number): string => {
+    if (seconds < 0 || seconds > 300) return '-' // Guard against invalid values
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toFixed(3).padStart(6, '0')}`
+  }
+
+  // Format value based on whether it's percent or lap time
+  const formatValue = (value: number, isFaster: boolean): string => {
+    if (isPercent) {
+      // For percentage-based comparisons, show "baseline" for faster driver
+      if (isFaster) {
+        return 'baseline'
+      }
+      return `+${absGap.toFixed(3)}%`
+    } else {
+      // For lap time comparisons, show actual time for faster, gap for slower
+      if (isFaster) {
+        return formatLapTime(value)
+      }
+      return `+${absGap.toFixed(3)}s`
+    }
   }
 
   // Get short driver names
@@ -508,7 +531,7 @@ function DriverComparisonView({ payload }: { payload: any }) {
             {getShortName(driverA)}
           </span>
           <p className={`text-2xl font-mono mt-2 ${aFaster ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-            {aFaster ? formatLapTime(timeA) : `+${absGap.toFixed(3)}s`}
+            {formatValue(valueA, aFaster)}
           </p>
           <p className="text-[10px] text-muted-foreground/60 mt-2 font-mono">
             {lapsA} laps analyzed
@@ -521,7 +544,7 @@ function DriverComparisonView({ payload }: { payload: any }) {
             {getShortName(driverB)}
           </span>
           <p className={`text-2xl font-mono mt-2 ${bFaster ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
-            {bFaster ? formatLapTime(timeB) : `+${absGap.toFixed(3)}s`}
+            {formatValue(valueB, bFaster)}
           </p>
           <p className="text-[10px] text-muted-foreground/60 mt-2 font-mono">
             {lapsB} laps analyzed
