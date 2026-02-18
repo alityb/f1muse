@@ -4,8 +4,8 @@ import { F1MuseWordmark } from "./logo"
 import { ExternalLink } from "lucide-react"
 
 const NAV_LINKS = [
-  { label: "Docs", href: "#" },
-  { label: "Methodology", href: "#" },
+  { label: "Docs", href: "https://github.com/alityb/f1muse/blob/main/docs.md", external: true },
+  { label: "Blog", href: "https://tperm.bearblog.dev/latency-to-insight/", external: true },
   { label: "GitHub", href: "https://github.com/alityb/f1muse", external: true },
 ]
 
