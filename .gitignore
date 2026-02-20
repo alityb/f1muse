@@ -55,3 +55,10 @@ debug-*
 prod_test_*.json
 *.tsbuildinfo
 
+# Removed from repo
+examples/
+f1-muse-logo/
+blog-draft.md
+architecture.excalidraw
+f1muse.png
+
