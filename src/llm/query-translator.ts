@@ -442,7 +442,7 @@ export class QueryTranslator {
   private async executeTranslation(naturalLanguageQuery: string): Promise<QueryIntent> {
     try {
       const message = await this.anthropic.messages.create({
-        model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+        model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [
