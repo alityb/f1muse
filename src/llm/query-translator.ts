@@ -32,12 +32,14 @@ STATMUSE-STYLE BEHAVIOR:
    - IMPORTANT: Do NOT use for "qualifying gap" → that's qualifying_gap_teammates or qualifying_gap_drivers
 
 ### 1. race_results_summary - Official race results from F1DB
-   - Trigger: "results of", "race results", "who won", "winner of", "podium"
+   - Trigger: "results of", "race results", "who won", "winner of", "podium", OR just "[track] [year]" with no other context
    - Example: "Results of Monza 2025"
    - Example: "Who won Abu Dhabi 2025?"
+   - Example: "Canada 2021" (bare track+year defaults to race results)
+   - Example: "Monaco 2024"
    - Fields: kind, track_id, season, raw_query
    - NO metric, NO normalization fields
-   - Use when: Question asks for race results, winner, or podium
+   - Use when: Question asks for race results, winner, podium, OR is just a track name with a year
 
 ### 2. track_fastest_drivers - Rank all drivers at a specific track
    - Example: "Fastest drivers at Monaco 2025"
@@ -183,6 +185,7 @@ STATMUSE-STYLE BEHAVIOR:
    - "Who won X" → race_results_summary
    - "X results" → race_results_summary (unless "qualifying" mentioned)
    - "Podium at X" → race_results_summary
+   - "[TRACK] [YEAR]" alone (e.g., "Canada 2021", "Monaco 2024") → race_results_summary (DEFAULT for bare track+year queries)
    - Do NOT route to pace queries
 
 2. **Season vs Career:**
@@ -231,11 +234,16 @@ STATMUSE-STYLE BEHAVIOR:
    - Backend will resolve to F1DB IDs
 
 2. **Track Names:**
-   - Extract as-is from question
-   - Use common names (Silverstone, Monaco, Spa, etc.)
-   - Set track_surface to exact extracted string
-   - Set track_id to same value
-   - Backend will resolve to F1DB IDs
+   - Extract the track/circuit/country name as-is from the question
+   - Set track_id to the extracted value (backend will resolve to canonical ID)
+   - Accept ANY of these formats - they all work:
+     * Circuit names: Silverstone, Monza, Spa, Suzuka, Monaco, Hungaroring, Zandvoort, Interlagos, COTA, Baku
+     * City names: Melbourne, Montreal, Singapore, Austin, Las Vegas, Jeddah, Miami
+     * Country names: Hungary, Netherlands, Belgium, Italy, Japan, Brazil, Canada, Spain, Austria, Australia, USA, UK, France, Germany, Mexico, Qatar, China
+     * GP names: "British Grand Prix", "Hungarian Grand Prix"
+     * Abbreviations: BHR, AUS, JPN, MON, GBR, HUN, BEL, NED, ITA, SGP, USA, MEX, BRA, QAT
+   - Historical tracks also work: Sochi (Russia), Paul Ricard (France), Portimao (Portugal), Istanbul (Turkey)
+   - 2020 special events: Styrian GP, Eifel GP, Tuscan GP, 70th Anniversary GP, Sakhir GP
 
 3. **Season:**
    - Extract from question or default to 2025
@@ -262,6 +270,14 @@ Example (race results):
   "track_id": "Monza",
   "season": 2025,
   "raw_query": "Results of Monza 2025"
+}
+
+Example (bare track+year → race results):
+{
+  "kind": "race_results_summary",
+  "track_id": "Canada",
+  "season": 2021,
+  "raw_query": "Canada 2021"
 }
 
 Example (track comparison):
