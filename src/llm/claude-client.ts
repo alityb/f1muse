@@ -19,7 +19,7 @@ import { getConfig } from './config';
 
 // Configuration
 const CONFIG = {
-  MODEL: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+  MODEL: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20250514',
   MAX_TOKENS: 512,
   TEMPERATURE: 0,
   TIMEOUT_MS: 10000,

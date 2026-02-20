@@ -1369,7 +1369,7 @@ function TeammateComparisonCareerView({ payload }: { payload: any }) {
       {aggregate && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <StatCard
-            label="Seasons Together"
+            label="Seasons"
             value={aggregate.seasons_together}
           />
           <StatCard
