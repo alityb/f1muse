@@ -344,7 +344,7 @@ const TRACK_ALIAS_MAP: Record<string, string> = {
   'sakhir grand prix': 'sakhir_grand_prix',
   'sakhir_grand_prix': 'sakhir_grand_prix',
   'bahrain outer': 'sakhir_grand_prix',
-;
+};
 
 function normalizeLiteral(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
