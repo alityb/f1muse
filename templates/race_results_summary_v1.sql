@@ -71,6 +71,9 @@ WITH track_alias AS (
     ('sakhir', 'bahrain'),
     ('miami', 'miami'),
     ('imola', 'emilia-romagna'),
+    ('san marino', 'san-marino'),
+    ('san-marino', 'san-marino'),
+    ('san_marino', 'san-marino'),
     ('portimao', 'portugal'),
     ('portuguese', 'portugal'),
     ('portuguese_grand_prix', 'portugal'),
@@ -89,6 +92,17 @@ WITH track_alias AS (
     ('eifel', 'eifel'),
     ('eifel_grand_prix', 'eifel'),
     ('nurburgring', 'eifel'),
+    -- German GP (Hockenheim + Nürburgring across different eras)
+    ('german', 'germany'),
+    ('germany', 'germany'),
+    ('german grand prix', 'germany'),
+    ('hockenheim', 'germany'),
+    -- European GP (Brands Hatch, Nürburgring, Jerez, Baku, Valencia, etc.)
+    ('european', 'europe'),
+    ('europe', 'europe'),
+    ('european grand prix', 'europe'),
+    -- Luxembourg GP (Nürburgring 1997-1998)
+    ('luxembourg', 'luxembourg'),
     ('styrian', 'styria'),
     ('styrian_grand_prix', 'styria'),
     ('sakhir_grand_prix', 'sakhir'),
@@ -145,6 +159,15 @@ WHERE
     OR gp.id = (SELECT canonical FROM track_alias WHERE LOWER($2) LIKE CONCAT('%', alias, '%') LIMIT 1)
     OR (EXISTS (SELECT 1 FROM track_alias WHERE LOWER($2) LIKE CONCAT('%', alias, '%'))
         AND LOWER(gp.id) LIKE CONCAT('%', (SELECT canonical FROM track_alias WHERE LOWER($2) LIKE CONCAT('%', alias, '%') LIMIT 1), '%'))
+    -- Circuit-level bridge: recover circuit_id from FastF1 track name via laps_normalized.
+    -- Handles circuits that hosted races under different GP names across eras.
+    -- e.g. 'emilia_romagna_grand_prix' → circuit 'imola' → also finds San Marino GP (1981-2006).
+    OR c.id IN (
+      SELECT DISTINCT r2.circuit_id
+      FROM race r2
+      JOIN laps_normalized ln ON ln.season = r2.year AND ln.round = r2.round
+      WHERE ln.track_id = $2
+    )
   )
   AND rd.type IN ('RACE_RESULT', 'race')
 ORDER BY

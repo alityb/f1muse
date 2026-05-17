@@ -238,55 +238,53 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl });
 
   try {
-    console.log('=== Driver Matchup Matrix Ingestion ===');
-    console.log(`Season: ${SEASON}`);
-    console.log('');
-
-    // Check if table exists
-    const tableCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = 'driver_matchup_matrix_2025'
-      )
-    `);
-
-    if (!tableCheck.rows[0]?.exists) {
-      console.error('Table driver_matchup_matrix_2025 does not exist. Run migration first.');
-      process.exit(1);
-    }
-
-    // Compute matchups
-    const matchups = await computeMatchups(pool);
-
-    // Upsert matchups
-    await upsertMatchups(pool, matchups);
-
-    // Summary
-    console.log('');
-    console.log('=== Ingestion Complete ===');
-
-    const stats = await pool.query(`
-      SELECT
-        metric,
-        coverage_status,
-        COUNT(*) as count
-      FROM driver_matchup_matrix_2025
-      WHERE season = $1
-      GROUP BY metric, coverage_status
-      ORDER BY metric, coverage_status
-    `, [SEASON]);
-
-    console.log('');
-    console.log('Coverage Distribution:');
-    for (const row of stats.rows) {
-      console.log(`  ${row.metric} / ${row.coverage_status}: ${row.count}`);
-    }
-
+    await runMatchupSync(pool, SEASON);
   } catch (error) {
     console.error('Ingestion failed:', error);
     process.exit(1);
   } finally {
     await pool.end();
+  }
+}
+
+export async function runMatchupSync(pool: Pool, season: number = SEASON): Promise<void> {
+  console.log('=== Driver Matchup Matrix Ingestion ===');
+  console.log(`Season: ${season}`);
+  console.log('');
+
+  // Check if table exists
+  const tableCheck = await pool.query(`
+    SELECT EXISTS (
+      SELECT FROM information_schema.tables
+      WHERE table_name = 'driver_matchup_matrix_2025'
+    )
+  `);
+
+  if (!tableCheck.rows[0]?.exists) {
+    throw new Error('Table driver_matchup_matrix_2025 does not exist. Run migration first.');
+  }
+
+  const matchups = await computeMatchups(pool);
+  await upsertMatchups(pool, matchups);
+
+  console.log('');
+  console.log('=== Ingestion Complete ===');
+
+  const stats = await pool.query(`
+    SELECT
+      metric,
+      coverage_status,
+      COUNT(*) as count
+    FROM driver_matchup_matrix_2025
+    WHERE season = $1
+    GROUP BY metric, coverage_status
+    ORDER BY metric, coverage_status
+  `, [season]);
+
+  console.log('');
+  console.log('Coverage Distribution:');
+  for (const row of stats.rows) {
+    console.log(`  ${row.metric} / ${row.coverage_status}: ${row.count}`);
   }
 }
 

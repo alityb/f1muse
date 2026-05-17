@@ -86,6 +86,13 @@ const TRACK_ALIAS_MAP: Record<string, string> = {
   'emilia romagna grand prix': 'emilia_romagna_grand_prix',
   'emilia_romagna_grand_prix': 'emilia_romagna_grand_prix',
 
+  // ========== SAN MARINO (Imola 1981-2006, different GP name) ==========
+  'san marino': 'san_marino_grand_prix',
+  'san-marino': 'san_marino_grand_prix',
+  'san_marino': 'san_marino_grand_prix',
+  'san marino grand prix': 'san_marino_grand_prix',
+  'san_marino_grand_prix': 'san_marino_grand_prix',
+
   // ========== MONACO ==========
   'monaco': 'monaco_grand_prix',
   'monte carlo': 'monaco_grand_prix',
@@ -287,10 +294,16 @@ const TRACK_ALIAS_MAP: Record<string, string> = {
   // ========== GERMANY (historical) ==========
   'germany': 'german_grand_prix',
   'german': 'german_grand_prix',
+  // ========== NÜRBURGRING ==========
+  // Do NOT add 'nurburgring' → 'german_grand_prix' here.
+  // The Nürburgring hosted races under 4 different GP names (Germany, Europe, Luxembourg, Eifel).
+  // Letting the DB lookup return circuit_id 'nurburgring' lets the template match ALL of them
+  // via the `c.id = $2` condition.
+
+  // ========== HOCKENHEIM ==========
+  // Maps to german_grand_prix — bridge recovers circuit 'hockenheim' via 2018/19 laps.
   'hockenheim': 'german_grand_prix',
   'hockenheimring': 'german_grand_prix',
-  'nurburgring': 'german_grand_prix',
-  'nürburgring': 'german_grand_prix',
   'german grand prix': 'german_grand_prix',
   'german_grand_prix': 'german_grand_prix',
   'ger': 'german_grand_prix',
