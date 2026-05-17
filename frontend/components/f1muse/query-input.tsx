@@ -9,12 +9,12 @@ import { ArrowRight, Command } from "lucide-react"
  * Placeholder queries for the cycling animation
  */
 const PLACEHOLDER_QUERIES = [
-  "verstappen vs norris 2024",
-  "who won monaco 2024",
-  "fastest drivers at silverstone",
-  "hamilton career summary",
-  "leclerc vs sainz 2024",
-  "head to head verstappen norris",
+  "Antonelli vs Russell 2026",
+  "who won Miami 2026",
+  "fastest drivers at Suzuka 2026",
+  "Leclerc vs Hamilton qualifying 2026",
+  "hamilton wins by circuit",
+  "head to head Antonelli Norris 2026",
 ]
 
 interface QueryInputProps {

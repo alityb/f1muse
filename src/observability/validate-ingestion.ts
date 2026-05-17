@@ -17,8 +17,8 @@
  * Usage:
  *   npm run validate:teammate-gap
  *   npx ts-node src/diagnostics/validate-teammate-gap-ingestion.ts
- *   npx ts-node src/diagnostics/validate-teammate-gap-ingestion.ts --season=2025
- *   npx ts-node src/diagnostics/validate-teammate-gap-ingestion.ts --season=2025 --metric=qualifying
+ *   npx ts-node src/diagnostics/validate-teammate-gap-ingestion.ts --season=2026
+ *   npx ts-node src/diagnostics/validate-teammate-gap-ingestion.ts --season=2026 --metric=qualifying
  */
 
 import 'dotenv/config';
@@ -435,7 +435,7 @@ async function checkValidSessions(
  */
 export async function validateTeammateGapIngestion(
   pool: Pool,
-  season: number = 2025,
+  season: number = 2026,
   metric: CoverageMetric = 'race'
 ): Promise<ValidationSummary> {
   const metricConfig = METRIC_TABLES[metric];
@@ -496,7 +496,7 @@ export async function validateTeammateGapIngestion(
  */
 function parseArgs(): { season: number; json: boolean; metric: CoverageMetric } {
   const args = process.argv.slice(2);
-  let season = 2025;
+  let season = 2026;
   let json = false;
   let metric: CoverageMetric = 'race';
 

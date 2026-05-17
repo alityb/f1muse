@@ -59,64 +59,64 @@ const VALID_QUERY_KINDS: Set<QueryIntentKind> = new Set([
 
 const SYSTEM_PROMPT = `Convert F1 questions to JSON. Output ONLY JSON, no text.
 
-DEFAULT SEASON: 2025 (always use if not specified)
+DEFAULT SEASON: 2026 (always use if not specified)
 
 QUERY TYPES:
 
 1. race_results_summary - "who won", "race results", "podium"
-   {"kind":"race_results_summary","track_id":"Monaco","season":2025}
+   {"kind":"race_results_summary","track_id":"Monaco","season":2026}
 
 1b. qualifying_results_summary - "who got pole", "qualifying results", "qualifying grid"
-   {"kind":"qualifying_results_summary","track_id":"Monaco","season":2025}
+   {"kind":"qualifying_results_summary","track_id":"Monaco","season":2026}
    Note: Use this for pole position at a specific track, NOT driver_pole_count
 
 2. track_fastest_drivers - "fastest at [track]", "rankings at [track]"
-   {"kind":"track_fastest_drivers","track_id":"Monaco","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"race"}
+   {"kind":"track_fastest_drivers","track_id":"Monaco","season":2026,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"race"}
 
 3. cross_team_track_scoped_driver_comparison - "[driver] vs [driver] at [track]"
-   {"kind":"cross_team_track_scoped_driver_comparison","track_id":"Monaco","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"race"}
+   {"kind":"cross_team_track_scoped_driver_comparison","track_id":"Monaco","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2026,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"race"}
 
 4. teammate_gap_summary_season - "[driver] vs [driver]" (no track)
-   {"kind":"teammate_gap_summary_season","driver_a_id":"Norris","driver_b_id":"Piastri","season":2025,"metric":"teammate_gap_raw","normalization":"team_baseline","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   {"kind":"teammate_gap_summary_season","driver_a_id":"Norris","driver_b_id":"Piastri","season":2026,"metric":"teammate_gap_raw","normalization":"team_baseline","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
 
 5. season_driver_vs_driver - cross-team comparison (no track)
-   {"kind":"season_driver_vs_driver","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025,"metric":"avg_true_pace","normalization":"session_median_percent","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   {"kind":"season_driver_vs_driver","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2026,"metric":"avg_true_pace","normalization":"session_median_percent","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
    Note: Use normalization:"session_median_percent" by default for cross-circuit comparable results. Only use "none" if user asks for "raw pace" or "raw lap times".
 
 6. driver_season_summary - single driver stats
-   {"kind":"driver_season_summary","driver_id":"Verstappen","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   {"kind":"driver_season_summary","driver_id":"Verstappen","season":2026,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
 
 7. driver_career_summary - "career", "all time"
-   {"kind":"driver_career_summary","driver_id":"Hamilton","season":2025,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
+   {"kind":"driver_career_summary","driver_id":"Hamilton","season":2026,"metric":"avg_true_pace","normalization":"none","clean_air_only":false,"compound_context":"mixed","session_scope":"all"}
 
 8. teammate_gap_dual_comparison - "qualifying vs race", "quali and race"
-   {"kind":"teammate_gap_dual_comparison","driver_a_id":"Norris","driver_b_id":"Piastri","season":2025}
+   {"kind":"teammate_gap_dual_comparison","driver_a_id":"Norris","driver_b_id":"Piastri","season":2026}
 
 9. driver_pole_count - "poles in [YEAR]", "pole positions [YEAR]" (season-specific)
-   {"kind":"driver_pole_count","driver_id":"Verstappen","season":2025}
+   {"kind":"driver_pole_count","driver_id":"Verstappen","season":2026}
 
 9b. driver_career_pole_count - "career poles", "total poles", "how many poles" (no year)
-    {"kind":"driver_career_pole_count","driver_id":"Verstappen","season":2025}
+    {"kind":"driver_career_pole_count","driver_id":"Verstappen","season":2026}
     Trigger: "career poles", "total poles", "how many poles does X have" WITHOUT a year
 
 10. driver_q3_count - "Q3 appearances"
-    {"kind":"driver_q3_count","driver_id":"Verstappen","season":2025}
+    {"kind":"driver_q3_count","driver_id":"Verstappen","season":2026}
 
 11. season_q3_rankings - "Q3 rankings"
-    {"kind":"season_q3_rankings","season":2025}
+    {"kind":"season_q3_rankings","season":2026}
 
 12. qualifying_gap_teammates - "qualifying gap" between teammates
-    {"kind":"qualifying_gap_teammates","driver_a_id":"Norris","driver_b_id":"Piastri","season":2025}
+    {"kind":"qualifying_gap_teammates","driver_a_id":"Norris","driver_b_id":"Piastri","season":2026}
 
 13. qualifying_gap_drivers - cross-team qualifying
-    {"kind":"qualifying_gap_drivers","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2025}
+    {"kind":"qualifying_gap_drivers","driver_a_id":"Verstappen","driver_b_id":"Norris","season":2026}
 
 14. driver_career_wins_by_circuit - "wins by circuit", "where has [driver] won"
-    {"kind":"driver_career_wins_by_circuit","driver_id":"Hamilton","season":2025}
+    {"kind":"driver_career_wins_by_circuit","driver_id":"Hamilton","season":2026}
     Trigger: "wins by circuit", "circuit victories", "where has won", "which circuits"
 
 15. teammate_comparison_career - "as teammates" (no year), "teammate history"
-    {"kind":"teammate_comparison_career","driver_a_id":"Hamilton","driver_b_id":"Russell","season":2025}
+    {"kind":"teammate_comparison_career","driver_a_id":"Hamilton","driver_b_id":"Russell","season":2026}
     Trigger: "as teammates" WITHOUT explicit year, auto-detects all shared seasons
 
 16. driver_vs_driver_comprehensive - "head to head", "h2h", comprehensive comparison
@@ -357,7 +357,7 @@ export class ClaudeClient {
         parsed.season = explicitYear;
       }
     } else if (!parsed.season) {
-      parsed.season = 2025; // default season when no year specified
+      parsed.season = 2026; // default season when no year specified
     }
 
     // Ensure raw_query is set

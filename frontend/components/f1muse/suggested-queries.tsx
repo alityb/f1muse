@@ -12,23 +12,23 @@ interface SuggestedQueriesProps {
  */
 const SUGGESTED_QUERIES = [
   {
-    query: "verstappen vs norris 2024",
-    description: "Full season comparison",
+    query: "Antonelli vs Russell 2026",
+    description: "Mercedes teammates — championship battle",
     category: "comparison",
   },
   {
-    query: "who won monaco 2024",
+    query: "who won Miami 2026",
     description: "Race results summary",
     category: "results",
   },
   {
-    query: "fastest drivers at silverstone 2024",
+    query: "fastest drivers at Suzuka 2026",
     description: "Track performance ranking",
     category: "ranking",
   },
   {
-    query: "leclerc vs sainz as teammates",
-    description: "Career teammate comparison",
+    query: "Leclerc vs Hamilton as teammates",
+    description: "Ferrari's new pairing — career H2H",
     category: "comparison",
   },
   {
@@ -37,18 +37,18 @@ const SUGGESTED_QUERIES = [
     category: "analysis",
   },
   {
-    query: "qualifying results monaco 2024",
-    description: "Qualifying grid results",
+    query: "qualifying results Australia 2026",
+    description: "Season opener qualifying grid",
     category: "results",
   },
   {
-    query: "head to head verstappen norris 2024",
-    description: "Comprehensive head-to-head",
+    query: "head to head Antonelli Norris 2026",
+    description: "Championship leader vs challenger",
     category: "comparison",
   },
   {
-    query: "compare verstappen and norris at monaco 2024",
-    description: "Track-specific comparison",
+    query: "compare Norris and Piastri at Miami 2026",
+    description: "Track-specific teammate comparison",
     category: "comparison",
   },
 ]

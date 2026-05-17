@@ -10,8 +10,8 @@
  * Usage:
  *   npx ts-node src/diagnostics/teammate-gap-coverage.ts
  *   npx ts-node src/diagnostics/teammate-gap-coverage.ts --json
- *   npx ts-node src/diagnostics/teammate-gap-coverage.ts --season=2025
- *   npx ts-node src/diagnostics/teammate-gap-coverage.ts --season=2025 --metric=qualifying
+ *   npx ts-node src/diagnostics/teammate-gap-coverage.ts --season=2026
+ *   npx ts-node src/diagnostics/teammate-gap-coverage.ts --season=2026 --metric=qualifying
  */
 
 import 'dotenv/config';
@@ -318,7 +318,7 @@ async function diagnoseTeammatePair(
  */
 export async function runTeammateGapDiagnostics(
   pool: Pool,
-  season: number = 2025,
+  season: number = 2026,
   metric: CoverageMetric = 'race'
 ): Promise<DiagnosticSummary> {
   const expectedPairs = await getExpectedTeammatePairs(pool, season, metric);
@@ -608,7 +608,7 @@ export async function getTeammateGapCoverageSummary(
  */
 function parseArgs(): { season: number; json: boolean; metric: CoverageMetric } {
   const args = process.argv.slice(2);
-  let season = 2025;
+  let season = 2026;
   let json = false;
   let metric: CoverageMetric = 'race';
 

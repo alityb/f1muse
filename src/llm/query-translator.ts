@@ -23,8 +23,8 @@ STATMUSE-STYLE BEHAVIOR:
 ### 0. qualifying_results_summary - Official qualifying results from F1DB
    - Trigger: "qualifying results", "who got pole", "pole position", "qualifying grid", "quali results", "who qualified", "grid position"
    - Example: "Who got pole at Monaco 2024?"
-   - Example: "Qualifying results of Silverstone 2025"
-   - Example: "Monaco 2025 qualifying grid"
+   - Example: "Qualifying results of Silverstone 2026"
+   - Example: "Monaco 2026 qualifying grid"
    - Fields: kind, track_id, season, raw_query
    - NO metric, NO normalization fields (same as race_results_summary)
    - Use when: Question asks for qualifying results, pole sitter, or qualifying grid
@@ -33,8 +33,8 @@ STATMUSE-STYLE BEHAVIOR:
 
 ### 1. race_results_summary - Official race results from F1DB
    - Trigger: "results of", "race results", "who won", "winner of", "podium", OR just "[track] [year]" with no other context
-   - Example: "Results of Monza 2025"
-   - Example: "Who won Abu Dhabi 2025?"
+   - Example: "Results of Monza 2026"
+   - Example: "Who won Abu Dhabi 2026?"
    - Example: "Canada 2021" (bare track+year defaults to race results)
    - Example: "Monaco 2024"
    - Fields: kind, track_id, season, raw_query
@@ -42,41 +42,41 @@ STATMUSE-STYLE BEHAVIOR:
    - Use when: Question asks for race results, winner, podium, OR is just a track name with a year
 
 ### 2. track_fastest_drivers - Rank all drivers at a specific track
-   - Example: "Fastest drivers at Monaco 2025"
-   - Example: "Who was fastest at Suzuka 2025"
+   - Example: "Fastest drivers at Monaco 2026"
+   - Example: "Who was fastest at Suzuka 2026"
    - Fields: kind, track_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only, compound_context: "mixed", session_scope: "race", raw_query
    - Use when: Question asks for ranking/fastest at a SPECIFIC TRACK
    - If "clean air" mentioned: set clean_air_only=true, metric="avg_true_pace"
 
 ### 3. cross_team_track_scoped_driver_comparison - Compare 2 drivers at a specific track
-   - Example: "Compare Verstappen and Norris at Silverstone 2025"
-   - Example: "Max vs Lando Monza 2025"
+   - Example: "Compare Verstappen and Norris at Silverstone 2026"
+   - Example: "Max vs Lando Monza 2026"
    - Fields: kind, track_id, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "race", raw_query
    - Use when: Question mentions a SPECIFIC TRACK and compares 2 drivers
    - If "clean air" mentioned: set clean_air_only=true, metric="avg_true_pace"
 
 ### 4. teammate_gap_dual_comparison - Qualifying vs race pace comparison
    - Trigger: "qualifying vs race", "quali vs race", "race vs qualifying", "better in quali vs race"
-   - Example: "Compare qualifying vs race pace for Norris and Piastri 2025"
+   - Example: "Compare qualifying vs race pace for Norris and Piastri 2026"
    - Fields: kind, driver_a_id, driver_b_id, season, raw_query
    - Use when: Question explicitly asks to compare qualifying vs race pace between teammates
 
 ### 5. teammate_gap_summary_season - Full-season teammate gap (PRIMARY performance metric)
-   - Example: "Compare Norris and Piastri 2025"
+   - Example: "Compare Norris and Piastri 2026"
    - Example: "How much faster was Leclerc than Sainz?"
    - Fields: kind, season, driver_a_id, driver_b_id, metric: "teammate_gap_raw", normalization: "team_baseline", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question compares 2 drivers for a full season WITHOUT mentioning a specific track
    - This is the DEFAULT for driver comparisons (no track mentioned)
 
 ### 6. season_driver_vs_driver - Cross-team season comparison (session-median normalized)
-   - Example: "Compare Verstappen and Norris 2025" (if not teammates)
+   - Example: "Compare Verstappen and Norris 2026" (if not teammates)
    - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "session_median_percent", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question compares 2 drivers from DIFFERENT TEAMS for a full season WITHOUT mentioning a specific track
    - Default normalization is "session_median_percent" (per-lap normalization against session median)
    - ONLY use normalization: "none" if user explicitly asks for "raw pace" or "raw lap times"
 
 ### 7. driver_season_summary - Single driver season statistics
-   - Example: "Show Verstappen 2025 season"
+   - Example: "Show Verstappen 2026 season"
    - Example: "Verstappen season summary"
    - Fields: kind, driver_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question asks about ONE driver with explicit season reference
@@ -85,14 +85,14 @@ STATMUSE-STYLE BEHAVIOR:
 ### 8. driver_career_summary - Career-spanning statistics
    - Example: "Verstappen career summary"
    - Example: "Show Verstappen career"
-   - Fields: kind, driver_id, season (default to 2025), metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
+   - Fields: kind, driver_id, season (default to 2026), metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question asks about "career", "all-time", or driver summary with NO season mentioned
    - ROUTING RULE: ONLY if NO season implied and "career"/"all-time" present
 
 ### 9. driver_pole_count - Count pole positions for a driver in a SPECIFIC SEASON (QUALIFYING)
    - Trigger: "how many poles in [YEAR]", "pole count [YEAR]", "poles did [driver] get in [YEAR]"
    - Example: "How many poles did Verstappen get in 2024?"
-   - Example: "Norris pole positions 2025"
+   - Example: "Norris pole positions 2026"
    - Fields: kind, driver_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "qualifying", raw_query
    - Use when: Question asks HOW MANY poles a driver got IN A SPECIFIC SEASON
    - DO NOT use for "who got pole at X" - that's qualifying_results_summary (type 0)
@@ -112,28 +112,28 @@ STATMUSE-STYLE BEHAVIOR:
 
 ### 10. driver_q3_count - Count Q3 appearances for a driver (QUALIFYING)
    - Trigger: "Q3 appearances", "how many times Q3", "Q3 count", "made Q3"
-   - Example: "How many times did Sainz make Q3 in 2025?"
+   - Example: "How many times did Sainz make Q3 in 2026?"
    - Example: "Q3 appearances for Hamilton 2024"
    - Fields: kind, driver_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "qualifying", raw_query
    - Use when: Question asks about Q3 appearances for a specific driver
 
 ### 11. season_q3_rankings - Rank drivers by Q3 appearances (QUALIFYING)
    - Trigger: "Q3 rankings", "who made Q3 most", "rank by Q3 appearances"
-   - Example: "Q3 rankings 2025"
+   - Example: "Q3 rankings 2026"
    - Example: "Who made Q3 the most in 2024?"
    - Fields: kind, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "qualifying", raw_query
    - Use when: Question asks for ranking of all drivers by Q3 count
 
 ### 12. qualifying_gap_teammates - Qualifying gap between teammates (QUALIFYING)
    - Trigger: "qualifying gap", "outqualified", "qualifying comparison", "who outqualified"
-   - Example: "Qualifying gap between Norris and Piastri 2025"
+   - Example: "Qualifying gap between Norris and Piastri 2026"
    - Example: "Who outqualified whom, Verstappen or Perez?"
    - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "team_baseline", clean_air_only: false, compound_context: "mixed", session_scope: "qualifying", raw_query
    - Use when: Question asks about qualifying performance gap between teammates
 
 ### 13. qualifying_gap_drivers - Qualifying gap between any drivers (QUALIFYING)
    - Trigger: "qualifying positions", "who qualifies higher", "qualifying head to head"
-   - Example: "Qualifying positions Verstappen vs Leclerc 2025"
+   - Example: "Qualifying positions Verstappen vs Leclerc 2026"
    - Example: "Who qualifies higher, Norris or Hamilton?"
    - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "qualifying", raw_query
    - Use when: Question asks about qualifying position comparison between any two drivers (cross-team)
@@ -143,7 +143,7 @@ STATMUSE-STYLE BEHAVIOR:
    - Example: "Verstappen vs Norris full comparison 2024"
    - Example: "Complete head to head Leclerc Hamilton 2023"
    - Example: "head to head Norris Piastri" (shows both race and quali records)
-   - Example: "h2h Verstappen Hamilton 2025"
+   - Example: "h2h Verstappen Hamilton 2026"
    - Example: "h2h leclerc vs hamilton"
    - Example: "leclerc vs hamilton h2h"
    - Fields: kind, driver_a_id, driver_b_id, season, metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
@@ -156,7 +156,7 @@ STATMUSE-STYLE BEHAVIOR:
    - Trigger: "wins by circuit", "where has won", "circuit victories", "track victories"
    - Example: "Hamilton wins by circuit"
    - Example: "Where has Verstappen won?"
-   - Fields: kind, driver_id, season (default 2025 - not used), metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
+   - Fields: kind, driver_id, season (default 2026 - not used), metric: "avg_true_pace", normalization: "none", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question asks about a driver's career wins breakdown by track/circuit
    - Returns: Total wins and list of circuits with win count and last win year
 
@@ -165,7 +165,7 @@ STATMUSE-STYLE BEHAVIOR:
    - Example: "Hamilton vs Russell as teammates"
    - Example: "Norris vs Piastri all seasons"
    - Example: "Verstappen Ricciardo teammate history"
-   - Fields: kind, driver_a_id, driver_b_id, season (default 2025 - not used), metric: "teammate_gap_raw", normalization: "team_baseline", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
+   - Fields: kind, driver_a_id, driver_b_id, season (default 2026 - not used), metric: "teammate_gap_raw", normalization: "team_baseline", clean_air_only: false, compound_context: "mixed", session_scope: "all", raw_query
    - Use when: Question asks about two drivers' complete teammate history across all seasons
    - Returns: Per-season breakdown with gap data, plus aggregate stats
 
@@ -206,7 +206,7 @@ STATMUSE-STYLE BEHAVIOR:
    - Use season_driver_vs_driver (type 6) only if explicitly cross-team and no baseline wanted
 
 5. **Default Season:**
-   - Always default to 2025 if not mentioned
+   - Always default to 2026 if not mentioned
 
 6. **Clean Air (IMPORTANT):**
    - If query contains "clean air", "clear air", or "without traffic" → you MUST set clean_air_only=true AND metric="avg_true_pace"
@@ -246,7 +246,7 @@ STATMUSE-STYLE BEHAVIOR:
    - 2020 special events: Styrian GP, Eifel GP, Tuscan GP, 70th Anniversary GP, Sakhir GP
 
 3. **Season:**
-   - Extract from question or default to 2025
+   - Extract from question or default to 2026
    - Must be integer
 
 4. **raw_query:**
@@ -268,8 +268,8 @@ Example (race results):
 {
   "kind": "race_results_summary",
   "track_id": "Monza",
-  "season": 2025,
-  "raw_query": "Results of Monza 2025"
+  "season": 2026,
+  "raw_query": "Results of Monza 2026"
 }
 
 Example (bare track+year → race results):
@@ -286,13 +286,13 @@ Example (track comparison):
   "track_id": "Silverstone",
   "driver_a_id": "Max",
   "driver_b_id": "Lando",
-  "season": 2025,
+  "season": 2026,
   "metric": "avg_true_pace",
   "normalization": "none",
   "clean_air_only": false,
   "compound_context": "mixed",
   "session_scope": "race",
-  "raw_query": "Compare Max and Lando at Silverstone 2025"
+  "raw_query": "Compare Max and Lando at Silverstone 2026"
 }
 
 Example (clean air track comparison - use when "clean air" or "without traffic" mentioned):
@@ -301,13 +301,13 @@ Example (clean air track comparison - use when "clean air" or "without traffic" 
   "track_id": "Silverstone",
   "driver_a_id": "Max",
   "driver_b_id": "Lando",
-  "season": 2025,
+  "season": 2026,
   "metric": "avg_true_pace",
   "normalization": "none",
   "clean_air_only": true,
   "compound_context": "mixed",
   "session_scope": "race",
-  "raw_query": "Verstappen vs Norris clean air Silverstone 2025"
+  "raw_query": "Verstappen vs Norris clean air Silverstone 2026"
 }
 
 Example (teammate comparison):
@@ -315,13 +315,13 @@ Example (teammate comparison):
   "kind": "teammate_gap_summary_season",
   "driver_a_id": "Norris",
   "driver_b_id": "Piastri",
-  "season": 2025,
+  "season": 2026,
   "metric": "teammate_gap_raw",
   "normalization": "team_baseline",
   "clean_air_only": false,
   "compound_context": "mixed",
   "session_scope": "all",
-  "raw_query": "Compare Norris and Piastri 2025"
+  "raw_query": "Compare Norris and Piastri 2026"
 }
 
 Example (qualifying vs race pace comparison):
@@ -329,8 +329,8 @@ Example (qualifying vs race pace comparison):
   "kind": "teammate_gap_dual_comparison",
   "driver_a_id": "Norris",
   "driver_b_id": "Piastri",
-  "season": 2025,
-  "raw_query": "Compare qualifying vs race pace for Norris and Piastri 2025"
+  "season": 2026,
+  "raw_query": "Compare qualifying vs race pace for Norris and Piastri 2026"
 }
 
 Example (pole count):
@@ -350,13 +350,13 @@ Example (Q3 count):
 {
   "kind": "driver_q3_count",
   "driver_id": "Sainz",
-  "season": 2025,
+  "season": 2026,
   "metric": "avg_true_pace",
   "normalization": "none",
   "clean_air_only": false,
   "compound_context": "mixed",
   "session_scope": "qualifying",
-  "raw_query": "How many times did Sainz make Q3 in 2025?"
+  "raw_query": "How many times did Sainz make Q3 in 2026?"
 }
 
 Example (qualifying gap teammates):
@@ -364,13 +364,13 @@ Example (qualifying gap teammates):
   "kind": "qualifying_gap_teammates",
   "driver_a_id": "Norris",
   "driver_b_id": "Piastri",
-  "season": 2025,
+  "season": 2026,
   "metric": "avg_true_pace",
   "normalization": "team_baseline",
   "clean_air_only": false,
   "compound_context": "mixed",
   "session_scope": "qualifying",
-  "raw_query": "Qualifying gap between Norris and Piastri 2025"
+  "raw_query": "Qualifying gap between Norris and Piastri 2026"
 }
 
 Example (comprehensive comparison):
@@ -391,7 +391,7 @@ Example (wins by circuit):
 {
   "kind": "driver_career_wins_by_circuit",
   "driver_id": "Hamilton",
-  "season": 2025,
+  "season": 2026,
   "metric": "avg_true_pace",
   "normalization": "none",
   "clean_air_only": false,
@@ -405,7 +405,7 @@ Example (teammate comparison career):
   "kind": "teammate_comparison_career",
   "driver_a_id": "Hamilton",
   "driver_b_id": "Russell",
-  "season": 2025,
+  "season": 2026,
   "metric": "teammate_gap_raw",
   "normalization": "team_baseline",
   "clean_air_only": false,
@@ -541,8 +541,8 @@ export class QueryTranslator {
     if (this.isCareerPoleQuery(lowerQuery) && updated.kind !== 'driver_career_pole_count') {
       console.log(`[QueryTranslator] Hard override: ${updated.kind} → driver_career_pole_count`);
       updated.kind = 'driver_career_pole_count';
-      // Keep season as 2025 (unused for career queries but needed for type compatibility)
-      updated.season = 2025;
+      // Keep season as 2026 (unused for career queries but needed for type compatibility)
+      updated.season = 2026;
     }
 
     // HARD RULE 5: Clean air queries → set clean_air_only=true (metric stays avg_true_pace)

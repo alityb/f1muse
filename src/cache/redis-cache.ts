@@ -22,7 +22,7 @@ const CONFIG = {
   TTL_DEFAULT_SECONDS: 600, // 10 min default
   TTL_HISTORICAL_SECONDS: 3600, // 1 hour for career/historical
   TTL_CURRENT_SEASON_SECONDS: 300, // 5 min for current season
-  CURRENT_SEASON: 2025,
+  CURRENT_SEASON: 2026,
   CONNECTION_TIMEOUT_MS: 5000,
   OPERATION_TIMEOUT_MS: 1000,
 };
@@ -150,8 +150,8 @@ export class RedisCache {
   /**
    * Get TTL based on season and query kind
    * - Career queries: 1 hour (stable data)
-   * - Historical seasons (< 2025): 1 hour
-   * - Current season (2025): 5 minutes
+   * - Historical seasons (< 2026): 1 hour
+   * - Current season (2026): 5 minutes
    * - Default: 10 minutes
    */
   private getTTL(season: number, kind?: string): number {

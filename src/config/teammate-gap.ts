@@ -40,7 +40,7 @@ export interface TeammateGapETLConfig {
  * Default ETL configuration
  */
 export const DEFAULT_ETL_CONFIG: TeammateGapETLConfig = {
-  season: 2025
+  season: 2026
 };
 
 /**

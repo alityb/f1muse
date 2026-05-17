@@ -22,7 +22,7 @@
 
 F1Muse is a natural language query engine for Formula 1 statistics. Ask questions about driver comparisons, race results, qualifying performance, and career statistics—the system parses your question, selects the appropriate SQL template, and returns accurate, formatted answers.
 
-> **Data coverage**: Lap-level pace data for 2018-2025 seasons. Career statistics and race results from 1950-present via F1DB.
+> **Data coverage**: Lap-level pace data for 2018-2026 seasons. Career statistics and race results from 1950-present via F1DB + Jolpica.
 
 ## Quickstart
 
@@ -66,7 +66,7 @@ The API starts on `http://localhost:3000`.
 curl -X POST http://localhost:3000/nl-query \
   -H "Content-Type: application/json" \
   -H "User-Agent: f1muse-test" \
-  -d '{"question": "verstappen vs norris 2024"}'
+  -d '{"question": "Antonelli vs Russell 2026"}'
 ```
 
 ---
@@ -75,15 +75,15 @@ curl -X POST http://localhost:3000/nl-query \
 
 | Query | What it returns |
 |-------|-----------------|
-| `"Verstappen vs Norris 2024"` | Season pace comparison with normalized differential |
+| `"Antonelli vs Russell 2026"` | Season pace comparison with normalized differential |
 | `"Hamilton wins by circuit"` | Career victory count at each track |
-| `"Alonso 2024 season summary"` | Wins, podiums, points, best finish |
-| `"Hamilton vs Russell as teammates"` | Head-to-head across all shared seasons |
-| `"Fastest drivers at Monaco 2024"` | Ranked list by normalized pace |
-| `"Leclerc pole count 2024"` | Pole positions in the season |
-| `"Results Monaco 2024"` | Official race results with positions |
-| `"Qualifying results Bahrain 2024"` | Full qualifying grid and times |
-| `"Head to head Norris vs Piastri"` | Position-based comparison (who finished ahead) |
+| `"Leclerc vs Hamilton as teammates"` | Ferrari's new duo — H2H across shared seasons |
+| `"fastest drivers at Suzuka 2026"` | Ranked list by normalized pace |
+| `"who won Miami 2026"` | Official race result with positions |
+| `"Antonelli pole count 2026"` | Pole positions in the season |
+| `"qualifying results Australia 2026"` | Full qualifying grid and times |
+| `"head to head Antonelli Norris 2026"` | Championship leader vs McLaren's title threat |
+| `"Norris vs Piastri gap 2026"` | McLaren teammates — who has the edge |
 
 The system handles driver name variations (`VER`, `Verstappen`, `max verstappen`) and track aliases (`Monaco`, `Monte Carlo`).
 
@@ -118,41 +118,41 @@ The system handles driver name variations (`VER`, `Verstappen`, `max verstappen`
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `season_driver_vs_driver` | Cross-team pace comparison | "Verstappen vs Norris 2024" |
-| `cross_team_track_scoped_driver_comparison` | Track-specific comparison | "Leclerc vs Sainz at Monaco 2024" |
-| `track_fastest_drivers` | Ranked driver list at circuit | "Fastest drivers Silverstone 2024" |
-| `driver_multi_comparison` | Compare 2-6 drivers | "Compare Verstappen, Norris, Leclerc" |
+| `season_driver_vs_driver` | Cross-team pace comparison | "Antonelli vs Norris 2026" |
+| `cross_team_track_scoped_driver_comparison` | Track-specific comparison | "Leclerc vs Hamilton at Suzuka 2026" |
+| `track_fastest_drivers` | Ranked driver list at circuit | "Fastest drivers Suzuka 2026" |
+| `driver_multi_comparison` | Compare 2-6 drivers | "Compare Antonelli, Norris, Leclerc 2026" |
 | `driver_head_to_head_count` | Position-based head-to-head | "Head to head Norris vs Piastri" |
-| `driver_vs_driver_comprehensive` | Full comparison (pace + stats) | "Complete comparison Hamilton Russell" |
+| `driver_vs_driver_comprehensive` | Full comparison (pace + stats) | "Complete comparison Antonelli Russell 2026" |
 
 ### Teammate Analysis
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `teammate_gap_summary_season` | Season-long teammate gap | "Norris vs Piastri gap 2024" |
-| `teammate_gap_dual_comparison` | Qualifying vs race gap | "McLaren teammate gap qualifying vs race" |
-| `teammate_comparison_career` | Multi-season teammate H2H | "Hamilton vs Russell as teammates" |
+| `teammate_gap_summary_season` | Season-long teammate gap | "Antonelli vs Russell gap 2026" |
+| `teammate_gap_dual_comparison` | Qualifying vs race gap | "Mercedes teammate gap qualifying vs race 2026" |
+| `teammate_comparison_career` | Multi-season teammate H2H | "Leclerc vs Hamilton as teammates" |
 
 ### Qualifying
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `qualifying_results_summary` | Full qualifying grid | "Qualifying results Monaco 2024" |
-| `driver_pole_count` | Season pole positions | "Verstappen poles 2024" |
+| `qualifying_results_summary` | Full qualifying grid | "Qualifying results Miami 2026" |
+| `driver_pole_count` | Season pole positions | "Antonelli poles 2026" |
 | `driver_career_pole_count` | Career pole positions | "Hamilton career poles" |
-| `driver_q3_count` | Q3 appearances | "Sainz Q3 count 2024" |
-| `season_q3_rankings` | Ranked by Q3 appearances | "Q3 rankings 2024" |
-| `qualifying_gap_teammates` | Teammate qualifying gap | "Qualifying gap Norris Piastri" |
+| `driver_q3_count` | Q3 appearances | "Russell Q3 count 2026" |
+| `season_q3_rankings` | Ranked by Q3 appearances | "Q3 rankings 2026" |
+| `qualifying_gap_teammates` | Teammate qualifying gap | "Qualifying gap Norris Piastri 2026" |
 
 ### Results & Summaries
 
 | Type | Description | Example |
 |------|-------------|---------|
-| `race_results_summary` | Official race results | "Results Monaco 2024" |
-| `driver_season_summary` | Single season stats | "Alonso 2024 summary" |
-| `driver_career_summary` | Career statistics | "Vettel career stats" |
+| `race_results_summary` | Official race results | "Results Miami 2026" |
+| `driver_season_summary` | Single season stats | "Antonelli 2026 summary" |
+| `driver_career_summary` | Career statistics | "Verstappen career stats" |
 | `driver_career_wins_by_circuit` | Wins at each track | "Hamilton wins by circuit" |
-| `driver_profile_summary` | Comprehensive profile | "Verstappen profile" |
+| `driver_profile_summary` | Comprehensive profile | "Antonelli profile" |
 | `driver_trend_summary` | Performance trend | "Is Leclerc improving?" |
 
 ---
@@ -177,15 +177,17 @@ The system rejects or warns on queries that don't meet thresholds rather than re
 | Era | Data Available |
 |-----|----------------|
 | **1950-2017** | Race results, qualifying positions, career stats (F1DB) |
-| **2018-2025** | Above + lap-level timing with clean air detection (FastF1) |
+| **2018-2026** | Above + lap-level timing with clean air detection (FastF1 + Jolpica) |
 
 ---
 
 ## Data Sources
 
-**[FastF1](https://docs.fastf1.dev/)**: Session-by-session lap times for 2018-2025 (~161,000 laps). Individual lap times with validity flags.
+**[FastF1](https://docs.fastf1.dev/)**: Session-by-session lap times for 2018-2026 (~165,000 laps). Individual lap times with validity flags, stint detection, and clean air classification.
 
 **[F1DB](https://github.com/f1db/f1db)**: Official FIA records spanning 1950-present (~243,000 race entries). Career statistics, race results, qualifying positions.
+
+**[Jolpica](https://api.jolpi.ca/)**: Live Ergast-compatible API providing real-time race results, standings, and calendar data. Used as the primary source for current-season updates with zero publishing lag.
 
 ---
 

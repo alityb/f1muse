@@ -3,9 +3,9 @@
  * PART 6: Driver Matchup Matrix Ingestion Script
  *
  * Computes and stores precomputed head-to-head matchup results for all driver pairs
- * in the 2025 season. This enables fast lookup without runtime computation.
+ * in the 2026 season. This enables fast lookup without runtime computation.
  *
- * Usage: npm run ingest:matchup-matrix:2025
+ * Usage: npm run ingest:matchup-matrix:2026
  *
  * Requirements:
  * - race_data table must be populated with qualifying and race results
@@ -14,7 +14,7 @@
 
 import { Pool } from 'pg';
 
-const SEASON = 2025;
+const SEASON = 2026;
 
 // Coverage thresholds (matching head-to-head count thresholds)
 const VALID_THRESHOLD = 8;
@@ -48,7 +48,7 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
   // We need to compute h2h for both qualifying and race
   const matchups: MatchupResult[] = [];
 
-  // Query 1: Qualifying head-to-head
+  // Query 1: Qualifying head-to-head (use qualifying_results, FastF1-sourced)
   console.log('Computing qualifying matchups...');
   const qualifyingResult = await pool.query<{
     driver_a_id: string;
@@ -60,23 +60,21 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
   }>(`
     WITH driver_qualifying AS (
       SELECT DISTINCT
-        rd.driver_id,
-        r.race_id,
-        rd.grid_position,
-        rd.position_text
-      FROM race_data rd
-      JOIN race r ON r.race_id = rd.race_id
-      WHERE r.year = $1
-        AND rd.grid_position IS NOT NULL
-        AND rd.grid_position > 0
+        qr.driver_id,
+        qr.round AS race_id,
+        qr.qualifying_position AS position
+      FROM qualifying_results qr
+      WHERE qr.season = $1
+        AND qr.qualifying_position IS NOT NULL
+        AND qr.qualifying_position > 0
     ),
     driver_pairs AS (
       SELECT DISTINCT
         CASE WHEN dq1.driver_id < dq2.driver_id THEN dq1.driver_id ELSE dq2.driver_id END AS driver_a_id,
         CASE WHEN dq1.driver_id < dq2.driver_id THEN dq2.driver_id ELSE dq1.driver_id END AS driver_b_id,
         dq1.race_id,
-        CASE WHEN dq1.driver_id < dq2.driver_id THEN dq1.grid_position ELSE dq2.grid_position END AS driver_a_pos,
-        CASE WHEN dq1.driver_id < dq2.driver_id THEN dq2.grid_position ELSE dq1.grid_position END AS driver_b_pos
+        CASE WHEN dq1.driver_id < dq2.driver_id THEN dq1.position ELSE dq2.position END AS driver_a_pos,
+        CASE WHEN dq1.driver_id < dq2.driver_id THEN dq2.position ELSE dq1.position END AS driver_b_pos
       FROM driver_qualifying dq1
       JOIN driver_qualifying dq2 ON dq1.race_id = dq2.race_id AND dq1.driver_id < dq2.driver_id
     )
@@ -108,8 +106,20 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
 
   console.log(`  Found ${qualifyingResult.rows.length} qualifying matchups`);
 
-  // Query 2: Race finish head-to-head
+  // Query 2: Race finish head-to-head (requires RACE_RESULT rows in race_data)
+  // Skipped gracefully mid-season when F1DB hasn't published race results yet.
   console.log('Computing race finish matchups...');
+  const raceResultCheck = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM race_data rd
+     JOIN race r ON r.id = rd.race_id
+     WHERE r.year = $1 AND rd.type = 'RACE_RESULT'`,
+    [SEASON]
+  );
+  const hasRaceResults = parseInt(raceResultCheck.rows[0]?.count || '0', 10) > 0;
+
+  if (!hasRaceResults) {
+    console.log('  ⚠ No RACE_RESULT data yet — skipping race finish matchups');
+  } else {
   const raceResult = await pool.query<{
     driver_a_id: string;
     driver_b_id: string;
@@ -121,12 +131,13 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
     WITH driver_race AS (
       SELECT DISTINCT
         rd.driver_id,
-        r.race_id,
+        r.id AS race_id,
         rd.position_number,
         rd.position_text
       FROM race_data rd
-      JOIN race r ON r.race_id = rd.race_id
+      JOIN race r ON r.id = rd.race_id
       WHERE r.year = $1
+        AND rd.type = 'RACE_RESULT'
         AND rd.position_number IS NOT NULL
         AND rd.position_number > 0
     ),
@@ -165,8 +176,8 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
       coverage_status: getCoverageStatus(sharedEvents)
     });
   }
+  } // end if (hasRaceResults)
 
-  console.log(`  Found ${raceResult.rows.length} race finish matchups`);
   console.log(`Total matchups: ${matchups.length}`);
 
   return matchups;

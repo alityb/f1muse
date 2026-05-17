@@ -44,6 +44,7 @@ SEASON_RACE_COUNTS = {
     2023: 22,
     2024: 24,
     2025: 24,
+    2026: 22,  # Bahrain & Saudi Arabia cancelled
 }
 
 # Sprint weekends by season and round
@@ -55,6 +56,7 @@ SPRINT_WEEKENDS = {
     2023: {4, 10, 12, 17, 19, 21},  # Baku, Austria, Belgium, Qatar, USA, Brazil
     2024: {5, 6, 11, 19, 21, 22},   # China, Miami, Austria, USA, Brazil, Qatar
     2025: {2, 6, 14, 19, 21, 24},   # China, Miami, Belgium, USA, Brazil, Qatar
+    2026: {2, 4, 5, 9, 12, 16},     # China, Miami, Canada, Britain, Netherlands, Singapore
 }
 
 

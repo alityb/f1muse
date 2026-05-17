@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LAPS NORMALIZED ETL - MULTI-SEASON
+LAPS NORMALIZED ETL - 2026 SEASON
 
 SAFETY-CRITICAL ETL JOB
 
@@ -13,13 +13,13 @@ Rules:
 - Idempotent (skip already-loaded races)
 
 Usage:
-    python src/etl/ingest-laps.py --season YEAR [--round ROUND_NUMBER]
+    python src/etl/ingest-laps-2026.py [--round ROUND_NUMBER]
 
-    # Load all 2024 races:
-    python src/etl/ingest-laps.py --season 2024
+    # Load all 2026 races:
+    python src/etl/ingest-laps-2026.py
 
-    # Load specific round from 2023:
-    python src/etl/ingest-laps.py --season 2023 --round 1
+    # Load specific round:
+    python src/etl/ingest-laps-2026.py --round 1
 """
 
 import sys
@@ -38,19 +38,16 @@ from psycopg2.extras import execute_values
 load_dotenv()
 
 # Configuration
-CLEAN_AIR_GAP_THRESHOLD = 2.0  # seconds - gap to car ahead to be considered "clean air"
+TARGET_SEASON = 2026
+TOTAL_ROUNDS = 22  # Bahrain & Saudi Arabia cancelled
+CLEAN_AIR_GAP_THRESHOLD = 1.5  # seconds - gap to car ahead to be considered "clean air"
 
-# Season race counts
-SEASON_RACE_COUNTS = {
-    2018: 21,
-    2019: 21,
-    2020: 17,  # COVID shortened season
-    2021: 22,
-    2022: 22,
-    2023: 22,
-    2024: 24,
-    2025: 24,
-    2026: 22,  # Bahrain & Saudi Arabia cancelled
+# Driver ID mapping: FastF1 generates IDs from first_name_last_name, but some differ from F1DB canonical IDs
+# This maps FastF1-generated IDs to canonical F1DB IDs
+FASTF1_TO_F1DB_DRIVER_MAP = {
+    'carlos_sainz': 'carlos_sainz_jr',  # FastF1 uses "Carlos Sainz", F1DB uses carlos_sainz_jr for Jr.
+    'andrea_kimi_antonelli': 'kimi_antonelli',  # FastF1 uses full name, F1DB uses just "Kimi"
+    'sergio_perez': 'sergio_perez',  # Pérez at Cadillac
 }
 
 # Enable FastF1 cache for performance
@@ -74,24 +71,6 @@ def compute_execution_hash(season: int, round_number: int, source_version: str) 
     """Compute deterministic execution hash"""
     execution_data = f"{season}:{round_number}:{source_version}"
     return hashlib.sha256(execution_data.encode()).hexdigest()
-
-
-def load_driver_identity_map(conn) -> Dict[str, str]:
-    """Load driver identity map (abbreviation -> f1db_driver_id)"""
-    driver_map = {}
-    try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT ingestion_driver_id, f1db_driver_id
-                FROM driver_identity_map
-            """)
-            for row in cur.fetchall():
-                # Map abbreviation (uppercase) to f1db_driver_id
-                driver_map[row[0].upper()] = row[1]
-        print(f"✓ Loaded {len(driver_map)} driver identity mappings")
-    except Exception as e:
-        print(f"⚠ Could not load driver identity map: {e}")
-    return driver_map
 
 
 def validate_database_schema(conn) -> bool:
@@ -143,43 +122,33 @@ def validate_database_schema(conn) -> bool:
         return False
 
 
-def check_race_already_loaded(conn, season: int, round_number: int, session_type: str = 'R') -> bool:
-    """Check if race/qualifying data already exists"""
+def check_race_already_loaded(conn, season: int, round_number: int) -> bool:
+    """Check if race data already exists"""
     with conn.cursor() as cur:
         cur.execute("""
             SELECT COUNT(*)
             FROM laps_normalized
-            WHERE season = %s AND round = %s AND session_type = %s
-        """, (season, round_number, session_type))
+            WHERE season = %s AND round = %s
+        """, (season, round_number))
 
         count = cur.fetchone()[0]
         return count > 0
 
 
-def detect_stints_and_pit_laps(laps_df: pd.DataFrame) -> pd.DataFrame:
+def detect_stints(laps_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Detect stint boundaries and pit laps using deterministic logic
+    Detect stint boundaries based on tire changes
 
     A new stint begins when:
     - Driver changes compound
-    - Driver makes a pit stop (PitInTime or PitOutTime present)
+    - Driver makes a pit stop
     - Start of race (lap 1)
-
-    Pit lap detection (deterministic):
-    - In-lap: PitInTime is present (driver enters pit at end of lap)
-    - Out-lap: PitOutTime is present (driver exits pit at start of lap)
-    - A lap is a pit lap ONLY if it's an in-lap OR out-lap
-
-    Target: ~6-7% pit lap rate (typical F1 race)
     """
     laps_df = laps_df.sort_values(['DriverNumber', 'LapNumber']).copy()
 
     # Initialize stint tracking
     laps_df['stint_id'] = 0
     laps_df['stint_lap_index'] = 0
-    laps_df['is_in_lap_detected'] = False
-    laps_df['is_out_lap_detected'] = False
-    laps_df['is_pit_lap_detected'] = False
 
     for driver in laps_df['DriverNumber'].unique():
         driver_mask = laps_df['DriverNumber'] == driver
@@ -188,173 +157,162 @@ def detect_stints_and_pit_laps(laps_df: pd.DataFrame) -> pd.DataFrame:
         current_stint = 1
         stint_lap = 1
         prev_compound = None
-        prev_had_pit_in = False
 
         stint_ids = []
         stint_indices = []
-        in_laps = []
-        out_laps = []
-        pit_laps = []
 
         for idx, row in driver_laps.iterrows():
-            # Detect in-lap (enters pit at end of this lap)
-            has_pit_in = pd.notna(row.get('PitInTime'))
-
-            # Detect out-lap (exits pit at start of this lap)
-            has_pit_out = pd.notna(row.get('PitOutTime'))
-
-            # Determine if this is a pit lap
-            is_in_lap = has_pit_in
-            is_out_lap = has_pit_out
-
-            # A lap is a pit lap if it's an in-lap or out-lap
-            is_pit_lap = is_in_lap or is_out_lap
-
-            # New stint detection
-            compound_changed = (prev_compound is not None and row['Compound'] != prev_compound)
-            pit_stop_occurred = prev_had_pit_in or has_pit_out
-
-            if prev_compound is not None and (compound_changed or pit_stop_occurred):
-                current_stint += 1
-                stint_lap = 1
+            # New stint if compound changes or pit stop
+            if prev_compound is not None:
+                if (row['Compound'] != prev_compound) or pd.notna(row['PitInTime']):
+                    current_stint += 1
+                    stint_lap = 1
 
             stint_ids.append(current_stint)
             stint_indices.append(stint_lap)
-            in_laps.append(is_in_lap)
-            out_laps.append(is_out_lap)
-            pit_laps.append(is_pit_lap)
 
             prev_compound = row['Compound']
-            prev_had_pit_in = has_pit_in
             stint_lap += 1
 
         laps_df.loc[driver_mask, 'stint_id'] = stint_ids
         laps_df.loc[driver_mask, 'stint_lap_index'] = stint_indices
-        laps_df.loc[driver_mask, 'is_in_lap_detected'] = in_laps
-        laps_df.loc[driver_mask, 'is_out_lap_detected'] = out_laps
-        laps_df.loc[driver_mask, 'is_pit_lap_detected'] = pit_laps
 
     return laps_df
 
 
 def detect_clean_air(laps_df: pd.DataFrame, threshold: float = CLEAN_AIR_GAP_THRESHOLD) -> pd.DataFrame:
     """
-    Detect clean air laps based on gap to car ahead
+    Detect clean air laps based on gap to car immediately ahead.
 
-    A lap is "clean air" if:
-    - Gap to car ahead > threshold (2.0 seconds)
-    - OR driver is in P1 (no car ahead)
-    - AND not in traffic situation
+    A lap is "clean air" (clean_air_flag = True) if:
+    - Gap to car immediately ahead >= threshold (1.5 seconds)
+    - OR driver is race leader on that lap (no car ahead)
+    - AND not a pit in/out lap
+    - AND not under Safety Car or VSC conditions
 
-    Uses GapToLeader if available (2022+), otherwise calculates from cumulative lap times.
+    Industry-standard heuristic: ~1.5-2.0s gap to avoid aero wake effects.
+
+    Algorithm:
+    1. Compute cumulative race time for each driver
+    2. For each lap, rank drivers by cumulative time (actual race order)
+    3. Compute gap to car immediately ahead
+    4. Mark as dirty air if gap < threshold
     """
     laps_df = laps_df.copy()
 
-    # Default to True (clean air)
-    laps_df['clean_air_flag'] = True
+    # Default to False (dirty air) - fail-closed approach
+    laps_df['clean_air_flag'] = False
 
-    # Check if GapToLeader is available and has data
-    has_gap_to_leader = (
-        'GapToLeader' in laps_df.columns and
-        laps_df['GapToLeader'].notna().sum() > len(laps_df) * 0.5  # At least 50% have gap data
-    )
+    # Track statistics
+    stats = {'total': 0, 'clean': 0, 'dirty_gap': 0, 'dirty_pit': 0, 'dirty_sc': 0, 'dirty_invalid': 0}
 
-    if has_gap_to_leader:
-        # Use GapToLeader method (2022+ seasons)
-        _detect_clean_air_from_gap(laps_df, threshold)
-    else:
-        # Calculate gaps from cumulative lap times (pre-2022 seasons)
-        _detect_clean_air_from_cumulative(laps_df, threshold)
+    # Step 1: Compute cumulative race time for each driver
+    # We need to track running race time across all laps
+    drivers = laps_df['Driver'].unique() if 'Driver' in laps_df.columns else laps_df['DriverNumber'].unique()
+    driver_col = 'Driver' if 'Driver' in laps_df.columns else 'DriverNumber'
+
+    # Initialize cumulative times
+    cumulative_times = {d: 0.0 for d in drivers}
+
+    # Sort laps by lap number for sequential processing
+    sorted_laps = laps_df.sort_values(['LapNumber', driver_col]).copy()
+
+    # Compute cumulative race time for each row
+    cum_time_list = []
+    for idx, row in sorted_laps.iterrows():
+        driver = row[driver_col]
+        lap_time = row['LapTime']
+
+        if pd.notna(lap_time):
+            try:
+                lap_seconds = lap_time.total_seconds()
+                cumulative_times[driver] += lap_seconds
+            except:
+                pass
+
+        cum_time_list.append(cumulative_times[driver])
+
+    sorted_laps['cumulative_time'] = cum_time_list
+
+    # Step 2: For each lap, compute gaps and detect clean air
+    for lap_num in sorted_laps['LapNumber'].unique():
+        lap_mask = sorted_laps['LapNumber'] == lap_num
+        lap_data = sorted_laps[lap_mask].copy()
+
+        # Sort by cumulative race time (actual race order, not position column)
+        # Lower cumulative time = further ahead in the race
+        lap_data = lap_data.sort_values('cumulative_time')
+
+        drivers_in_lap = lap_data[driver_col].tolist()
+        cum_times = lap_data['cumulative_time'].tolist()
+        indices = lap_data.index.tolist()
+
+        for i, (driver, cum_time, idx) in enumerate(zip(drivers_in_lap, cum_times, indices)):
+            row = sorted_laps.loc[idx]
+            stats['total'] += 1
+
+            # Check exclusion conditions first (these are always dirty air)
+
+            # 1. Pit in/out laps - always dirty
+            is_pit_in = pd.notna(row.get('PitInTime'))
+            is_pit_out = pd.notna(row.get('PitOutTime'))
+            if is_pit_in or is_pit_out:
+                stats['dirty_pit'] += 1
+                continue  # Leave as False (dirty)
+
+            # 2. Safety Car / VSC laps - always dirty
+            # FastF1 marks these with TrackStatus
+            track_status = row.get('TrackStatus', '')
+            if pd.notna(track_status):
+                track_status_str = str(track_status)
+                # Status codes: 1=Green, 2=Yellow, 4=SC, 5=Red, 6=VSC, 7=VSC Ending
+                if '4' in track_status_str or '6' in track_status_str or '7' in track_status_str:
+                    stats['dirty_sc'] += 1
+                    continue  # Leave as False (dirty)
+
+            # 3. Invalid laps - always dirty
+            is_accurate = row.get('IsAccurate', True)
+            if is_accurate == False:
+                stats['dirty_invalid'] += 1
+                continue  # Leave as False (dirty)
+
+            # Step 3: Compute gap to car ahead
+            if i == 0:
+                # Race leader - always clean air (no car ahead)
+                sorted_laps.loc[idx, 'clean_air_flag'] = True
+                stats['clean'] += 1
+            else:
+                # Gap to car ahead = my cumulative time - car ahead's cumulative time
+                car_ahead_cum_time = cum_times[i - 1]
+                gap_to_ahead = cum_time - car_ahead_cum_time
+
+                if gap_to_ahead >= threshold:
+                    # Sufficient gap - clean air
+                    sorted_laps.loc[idx, 'clean_air_flag'] = True
+                    stats['clean'] += 1
+                else:
+                    # In traffic - dirty air
+                    stats['dirty_gap'] += 1
+                    # Leave as False (dirty)
+
+    # Copy clean_air_flag back to original dataframe
+    laps_df['clean_air_flag'] = sorted_laps['clean_air_flag']
+
+    # Log statistics
+    if stats['total'] > 0:
+        clean_pct = (stats['clean'] / stats['total']) * 100
+        print(f"  → Clean air detection: {stats['clean']}/{stats['total']} laps ({clean_pct:.1f}%) are clean air")
+        print(f"    - Dirty (gap < {threshold}s): {stats['dirty_gap']}")
+        print(f"    - Dirty (pit laps): {stats['dirty_pit']}")
+        print(f"    - Dirty (SC/VSC): {stats['dirty_sc']}")
+        print(f"    - Dirty (invalid): {stats['dirty_invalid']}")
 
     return laps_df
 
 
-def _detect_clean_air_from_gap(laps_df: pd.DataFrame, threshold: float) -> None:
-    """Detect clean air using GapToLeader data (mutates laps_df in place)"""
-    for lap_num in laps_df['LapNumber'].unique():
-        lap_mask = laps_df['LapNumber'] == lap_num
-        lap_data = laps_df[lap_mask].copy()
-
-        if 'Position' in lap_data.columns:
-            lap_data = lap_data.sort_values('Position')
-
-            for idx, row in lap_data.iterrows():
-                position = row.get('Position')
-
-                # P1 always has clean air
-                if position == 1:
-                    continue
-
-                if pd.notna(row.get('GapToLeader')):
-                    ahead_position = position - 1
-                    car_ahead = lap_data[lap_data['Position'] == ahead_position]
-
-                    if not car_ahead.empty and pd.notna(car_ahead.iloc[0]['GapToLeader']):
-                        gap_to_ahead = row['GapToLeader'] - car_ahead.iloc[0]['GapToLeader']
-
-                        if gap_to_ahead < threshold:
-                            laps_df.loc[idx, 'clean_air_flag'] = False
-
-
-def _detect_clean_air_from_cumulative(laps_df: pd.DataFrame, threshold: float) -> None:
-    """
-    Detect clean air by calculating gaps from cumulative lap times (mutates laps_df in place).
-
-    For each lap:
-    1. Calculate cumulative race time for each driver
-    2. Sort by cumulative time to get on-track order
-    3. Gap to car ahead = my_cumulative - car_ahead_cumulative
-    4. If gap < threshold, mark as dirty air
-    """
-    # First, compute cumulative lap time for each driver
-    laps_df['_lap_time_sec'] = laps_df['LapTime'].apply(
-        lambda x: x.total_seconds() if pd.notna(x) else None
-    )
-
-    # Sort in place by driver and lap number for cumsum to work correctly
-    laps_df.sort_values(['DriverNumber', 'LapNumber'], inplace=True)
-
-    # Calculate cumulative time per driver
-    laps_df['_cumulative_time'] = laps_df.groupby('DriverNumber')['_lap_time_sec'].cumsum()
-
-    # Now process each lap to detect clean air
-    for lap_num in laps_df['LapNumber'].unique():
-        lap_mask = laps_df['LapNumber'] == lap_num
-
-        # Get indices and cumulative times for this lap
-        lap_indices = laps_df.index[lap_mask].tolist()
-        lap_cumtimes = laps_df.loc[lap_indices, '_cumulative_time'].values
-
-        # Filter to valid cumulative times
-        valid_mask = ~pd.isna(lap_cumtimes)
-        valid_indices = [idx for idx, valid in zip(lap_indices, valid_mask) if valid]
-        valid_cumtimes = lap_cumtimes[valid_mask]
-
-        if len(valid_indices) < 2:
-            continue
-
-        # Sort by cumulative time (on-track order)
-        sorted_order = valid_cumtimes.argsort()
-        sorted_indices = [valid_indices[i] for i in sorted_order]
-        sorted_cumtimes = valid_cumtimes[sorted_order]
-
-        # Calculate gap to car ahead and mark dirty air
-        for i in range(1, len(sorted_indices)):  # Skip leader (i=0)
-            gap_to_ahead = sorted_cumtimes[i] - sorted_cumtimes[i - 1]
-
-            if gap_to_ahead < threshold:
-                laps_df.loc[sorted_indices[i], 'clean_air_flag'] = False
-
-    # Clean up temporary columns
-    laps_df.drop(columns=['_lap_time_sec', '_cumulative_time'], inplace=True, errors='ignore')
-
-
-def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number: int, track_id: str, identity_map: Dict[str, str], session_type: str = 'R') -> List[Dict[str, Any]]:
+def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number: int, track_id: str) -> List[Dict[str, Any]]:
     """
     Transform FastF1 lap data into laps_normalized schema
-
-    Args:
-        session_type: 'R' for Race, 'Q' for Qualifying
 
     FAIL-CLOSED: Rejects laps with missing critical data
     """
@@ -369,34 +327,27 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
     if skipped_before > 0:
         print(f"  ⚠ Filtered {skipped_before} laps with missing critical data before analysis")
 
-    # Detect stints and pit laps (only on valid laps)
-    laps_df = detect_stints_and_pit_laps(laps_df)
+    # Detect stints (only on valid laps)
+    laps_df = detect_stints(laps_df)
 
     # Detect clean air (only on valid laps)
     laps_df = detect_clean_air(laps_df)
 
-    # Get driver identifiers - map FastF1 abbreviations to f1db_driver_id via identity map
+    # Get driver identifiers (f1db_driver_id format: first_name_last_name)
     driver_map = {}
     for driver_num in laps_df['DriverNumber'].unique():
         try:
             driver = session.get_driver(driver_num)
-            abbrev = driver['Abbreviation'].upper()
-
-            # Look up in identity map
-            if abbrev in identity_map:
-                driver_map[driver_num] = identity_map[abbrev]
+            first_name = driver.get('FirstName', '').lower().replace(' ', '_')
+            last_name = driver.get('LastName', '').lower().replace(' ', '_')
+            if first_name and last_name:
+                raw_id = f"{first_name}_{last_name}"
+                # Apply canonical F1DB ID mapping
+                driver_map[driver_num] = FASTF1_TO_F1DB_DRIVER_MAP.get(raw_id, raw_id)
             else:
-                # Fallback: construct from first/last name (using hyphens to match F1DB format)
-                first_name = driver.get('FirstName', '').lower()
-                last_name = driver.get('LastName', '').lower()
-                if first_name and last_name:
-                    driver_map[driver_num] = f"{first_name}-{last_name}"
-                    print(f"  ⚠ Driver {abbrev} not in identity map, using: {driver_map[driver_num]}")
-                else:
-                    driver_map[driver_num] = abbrev.lower()
-                    print(f"  ✗ WARNING: Could not resolve driver {abbrev}")
-        except Exception as e:
-            print(f"  ✗ WARNING: Could not get info for driver {driver_num}: {e}")
+                driver_map[driver_num] = driver['Abbreviation'].lower()
+        except:
+            print(f"  ✗ WARNING: Could not get driver info for {driver_num}")
             driver_map[driver_num] = f"driver_{driver_num}"
 
     transformed_laps = []
@@ -412,21 +363,23 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
 
         # Validity flags
         is_valid_lap = not row.get('IsAccurate', True) == False  # FastF1 marks invalid laps
+        is_pit_lap = pd.notna(row.get('PitInTime')) or pd.notna(row.get('PitOutTime'))
 
-        # Use deterministically detected pit lap flags
-        is_pit_lap = bool(row.get('is_pit_lap_detected', False))
-        is_out_lap = bool(row.get('is_out_lap_detected', False))
-        is_in_lap = bool(row.get('is_in_lap_detected', False))
+        # Out lap: first lap after pit out
+        is_out_lap = pd.notna(row.get('PitOutTime'))
+
+        # In lap: lap ending in pit
+        is_in_lap = pd.notna(row.get('PitInTime'))
 
         # Driver ID
-        driver_id = driver_map.get(row['DriverNumber'], f"d{row['DriverNumber']}".lower())
+        driver_id = driver_map.get(row['DriverNumber'], f"D{row['DriverNumber']}")
 
         lap_record = {
             'season': season,
             'round': round_number,
             'track_id': track_id,
             'driver_id': driver_id,
-            'session_type': session_type,  # 'R' for Race, 'Q' for Qualifying
+            'session_type': 'R',  # Race session
             'lap_number': int(row['LapNumber']),
             'stint_id': int(row['stint_id']),
             'stint_lap_index': int(row['stint_lap_index']),
@@ -449,33 +402,29 @@ def transform_lap_data(laps_df: pd.DataFrame, session, season: int, round_number
     return transformed_laps
 
 
-def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str, str], session_type: str = 'R') -> Dict[str, Any]:
+def load_race_data(conn, season: int, round_number: int) -> Dict[str, Any]:
     """
-    Load a single race/qualifying session worth of lap data
-
-    Args:
-        session_type: 'R' for Race, 'Q' for Qualifying
+    Load a single race worth of lap data
 
     Returns metrics about the load operation
     """
-    session_name = 'Race' if session_type == 'R' else 'Qualifying'
-    print(f"\n→ Processing {season} Round {round_number} ({session_name})...")
+    print(f"\n→ Processing Round {round_number}...")
 
     try:
         # Load FastF1 session
         print(f"  → Loading FastF1 data...")
-        session = fastf1.get_session(season, round_number, session_type)
+        session = fastf1.get_session(season, round_number, 'R')  # 'R' = Race
         session.load()
 
         # Get event info
         event = session.event
-        track_id = event['EventName'].lower().replace(' ', '_').replace("'", "")
+        track_id = event['EventName'].lower().replace(' ', '_')
 
         print(f"  ✓ Loaded: {event['EventName']} (Round {round_number})")
 
         # Check if already loaded
-        if check_race_already_loaded(conn, season, round_number, session_type):
-            print(f"  ⊘ {session_name} already loaded - skipping")
+        if check_race_already_loaded(conn, season, round_number):
+            print(f"  ⊘ Race already loaded - skipping")
             return {
                 'status': 'skipped',
                 'laps_inserted': 0,
@@ -495,7 +444,7 @@ def load_race_data(conn, season: int, round_number: int, identity_map: Dict[str,
             }
 
         # Transform data
-        transformed_laps = transform_lap_data(laps, session, season, round_number, track_id, identity_map, session_type)
+        transformed_laps = transform_lap_data(laps, session, season, round_number, track_id)
 
         if not transformed_laps:
             print(f"  ✗ FAIL_CLOSED: No valid laps after transformation")
@@ -624,21 +573,13 @@ def write_audit_log(conn, season: int, metrics: ETLMetrics, started_at: datetime
 
 def main():
     parser = argparse.ArgumentParser(description='ETL for laps_normalized table')
-    parser.add_argument('--season', type=int, required=True, help='Season year (e.g., 2022, 2023, 2024, 2025)')
-    parser.add_argument('--round', type=int, help='Specific round to load')
-    parser.add_argument('--session', type=str, default='R', choices=['R', 'Q'], help='Session type: R=Race (default), Q=Qualifying')
+    parser.add_argument('--round', type=int, help='Specific round to load (1-22)')
+    parser.add_argument('--season', type=int, default=TARGET_SEASON, help='Season to process (default: 2026)')
     args = parser.parse_args()
 
     season = args.season
-    session_type = args.session
-
-    if season not in SEASON_RACE_COUNTS:
-        print(f"✗ FAIL_CLOSED: Season {season} not supported. Supported: {list(SEASON_RACE_COUNTS.keys())}")
-        sys.exit(1)
-
-    session_name = 'RACE' if session_type == 'R' else 'QUALIFYING'
-    print(f"\n=== LAPS NORMALIZED ETL - {season} SEASON ({session_name}) ===\n")
-    print(f"Season: {season}, Session: {session_name}")
+    print(f"\n=== LAPS NORMALIZED ETL - {season} SEASON ===\n")
+    print(f"Season: {season}")
 
     started_at = datetime.now()
     print(f"Started: {started_at.isoformat()}\n")
@@ -661,25 +602,20 @@ def main():
         conn.close()
         sys.exit(1)
 
-    # Load driver identity map
-    identity_map = load_driver_identity_map(conn)
-    if not identity_map:
-        print("⚠ Warning: No driver identity map found, will construct driver IDs from names")
-
     # Determine rounds to process
     if args.round:
         rounds_to_process = [args.round]
         print(f"\n→ Processing single round: {args.round}\n")
     else:
-        race_count = SEASON_RACE_COUNTS[season]
-        rounds_to_process = list(range(1, race_count + 1))
+        # 2026 season: 22 races (Bahrain & Saudi Arabia cancelled)
+        rounds_to_process = list(range(1, TOTAL_ROUNDS + 1))
         print(f"\n→ Processing all {len(rounds_to_process)} rounds\n")
 
     # Process races
     metrics = ETLMetrics()
 
     for round_num in rounds_to_process:
-        result = load_race_data(conn, season, round_num, identity_map, session_type)
+        result = load_race_data(conn, season, round_num)
 
         if result['status'] == 'success':
             metrics.races_processed += 1
@@ -706,7 +642,6 @@ def main():
 
     # Print summary
     print("\n=== ETL COMPLETE ===\n")
-    print(f"Season: {season}")
     print(f"Execution Hash: {metrics.execution_hash}")
     print(f"\nRaces processed: {metrics.races_processed}")
     print(f"Races skipped:   {metrics.races_skipped}")

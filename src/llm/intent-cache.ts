@@ -10,7 +10,7 @@ import { metrics } from '../observability/metrics';
 
 const CACHE_PREFIX = 'intent';
 const CACHE_VERSION = 'v5'; // bumped to add career pole count support
-const CURRENT_SEASON = 2025;
+const CURRENT_SEASON = 2026;
 
 // ttl: 1 hour for current season, 24 hours for past
 const TTL_CURRENT_SEASON = 3600;

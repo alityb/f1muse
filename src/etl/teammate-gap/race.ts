@@ -169,28 +169,25 @@ async function assertSeasonDataExists(pool: Pool, season: number): Promise<void>
     throw new Error(`FAIL_CLOSED: No race rows for season ${season}`);
   }
 
-  const raceResults = await pool.query(
-    `
-    SELECT COUNT(*) AS count
-    FROM race_data rd
-    JOIN race r ON r.id = rd.race_id
-    WHERE r.year = $1
-      AND rd.type = 'RACE_RESULT'
-    `,
-    [season]
-  );
-
-  if (parseInt(raceResults.rows[0]?.count || '0', 10) === 0) {
-    throw new Error(`FAIL_CLOSED: No race classification data for season ${season}`);
-  }
-
+  // Use laps_normalized as the authoritative source — race_data RACE_RESULT may
+  // not be available mid-season (F1DB lags official results by days/weeks).
   const laps = await pool.query(
     `SELECT COUNT(*) AS count FROM laps_normalized WHERE season = $1`,
     [season]
   );
 
   if (parseInt(laps.rows[0]?.count || '0', 10) === 0) {
-    throw new Error(`FAIL_CLOSED: No laps_normalized rows for season ${season}`);
+    throw new Error(`FAIL_CLOSED: No lap data for season ${season}`);
+  }
+
+  // season_entrant_driver must exist so we can derive team assignments
+  const teamAssignments = await pool.query(
+    `SELECT COUNT(*) AS count FROM season_entrant_driver WHERE year = $1 AND test_driver = false`,
+    [season]
+  );
+
+  if (parseInt(teamAssignments.rows[0]?.count || '0', 10) === 0) {
+    throw new Error(`FAIL_CLOSED: No team assignments in season_entrant_driver for season ${season}`);
   }
 }
 
@@ -348,18 +345,20 @@ async function runIngestion(
 
     const raceGapInsertResult = await pool.query(`
       WITH classified_drivers AS (
-        SELECT
-          r.year AS season,
-          r.round,
-          rd.driver_id,
-          ${buildTeamIdCase('rd.constructor_id')} AS team_id
-        FROM race_data rd
-        JOIN race r ON r.id = rd.race_id
-        WHERE r.year = $1
-          AND rd.type = 'RACE_RESULT'
-          AND rd.driver_id IS NOT NULL
-          AND rd.constructor_id IS NOT NULL
-          AND rd.position_number IS NOT NULL
+        -- Derive driver-team assignments from season_entrant_driver + laps_normalized rounds.
+        -- driver_id kept in laps_normalized format (underscore) to join downstream CTEs.
+        -- This works even before F1DB RACE_RESULT rows are published mid-season.
+        SELECT DISTINCT
+          ln.season,
+          ln.round,
+          ln.driver_id,
+          ${buildTeamIdCase('sed.constructor_id')} AS team_id
+        FROM laps_normalized ln
+        JOIN season_entrant_driver sed
+          ON sed.year = ln.season
+         AND REPLACE(ln.driver_id, '_', '-') = sed.driver_id
+        WHERE ln.season = $1
+          AND sed.test_driver = false
       ),
       valid_laps AS (
         SELECT

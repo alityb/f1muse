@@ -160,14 +160,10 @@ async function assertSeasonDataExists(pool: Pool, season: number): Promise<void>
     throw new Error(`FAIL_CLOSED: No race rows for season ${season}`);
   }
 
+  // Use qualifying_results (FastF1-sourced) as the authoritative qualifying source.
+  // F1DB QUALIFYING_RESULT rows may lag behind the actual season.
   const qualifyingData = await pool.query(
-    `
-    SELECT COUNT(*) AS count
-    FROM race_data rd
-    JOIN race r ON r.id = rd.race_id
-    WHERE r.year = $1
-      AND rd.type = 'QUALIFYING_RESULT'
-    `,
+    `SELECT COUNT(*) AS count FROM qualifying_results WHERE season = $1`,
     [season]
   );
 
@@ -208,17 +204,18 @@ async function runIngestion(
     throw new Error(raceValidation.error);
   }
 
+  // Validate qualifying_results table (FastF1-sourced, authoritative for qualifying)
   const qualifyingSchema: Array<{ name: string; type: string }> = [
-    { name: 'race_id', type: 'integer' },
-    { name: 'type', type: 'text' },
+    { name: 'season', type: 'integer' },
+    { name: 'round', type: 'integer' },
     { name: 'driver_id', type: 'text' },
-    { name: 'constructor_id', type: 'text' },
-    { name: 'qualifying_q1_millis', type: 'integer' },
-    { name: 'qualifying_q2_millis', type: 'integer' },
-    { name: 'qualifying_q3_millis', type: 'integer' }
+    { name: 'team_id', type: 'text' },
+    { name: 'q1_time_ms', type: 'integer' },
+    { name: 'q2_time_ms', type: 'integer' },
+    { name: 'q3_time_ms', type: 'integer' }
   ];
 
-  const qualifyingValidation = await validateTableSchema(pool, 'race_data', qualifyingSchema);
+  const qualifyingValidation = await validateTableSchema(pool, 'qualifying_results', qualifyingSchema);
   if (!qualifyingValidation.valid) {
     throw new Error(qualifyingValidation.error);
   }
@@ -234,10 +231,10 @@ async function runIngestion(
   console.log('→ Fingerprinting input tables...');
 
   const raceFingerprint = await fingerprintTable(pool, 'race');
-  const raceDataFingerprint = await fingerprintTable(pool, 'race_data');
+  const qualifyingResultsFingerprint = await fingerprintTable(pool, 'qualifying_results');
 
   const execution_hash = computeExecutionHash(
-    [raceFingerprint, raceDataFingerprint],
+    [raceFingerprint, qualifyingResultsFingerprint],
     config.season,
     config,
     'qualifying_symmetric_percent_diff_v2'
@@ -266,20 +263,20 @@ async function runIngestion(
 
     const raceGapInsertResult = await pool.query(`
       WITH quali_times AS (
+        -- Use qualifying_results (FastF1-sourced) — available mid-season without
+        -- waiting for F1DB QUALIFYING_RESULT rows to be published.
         SELECT
-          r.year AS season,
-          r.round,
-          rd.driver_id,
-          ${buildTeamIdCase('rd.constructor_id')} AS team_id,
-          rd.qualifying_q1_millis,
-          rd.qualifying_q2_millis,
-          rd.qualifying_q3_millis
-        FROM race_data rd
-        JOIN race r ON r.id = rd.race_id
-        WHERE r.year = $1
-          AND rd.type = 'QUALIFYING_RESULT'
-          AND rd.driver_id IS NOT NULL
-          AND rd.constructor_id IS NOT NULL
+          qr.season,
+          qr.round,
+          qr.driver_id,
+          ${buildTeamIdCase('qr.team_id')} AS team_id,
+          qr.q1_time_ms AS qualifying_q1_millis,
+          qr.q2_time_ms AS qualifying_q2_millis,
+          qr.q3_time_ms AS qualifying_q3_millis
+        FROM qualifying_results qr
+        WHERE qr.season = $1
+          AND qr.driver_id IS NOT NULL
+          AND qr.team_id IS NOT NULL
       ),
       teammate_pairs AS (
         SELECT

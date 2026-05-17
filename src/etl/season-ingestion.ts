@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * LAPS NORMALIZED SEASON INGESTION - 2025
+ * LAPS NORMALIZED SEASON INGESTION - 2026
  *
  * Deterministic, fail-closed, append-only ingestion for the full season.
  *
  * Usage:
- *   npm run ingest:season 2025
+ *   npm run ingest:season 2026
  */
 
 import 'dotenv/config';
@@ -16,7 +16,7 @@ import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-const TARGET_SEASON = 2025;
+const TARGET_SEASON = 2026;
 const CLEAN_AIR_GAP_THRESHOLD = 2.0; // seconds
 const MIN_DRIVERS_PER_RACE = 10;
 const SQL_TEMPLATE = `INSERT INTO laps_normalized (
@@ -31,18 +31,19 @@ const FASTF1_CODE_OVERRIDES: Record<string, { driver_id?: string; first_name?: s
   ALB: { first_name: 'Alexander', last_name: 'Albon' },
   BEA: { first_name: 'Oliver', last_name: 'Bearman' },
   BOR: { first_name: 'Gabriel', last_name: 'Bortoleto' },
+  BOT: { first_name: 'Valtteri', last_name: 'Bottas' },
   COL: { first_name: 'Franco', last_name: 'Colapinto' },
-  DOO: { first_name: 'Jack', last_name: 'Doohan' },
   GAS: { first_name: 'Pierre', last_name: 'Gasly' },
   HAD: { first_name: 'Isack', last_name: 'Hadjar' },
   HAM: { first_name: 'Lewis', last_name: 'Hamilton' },
   HUL: { first_name: 'Nico', last_name: 'Hulkenberg' },
   HULK: { first_name: 'Nico', last_name: 'Hulkenberg' },
   LAW: { first_name: 'Liam', last_name: 'Lawson' },
+  LIN: { first_name: 'Arvid', last_name: 'Lindblad' },
   OCO: { first_name: 'Esteban', last_name: 'Ocon' },
+  PER: { first_name: 'Sergio', last_name: 'Perez' },
   RUS: { first_name: 'George', last_name: 'Russell' },
   STR: { first_name: 'Lance', last_name: 'Stroll' },
-  TSU: { first_name: 'Yuki', last_name: 'Tsunoda' }
 };
 
 const DIACRITICS_FROM = 'áàäâãéèëêíìïîóòöôõúùüûñçýÿ';
@@ -291,7 +292,7 @@ function resolvePythonPath(): string {
 function ensureSeasonArgument(): number {
   const seasonArg = process.argv.slice(2)[0];
   if (!seasonArg) {
-    throw new Error('FAIL_CLOSED: Season argument required. Usage: npm run ingest:season 2025');
+    throw new Error('FAIL_CLOSED: Season argument required. Usage: npm run ingest:season 2026');
   }
 
   const season = parseInt(seasonArg, 10);
@@ -1401,7 +1402,7 @@ async function processRace(
 async function main(): Promise<void> {
   const season = ensureSeasonArgument();
 
-  console.log('\n=== LAPS NORMALIZED SEASON INGESTION (2025) ===\n');
+  console.log('\n=== LAPS NORMALIZED SEASON INGESTION (2026) ===\n');
   console.log(`Season: ${season}`);
 
   const dbUrl = process.env.DATABASE_URL;

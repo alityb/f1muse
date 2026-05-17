@@ -1,5 +1,5 @@
 -- Data Completeness Audit for Normalized Pace Data
--- Checks 2024 and 2025 seasons for:
+-- Checks 2024, 2025, and 2026 seasons for:
 --   1. Session median exists (≥20 valid laps per race)
 --   2. Normalized pace data exists for classified drivers (≥5 valid laps)
 --
@@ -16,7 +16,7 @@ WITH race_sessions AS (
         c.name AS track_name
     FROM race r
     JOIN circuit c ON r.circuit_id = c.id
-    WHERE r.year IN (2024, 2025)
+    WHERE r.year IN (2024, 2025, 2026)
     ORDER BY r.year, r.round
 ),
 
@@ -28,7 +28,7 @@ session_laps AS (
         COUNT(*) AS valid_lap_count,
         COUNT(DISTINCT driver_id) AS unique_drivers
     FROM laps_normalized
-    WHERE season IN (2024, 2025)
+    WHERE season IN (2024, 2025, 2026)
       AND is_valid_lap = true
       AND lap_time_seconds IS NOT NULL
     GROUP BY season, round
@@ -41,7 +41,7 @@ classified_drivers AS (
         COUNT(DISTINCT rd.driver_id) AS classified_count
     FROM race r
     JOIN race_data rd ON rd.race_id = r.id
-    WHERE r.year IN (2024, 2025)
+    WHERE r.year IN (2024, 2025, 2026)
       AND rd.type = 'RACE_RESULT'
       AND rd.position_number IS NOT NULL
       AND rd.position_number <= 20
@@ -55,7 +55,7 @@ driver_lap_counts AS (
         driver_id,
         COUNT(*) AS lap_count
     FROM laps_normalized
-    WHERE season IN (2024, 2025)
+    WHERE season IN (2024, 2025, 2026)
       AND is_valid_lap = true
       AND lap_time_seconds IS NOT NULL
     GROUP BY season, round, driver_id

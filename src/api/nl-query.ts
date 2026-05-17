@@ -298,7 +298,7 @@ const YEAR_PATTERN = /\b(19|20)\d{2}\b/;
 function extractSeason(question: string): number {
   const match = question.match(YEAR_PATTERN);
   if (!match) {
-    return 2025;
+    return 2026;
   }
   return parseInt(match[0], 10);
 }

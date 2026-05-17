@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 
-const DEFAULT_SEASON = 2025;
+const DEFAULT_SEASON = 2026;
 
 function parseSeasonArg(): number {
   const raw = process.argv[2];
