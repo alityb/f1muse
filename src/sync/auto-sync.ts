@@ -1,18 +1,29 @@
 /**
  * Auto-Sync Scheduler
  *
- * Runs the full data refresh pipeline on a timer inside the Node process —
- * the same pattern as cache maintenance.
- *
  * Schedule:
- *   - Jolpica results + standings: every 2 hours (lightweight, pure HTTP)
- *   - Teammate gap + matchup matrix: only when new race rounds are detected
+ *   - Primary trigger: Monday 00:00 UTC (races finish Sunday, Jolpica has
+ *     data within ~1 hour, so midnight Monday is a safe first attempt).
+ *   - Hourly retry: if Jolpica doesn't have new race data yet (race ran late,
+ *     publishing lag), retries every hour until data appears.
+ *   - Retry cap: 12 attempts max (~noon Monday) so non-race weekends don't
+ *     loop forever.
  *
- * FastF1 lap/qualifying ETL still needs to be triggered separately (Python).
- * Use the Railway Cron or call POST /admin/sync?full=true to shell out to it.
+ * What auto-syncs:
+ *   - Jolpica: race results, standings (TypeScript HTTP, fast)
+ *   - Teammate gap + matchup matrix (TypeScript SQL, fast)
+ *   - FastF1 laps + qualifying (Python ETL, spawned per round)
+ *
+ * Python requirements: `pip install -r requirements.txt` must have run.
+ *   On Railway: Nixpacks installs Python + Node together via nixpacks.toml.
+ *   Locally:    venv/bin/python is tried first, then python3.
+ *
+ * Set AUTO_SYNC=false to disable entirely (e.g. staging env).
  */
 
 import { Pool } from 'pg';
+import { spawn } from 'child_process';
+import path from 'path';
 import { runJolpicaSync } from './jolpica-sync';
 import { runIngestion as runTeammateGapRace } from '../etl/teammate-gap/race';
 import { runIngestion as runTeammateGapQual } from '../etl/teammate-gap/qualifying';
@@ -20,82 +31,215 @@ import { runMatchupSync } from '../etl/matchup-matrix';
 import { DEFAULT_ETL_CONFIG } from '../config/teammate-gap';
 
 const SEASON = 2026;
+const MAX_RETRIES = 12;             // give up by ~noon Monday
+const RETRY_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
 let syncInProgress = false;
 let lastSyncAt: Date | null = null;
 let lastNewRounds = 0;
+let retryCount = 0;
+let retryTimer: NodeJS.Timeout | null = null;
+let primaryTimer: NodeJS.Timeout | null = null;
 
+// ---------------------------------------------------------------------------
+// Python ETL runner
+// ---------------------------------------------------------------------------
+function resolvePython(): string {
+  const venv = path.join(process.cwd(), 'venv', 'bin', 'python');
+  try {
+    require('fs').accessSync(venv, require('fs').constants.X_OK);
+    return venv;
+  } catch {
+    return 'python3';
+  }
+}
+
+function spawnPython(script: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const python = resolvePython();
+    const scriptPath = path.join(process.cwd(), script);
+    console.log(`[auto-sync] Spawning: ${python} ${scriptPath} ${args.join(' ')}`);
+
+    const proc = spawn(python, [scriptPath, ...args], {
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    proc.stdout.on('data', (d: Buffer) => process.stdout.write(`[etl] ${d}`));
+    proc.stderr.on('data', (d: Buffer) => process.stderr.write(`[etl] ${d}`));
+
+    const timeout = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`ETL timed out after 30 minutes: ${script}`));
+    }, 30 * 60 * 1000);
+
+    proc.on('close', (code: number | null) => {
+      clearTimeout(timeout);
+      if (code === 0) resolve();
+      else reject(new Error(`ETL exited ${code}: ${script}`));
+    });
+  });
+}
+
+async function runFastF1ETL(roundNumbers: number[]): Promise<void> {
+  for (const rnd of roundNumbers) {
+    console.log(`[auto-sync] Running FastF1 laps ETL for round ${rnd}...`);
+    try {
+      await spawnPython('src/etl/ingest-laps-2026.py', ['--round', String(rnd)]);
+      console.log(`[auto-sync] Laps ETL done for round ${rnd}`);
+    } catch (e) {
+      console.error(`[auto-sync] Laps ETL failed for round ${rnd}:`, e);
+    }
+
+    console.log(`[auto-sync] Running FastF1 qualifying ETL for round ${rnd}...`);
+    try {
+      await spawnPython('src/etl/ingest-qualifying.py', ['--season', String(SEASON), '--round', String(rnd)]);
+      console.log(`[auto-sync] Qualifying ETL done for round ${rnd}`);
+    } catch (e) {
+      console.error(`[auto-sync] Qualifying ETL failed for round ${rnd}:`, e);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core sync logic
+// ---------------------------------------------------------------------------
 export interface SyncResult {
   ok: boolean;
   newRounds: number;
+  newRoundNumbers: number[];
   downstreamRan: boolean;
   durationMs: number;
   error?: string;
 }
 
-/**
- * Run one full sync cycle.
- * Idempotent — safe to call at any frequency.
- */
 export async function runSync(pool: Pool): Promise<SyncResult> {
   if (syncInProgress) {
-    return { ok: false, newRounds: 0, downstreamRan: false, durationMs: 0, error: 'sync already in progress' };
+    return { ok: false, newRounds: 0, newRoundNumbers: [], downstreamRan: false, durationMs: 0, error: 'already in progress' };
   }
 
   syncInProgress = true;
   const start = Date.now();
 
   try {
-    // 1. Jolpica: results + standings
-    console.log('[auto-sync] Starting Jolpica sync...');
-    const { newRounds } = await runJolpicaSync(pool, SEASON);
+    console.log('[auto-sync] Jolpica sync starting...');
+    const { newRounds, newRoundNumbers } = await runJolpicaSync(pool, SEASON);
     lastNewRounds = newRounds;
-    console.log(`[auto-sync] Jolpica done — ${newRounds} new round(s) detected`);
+    console.log(`[auto-sync] Jolpica done — ${newRounds} new round(s): [${newRoundNumbers.join(', ')}]`);
 
-    // 2. Downstream ETL only when new race data arrived
     let downstreamRan = false;
-    if (newRounds > 0) {
-      console.log('[auto-sync] New data found — running teammate gap + matchup matrix...');
 
+    if (newRounds > 0) {
+      retryCount = 0; // found data — stop retrying
+
+      console.log('[auto-sync] Running FastF1 Python ETL...');
+      await runFastF1ETL(newRoundNumbers);
+
+      console.log('[auto-sync] Running teammate gap + matchup matrix...');
       await runTeammateGapRace(pool, DEFAULT_ETL_CONFIG);
       await runTeammateGapQual(pool, DEFAULT_ETL_CONFIG);
       await runMatchupSync(pool, SEASON);
 
       downstreamRan = true;
-      console.log('[auto-sync] Downstream ETL complete');
+      console.log('[auto-sync] All downstream ETL complete');
     }
 
     lastSyncAt = new Date();
-    return { ok: true, newRounds, downstreamRan, durationMs: Date.now() - start };
+    return { ok: true, newRounds, newRoundNumbers, downstreamRan, durationMs: Date.now() - start };
 
   } catch (err: any) {
     console.error('[auto-sync] Sync failed:', err?.message ?? err);
-    return { ok: false, newRounds: 0, downstreamRan: false, durationMs: Date.now() - start, error: String(err?.message ?? err) };
+    return { ok: false, newRounds: 0, newRoundNumbers: [], downstreamRan: false, durationMs: Date.now() - start, error: String(err?.message ?? err) };
   } finally {
     syncInProgress = false;
   }
 }
 
+// ---------------------------------------------------------------------------
+// Schedule helpers
+// ---------------------------------------------------------------------------
+
+/** Milliseconds until next Monday 00:00 UTC. */
+function msUntilNextMondayMidnightUTC(): number {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0=Sun 1=Mon … 6=Sat
+
+  // Days to add: if it's already Monday (1), schedule for next Monday (+7)
+  const daysToAdd = day === 1 ? 7 : (8 - day) % 7;
+
+  const next = new Date(now);
+  next.setUTCDate(now.getUTCDate() + daysToAdd);
+  next.setUTCHours(0, 0, 0, 0);
+  return next.getTime() - now.getTime();
+}
+
+function scheduleNextMonday(pool: Pool): void {
+  const ms = msUntilNextMondayMidnightUTC();
+  const h = Math.round(ms / 3_600_000 * 10) / 10;
+  console.log(`[auto-sync] Next sync scheduled in ${h}h (Monday 00:00 UTC)`);
+
+  primaryTimer = setTimeout(() => {
+    runWeeklySyncCycle(pool);
+  }, ms);
+}
+
 /**
- * Start the background sync interval.
- * Returns the interval handle so callers can clear it on shutdown.
+ * One full weekly cycle: try now, retry hourly if no data yet.
  */
-export function startAutoSyncInterval(
-  pool: Pool,
-  intervalMs = 2 * 60 * 60 * 1000   // 2 hours default
-): NodeJS.Timeout {
-  const hours = Math.round(intervalMs / 3_600_000 * 10) / 10;
-  console.log(`✓ Auto-sync scheduled (every ${hours}h)`);
+async function runWeeklySyncCycle(pool: Pool): Promise<void> {
+  retryCount = 0;
+  await attemptSyncWithRetry(pool);
+}
 
-  // Run once at startup after a short delay (let the server fully boot first)
-  setTimeout(() => runSync(pool).catch(console.error), 30_000);
+async function attemptSyncWithRetry(pool: Pool): Promise<void> {
+  const result = await runSync(pool);
 
-  return setInterval(() => runSync(pool).catch(console.error), intervalMs);
+  if (result.newRounds > 0) {
+    // Data found — schedule next Monday and we're done
+    console.log(`[auto-sync] Race data found (${result.newRounds} round(s)). Next sync: Monday 00:00 UTC`);
+    scheduleNextMonday(pool);
+    return;
+  }
+
+  retryCount++;
+
+  if (retryCount >= MAX_RETRIES) {
+    console.log(`[auto-sync] Max retries (${MAX_RETRIES}) reached — no new race data found. Scheduling next Monday.`);
+    scheduleNextMonday(pool);
+    return;
+  }
+
+  console.log(`[auto-sync] No new data (attempt ${retryCount}/${MAX_RETRIES}). Retrying in 1h...`);
+  retryTimer = setTimeout(() => attemptSyncWithRetry(pool), RETRY_INTERVAL_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export function startAutoSyncInterval(pool: Pool): NodeJS.Timeout {
+  // Schedule first trigger at Monday 00:00 UTC
+  scheduleNextMonday(pool);
+
+  // Return a dummy interval handle for the shutdown cleanup signature.
+  // The real timers (primaryTimer / retryTimer) are module-level.
+  return setInterval(() => {/* no-op sentinel */}, Number.MAX_SAFE_INTEGER);
+}
+
+export function stopAutoSync(): void {
+  if (primaryTimer) { clearTimeout(primaryTimer); primaryTimer = null; }
+  if (retryTimer)   { clearTimeout(retryTimer);   retryTimer   = null; }
 }
 
 export function getSyncStatus() {
+  const msUntilNext = msUntilNextMondayMidnightUTC();
   return {
-    inProgress: syncInProgress,
-    lastSyncAt: lastSyncAt?.toISOString() ?? null,
+    inProgress:     syncInProgress,
+    lastSyncAt:     lastSyncAt?.toISOString() ?? null,
     lastNewRounds,
+    retryCount,
+    nextSyncIn:     syncInProgress || retryCount > 0
+                      ? `retry ${retryCount + 1}/${MAX_RETRIES} in ~1h`
+                      : `${Math.round(msUntilNext / 3_600_000 * 10) / 10}h (Monday 00:00 UTC)`,
   };
 }

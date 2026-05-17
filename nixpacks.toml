@@ -1,0 +1,15 @@
+# Nixpacks build config — installs Node.js + Python side by side.
+# Railway auto-detects Node via package.json and Python via requirements.txt,
+# but being explicit avoids ambiguity.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "python312", "python312Packages.pip"]
+
+[phases.install]
+cmds = [
+  "npm ci --production=false",
+  "pip install -r requirements.txt"
+]
+
+[start]
+cmd = "npm run start"

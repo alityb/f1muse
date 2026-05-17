@@ -8,6 +8,7 @@ import {
 import { createRoutes } from './api/routes';
 import { createProductionNLQueryRouter } from './api/nl-query-production';
 import { startCacheMaintenanceInterval } from './cache/maintenance';
+import { startAutoSyncInterval, runSync, getSyncStatus, stopAutoSync } from './sync/auto-sync';
 import { initRedisCache, getRedisCache } from './cache/redis-cache';
 import { createMetricsRouter, metricsMiddleware } from './observability/metrics';
 import {
@@ -149,6 +150,34 @@ async function main() {
     logError(err, { context: 'cache_maintenance_startup_failed' });
   }
 
+  // Start auto-sync (Jolpica race results + standings, every 2 hours)
+  // Lap data (FastF1 Python ETL) still needs to be triggered manually after each race.
+  let autoSyncInterval: NodeJS.Timeout | null = null;
+  if (process.env.AUTO_SYNC !== 'false') {
+    try {
+      autoSyncInterval = startAutoSyncInterval(primaryPool);
+    } catch (err) {
+      logError(err, { context: 'auto_sync_startup_failed' });
+    }
+  }
+
+  // Manual sync trigger (also used by Railway Cron for FastF1 ETL)
+  app.post('/admin/sync', async (_req, res) => {
+    const status = getSyncStatus();
+    if (status.inProgress) {
+      res.json({ ok: false, message: 'sync already in progress' });
+      return;
+    }
+    // Fire-and-forget — respond immediately, sync runs in background
+    runSync(primaryPool).catch(console.error);
+    res.json({ ok: true, message: 'sync started', lastSyncAt: status.lastSyncAt });
+  });
+
+  // Sync status endpoint
+  app.get('/admin/sync/status', (_req, res) => {
+    res.json(getSyncStatus());
+  });
+
   // Register routes
   const routes = createRoutes(replicaPool, primaryPool);
   app.use('/', routes);
@@ -215,6 +244,12 @@ async function main() {
     if (maintenanceInterval) {
       clearInterval(maintenanceInterval);
     }
+
+    // Clear auto-sync interval
+    if (autoSyncInterval) {
+      clearInterval(autoSyncInterval);
+    }
+    stopAutoSync();
 
     // Close Redis
     const redisCache = getRedisCache();

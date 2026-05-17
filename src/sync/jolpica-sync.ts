@@ -88,14 +88,14 @@ function parseLapTimeMs(t: string | null | undefined): number | null {
 
 // ---------------------------------------------------------------------------
 // Sync race results → race_data RACE_RESULT
-// Returns number of rounds that had data written
+// Returns the round numbers that were newly inserted (not previously loaded)
 // ---------------------------------------------------------------------------
-export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<number> {
+export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<number[]> {
   const mrdata = await fetchJolpica(`/${season}/results/`);
   const races: any[] = mrdata.RaceTable?.Races ?? [];
-  if (!races.length) return 0;
+  if (!races.length) return [];
 
-  let newRounds = 0;
+  const newRoundNumbers: number[] = [];
   const client = await pool.connect();
 
   try {
@@ -180,7 +180,7 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
             race_reason_retired   = EXCLUDED.race_reason_retired
         `, values.flat());
 
-        if (!alreadyLoaded) newRounds++;
+        if (!alreadyLoaded) newRoundNumbers.push(rnd);
         console.log(`  [jolpica] Round ${rnd}: ${values.length} results ${alreadyLoaded ? '(refreshed)' : '(new)'}`);
       }
     }
@@ -188,7 +188,7 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
     client.release();
   }
 
-  return newRounds;
+  return newRoundNumbers;
 }
 
 // ---------------------------------------------------------------------------
@@ -253,8 +253,8 @@ export async function syncStandings(pool: Pool, season = CURRENT_SEASON): Promis
 export async function runJolpicaSync(
   pool: Pool,
   season = CURRENT_SEASON
-): Promise<{ newRounds: number }> {
-  const newRounds = await syncResults(pool, season);
+): Promise<{ newRounds: number; newRoundNumbers: number[] }> {
+  const newRoundNumbers = await syncResults(pool, season);
   await syncStandings(pool, season);
-  return { newRounds };
+  return { newRounds: newRoundNumbers.length, newRoundNumbers };
 }
