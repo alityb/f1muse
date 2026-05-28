@@ -45,6 +45,14 @@ let primaryTimer: NodeJS.Timeout | null = null;
 // Python ETL runner
 // ---------------------------------------------------------------------------
 function resolvePython(): string {
+  const railwayVenv = path.join(process.cwd(), '.venv', 'bin', 'python');
+  try {
+    require('fs').accessSync(railwayVenv, require('fs').constants.X_OK);
+    return railwayVenv;
+  } catch {
+    // Fall through to local venv / system python.
+  }
+
   const venv = path.join(process.cwd(), 'venv', 'bin', 'python');
   try {
     require('fs').accessSync(venv, require('fs').constants.X_OK);
