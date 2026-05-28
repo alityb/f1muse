@@ -18,6 +18,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeClient, getClaudeClient } from '../llm/claude-client';
+import { buildDeterministicIntent } from '../llm/deterministic-intent';
+import { QueryIntent } from '../types/query-intent';
 import { QueryExecutor } from '../execution/query-executor';
 import { buildInterpretationResponse } from '../presentation/interpretation-builder';
 import { applyConversationContext } from '../conversation/context-resolver';
@@ -164,13 +166,27 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
       }
 
       const llmStartTime = Date.now();
-      const parseResult = await claudeClient.parseIntent(question, requestId);
+      const deterministicIntent = buildDeterministicIntent(question);
+      const parseResult = deterministicIntent
+        ? {
+            success: true,
+            intent: deterministicIntent,
+            latencyMs: 0,
+            retryCount: 0,
+          }
+        : await claudeClient.parseIntent(question, requestId);
       const llmLatencyMs = Date.now() - llmStartTime;
+
+      let queryIntent: QueryIntent | undefined;
 
       if (!parseResult.success || !parseResult.intent) {
         const totalLatencyMs = Date.now() - startTime;
         metrics.incrementError('nl_parse_failed');
 
+        const fallbackIntent = buildDeterministicIntent(question);
+        if (fallbackIntent) {
+          queryIntent = fallbackIntent;
+        } else {
         logNLQuery({
           request_id: requestId,
           question,
@@ -190,9 +206,14 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
           { suggestion: 'Try rephrasing your question more clearly.' }
         );
         return res.status(getStatusCode(error.error_type)).json(error);
+        }
+      } else {
+        queryIntent = parseResult.intent;
       }
 
-      let queryIntent = parseResult.intent;
+      if (!queryIntent) {
+        throw new Error('Failed to resolve query intent');
+      }
 
       // Apply conversation context if session_id provided
       if (session_id) {

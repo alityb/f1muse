@@ -19,7 +19,7 @@ import { getConfig } from './config';
 
 // Configuration
 const CONFIG = {
-  MODEL: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
+  MODEL: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
   MAX_TOKENS: 512,
   TEMPERATURE: 0,
   TIMEOUT_MS: 10000,
@@ -424,10 +424,10 @@ export class ClaudeClient {
     // Use session_median_percent unless user explicitly asked for raw pace
     if (parsed.kind === 'season_driver_vs_driver') {
       const wantsRawPace = lowerQuery.includes('raw pace') ||
-                          lowerQuery.includes('raw lap') ||
-                          lowerQuery.includes('raw times') ||
-                          lowerQuery.includes('absolute pace') ||
-                          lowerQuery.includes('actual lap time');
+        lowerQuery.includes('raw lap') ||
+        lowerQuery.includes('raw times') ||
+        lowerQuery.includes('absolute pace') ||
+        lowerQuery.includes('actual lap time');
 
       if (!wantsRawPace && (parsed.normalization === 'none' || !parsed.normalization)) {
         parsed.normalization = 'session_median_percent';
@@ -530,7 +530,7 @@ export class ClaudeClient {
     const isTeammateQuery = /\b(teammate|team[- ]?mate)\b/i.test(lowerQuery);
 
     if (isGenericVsQuery && !hasSpecificMetric && !hasTrack && !isTeammateQuery &&
-        parsed.kind === 'season_driver_vs_driver') {
+      parsed.kind === 'season_driver_vs_driver') {
       console.log(`[Claude] Hard override: ${parsed.kind} → driver_vs_driver_comprehensive (generic vs query)`);
       parsed.kind = 'driver_vs_driver_comprehensive';
     }
