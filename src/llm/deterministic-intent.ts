@@ -172,5 +172,16 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
     }, question);
   }
 
+  if (/\b(points|standings points|championship points)\b/i.test(question)) {
+    const driver = cleanEntity(question.replace(/championship points|standings points|how many|points|standings|does|did|has|have|score|scored|season|championship/gi, ''));
+    if (!driver) return null;
+    return withPaceDefaults({
+      ...common,
+      kind: 'driver_season_summary',
+      driver_id: driver,
+      session_scope: 'all',
+    }, question);
+  }
+
   return null;
 }

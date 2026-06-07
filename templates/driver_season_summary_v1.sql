@@ -1,7 +1,8 @@
--- Season driver summary (wins, podiums, DNFs, race count, normalized avg race pace)
+-- Season driver summary (points, wins, podiums, DNFs, race count, normalized avg race pace)
 -- Parameters: $1=driver_id, $2=season
 --
 -- METHODOLOGY:
+-- Official points come from season_driver_standing when available.
 -- Race results (wins, podiums, DNFs) come from race_data table.
 -- Pace is NORMALIZED using session-median percent:
 --   1. For each race, compute session median lap time (P50 of all valid laps)
@@ -15,12 +16,32 @@ WITH driver_races AS (
   SELECT
     rd.race_id,
     rd.position_number,
-    rd.race_reason_retired
+    rd.race_reason_retired,
+    COALESCE(rd.race_points, 0) AS race_points
   FROM race_data rd
   JOIN race r ON r.id = rd.race_id
   WHERE r.year = $2
-    AND rd.driver_id = $1
+    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_'))
     AND rd.type IN ('RACE_RESULT', 'race')
+),
+driver_points_fallback AS (
+  SELECT COALESCE(SUM(rd.race_points), 0) AS points
+  FROM race_data rd
+  JOIN race r ON r.id = rd.race_id
+  WHERE r.year = $2
+    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_'))
+    AND rd.type IN ('RACE_RESULT', 'race', 'SPRINT_RACE_RESULT')
+),
+season_points AS (
+  SELECT COALESCE(
+    (SELECT sds.points
+     FROM season_driver_standing sds
+     WHERE sds.year = $2
+       AND (sds.driver_id = $1 OR sds.driver_id = REPLACE($1, '-', '_'))
+     LIMIT 1),
+    (SELECT points FROM driver_points_fallback),
+    0
+  ) AS points
 ),
 race_counts AS (
   SELECT
@@ -66,7 +87,7 @@ driver_normalized_laps AS (
     ON sm.round = ln.round
     AND sm.track_id = ln.track_id
   WHERE ln.season = $2
-    AND ln.driver_id = $1
+    AND (ln.driver_id = $1 OR ln.driver_id = REPLACE($1, '-', '_'))
     AND ln.is_valid_lap = true
     AND ln.lap_time_seconds IS NOT NULL
 ),
@@ -85,6 +106,7 @@ SELECT
   race_counts.podiums,
   race_counts.dnfs,
   race_counts.race_count,
+  season_points.points,
   pole_count.poles,
   pace.avg_race_pace_pct,
   pace.laps_considered,
@@ -94,4 +116,4 @@ SELECT
     WHEN pace.races_with_pace_data >= 8 THEN 'low_coverage'
     ELSE 'insufficient'
   END AS coverage_status
-FROM race_counts, pole_count, pace;
+FROM race_counts, season_points, pole_count, pace;

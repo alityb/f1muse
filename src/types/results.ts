@@ -17,6 +17,7 @@ export interface SeasonDriverSummaryPayload {
   metrics: {
     wins: Metric<number>;
     podiums: Metric<number>;
+    points: Metric<number>;
     poles: Metric<number>;
     dnfs: Metric<number>;
     race_count: Metric<number>;
@@ -40,6 +41,8 @@ export interface SeasonDriverSummaryPayload {
   wins: number;
   /** @deprecated Use metrics.podiums.value */
   podiums: number;
+  /** @deprecated Use metrics.points.value */
+  points: number;
   /** @deprecated Use metrics.dnfs.value */
   dnfs: number;
   /** @deprecated Use metrics.race_count.value */

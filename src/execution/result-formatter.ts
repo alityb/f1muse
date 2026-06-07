@@ -142,6 +142,7 @@ export class ResultFormatter {
 
     const wins = parseInt(row.wins || '0');
     const podiums = parseInt(row.podiums || '0');
+    const points = parseFloat(row.points || '0');
     const poles = parseInt(row.poles || '0');
     const dnfs = parseInt(row.dnfs || '0');
     const raceCount = parseInt(row.race_count || '0');
@@ -164,6 +165,14 @@ export class ResultFormatter {
       metrics: {
         wins: MetricBuilder.wins(wins, scope),
         podiums: MetricBuilder.podiums(podiums, scope),
+        points: MetricBuilder.build({
+          key: 'points',
+          label: 'Points',
+          value: points,
+          scope,
+          units: 'count',
+          source: 'F1DB',
+        }),
         poles: MetricBuilder.poles(poles, scope),
         dnfs: MetricBuilder.dnfs(dnfs, scope),
         race_count: MetricBuilder.raceCount(raceCount, scope),
@@ -180,6 +189,7 @@ export class ResultFormatter {
       driver_id: row.driver_id,
       wins,
       podiums,
+      points,
       poles,
       dnfs,
       race_count: raceCount,
