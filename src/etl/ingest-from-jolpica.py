@@ -37,6 +37,7 @@ from psycopg2.extras import execute_values
 
 try:
     import urllib.request as urlreq
+    from urllib.parse import urlencode
     import json
 except ImportError:
     pass
@@ -176,11 +177,49 @@ def fetch_json(url: str, retries: int = 3) -> Dict:
     return {}
 
 
+def merge_race_page(target: List[Dict[str, Any]], page_races: List[Dict[str, Any]]) -> None:
+    by_race = {(race.get("season"), race.get("round")): race for race in target}
+
+    for race in page_races:
+        key = (race.get("season"), race.get("round"))
+        existing = by_race.get(key)
+        if existing is None:
+            target.append(race)
+            by_race[key] = race
+            continue
+
+        for field in ("Results", "QualifyingResults", "SprintResults", "SprintQualifyingResults"):
+            if isinstance(race.get(field), list):
+                existing.setdefault(field, []).extend(race[field])
+
+
 def jolpica(path: str, **params) -> Dict:
-    param_str = "&".join(f"{k}={v}" for k, v in params.items())
-    url = f"{BASE_URL}{path}?format=json&limit=100&{param_str}"
-    data = fetch_json(url)
-    return data.get("MRData", {})
+    offset = 0
+    limit = 100
+    merged = None
+    merged_races: List[Dict[str, Any]] = []
+
+    while True:
+        query = {"format": "json", "limit": limit, "offset": offset, **params}
+        url = f"{BASE_URL}{path}?{urlencode(query)}"
+        data = fetch_json(url).get("MRData", {})
+        page_races = data.get("RaceTable", {}).get("Races")
+
+        if not isinstance(page_races, list):
+            return data
+
+        if merged is None:
+            merged = data
+            merged["RaceTable"]["Races"] = merged_races
+
+        merge_race_page(merged_races, page_races)
+
+        total = int(data.get("total") or 0)
+        page_limit = int(data.get("limit") or limit)
+        offset += page_limit
+
+        if not total or offset >= total:
+            return merged
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import https from 'https';
 
 const BASE_URL = 'https://api.jolpi.ca/ergast/f1';
 const CURRENT_SEASON = 2026;
+const PAGE_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // ID mappings (mirrors ingest-from-jolpica.py)
@@ -52,9 +53,9 @@ const FINISHED_STATUSES = new Set(['Finished', 'Lapped']);
 // ---------------------------------------------------------------------------
 // HTTP helper
 // ---------------------------------------------------------------------------
-function fetchJolpica(path: string): Promise<any> {
+function fetchJolpicaPage(path: string, offset: number): Promise<any> {
   return new Promise((resolve, reject) => {
-    const url = `${BASE_URL}${path}?format=json&limit=100`;
+    const url = `${BASE_URL}${path}?format=json&limit=${PAGE_LIMIT}&offset=${offset}`;
     const req = https.get(url, { headers: { 'User-Agent': 'f1muse/1.0' } }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -66,6 +67,55 @@ function fetchJolpica(path: string): Promise<any> {
     req.on('error', reject);
     req.setTimeout(30_000, () => { req.destroy(); reject(new Error(`Timeout: ${url}`)); });
   });
+}
+
+function mergeRacePage(target: any[], pageRaces: any[]): void {
+  const byRace = new Map(target.map((race) => [`${race.season}:${race.round}`, race]));
+
+  for (const race of pageRaces) {
+    const key = `${race.season}:${race.round}`;
+    const existing = byRace.get(key);
+    if (!existing) {
+      target.push(race);
+      byRace.set(key, race);
+      continue;
+    }
+
+    for (const field of ['Results', 'QualifyingResults', 'SprintResults', 'SprintQualifyingResults']) {
+      if (Array.isArray(race[field])) {
+        existing[field] = [...(existing[field] ?? []), ...race[field]];
+      }
+    }
+  }
+}
+
+async function fetchJolpica(path: string): Promise<any> {
+  let offset = 0;
+  let merged: any | null = null;
+  const mergedRaces: any[] = [];
+
+  while (true) {
+    const page = await fetchJolpicaPage(path, offset);
+    const pageRaces = page.RaceTable?.Races;
+
+    if (!Array.isArray(pageRaces)) {
+      return page;
+    }
+
+    if (!merged) {
+      merged = { ...page, RaceTable: { ...page.RaceTable, Races: mergedRaces } };
+    }
+
+    mergeRacePage(mergedRaces, pageRaces);
+
+    const total = parseInt(page.total ?? '0', 10);
+    const limit = parseInt(page.limit ?? String(PAGE_LIMIT), 10);
+    offset += limit;
+
+    if (!total || offset >= total) {
+      return merged;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +164,8 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
         'SELECT COUNT(*) AS n FROM race_data WHERE race_id = $1 AND type = $2',
         [raceId, 'RACE_RESULT']
       );
-      const alreadyLoaded = parseInt(existing.rows[0].n) > 0;
+      const existingCount = parseInt(existing.rows[0].n, 10);
+      const alreadyLoaded = existingCount > 0;
 
       // Always refresh (full delete + re-insert) so corrections from Jolpica flow in
       await client.query('DELETE FROM race_data WHERE race_id = $1 AND type = $2', [raceId, 'RACE_RESULT']);
@@ -180,8 +231,9 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
             race_reason_retired   = EXCLUDED.race_reason_retired
         `, values.flat());
 
-        if (!alreadyLoaded) newRoundNumbers.push(rnd);
-        console.log(`  [jolpica] Round ${rnd}: ${values.length} results ${alreadyLoaded ? '(refreshed)' : '(new)'}`);
+        if (!alreadyLoaded || existingCount < values.length) newRoundNumbers.push(rnd);
+        const state = !alreadyLoaded ? 'new' : existingCount < values.length ? `completed partial ${existingCount}/${values.length}` : 'refreshed';
+        console.log(`  [jolpica] Round ${rnd}: ${values.length} results (${state})`);
       }
     }
   } finally {

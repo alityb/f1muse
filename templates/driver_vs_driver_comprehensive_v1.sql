@@ -14,7 +14,7 @@
 --   - Pace: From laps_normalized
 --   - H2H Qualifying: From qualifying_results table (ETL-populated)
 --   - H2H Race: From race_data table (F1DB)
---   - Stats: From F1DB race_data aggregations
+--   - Stats: From race_data aggregations; official points from season standings
 --
 -- COVERAGE THRESHOLDS:
 --   - valid: >= 8 shared races
@@ -193,6 +193,14 @@ driver_a_stats AS (
   WHERE rd.driver_id = $2 OR rd.driver_id = REPLACE($2, '-', '_')
 ),
 
+driver_a_standing AS (
+  SELECT points
+  FROM season_driver_standing
+  WHERE year = $1
+    AND (driver_id = $2 OR driver_id = REPLACE($2, '-', '_'))
+  LIMIT 1
+),
+
 -- Driver A poles (from qualifying_results)
 -- Note: qualifying_results uses underscore format, F1DB uses hyphen
 driver_a_poles AS (
@@ -218,6 +226,14 @@ driver_b_stats AS (
   FROM race_events re
   JOIN race_data rd ON rd.race_id = re.race_id
   WHERE rd.driver_id = $3 OR rd.driver_id = REPLACE($3, '-', '_')
+),
+
+driver_b_standing AS (
+  SELECT points
+  FROM season_driver_standing
+  WHERE year = $1
+    AND (driver_id = $3 OR driver_id = REPLACE($3, '-', '_'))
+  LIMIT 1
 ),
 
 -- Driver B poles (from qualifying_results)
@@ -265,7 +281,7 @@ SELECT
   COALESCE((SELECT podiums FROM driver_a_stats), 0)::integer AS driver_a_podiums,
   COALESCE((SELECT poles FROM driver_a_poles), 0)::integer AS driver_a_poles,
   COALESCE((SELECT dnfs FROM driver_a_stats), 0)::integer AS driver_a_dnfs,
-  COALESCE((SELECT points FROM driver_a_stats), 0)::numeric AS driver_a_points,
+  COALESCE((SELECT points FROM driver_a_standing), (SELECT points FROM driver_a_stats), 0)::numeric AS driver_a_points,
   COALESCE((SELECT race_count FROM driver_a_stats), 0)::integer AS driver_a_race_count,
   COALESCE((SELECT fastest_laps FROM driver_a_stats), 0)::integer AS driver_a_fastest_laps,
   COALESCE((SELECT sprint_points FROM driver_a_stats), 0)::numeric AS driver_a_sprint_points,
@@ -275,7 +291,7 @@ SELECT
   COALESCE((SELECT podiums FROM driver_b_stats), 0)::integer AS driver_b_podiums,
   COALESCE((SELECT poles FROM driver_b_poles), 0)::integer AS driver_b_poles,
   COALESCE((SELECT dnfs FROM driver_b_stats), 0)::integer AS driver_b_dnfs,
-  COALESCE((SELECT points FROM driver_b_stats), 0)::numeric AS driver_b_points,
+  COALESCE((SELECT points FROM driver_b_standing), (SELECT points FROM driver_b_stats), 0)::numeric AS driver_b_points,
   COALESCE((SELECT race_count FROM driver_b_stats), 0)::integer AS driver_b_race_count,
   COALESCE((SELECT fastest_laps FROM driver_b_stats), 0)::integer AS driver_b_fastest_laps,
   COALESCE((SELECT sprint_points FROM driver_b_stats), 0)::numeric AS driver_b_sprint_points,

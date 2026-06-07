@@ -40,6 +40,7 @@ let lastNewRounds = 0;
 let retryCount = 0;
 let retryTimer: NodeJS.Timeout | null = null;
 let primaryTimer: NodeJS.Timeout | null = null;
+let startupTimer: NodeJS.Timeout | null = null;
 
 // ---------------------------------------------------------------------------
 // Python ETL runner
@@ -229,6 +230,13 @@ export function startAutoSyncInterval(pool: Pool): NodeJS.Timeout {
   // Schedule first trigger at Monday 00:00 UTC
   scheduleNextMonday(pool);
 
+  // Also do one lightweight catch-up shortly after startup. This keeps a
+  // restarted deployment current if Jolpica already has new data before the
+  // next scheduled Monday window.
+  startupTimer = setTimeout(() => {
+    runSync(pool).catch((err) => console.error('[auto-sync] Startup catch-up failed:', err));
+  }, 30_000);
+
   // Return a dummy interval handle for the shutdown cleanup signature.
   // The real timers (primaryTimer / retryTimer) are module-level.
   return setInterval(() => {/* no-op sentinel */}, Number.MAX_SAFE_INTEGER);
@@ -237,6 +245,7 @@ export function startAutoSyncInterval(pool: Pool): NodeJS.Timeout {
 export function stopAutoSync(): void {
   if (primaryTimer) { clearTimeout(primaryTimer); primaryTimer = null; }
   if (retryTimer)   { clearTimeout(retryTimer);   retryTimer   = null; }
+  if (startupTimer) { clearTimeout(startupTimer); startupTimer = null; }
 }
 
 export function getSyncStatus() {
