@@ -18,7 +18,7 @@ import { metrics } from '../observability/metrics';
 
 // Configuration
 const CONFIG = {
-  CACHE_VERSION: 'v2',
+  CACHE_VERSION: 'v3',
   TTL_DEFAULT_SECONDS: 600, // 10 min default
   TTL_HISTORICAL_SECONDS: 3600, // 1 hour for career/historical
   TTL_CURRENT_SEASON_SECONDS: 300, // 5 min for current season
@@ -339,8 +339,11 @@ export class RedisCache {
     }
 
     try {
-      const pattern = `f1muse:query:${CONFIG.CACHE_VERSION}:*`;
-      const keys = await this.client!.keys(pattern);
+      const keyGroups = await Promise.all([
+        this.client!.keys('f1muse:query:*'),
+        this.client!.keys('intent:*'),
+      ]);
+      const keys = keyGroups.flat();
 
       if (keys.length > 0) {
         await this.client!.del(keys);

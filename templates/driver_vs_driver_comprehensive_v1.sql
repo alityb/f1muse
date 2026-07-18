@@ -28,6 +28,23 @@ WITH race_events AS (
   WHERE r.year = $1
 ),
 
+-- Both drivers must have entered the requested championship season. This
+-- prevents zero-filled comparisons for drivers who did not race that year.
+driver_a_entry AS (
+  SELECT 1
+  FROM season_driver_standing
+  WHERE year = $1
+    AND (driver_id = $2 OR driver_id = REPLACE($2, '-', '_'))
+  LIMIT 1
+),
+driver_b_entry AS (
+  SELECT 1
+  FROM season_driver_standing
+  WHERE year = $1
+    AND (driver_id = $3 OR driver_id = REPLACE($3, '-', '_'))
+  LIMIT 1
+),
+
 -- SESSION MEDIANS: Compute session median per race (all drivers' valid laps)
 -- This allows normalizing pace relative to field performance
 session_medians AS (
@@ -301,4 +318,5 @@ SELECT
     WHEN COALESCE((SELECT COUNT(*) FROM shared_races), 0) >= 8 THEN 'valid'
     WHEN COALESCE((SELECT COUNT(*) FROM shared_races), 0) >= 4 THEN 'low_coverage'
     ELSE 'insufficient'
-  END AS coverage_status;
+  END AS coverage_status
+FROM driver_a_entry, driver_b_entry;

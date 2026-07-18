@@ -180,6 +180,24 @@ async function main() {
     res.json(getSyncStatus());
   });
 
+  // Clear all derived query data after an ingestion or methodology correction.
+  app.delete('/admin/cache', requireAdmin, async (_req, res) => {
+    try {
+      const [queryCache, redisCleared] = await Promise.all([
+        primaryPool.query('DELETE FROM api_query_cache'),
+        getRedisCache().clearAll(),
+      ]);
+      res.json({
+        ok: true,
+        postgres_entries_deleted: queryCache.rowCount ?? 0,
+        redis_cleared: redisCleared,
+      });
+    } catch (err) {
+      logError(err, { context: 'admin_cache_clear_failed' });
+      res.status(500).json({ ok: false, error: 'cache_clear_failed' });
+    }
+  });
+
   // Register routes
   const routes = createRoutes(replicaPool, primaryPool);
   app.use('/', routes);

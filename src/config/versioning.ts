@@ -15,7 +15,7 @@
  * - Coverage classification changes
  * - Filtering logic changes
  */
-export const METHODOLOGY_VERSION = '1.0.0';
+export const METHODOLOGY_VERSION = '1.1.0';
 
 /**
  * Schema version - increment when response schema changes
