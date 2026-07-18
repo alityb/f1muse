@@ -48,7 +48,12 @@ Edit `.env` with your credentials:
 
 ```
 DATABASE_URL=postgresql://user:pass@localhost:5432/f1muse
+# Use Anthropic OR an OpenAI-compatible provider for uncommon NL queries.
 ANTHROPIC_API_KEY=sk-ant-...
+# LLM_PROVIDER=openai-compatible
+# LLM_BASE_URL=https://provider.example/v1
+# LLM_API_KEY=provider-api-key
+# LLM_MODEL=provider-model-id
 REDIS_URL=redis://localhost:6379  # optional
 ```
 
@@ -196,9 +201,14 @@ The system rejects or warns on queries that don't meet thresholds rather than re
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `ANTHROPIC_API_KEY` | Yes | Claude API key for NL parsing |
+| `ANTHROPIC_API_KEY` | One LLM option | Claude API key for NL parsing |
+| `LLM_PROVIDER` | No | Set to `openai-compatible` to use a compatible inference provider |
+| `LLM_BASE_URL` | With compatible provider | Provider API base URL, including `/v1` |
+| `LLM_API_KEY` | With compatible provider | Provider API key |
+| `LLM_MODEL` | With compatible provider | Provider model ID |
 | `REDIS_URL` | No | Redis for caching and rate limiting |
 | `DATABASE_URL_REPLICA` | No | Read replica for scaling |
+| `ADMIN_API_KEY` | Yes in production | Bearer token for `/admin/*` and NL cache/diagnostic endpoints |
 | `STRICT_INVARIANTS` | No | Throw on data quality issues |
 | `DISABLE_NL_QUERY` | No | Emergency kill switch |
 

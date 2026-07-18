@@ -148,23 +148,54 @@ export interface ClaudeClientOptions {
   maxRetries?: number;
 }
 
+type LLMProvider = 'anthropic' | 'openai-compatible';
+
+/**
+ * Set LLM_PROVIDER=openai-compatible with LLM_BASE_URL, LLM_API_KEY, and
+ * LLM_MODEL to use a compatible inference provider instead of Anthropic.
+ */
+export function isLLMConfigured(): boolean {
+  if (process.env.LLM_PROVIDER === 'openai-compatible') {
+    return Boolean(process.env.LLM_BASE_URL && process.env.LLM_API_KEY && process.env.LLM_MODEL);
+  }
+
+  return Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY);
+}
+
 /**
  * Production-ready Claude LLM Client
  * Thread-safe, stateless, with retries and timeouts
  */
 export class ClaudeClient {
-  private readonly anthropic: Anthropic;
+  private readonly anthropic?: Anthropic;
   private readonly timeout: number;
+  private readonly provider: LLMProvider;
+  private readonly model: string;
+  private readonly openAIBaseUrl?: string;
+  private readonly openAIApiKey?: string;
 
   constructor(options: ClaudeClientOptions = {}) {
-    const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    this.provider = process.env.LLM_PROVIDER === 'openai-compatible' ? 'openai-compatible' : 'anthropic';
+    this.timeout = options.timeout || CONFIG.TIMEOUT_MS;
 
+    if (this.provider === 'openai-compatible') {
+      this.openAIBaseUrl = process.env.LLM_BASE_URL?.replace(/\/$/, '');
+      this.openAIApiKey = options.apiKey || process.env.LLM_API_KEY;
+      this.model = process.env.LLM_MODEL || '';
+
+      if (!this.openAIBaseUrl || !this.openAIApiKey || !this.model) {
+        throw new Error('OpenAI-compatible LLM is not configured. Set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.');
+      }
+      return;
+    }
+
+    const apiKey = options.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
     if (!apiKey) {
       throw new Error('Claude API key not configured. Set ANTHROPIC_API_KEY or CLAUDE_API_KEY environment variable.');
     }
 
     this.anthropic = new Anthropic({ apiKey });
-    this.timeout = options.timeout || CONFIG.TIMEOUT_MS;
+    this.model = CONFIG.MODEL;
   }
 
   /**
@@ -284,8 +315,14 @@ export class ClaudeClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      const message = await this.anthropic.messages.create({
-        model: CONFIG.MODEL,
+      if (this.provider === 'openai-compatible') {
+        const responseText = await this.executeOpenAICompatible(question, controller.signal);
+        clearTimeout(timeoutId);
+        return this.parseAndValidateJSON(responseText, question);
+      }
+
+      const message = await this.anthropic!.messages.create({
+        model: this.model,
         max_tokens: CONFIG.MAX_TOKENS,
         temperature: CONFIG.TEMPERATURE,
         system: SYSTEM_PROMPT,
@@ -311,6 +348,40 @@ export class ClaudeClient {
       }
       throw error;
     }
+  }
+
+  private async executeOpenAICompatible(question: string, signal: AbortSignal): Promise<string> {
+    const response = await fetch(`${this.openAIBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        temperature: CONFIG.TEMPERATURE,
+        max_tokens: CONFIG.MAX_TOKENS,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: question },
+        ],
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = new Error(`OpenAI-compatible LLM error (${response.status}): ${await response.text()}`);
+      Object.assign(error, { status: response.status });
+      throw error;
+    }
+
+    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('OpenAI-compatible LLM returned an empty response');
+    }
+
+    return content;
   }
 
   /**
@@ -626,9 +697,14 @@ export class ClaudeClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
+      if (this.provider === 'openai-compatible') {
+        await this.executeOpenAICompatible('Reply with exactly: ok', new AbortController().signal);
+        return true;
+      }
+
       // Simple API call to verify connectivity
-      await this.anthropic.messages.create({
-        model: CONFIG.MODEL,
+      await this.anthropic!.messages.create({
+        model: this.model,
         max_tokens: 10,
         messages: [{ role: 'user', content: 'Say "ok"' }],
       });

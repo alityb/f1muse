@@ -19,7 +19,9 @@ import {
   logError
 } from './api/middleware/production-safety';
 import { getConfig } from './llm/config';
+import { isLLMConfigured } from './llm/claude-client';
 import { logInvariantMode } from './execution/invariants';
+import { requireAdmin } from './api/middleware/admin-auth';
 
 /**
  * F1 Muse API - Production Entry Point
@@ -162,7 +164,7 @@ async function main() {
   }
 
   // Manual sync trigger (also used by Railway Cron for FastF1 ETL)
-  app.post('/admin/sync', async (_req, res) => {
+  app.post('/admin/sync', requireAdmin, async (_req, res) => {
     const status = getSyncStatus();
     if (status.inProgress) {
       res.json({ ok: false, message: 'sync already in progress' });
@@ -174,7 +176,7 @@ async function main() {
   });
 
   // Sync status endpoint
-  app.get('/admin/sync/status', (_req, res) => {
+  app.get('/admin/sync/status', requireAdmin, (_req, res) => {
     res.json(getSyncStatus());
   });
 
@@ -182,13 +184,13 @@ async function main() {
   const routes = createRoutes(replicaPool, primaryPool);
   app.use('/', routes);
 
-  // Register production NL query router (Claude API only)
-  if (process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY) {
+  // Register production NL query router when either supported provider is configured.
+  if (isLLMConfigured()) {
     const nlRouter = createProductionNLQueryRouter(replicaPool, primaryPool);
     app.use('/', nlRouter);
     console.log('✓ Natural language query endpoint enabled (/nl-query)');
   } else {
-    console.log('⚠ NL query endpoint disabled (set ANTHROPIC_API_KEY or CLAUDE_API_KEY)');
+    console.log('⚠ NL query endpoint disabled (configure Anthropic or an OpenAI-compatible LLM)');
   }
 
   // Health check endpoint
@@ -200,7 +202,7 @@ async function main() {
       status: 'healthy',
       database: 'connected',
       redis: redisHealthy ? 'connected' : 'unavailable',
-      claude_api: process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY ? 'configured' : 'not_configured',
+      llm: isLLMConfigured() ? 'configured' : 'not_configured',
       timestamp: new Date().toISOString()
     });
   });

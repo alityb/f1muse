@@ -9,6 +9,7 @@ import { createQueryRoutes } from './query';
 import { createDriverRoutes } from './driver';
 import { createDebugRoutes } from './debug';
 import { createShareRoutes } from './share';
+import { isLLMConfigured } from '../../llm/claude-client';
 
 export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   const router = Router();
@@ -67,12 +68,13 @@ function buildEndpointList(): Record<string, string> {
     endpoints['GET /debug/coverage/teammate-gap'] = 'Teammate gap coverage introspection (dev only)';
   }
 
-  const llmConfigured = process.env.ANTHROPIC_API_KEY ||
-                        process.env.CLAUDE_API_KEY ||
+  const llmConfigured = isLLMConfigured() ||
                         (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID);
 
   if (llmConfigured) {
-    const backend = (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID) ? 'Mistral-RS' : 'Claude';
+    const backend = (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID)
+      ? 'Mistral-RS'
+      : process.env.LLM_PROVIDER === 'openai-compatible' ? 'compatible inference provider' : 'Claude';
     endpoints['POST /nl-query'] = `Natural language query (powered by ${backend})`;
   }
 

@@ -26,6 +26,7 @@ import { applyConversationContext } from '../conversation/context-resolver';
 import { ConversationContext } from '../conversation/context-types';
 import { RedisCache, getRedisCache } from '../cache/redis-cache';
 import { metrics } from '../observability/metrics';
+import { requireAdmin } from './middleware/admin-auth';
 import {
   buildErrorResponse,
   getStatusCode,
@@ -428,7 +429,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
   });
 
   // Health check for NL endpoint
-  router.get('/nl-query/health', async (_req: Request, res: Response) => {
+  router.get('/nl-query/health', requireAdmin, async (_req: Request, res: Response) => {
     try {
       await initialize();
       const claudeHealthy = await claudeClient.healthCheck();
@@ -451,7 +452,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
   });
 
   // Cache management endpoints
-  router.delete('/nl-query/cache', async (_req: Request, res: Response) => {
+  router.delete('/nl-query/cache', requireAdmin, async (_req: Request, res: Response) => {
     try {
       await initialize();
       const cleared = await redisCache.clearAll();
@@ -467,7 +468,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
     }
   });
 
-  router.get('/nl-query/cache/stats', async (_req: Request, res: Response) => {
+  router.get('/nl-query/cache/stats', requireAdmin, async (_req: Request, res: Response) => {
     try {
       await initialize();
       const stats = await redisCache.getStats();
@@ -480,7 +481,7 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
   });
 
   // Internal counters for failure tracking
-  router.get('/nl-query/stats', (_req: Request, res: Response) => {
+  router.get('/nl-query/stats', requireAdmin, (_req: Request, res: Response) => {
     res.json(nlQueryCounters.getStats());
   });
 

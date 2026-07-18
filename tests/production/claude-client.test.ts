@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ClaudeClient, getClaudeClient, resetClaudeClient } from '../../src/llm/claude-client';
+import { ClaudeClient, getClaudeClient, isLLMConfigured, resetClaudeClient } from '../../src/llm/claude-client';
 
 /**
  * Claude Client Tests
@@ -158,7 +158,7 @@ describe('ClaudeClient.parseIntent', () => {
     expect(result.error).toContain('Invalid query kind');
   });
 
-  it('should default season to 2025 if not provided', async () => {
+  it('should default season to 2026 if not provided', async () => {
     mockCreate.mockResolvedValueOnce({
       content: [{
         type: 'text',
@@ -172,7 +172,7 @@ describe('ClaudeClient.parseIntent', () => {
     const result = await client.parseIntent('Hamilton career');
 
     expect(result.success).toBe(true);
-    expect(result.intent?.season).toBe(2025);
+    expect(result.intent?.season).toBe(2026);
   });
 
   it('should include raw_query in result', async () => {
@@ -208,6 +208,58 @@ describe('ClaudeClient.parseIntent', () => {
     const result = await client.parseIntent('Verstappen 2024');
 
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('OpenAI-compatible inference provider', () => {
+  it('should parse queries without an Anthropic key', async () => {
+    const original = {
+      provider: process.env.LLM_PROVIDER,
+      baseUrl: process.env.LLM_BASE_URL,
+      apiKey: process.env.LLM_API_KEY,
+      model: process.env.LLM_MODEL,
+      anthropicKey: process.env.ANTHROPIC_API_KEY,
+      claudeKey: process.env.CLAUDE_API_KEY,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ kind: 'driver_season_summary', driver_id: 'russell', season: 2026 }) } }],
+      }),
+    });
+
+    try {
+      process.env.LLM_PROVIDER = 'openai-compatible';
+      process.env.LLM_BASE_URL = 'https://inference.example/v1/';
+      process.env.LLM_API_KEY = 'test-provider-key';
+      process.env.LLM_MODEL = 'test-model';
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.CLAUDE_API_KEY;
+      vi.stubGlobal('fetch', fetchMock);
+
+      expect(isLLMConfigured()).toBe(true);
+      const result = await new ClaudeClient().parseIntent('Russell 2026 season');
+
+      expect(result.success).toBe(true);
+      expect(result.intent?.driver_id).toBe('russell');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://inference.example/v1/chat/completions',
+        expect.objectContaining({ method: 'POST' })
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      for (const [key, value] of Object.entries({
+        LLM_PROVIDER: original.provider,
+        LLM_BASE_URL: original.baseUrl,
+        LLM_API_KEY: original.apiKey,
+        LLM_MODEL: original.model,
+        ANTHROPIC_API_KEY: original.anthropicKey,
+        CLAUDE_API_KEY: original.claudeKey,
+      })) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });
 
