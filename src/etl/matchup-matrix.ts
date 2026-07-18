@@ -288,4 +288,8 @@ export async function runMatchupSync(pool: Pool, season: number = SEASON): Promi
   }
 }
 
-main();
+// Allow the API to import runMatchupSync without starting a separate ETL
+// process. The standalone ingestion only runs from its npm script.
+if (require.main === module) {
+  main();
+}
