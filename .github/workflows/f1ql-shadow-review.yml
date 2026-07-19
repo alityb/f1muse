@@ -1,0 +1,30 @@
+name: F1QL Shadow Review
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: |
+          if [ -n "$RAILWAY_TOKEN" ]; then
+            npx @railway/cli@latest logs --since 30d --json > shadow.log
+          else
+            touch shadow.log
+          fi
+          npx tsx scripts/report-f1ql-shadow.ts shadow.log > F1QL_SHADOW_REVIEW.md
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f1ql-shadow-review
+          path: F1QL_SHADOW_REVIEW.md

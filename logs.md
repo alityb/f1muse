@@ -21,6 +21,7 @@
 
 ### Phase 1 Metrics Fixture
 - Local shadow route test observed: succeeded=1, invalid=2, unavailable=1, identity_miss=1, unsupported=1.
+- PARTIAL: nightly report workflow requires a `RAILWAY_TOKEN` GitHub secret and a prior `railway logs --since 30d --json > shadow.log` collection step. The report parser is committed; wire retrieval in CI once the token is available.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
