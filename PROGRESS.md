@@ -24,6 +24,18 @@
 - PARTIAL: `railway status --json` reports the production service plan as `hobby`. Retention is not exposed by the CLI and must be verified in Railway plan documentation/dashboard before asserting a window. The report uses timestamps actually returned by Railway. To complete 30-day review, configure a durable log export if the verified retention is under 30 days.
 - Decision: `tests/fixtures/f1ql-shadow.log` is force-added because `*.log` is globally ignored for runtime logs; this fixture is a deterministic parser contract, not an operational log.
 
+### Phase 1 Production Shadow Review (2026-07-19)
+```text
+# F1QL Shadow Translation Review
+- Window: no retained events
+- Attempts: 0
+- Success rate: 0.00%
+- Readiness: Keep shadow-only; insufficient volume or success rate.
+```
+- A known-driver production request returned a canonical `pace_summary` in shadow mode after the timestamped logging deployment.
+- Expected caveat: legacy pre-timestamp log lines would appear as `unknown` if returned by Railway; none were returned by the headless fetch.
+- PARTIAL: Railway CLI returned no structured retained events for `--since 30d`. Validate project log-retention/export configuration before relying on the automated 30-day report.
+
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.
