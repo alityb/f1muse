@@ -71,6 +71,11 @@ export interface EventClassificationNode {
   season: number;
   round: number;
   limit: number;
+  filters?: {
+    classification_status?: Array<'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn'>;
+    driver_id?: string;
+    team_id?: string;
+  };
 }
 
 export interface F1QLProgram {

@@ -356,5 +356,19 @@ describe('F1QL standings vertical slice', () => {
       { driver_id: 'driver-dns', finishing_position: null, points: '0', classification_status: 'dns', status_reason: 'DNS' }
     ]);
     expect(renderF1QL(program)).toBe('Official race classification; season 2025; round 9; top 4.');
+
+    const filtered: F1QLProgram = {
+      version: 1,
+      root: {
+        op: 'event_classification', season: 2025, round: 9, limit: 10,
+        filters: { classification_status: ['dns', 'dnf'], driver_id: 'driver-dns' }
+      }
+    };
+    const filteredCompiled = compileF1QL(lowerF1QL(filtered));
+    const filteredExecuted = await executeF1QL(pool, filtered);
+    expect(filteredCompiled.params).toEqual([2025, 9, ['dns', 'dnf'], 'driver-dns']);
+    expect(filteredExecuted.rows).toEqual([expect.objectContaining({
+      driver_id: 'driver-dns', classification_status: 'dns'
+    })]);
   });
 });

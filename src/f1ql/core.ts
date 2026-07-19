@@ -42,6 +42,11 @@ export interface CoreEventClassificationNode {
   season: number;
   round: number;
   limit: number;
+  filters?: {
+    classification_status?: string[];
+    driver_id?: string;
+    team_id?: string;
+  };
 }
 
 export interface CoreProgram {

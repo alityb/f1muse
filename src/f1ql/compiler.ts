@@ -40,9 +40,23 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
 }
 
 function compileEventClassification(node: CoreEventClassificationNode): CompiledF1QL {
+  const params: unknown[] = [node.season, node.round];
+  const clauses = ['season = $1', 'round = $2'];
+  if (node.filters?.classification_status) {
+    params.push(node.filters.classification_status);
+    clauses.push(`classification_status = ANY($${params.length}::text[])`);
+  }
+  if (node.filters?.driver_id) {
+    params.push(node.filters.driver_id);
+    clauses.push(`driver_id = $${params.length}`);
+  }
+  if (node.filters?.team_id) {
+    params.push(node.filters.team_id);
+    clauses.push(`team_id = $${params.length}`);
+  }
   return {
-    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE season = $1 AND round = $2 ORDER BY finishing_position ASC NULLS LAST, driver_id ASC LIMIT ${node.limit}`,
-    params: [node.season, node.round]
+    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE ${clauses.join(' AND ')} ORDER BY finishing_position ASC NULLS LAST, driver_id ASC LIMIT ${node.limit}`,
+    params
   };
 }
 
