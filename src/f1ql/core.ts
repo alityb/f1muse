@@ -37,7 +37,14 @@ export interface CoreSubtractNode {
   alignment: 'shared_events';
 }
 
+export interface CoreEventClassificationNode {
+  op: 'event_classification';
+  season: number;
+  round: number;
+  limit: number;
+}
+
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreSortLimitNode | CorePaceAggregateNode | CoreSubtractNode;
+  root: CoreAggregateNode | CoreSortLimitNode | CorePaceAggregateNode | CoreSubtractNode | CoreEventClassificationNode;
 }

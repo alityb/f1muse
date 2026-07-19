@@ -90,9 +90,16 @@ export const paceSummaryNodeSchema = z.object({
   }).strict().optional()
 }).strict();
 
+export const eventClassificationNodeSchema = z.object({
+  op: z.literal('event_classification'),
+  season,
+  round: z.number().int().min(1).max(30),
+  limit: z.number().int().min(1).max(30)
+}).strict();
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

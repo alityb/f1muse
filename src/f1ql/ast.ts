@@ -66,9 +66,16 @@ export interface PaceSummaryNode {
   };
 }
 
+export interface EventClassificationNode {
+  op: 'event_classification';
+  season: number;
+  round: number;
+  limit: number;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode;
 }
 
 export interface F1QLResult {

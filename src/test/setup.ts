@@ -458,6 +458,13 @@ export async function setupTestDatabase(
       l.tyre_age_laps,
       l.session_type
     FROM laps_normalized l;
+
+    CREATE OR REPLACE VIEW f1ql.event_classification AS
+    SELECT r.year AS season, r.round, REPLACE(rd.driver_id, '_', '-') AS driver_id,
+      rd.position_number AS finishing_position, rd.race_points AS points,
+      COALESCE(rd.race_reason_retired, 'classified') AS status
+    FROM race_data rd JOIN race r ON r.id = rd.race_id
+    WHERE LOWER(rd.type) IN ('race', 'race_result') AND rd.position_number IS NOT NULL;
   `);
 
   if (options.seed !== false) {

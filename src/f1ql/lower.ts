@@ -42,6 +42,9 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
       }
     };
   }
+  if (program.root.op === 'event_classification') {
+    return { version: 1, root: program.root };
+  }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const coreAggregate = lowerAggregate(aggregate);
 

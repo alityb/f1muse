@@ -26,7 +26,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'subtract' || program.root.op === 'pace_aggregate') {
+  if (program.root.op === 'subtract' || program.root.op === 'pace_aggregate' || program.root.op === 'event_classification') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = program.root.op === 'sort_limit' ? program.root.input : program.root;

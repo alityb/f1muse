@@ -43,9 +43,9 @@ export function createProgramRoutes(pool: Pool): Router {
   return router;
 }
 
-function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'invalid' {
+function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'event_classification' | 'invalid' {
   const operation = (body as { root?: { op?: unknown } })?.root?.op;
-  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary'
+  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary' || operation === 'event_classification'
     ? operation
     : 'invalid';
 }

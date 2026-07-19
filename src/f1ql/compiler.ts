@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
+import { CoreEventClassificationNode, CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -12,6 +12,9 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   }
   if (program.root.op === 'pace_aggregate') {
     return compilePaceAggregate(program.root);
+  }
+  if (program.root.op === 'event_classification') {
+    return compileEventClassification(program.root);
   }
   const aggregate = program.root.op === 'sort_limit' ? program.root.input : program.root;
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
@@ -33,6 +36,13 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
       ${rankSql}
     `,
     params
+  };
+}
+
+function compileEventClassification(node: CoreEventClassificationNode): CompiledF1QL {
+  return {
+    sql: `SELECT driver_id, finishing_position, points, status FROM f1ql.event_classification WHERE season = $1 AND round = $2 ORDER BY finishing_position ASC, driver_id ASC LIMIT ${node.limit}`,
+    params: [node.season, node.round]
   };
 }
 
