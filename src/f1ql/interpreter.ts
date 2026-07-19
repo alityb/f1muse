@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
+import { CoreEventClassificationNode, CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -20,6 +20,28 @@ export interface PaceLapRow {
   is_out_lap: boolean;
   clean_air_flag: boolean;
   compound: string | null;
+}
+
+export interface EventClassificationRow {
+  season: number;
+  round: number;
+  driver_id: string;
+  team_id: string | null;
+  finishing_position: number | null;
+  points: number;
+  classification_status: string;
+  status_reason: string | null;
+}
+
+export function interpretEventClassification(node: CoreEventClassificationNode, rows: EventClassificationRow[]): Array<Record<string, unknown>> {
+  return rows
+    .filter((row) => row.season === node.season && row.round === node.round)
+    .filter((row) => node.filters?.classification_status === undefined || node.filters.classification_status.includes(row.classification_status))
+    .filter((row) => node.filters?.driver_id === undefined || row.driver_id === node.filters.driver_id)
+    .filter((row) => node.filters?.team_id === undefined || row.team_id === node.filters.team_id)
+    .sort((a, b) => (a.finishing_position ?? Infinity) - (b.finishing_position ?? Infinity) || a.driver_id.localeCompare(b.driver_id))
+    .slice(0, node.limit)
+    .map(({ driver_id, finishing_position, points, classification_status, status_reason }) => ({ driver_id, finishing_position, points, classification_status, status_reason }));
 }
 
 export function interpretStandingsProgram(
