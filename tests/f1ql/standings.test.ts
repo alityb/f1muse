@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
 import { executeF1QL } from '../../src/f1ql/executor';
-import { interpretPaceAggregate, interpretPaceSubtract, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
+import { EventClassificationRow, interpretEventClassification, interpretPaceAggregate, interpretPaceSubtract, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
 import { F1QLProgram } from '../../src/f1ql/ast';
@@ -370,5 +370,18 @@ describe('F1QL standings vertical slice', () => {
     expect(filteredExecuted.rows).toEqual([expect.objectContaining({
       driver_id: 'driver-dns', classification_status: 'dns'
     })]);
+
+    const filteredCore = lowerF1QL(filtered);
+    if (filteredCore.root.op !== 'event_classification') {
+      throw new Error('Expected event classification');
+    }
+    const referenceRows: EventClassificationRow[] = [
+      { season: 2025, round: 9, driver_id: 'max-verstappen', team_id: null, finishing_position: 1, points: 25, classification_status: 'classified', status_reason: null },
+      { season: 2025, round: 9, driver_id: 'lando-norris', team_id: null, finishing_position: 2, points: 18, classification_status: 'classified', status_reason: null },
+      { season: 2025, round: 9, driver_id: 'driver-dnf', team_id: null, finishing_position: null, points: 0, classification_status: 'dnf', status_reason: 'DNF' },
+      { season: 2025, round: 9, driver_id: 'driver-dns', team_id: null, finishing_position: null, points: 0, classification_status: 'dns', status_reason: 'DNS' }
+    ];
+    expect(filteredExecuted.rows.map((row) => ({ ...row, points: Number(row.points) })))
+      .toEqual(interpretEventClassification(filteredCore.root, referenceRows));
   });
 });
