@@ -5,3 +5,4 @@
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.
 - Decision: driver identities use the strict database-backed `DriverResolver`; no humanized or guessed fallback IDs are allowed.
 - Decision: translation accepts only the constrained F1QL schema. Legacy intents and SQL fallbacks are prohibited.
+- Fix: Anthropic translation now uses forced tool use (`emit_f1ql_program`) instead of prompt-only text JSON after a production shadow request returned non-JSON text.

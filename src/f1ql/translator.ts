@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { parseF1QLProgram } from './schema';
 
 const SYSTEM_PROMPT = `Convert the user's F1 statistics question into one F1QL JSON program.
-Output only valid JSON. Never output SQL, prose, markdown, or a legacy query intent.
+Use the emit_f1ql_program tool exactly once. Never output SQL, prose, markdown, or a legacy query intent.
 Supported root operations only:
 - aggregate and rank over official driver standings
 - pace_summary for one driver's valid race-lap pace
@@ -27,9 +27,19 @@ export class AnthropicF1QLModel implements F1QLTextModel {
       max_tokens: 512,
       temperature: 0,
       system: systemPrompt,
-      messages: [{ role: 'user', content: question }]
+      messages: [{ role: 'user', content: question }],
+      tools: [{
+        name: 'emit_f1ql_program',
+        description: 'Emit exactly one candidate F1QL program as a JSON object.',
+        input_schema: {
+          type: 'object',
+          additionalProperties: true
+        }
+      }],
+      tool_choice: { type: 'tool', name: 'emit_f1ql_program' }
     });
-    return message.content[0]?.type === 'text' ? message.content[0].text : '';
+    const toolUse = message.content.find((content) => content.type === 'tool_use');
+    return toolUse?.type === 'tool_use' ? JSON.stringify(toolUse.input) : '';
   }
 }
 
