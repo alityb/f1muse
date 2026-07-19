@@ -22,6 +22,7 @@
 ### Phase 1 Metrics Fixture
 - Local shadow route test observed: succeeded=1, invalid=2, unavailable=1, identity_miss=1, unsupported=1.
 - PARTIAL: `railway status --json` reports the production service plan as `hobby`. Retention is not exposed by the CLI and must be verified in Railway plan documentation/dashboard before asserting a window. The report uses timestamps actually returned by Railway. To complete 30-day review, configure a durable log export if the verified retention is under 30 days.
+- Decision: `tests/fixtures/f1ql-shadow.log` is force-added because `*.log` is globally ignored for runtime logs; this fixture is a deterministic parser contract, not an operational log.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
