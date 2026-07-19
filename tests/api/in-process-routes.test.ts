@@ -4,6 +4,7 @@ import { AddressInfo } from 'net';
 import { Pool } from 'pg';
 import { createRoutes } from '../../src/api/routes';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
+import { metrics } from '../../src/observability/metrics';
 
 let pool: Pool;
 let server: ReturnType<ReturnType<typeof express>['listen']>;
@@ -11,6 +12,7 @@ let baseUrl: string;
 
 beforeAll(async () => {
   process.env.F1QL_ENABLED = 'true';
+  metrics.reset();
   pool = new Pool({ connectionString: getTestDatabaseUrl() });
   await pool.query('SELECT 1');
   await setupTestDatabase(pool);
@@ -155,5 +157,39 @@ describe('in-process API routes', () => {
       delta_percent: -0.9803921568627451
     })]);
     expect(body.core_program.root.op).toBe('subtract');
+  });
+
+  it('rejects malformed programs and requests over the F1QL cost budget', async () => {
+    const malformed = await fetch(`${baseUrl}/program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: 1, root: { op: 'unsupported', sql: 'SELECT 1' } })
+    });
+    expect(malformed.status).toBe(400);
+    await expect(malformed.json()).resolves.toMatchObject({ error: 'validation_failed' });
+
+    const overBudget = await fetch(`${baseUrl}/program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 1,
+        root: {
+          op: 'pace_summary',
+          driver_id: 'max-verstappen',
+          scope: { season: 2025, rounds: Array.from({ length: 25 }, (_, index) => index + 1) }
+        }
+      })
+    });
+    expect(overBudget.status).toBe(400);
+    await expect(overBudget.json()).resolves.toMatchObject({ error: 'cost_limit_exceeded' });
+  });
+
+  it('records F1QL operation metrics without query values', () => {
+    const snapshot = metrics.toJSON();
+    expect(snapshot.f1ql).toMatchObject({
+      requests: expect.objectContaining({ aggregate: 1, pace_delta: 1, invalid: 1, pace_summary: 1 }),
+      failures: expect.objectContaining({ 'invalid:rejected': 1, 'pace_summary:rejected': 1 })
+    });
+    expect(metrics.toPrometheus()).toContain('f1muse_f1ql_requests_total{operation="pace_delta"} 1');
   });
 });

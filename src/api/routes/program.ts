@@ -9,7 +9,7 @@ export function createProgramRoutes(pool: Pool): Router {
 
   router.post('/program', async (req: Request, res: Response) => {
     const startedAt = Date.now();
-    const operation = typeof req.body?.root?.op === 'string' ? req.body.root.op : 'invalid';
+    const operation = getOperation(req.body);
     try {
       const result = await executeF1QL(pool, req.body);
       metrics.recordF1QL(operation, 'success', Date.now() - startedAt);
@@ -18,7 +18,7 @@ export function createProgramRoutes(pool: Pool): Router {
     } catch (error) {
       if (error instanceof ZodError) {
         metrics.recordF1QL(operation, 'rejected', Date.now() - startedAt);
-        console.log('[F1QL]', JSON.stringify({ operation, status: 'rejected', reason: error.message }));
+        console.log('[F1QL]', JSON.stringify({ operation, status: 'rejected', reason: 'validation_failed' }));
         return res.status(400).json({
           error: 'validation_failed',
           reason: error.issues.map((issue) => issue.message).join('; ')
@@ -41,4 +41,11 @@ export function createProgramRoutes(pool: Pool): Router {
   });
 
   return router;
+}
+
+function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'invalid' {
+  const operation = (body as { root?: { op?: unknown } })?.root?.op;
+  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary'
+    ? operation
+    : 'invalid';
 }

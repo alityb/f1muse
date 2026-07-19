@@ -9,6 +9,12 @@ class StubModel implements F1QLTextModel {
   }
 }
 
+class ThrowingModel implements F1QLTextModel {
+  async complete(): Promise<string> {
+    throw new Error('provider unavailable');
+  }
+}
+
 describe('constrained F1QL translation', () => {
   it('accepts a schema-valid supported program', async () => {
     await expect(translateF1QLQuestion('Max pace in 2025', new StubModel(JSON.stringify({
@@ -27,5 +33,13 @@ describe('constrained F1QL translation', () => {
       version: 1,
       root: { op: 'unsupported', sql: 'SELECT 1' }
     })))).rejects.toThrow();
+  });
+
+  it('rejects markdown, arrays, and provider failures without accepting a fallback', async () => {
+    await expect(translateF1QLQuestion('Max pace', new StubModel('```json\n{}\n```')))
+      .rejects.toThrow('F1QL translation did not return valid JSON');
+    await expect(translateF1QLQuestion('Max pace', new StubModel('[]'))).rejects.toThrow();
+    await expect(translateF1QLQuestion('Max pace', new ThrowingModel()))
+      .rejects.toThrow('F1QL translation did not return valid JSON');
   });
 });
