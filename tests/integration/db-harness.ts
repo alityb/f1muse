@@ -8,9 +8,8 @@
  */
 
 import { Pool } from 'pg';
-import * as fs from 'fs';
-import * as path from 'path';
 import { FIXTURES } from './fixtures';
+import { setupTestDatabase } from '../../src/test/setup';
 
 const DEFAULT_TEST_DATABASE_URL = 'postgres://localhost:5432/f1muse_integration_test';
 
@@ -69,41 +68,13 @@ export function createIntegrationPool(): Pool {
  * Run all database migrations
  */
 export async function runMigrations(pool: Pool): Promise<void> {
-  const migrationsDir = path.join(__dirname, '../../migrations');
-
-  // Order matters - run in specific sequence
-  const migrationOrder = [
-    'create_laps_normalized.sql',
-    'create_identity_maps.sql',
-    'add_missing_2025_drivers.sql',
-    'extend_ingestion_audit.sql',
-    'create_api_query_cache.sql',
-    'create_driver_matchup_matrix.sql'
-  ];
-
-  // First create F1DB reference tables (they're expected by migrations)
-  await createF1dbReferenceTables(pool);
-
-  for (const migration of migrationOrder) {
-    const filePath = path.join(migrationsDir, migration);
-    if (fs.existsSync(filePath)) {
-      const sql = fs.readFileSync(filePath, 'utf-8');
-      try {
-        await pool.query(sql);
-      } catch (err: any) {
-        // Ignore "already exists" errors during migration
-        if (!err.message?.includes('already exists')) {
-          console.error(`Migration ${migration} failed:`, err.message);
-        }
-      }
-    }
-  }
+  await setupTestDatabase(pool, { seed: false });
 }
 
 /**
  * Create F1DB reference tables that migrations depend on
  */
-async function createF1dbReferenceTables(pool: Pool): Promise<void> {
+export async function createF1dbReferenceTables(pool: Pool): Promise<void> {
   await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
 
   await pool.query(`
@@ -298,11 +269,12 @@ export async function seedFixtureData(pool: Pool): Promise<void> {
 
   // Race data
   for (const rd of FIXTURES.raceData) {
+    const resultType = rd.type === 'qualifying' ? 'QUALIFYING_RESULT' : 'RACE_RESULT';
     await pool.query(`
       INSERT INTO race_data (race_id, type, driver_id, constructor_id, position_number, race_reason_retired)
       VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT DO NOTHING;
-    `, [rd.race_id, rd.type, rd.driver_id, rd.constructor_id, rd.position_number, rd.race_reason_retired]);
+    `, [rd.race_id, resultType, rd.driver_id, rd.constructor_id, rd.position_number, rd.race_reason_retired]);
   }
 
   // Season entrant drivers (team assignments)

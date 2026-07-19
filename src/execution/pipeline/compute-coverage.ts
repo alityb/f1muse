@@ -72,7 +72,7 @@ export function computeRowCoverage(intent: QueryIntent, rows: any[]): RowCoverag
 
 function computeComparisonCoverage(rows: any[]): RowCoverageResult {
   const rows_included = rows.length;
-  let min_lap_requirement = MIN_LAPS_COMPARISON;
+  const min_lap_requirement = MIN_LAPS_COMPARISON;
 
   // coverage is informational only - never blocks execution
   // rows_excluded_reason is NOT set here to avoid misleading downstream consumers

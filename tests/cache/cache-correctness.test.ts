@@ -24,7 +24,7 @@ import {
 
 let pool: Pool | null = null;
 let cacheService: CacheService | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   dbAvailable = await canRunIntegrationTests();
@@ -216,7 +216,7 @@ describe('Version Invalidation', () => {
   it.skipIf(!dbAvailable)('cache key includes methodology version', () => {
     // This test verifies the cache key computation includes version
     // We can't change the actual version constant, but we verify the structure
-    const params = { season: 2025, driver_id: 'max_verstappen' };
+    const params = { driver_id: 'max_verstappen', season: 2025 };
 
     const payload = {
       kind: 'driver_season_summary',
@@ -225,12 +225,11 @@ describe('Version Invalidation', () => {
       schema_version: SCHEMA_VERSION
     };
 
-    const json = JSON.stringify(payload, Object.keys(payload).sort());
+    const json = JSON.stringify(payload);
     const expectedKey = crypto.createHash('sha256').update(json).digest('hex');
     const actualKey = cacheService!.computeCacheKey({ kind: 'driver_season_summary', parameters: params });
 
-    // The actual key may differ due to parameter normalization, but structure is verified
-    expect(actualKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(actualKey).toBe(expectedKey);
   });
 
   it.skipIf(!dbAvailable)('stale version entries are not returned on lookup', async () => {
@@ -526,7 +525,7 @@ describe('Cache Entry Creation', () => {
     // Test different coverage levels
     const testCases = [
       { coverageLevel: 'high', expectedConfidence: 'valid' },
-      { coverageLevel: 'moderate', expectedConfidence: 'valid' },
+      { coverageLevel: 'moderate', expectedConfidence: 'low_coverage' },
       { coverageLevel: 'low', expectedConfidence: 'low_coverage' },
       { coverageLevel: 'insufficient', expectedConfidence: 'insufficient' }
     ];
@@ -536,17 +535,7 @@ describe('Cache Entry Creation', () => {
       result.interpretation.confidence.coverage_level = coverageLevel as any;
       const entry = createCacheEntry(cacheService!, intent, result);
 
-      // The mapping function is called inside createCacheEntry
-      // For 'high' and 'moderate', it should map to 'valid'
-      // For 'low', it should map to 'low_coverage'
-      // For 'insufficient', it should map to 'insufficient'
-      if (coverageLevel === 'high' || coverageLevel === 'moderate') {
-        expect(entry.confidence_level).toBe('valid');
-      } else if (coverageLevel === 'low') {
-        expect(entry.confidence_level).toBe('low_coverage');
-      } else {
-        expect(entry.confidence_level).toBe('insufficient');
-      }
+      expect(entry.confidence_level).toBe(expectedConfidence);
     }
   });
 });

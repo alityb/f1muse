@@ -7,7 +7,7 @@ import { QueryIntent } from '../src/types/query-intent';
 
 let pool: Pool;
 let executor: QueryExecutor;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 const SEASON = 2025;
 

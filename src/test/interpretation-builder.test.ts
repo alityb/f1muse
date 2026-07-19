@@ -7,7 +7,7 @@ import { setupTestDatabase, cleanupTestDatabase, getTestDatabaseUrl } from './se
 
 let pool: Pool;
 let executor: QueryExecutor;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   try {

@@ -428,10 +428,11 @@ async function getLatestSeasonForDriver(pool: Pool, driverId: string): Promise<n
     SELECT MAX(year) AS season
     FROM (
       SELECT year FROM season_entrant_driver
-      WHERE driver_id = $1 AND test_driver IS NOT TRUE
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
+         AND test_driver IS NOT TRUE
       UNION
       SELECT year FROM driver_season_entries
-      WHERE driver_id = $1
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
     ) seasons
     `,
     [driverId]
@@ -447,10 +448,13 @@ async function isDriverActiveInSeason(pool: Pool, driverId: string, season: numb
     SELECT 1
     FROM (
       SELECT 1 FROM season_entrant_driver
-      WHERE driver_id = $1 AND year = $2 AND test_driver IS NOT TRUE
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
+         AND year = $2
+         AND test_driver IS NOT TRUE
       UNION
       SELECT 1 FROM driver_season_entries
-      WHERE driver_id = $1 AND year = $2
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
+         AND year = $2
     ) active
     LIMIT 1
     `,
@@ -466,17 +470,19 @@ async function getLatestCommonSeason(pool: Pool, driverAId: string, driverBId: s
     SELECT MAX(a.year) AS season
     FROM (
       SELECT year FROM season_entrant_driver
-      WHERE driver_id = $1 AND test_driver IS NOT TRUE
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
+         AND test_driver IS NOT TRUE
       UNION
       SELECT year FROM driver_season_entries
-      WHERE driver_id = $1
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($1, '-', '_')
     ) a
     INNER JOIN (
       SELECT year FROM season_entrant_driver
-      WHERE driver_id = $2 AND test_driver IS NOT TRUE
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($2, '-', '_')
+         AND test_driver IS NOT TRUE
       UNION
       SELECT year FROM driver_season_entries
-      WHERE driver_id = $2
+       WHERE REPLACE(driver_id, '-', '_') = REPLACE($2, '-', '_')
     ) b
       ON a.year = b.year
     `,
@@ -1175,7 +1181,7 @@ function buildTeammateComparisonCareerInterpretation(
   const isPositionBased = (aggregate as any).career_h2h_a !== undefined;
 
   let headline: string;
-  let bullets: string[] = [];
+  const bullets: string[] = [];
 
   if (validSeasons.length === 0) {
     headline = `${driverAShort} and ${driverBShort} have no shared seasons as teammates`;

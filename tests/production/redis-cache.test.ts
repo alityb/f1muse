@@ -115,7 +115,7 @@ describe('RedisCache', () => {
 
       const key = cache.generateCacheKey(intent);
 
-      expect(key).toMatch(/^cache:v1:/);
+      expect(key).toMatch(/^f1muse:query:v\d+:/);
     });
 
     it('should include query kind in cache key', () => {

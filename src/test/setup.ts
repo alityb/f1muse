@@ -16,9 +16,9 @@ function assertLocalDatabaseUrl(databaseUrl: string): void {
  * Resolve a safe local database URL for tests.
  */
 export function getTestDatabaseUrl(): string {
-  const databaseUrl = process.env.NODE_ENV === 'test'
-    ? (process.env.DATABASE_URL_TEST || DEFAULT_TEST_DATABASE_URL)
-    : (process.env.DATABASE_URL_TEST || DEFAULT_TEST_DATABASE_URL);
+  const databaseUrl = process.env.DATABASE_URL_TEST ||
+    process.env.TEST_DATABASE_URL ||
+    DEFAULT_TEST_DATABASE_URL;
 
   assertLocalDatabaseUrl(databaseUrl);
   return databaseUrl;
@@ -27,11 +27,23 @@ export function getTestDatabaseUrl(): string {
 /**
  * Test database setup and mock data
  */
-export async function setupTestDatabase(pool: Pool): Promise<void> {
+export interface TestDatabaseOptions {
+  seed?: boolean;
+}
+
+export async function setupTestDatabase(
+  pool: Pool,
+  options: TestDatabaseOptions = {}
+): Promise<void> {
   await pool.query(`
     DROP TABLE IF EXISTS driver_season_entries, 
     race_data,
     race,
+    qualifying_results,
+    season_driver_standing,
+    season_constructor_standing,
+    driver_matchup_matrix_2025,
+    api_query_cache,
     laps_normalized, 
     pace_metric_summary_driver_track, 
     pace_metric_summary_driver_season, 
@@ -44,6 +56,7 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
     season, 
     grand_prix, 
     circuit, 
+    constructor,
     driver CASCADE;
   `);
 
@@ -67,6 +80,8 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
   await pool.query(`ALTER TABLE driver ADD COLUMN IF NOT EXISTS total_championship_wins INTEGER;`);
   await pool.query(`ALTER TABLE driver ADD COLUMN IF NOT EXISTS total_podiums INTEGER;`);
   await pool.query(`ALTER TABLE driver ADD COLUMN IF NOT EXISTS total_race_wins INTEGER;`);
+  await pool.query(`ALTER TABLE driver ADD COLUMN IF NOT EXISTS total_race_starts INTEGER;`);
+  await pool.query(`ALTER TABLE driver ADD COLUMN IF NOT EXISTS total_pole_positions INTEGER;`);
 
   console.log('Creating table: circuit');
   await pool.query(`
@@ -74,7 +89,16 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       full_name TEXT NOT NULL,
-      previous_names TEXT
+      previous_names TEXT,
+      type TEXT
+    );
+  `);
+
+  console.log('Creating table: constructor');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS constructor (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL
     );
   `);
 
@@ -101,7 +125,11 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
     CREATE TABLE IF NOT EXISTS race (
       id INTEGER PRIMARY KEY,
       year INTEGER NOT NULL,
-      round INTEGER NOT NULL
+      round INTEGER NOT NULL,
+      circuit_id TEXT,
+      grand_prix_id TEXT,
+      official_name TEXT,
+      date DATE
     );
   `);
 
@@ -112,12 +140,136 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
       type TEXT NOT NULL,
       driver_id TEXT NOT NULL,
       constructor_id TEXT,
+      position_display_order INTEGER,
       position_number INTEGER,
+      position_text TEXT,
+      driver_number TEXT,
+      engine_manufacturer_id TEXT,
+      tyre_manufacturer_id TEXT,
       race_reason_retired TEXT,
+      race_points NUMERIC,
+      race_fastest_lap BOOLEAN,
+      race_time TEXT,
+      race_time_millis INTEGER,
+      race_gap TEXT,
+      race_gap_millis INTEGER,
+      race_laps INTEGER,
+      fastest_lap_time TEXT,
+      race_grid_position_number INTEGER,
+      qualifying_q1 INTEGER,
+      qualifying_q2 INTEGER,
+      qualifying_q3 INTEGER,
       qualifying_q1_millis INTEGER,
       qualifying_q2_millis INTEGER,
       qualifying_q3_millis INTEGER,
-      PRIMARY KEY (race_id, type, driver_id)
+      PRIMARY KEY (race_id, type, driver_id),
+      UNIQUE (race_id, type, position_display_order)
+    );
+  `);
+
+  console.log('Creating table: qualifying_results');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS qualifying_results (
+      season INTEGER NOT NULL,
+      round INTEGER NOT NULL,
+      driver_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      track_id TEXT,
+      qualifying_position INTEGER,
+      grid_position INTEGER,
+      session_type TEXT,
+      q1_time_ms INTEGER,
+      q2_time_ms INTEGER,
+      q3_time_ms INTEGER,
+      best_time_ms INTEGER,
+      best_session TEXT,
+      eliminated_in_round TEXT,
+      is_dnf BOOLEAN DEFAULT false,
+      is_dns BOOLEAN DEFAULT false,
+      PRIMARY KEY (season, round, driver_id)
+    );
+  `);
+
+  console.log('Creating table: season_driver_standing');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS season_driver_standing (
+      year INTEGER NOT NULL,
+      position_display_order INTEGER NOT NULL,
+      position_number INTEGER,
+      position_text TEXT,
+      driver_id TEXT NOT NULL,
+      points NUMERIC NOT NULL,
+      championship_won BOOLEAN DEFAULT false,
+      PRIMARY KEY (year, position_display_order)
+    );
+  `);
+
+  console.log('Creating table: season_constructor_standing');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS season_constructor_standing (
+      year INTEGER NOT NULL,
+      position_display_order INTEGER NOT NULL,
+      position_number INTEGER,
+      position_text TEXT,
+      constructor_id TEXT NOT NULL,
+      engine_manufacturer_id TEXT,
+      points NUMERIC NOT NULL,
+      championship_won BOOLEAN DEFAULT false,
+      PRIMARY KEY (year, position_display_order)
+    );
+  `);
+
+  console.log('Creating table: driver_matchup_matrix');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS driver_matchup_matrix (
+      driver_a_id TEXT NOT NULL,
+      driver_b_id TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      season INTEGER NOT NULL,
+      driver_a_wins INTEGER NOT NULL DEFAULT 0,
+      driver_b_wins INTEGER NOT NULL DEFAULT 0,
+      ties INTEGER NOT NULL DEFAULT 0,
+      shared_events INTEGER NOT NULL DEFAULT 0,
+      coverage_status TEXT NOT NULL DEFAULT 'insufficient',
+      computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (driver_a_id, driver_b_id, metric, season)
+    );
+  `);
+
+  console.log('Creating table: driver_matchup_matrix_2025');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS driver_matchup_matrix_2025 (
+      driver_a_id TEXT NOT NULL,
+      driver_b_id TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      season INTEGER NOT NULL,
+      driver_a_wins INTEGER NOT NULL DEFAULT 0,
+      driver_b_wins INTEGER NOT NULL DEFAULT 0,
+      ties INTEGER NOT NULL DEFAULT 0,
+      shared_events INTEGER NOT NULL DEFAULT 0,
+      coverage_status TEXT NOT NULL DEFAULT 'insufficient',
+      computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (driver_a_id, driver_b_id, metric, season)
+    );
+  `);
+
+  console.log('Creating table: api_query_cache');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS api_query_cache (
+      cache_key TEXT PRIMARY KEY,
+      query_kind TEXT NOT NULL,
+      query_hash TEXT NOT NULL,
+      parameters JSONB NOT NULL,
+      response JSONB NOT NULL,
+      confidence_level TEXT NOT NULL,
+      coverage_percent NUMERIC(5,2),
+      shared_events INTEGER,
+      methodology_version TEXT NOT NULL,
+      schema_version TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ,
+      hit_count INTEGER NOT NULL DEFAULT 0,
+      last_hit_at TIMESTAMPTZ
     );
   `);
 
@@ -194,10 +346,80 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
       is_valid_lap BOOLEAN,
       is_pit_lap BOOLEAN,
       clean_air_flag BOOLEAN,
+      stint_id INTEGER DEFAULT 0,
+      stint_lap_index INTEGER DEFAULT 0,
+      compound TEXT,
+      tyre_age_laps INTEGER,
+      race_name TEXT,
+      session_type TEXT,
       is_out_lap BOOLEAN DEFAULT false,
       is_in_lap BOOLEAN DEFAULT false,
       PRIMARY KEY (season, round, track_id, driver_id, lap_number)
     );
+  `);
+
+  console.log('Creating table: teammate gap compatibility tables');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS teammate_gap_season_summary (
+      season INTEGER,
+      team_id TEXT,
+      driver_primary_id TEXT,
+      driver_secondary_id TEXT,
+      driver_pair_gap_percent NUMERIC,
+      driver_pair_gap_seconds NUMERIC,
+      gap_percent NUMERIC,
+      shared_races INTEGER,
+      faster_driver_primary_count INTEGER,
+      coverage_status TEXT,
+      failure_reason TEXT
+    );
+    CREATE TABLE IF NOT EXISTS teammate_gap_qualifying_season_summary_2025 (
+      season INTEGER,
+      team_id TEXT,
+      driver_primary_id TEXT,
+      driver_secondary_id TEXT,
+      driver_pair_gap_percent NUMERIC,
+      driver_pair_gap_seconds NUMERIC,
+      gap_percent NUMERIC,
+      shared_races INTEGER,
+      faster_driver_primary_count INTEGER,
+      coverage_status TEXT,
+      failure_reason TEXT
+    );
+    CREATE TABLE IF NOT EXISTS teammate_gap_qualifying_season_summary (
+      season INTEGER,
+      team_id TEXT,
+      driver_primary_id TEXT,
+      driver_secondary_id TEXT,
+      driver_pair_gap_percent NUMERIC,
+      driver_pair_gap_seconds NUMERIC,
+      gap_percent NUMERIC,
+      shared_races INTEGER,
+      faster_driver_primary_count INTEGER,
+      coverage_status TEXT,
+      failure_reason TEXT
+    );
+    CREATE VIEW qualifying_results_official AS
+      SELECT
+        qr.season,
+        qr.round,
+        qr.driver_id,
+        qr.team_id,
+        qr.track_id,
+        qr.qualifying_position,
+        COALESCE(qr.grid_position, qr.qualifying_position) AS official_grid_position,
+        false AS has_grid_correction,
+        NULL::text AS correction_reason,
+        qr.q1_time_ms,
+        qr.q2_time_ms,
+        qr.q3_time_ms,
+        qr.best_time_ms,
+        qr.best_session,
+        qr.eliminated_in_round,
+        qr.is_dnf,
+        qr.is_dns,
+        qr.session_type
+      FROM qualifying_results qr;
   `);
 
   console.log('Creating table: driver_season_entries');
@@ -209,7 +431,9 @@ export async function setupTestDatabase(pool: Pool): Promise<void> {
     );
   `);
 
-  await insertTestData(pool);
+  if (options.seed !== false) {
+    await insertTestData(pool);
+  }
 }
 
 export async function cleanupTestDatabase(_pool: Pool): Promise<void> {
@@ -440,6 +664,20 @@ async function insertTestData(pool: Pool): Promise<void> {
       ...baseStats
     },
     {
+      id: 'george_russell',
+      name: 'Russell',
+      full_name: 'George Russell',
+      first_name: 'George',
+      last_name: 'Russell',
+      abbreviation: 'RUS',
+      gender: 'male',
+      date_of_birth: '1998-02-15',
+      place_of_birth: 'King\'s Lynn',
+      country_of_birth_country_id: 'united-kingdom',
+      nationality_country_id: 'united-kingdom',
+      ...baseStats
+    },
+    {
       id: 'max_chilton',
       name: 'Chilton',
       full_name: 'Max Chilton',
@@ -566,13 +804,13 @@ async function insertTestData(pool: Pool): Promise<void> {
     (2023, 'aston', 'AMR', 'fernando_alonso', false),
     (2024, 'mclaren', 'MCL', 'lando_norris', false),
     (2024, 'mclaren', 'MCL', 'oscar_piastri', false),
-    (2025, 'ferrari', 'FER', 'charles_leclerc', false),
-    (2025, 'ferrari', 'FER', 'carlos_sainz', false),
-    (2025, 'mclaren', 'MCL', 'lando_norris', false),
-    (2025, 'mclaren', 'MCL', 'oscar_piastri', false),
-    (2025, 'red_bull', 'RBR', 'max_verstappen', false),
-    (2025, 'red_bull', 'RBR', 'sergio_perez', false),
-    (2025, 'aston', 'AMR', 'fernando_alonso', false)
+    (2025, 'ferrari', 'FER', 'charles-leclerc', false),
+    (2025, 'ferrari', 'FER', 'carlos-sainz', false),
+    (2025, 'mclaren', 'MCL', 'lando-norris', false),
+    (2025, 'mclaren', 'MCL', 'oscar-piastri', false),
+    (2025, 'red_bull', 'RBR', 'max-verstappen', false),
+    (2025, 'red_bull', 'RBR', 'sergio-perez', false),
+    (2025, 'aston', 'AMR', 'fernando-alonso', false)
     ON CONFLICT DO NOTHING;
   `);
 
@@ -666,6 +904,44 @@ async function insertTestData(pool: Pool): Promise<void> {
     (2025, 1, 'suzuka', 'lando_norris', 8, 90.8, true, false, true),
     (2025, 1, 'suzuka', 'lando_norris', 9, 90.9, true, false, true),
     (2025, 1, 'suzuka', 'lando_norris', 10, 91.0, true, false, true)
+  `);
+
+  // TrackResolver returns the lap-data grand-prix ID, not the circuit ID.
+  await pool.query(`
+    UPDATE pace_metric_summary_driver_track
+    SET track_id = 'japanese_grand_prix'
+    WHERE track_id = 'suzuka';
+
+    UPDATE laps_normalized
+    SET track_id = 'japanese_grand_prix'
+    WHERE track_id = 'suzuka';
+
+    INSERT INTO laps_normalized (
+      season,
+      round,
+      track_id,
+      driver_id,
+      lap_number,
+      lap_time_seconds,
+      is_valid_lap,
+      is_pit_lap,
+      clean_air_flag
+    )
+    SELECT
+      season,
+      round,
+      track_id,
+      'charles_leclerc',
+      lap_number,
+      lap_time_seconds + 0.4,
+      is_valid_lap,
+      is_pit_lap,
+      clean_air_flag
+    FROM laps_normalized
+    WHERE season = 2023
+      AND track_id = 'japanese_grand_prix'
+      AND driver_id = 'max_verstappen'
+    ON CONFLICT DO NOTHING;
   `);
 
   await pool.query(`

@@ -49,6 +49,7 @@ const ENGINE_BY_CONSTRUCTOR: Record<string, string> = {
 };
 
 const FINISHED_STATUSES = new Set(['Finished', 'Lapped']);
+type JolpicaFetcher = (path: string) => Promise<any>;
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -69,7 +70,7 @@ function fetchJolpicaPage(path: string, offset: number): Promise<any> {
   });
 }
 
-function mergeRacePage(target: any[], pageRaces: any[]): void {
+export function mergeRacePage(target: any[], pageRaces: any[]): void {
   const byRace = new Map(target.map((race) => [`${race.season}:${race.round}`, race]));
 
   for (const race of pageRaces) {
@@ -89,12 +90,29 @@ function mergeRacePage(target: any[], pageRaces: any[]): void {
   }
 }
 
+export function parseResultPosition(positionText: string | null | undefined): number | null {
+  if (!positionText) {
+    return null;
+  }
+
+  const parsed = parseInt(positionText, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+export function classifyRaceResultStatus(status: string | null | undefined): string | null {
+  if (!status || FINISHED_STATUSES.has(status) || status.startsWith('+')) {
+    return null;
+  }
+  return status;
+}
+
 async function fetchJolpica(path: string): Promise<any> {
   let offset = 0;
   let merged: any | null = null;
   const mergedRaces: any[] = [];
+  let hasMore = true;
 
-  while (true) {
+  while (hasMore) {
     const page = await fetchJolpicaPage(path, offset);
     const pageRaces = page.RaceTable?.Races;
 
@@ -112,10 +130,10 @@ async function fetchJolpica(path: string): Promise<any> {
     const limit = parseInt(page.limit ?? String(PAGE_LIMIT), 10);
     offset += limit;
 
-    if (!total || offset >= total) {
-      return merged;
-    }
+    hasMore = Boolean(total && offset < total);
   }
+
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,22 +146,34 @@ function mapConstructor(id: string): string {
   return JOLPICA_TO_F1DB_CONSTRUCTOR[id] ?? id.replace(/_/g, '-');
 }
 function parseLapTimeMs(t: string | null | undefined): number | null {
-  if (!t) return null;
+  if (!t) {
+    return null;
+  }
   try {
     const parts = t.split(':');
-    if (parts.length === 2) return Math.round((parseInt(parts[0]) * 60 + parseFloat(parts[1])) * 1000);
+    if (parts.length === 2) {
+      return Math.round((parseInt(parts[0]) * 60 + parseFloat(parts[1])) * 1000);
+    }
     return Math.round(parseFloat(t) * 1000);
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Sync race results → race_data RACE_RESULT
 // Returns the round numbers that were newly inserted (not previously loaded)
 // ---------------------------------------------------------------------------
-export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<number[]> {
-  const mrdata = await fetchJolpica(`/${season}/results/`);
+export async function syncResults(
+  pool: Pool,
+  season = CURRENT_SEASON,
+  fetcher: JolpicaFetcher = fetchJolpica
+): Promise<number[]> {
+  const mrdata = await fetcher(`/${season}/results/`);
   const races: any[] = mrdata.RaceTable?.Races ?? [];
-  if (!races.length) return [];
+  if (!races.length) {
+    return [];
+  }
 
   const newRoundNumbers: number[] = [];
   const client = await pool.connect();
@@ -156,7 +186,9 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
         'SELECT id FROM race WHERE year = $1 AND round = $2',
         [season, rnd]
       );
-      if (!raceRow.rows[0]) continue;
+      if (!raceRow.rows[0]) {
+        continue;
+      }
       const raceId = raceRow.rows[0].id;
 
       // Check if we already have this round's data
@@ -173,13 +205,11 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
       const values: any[][] = [];
       for (const res of race.Results) {
         const posText: string = res.positionText ?? '';
-        let posNum: number | null = null;
-        const parsed = parseInt(posText);
-        if (!isNaN(parsed)) posNum = parsed;
+        const posNum = parseResultPosition(posText);
 
         const constructorId = mapConstructor(res.Constructor.constructorId);
         const status: string = res.status ?? '';
-        const reason = FINISHED_STATUSES.has(status) || status.startsWith('+') ? null : (status || null);
+        const reason = classifyRaceResultStatus(status);
 
         const timeData = res.Time ?? {};
         const timeStr: string | null = timeData.time ?? null;
@@ -231,8 +261,15 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
             race_reason_retired   = EXCLUDED.race_reason_retired
         `, values.flat());
 
-        if (!alreadyLoaded || existingCount < values.length) newRoundNumbers.push(rnd);
-        const state = !alreadyLoaded ? 'new' : existingCount < values.length ? `completed partial ${existingCount}/${values.length}` : 'refreshed';
+        if (!alreadyLoaded || existingCount < values.length) {
+          newRoundNumbers.push(rnd);
+        }
+        let state = 'refreshed';
+        if (!alreadyLoaded) {
+          state = 'new';
+        } else if (existingCount < values.length) {
+          state = `completed partial ${existingCount}/${values.length}`;
+        }
         console.log(`  [jolpica] Round ${rnd}: ${values.length} results (${state})`);
       }
     }
@@ -246,10 +283,14 @@ export async function syncResults(pool: Pool, season = CURRENT_SEASON): Promise<
 // ---------------------------------------------------------------------------
 // Sync standings → season_driver_standing + season_constructor_standing
 // ---------------------------------------------------------------------------
-export async function syncStandings(pool: Pool, season = CURRENT_SEASON): Promise<void> {
+export async function syncStandings(
+  pool: Pool,
+  season = CURRENT_SEASON,
+  fetcher: JolpicaFetcher = fetchJolpica
+): Promise<void> {
   const [driverMR, constructorMR] = await Promise.all([
-    fetchJolpica(`/${season}/driverstandings/`),
-    fetchJolpica(`/${season}/constructorstandings/`),
+    fetcher(`/${season}/driverstandings/`),
+    fetcher(`/${season}/constructorstandings/`),
   ]);
 
   const driverList   = driverMR.StandingsTable?.StandingsLists?.[0]?.DriverStandings ?? [];

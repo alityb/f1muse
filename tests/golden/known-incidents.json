@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "hamilton-2018-official-points",
+      "title": "Hamilton 2018 uses official championship points",
+      "incident": "Race-result sums and stale caches previously showed a non-official total.",
+      "target": "api",
+      "status": "verified",
+      "query": "lewis hamilton 2018 season",
+      "outcome": "answer",
+      "authority": "season_driver_standing",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "https://api.jolpi.ca/ergast/f1/2018/driverstandings/?format=json&limit=100",
+        "independently_verified": true,
+        "snapshot": "tests/golden/snapshots/jolpica-2018-driverstandings.json"
+      },
+      "assertions": [
+        { "subject": "lewis-hamilton", "metric": "championship_points", "equals": 408 },
+        { "subject": "lewis-hamilton", "metric": "wins", "equals": 11 }
+      ]
+    },
+    {
+      "id": "russell-2025-sprint-inclusive-points",
+      "title": "Russell 2025 includes official sprint-inclusive points",
+      "incident": "Summing race-only rows omitted sprint points.",
+      "target": "api",
+      "status": "verified",
+      "query": "how many points does george russell have in 2025",
+      "outcome": "answer",
+      "authority": "season_driver_standing",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "https://api.jolpi.ca/ergast/f1/2025/driverstandings/?format=json&limit=100",
+        "independently_verified": true,
+        "snapshot": "tests/golden/snapshots/jolpica-2025-driverstandings.json"
+      },
+      "assertions": [
+        { "subject": "george-russell", "metric": "championship_points", "equals": 319 }
+      ]
+    },
+    {
+      "id": "russell-hamilton-2018-participation",
+      "title": "Russell versus Hamilton 2018 is refused",
+      "incident": "The old comprehensive comparison zero-filled a driver who did not enter the season.",
+      "target": "api",
+      "status": "verified",
+      "query": "george russell vs lewis hamilton 2018",
+      "outcome": "refusal",
+      "authority": "season_entries",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "https://api.jolpi.ca/ergast/f1/2018/driverstandings/?format=json&limit=100",
+        "independently_verified": true,
+        "snapshot": "tests/golden/snapshots/jolpica-2018-driverstandings.json"
+      },
+      "assertions": [
+        { "subject": "george-russell", "metric": "season_participation", "equals": false }
+      ]
+    },
+    {
+      "id": "jolpica-results-pagination",
+      "title": "Current-season results include all paginated rows",
+      "incident": "The first 100 Jolpica result rows omitted later round/driver rows.",
+      "target": "sync",
+      "status": "provisional",
+      "outcome": "answer",
+      "authority": "jolpica_paginated_results",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "/ergast/f1/{season}/results/?limit=100&offset={n}",
+        "independently_verified": false
+      },
+      "assertions": [
+        { "subject": "sync", "metric": "pagination_required", "equals": true }
+      ]
+    },
+    {
+      "id": "lapped-is-classified",
+      "title": "Lapped drivers remain classified finishers",
+      "incident": "Lapped status was incorrectly treated as a retirement reason.",
+      "target": "semantic",
+      "status": "provisional",
+      "outcome": "answer",
+      "authority": "race_classification",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "Ergast-compatible result status taxonomy: Lapped",
+        "independently_verified": false
+      },
+      "assertions": [
+        { "subject": "Lapped", "metric": "is_classified_finish", "equals": true }
+      ]
+    },
+    {
+      "id": "withdrawn-has-no-position",
+      "title": "Withdrawn drivers have no numerical finish",
+      "incident": "Withdrawn/DNS rows were previously assigned a finishing position.",
+      "target": "semantic",
+      "status": "provisional",
+      "outcome": "answer",
+      "authority": "race_classification",
+      "evidence": {
+        "source": "jolpica",
+        "reference": "Ergast-compatible result positionText W/DNS semantics",
+        "independently_verified": false
+      },
+      "assertions": [
+        { "subject": "W", "metric": "position_number", "equals": null }
+      ]
+    }
+  ]
+}

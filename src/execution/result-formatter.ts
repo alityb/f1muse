@@ -240,9 +240,11 @@ export class ResultFormatter {
       // Invariant: coverage status must be valid
       assertValidCoverage(coverageStatus, 'season_driver_vs_driver', 'ResultFormatter.formatSeasonDriverVsDriver');
 
-      const difference = row.difference_percent !== undefined
-        ? (sqlMatchesIntent ? parseFloat(row.difference_percent) : -parseFloat(row.difference_percent))
-        : driver_a_value - driver_b_value;
+      let difference = driver_a_value - driver_b_value;
+      if (row.difference_percent !== undefined) {
+        const sqlDifference = parseFloat(row.difference_percent);
+        difference = sqlMatchesIntent ? sqlDifference : -sqlDifference;
+      }
 
       return {
         type: 'season_driver_vs_driver',
@@ -446,9 +448,12 @@ export class ResultFormatter {
 
     // Compute coverage semantics
     const basis_laps = Math.min(driver_a_laps, driver_b_laps);
-    const confidence: 'high' | 'medium' | 'low' =
-      basis_laps >= 30 ? 'high' :
-      basis_laps >= 10 ? 'medium' : 'low';
+    let confidence: 'high' | 'medium' | 'low' = 'low';
+    if (basis_laps >= 30) {
+      confidence = 'high';
+    } else if (basis_laps >= 10) {
+      confidence = 'medium';
+    }
 
     return {
       type: 'cross_team_track_scoped_driver_comparison',
@@ -1596,8 +1601,7 @@ export class ResultFormatter {
         avg_gap_seconds: 0,  // Not available
         avg_gap_pct: null,   // Not available
         seasons_together: parseInt(firstRow.seasons_together || '0', 10),
-        overall_winner: (firstRow.overall_h2h_winner === 'driver_a' ? 'primary' :
-                        firstRow.overall_h2h_winner === 'driver_b' ? 'secondary' : 'draw') as 'primary' | 'secondary' | 'draw',
+        overall_winner: resolveCareerOverallWinner(firstRow.overall_h2h_winner),
         // Position-based career totals
         career_a_wins: parseInt(firstRow.career_a_wins || '0', 10),
         career_a_podiums: parseInt(firstRow.career_a_podiums || '0', 10),
@@ -1703,4 +1707,14 @@ export class ResultFormatter {
       full_grid: entries,
     };
   }
+}
+
+function resolveCareerOverallWinner(value: unknown): 'primary' | 'secondary' | 'draw' {
+  if (value === 'driver_a') {
+    return 'primary';
+  }
+  if (value === 'driver_b') {
+    return 'secondary';
+  }
+  return 'draw';
 }

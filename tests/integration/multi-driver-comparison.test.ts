@@ -22,7 +22,7 @@ import { EXPECTED_RESULTS } from './fixtures';
 
 let pool: Pool | null = null;
 let executor: QueryExecutor | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   dbAvailable = await canRunIntegrationTests();

@@ -44,17 +44,17 @@ WITH filtered_events AS (
   JOIN circuit c ON c.id = r.circuit_id
   WHERE r.year = $1
     -- Round filter
-    AND ($8 IS NULL OR r.round = ANY($8))
+    AND ($8::integer[] IS NULL OR r.round = ANY($8::integer[]))
     -- Date range filter
-    AND ($9 IS NULL OR r.date >= $9::date)
-    AND ($10 IS NULL OR r.date <= $10::date)
+    AND ($9::date IS NULL OR r.date >= $9::date)
+    AND ($10::date IS NULL OR r.date <= $10::date)
     -- Track type filter (circuit.type values: STREET, ROAD, RACE)
-    AND ($6 IS NULL OR (
-      ($6 = 'street' AND c.type = 'STREET') OR
-      ($6 = 'permanent' AND c.type IN ('RACE', 'ROAD'))
+    AND ($6::text IS NULL OR (
+      ($6::text = 'street' AND c.type = 'STREET') OR
+      ($6::text = 'permanent' AND c.type IN ('RACE', 'ROAD'))
     ))
     -- Weather filter: not directly available in race_data, skip for now
-    AND ($7 IS NULL)
+    AND ($7::text IS NULL)
 ),
 
 -- Get qualifying positions with session filter
@@ -71,12 +71,12 @@ qualifying_positions AS (
     AND rd.position_number IS NOT NULL
     -- Session filter for qualifying (Q1/Q2/Q3 results based on which times are set)
     AND (
-      $5 IS NULL
-      OR $5 = 'BEST'
+      $5::text IS NULL
+      OR $5::text = 'BEST'
       OR (
-        ($5 = 'Q1' AND rd.qualifying_q1 IS NOT NULL) OR
-        ($5 = 'Q2' AND rd.qualifying_q2 IS NOT NULL) OR
-        ($5 = 'Q3' AND rd.qualifying_q3 IS NOT NULL)
+        ($5::text = 'Q1' AND rd.qualifying_q1 IS NOT NULL) OR
+        ($5::text = 'Q2' AND rd.qualifying_q2 IS NOT NULL) OR
+        ($5::text = 'Q3' AND rd.qualifying_q3 IS NOT NULL)
       )
     )
     -- DNF filter (for qualifying, exclude if no position)

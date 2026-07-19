@@ -22,10 +22,13 @@ export async function checkTeammates(
 ): Promise<TeammateCheckResult> {
   const entries = await pool.query(
     `
-    SELECT sed.driver_id, sed.constructor_id, sed.entrant_id
+    SELECT REPLACE(sed.driver_id, '-', '_') AS driver_id, sed.constructor_id, sed.entrant_id
     FROM season_entrant_driver sed
     WHERE sed.year = $1
-      AND sed.driver_id IN ($2, $3)
+      AND REPLACE(sed.driver_id, '-', '_') IN (
+        REPLACE($2, '-', '_'),
+        REPLACE($3, '-', '_')
+      )
       AND sed.test_driver = false
     `,
     [season, driverAId, driverBId]
@@ -127,7 +130,7 @@ export async function resolveTeammatePairFromConstructor(
   const normalizedId = constructorId.trim().toLowerCase();
   const driversResult = await pool.query(
     `
-    SELECT DISTINCT sed.driver_id
+    SELECT DISTINCT REPLACE(sed.driver_id, '-', '_') AS driver_id
     FROM season_entrant_driver sed
     WHERE sed.year = $1
       AND (

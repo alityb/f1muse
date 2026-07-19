@@ -23,6 +23,7 @@
 
 import { Pool } from 'pg';
 import { spawn } from 'child_process';
+import { accessSync, constants } from 'fs';
 import path from 'path';
 import { runJolpicaSync } from './jolpica-sync';
 import { runIngestion as runTeammateGapRace } from '../etl/teammate-gap/race';
@@ -48,7 +49,7 @@ let startupTimer: NodeJS.Timeout | null = null;
 function resolvePython(): string {
   const railwayVenv = path.join(process.cwd(), '.venv', 'bin', 'python');
   try {
-    require('fs').accessSync(railwayVenv, require('fs').constants.X_OK);
+    accessSync(railwayVenv, constants.X_OK);
     return railwayVenv;
   } catch {
     // Fall through to local venv / system python.
@@ -56,7 +57,7 @@ function resolvePython(): string {
 
   const venv = path.join(process.cwd(), 'venv', 'bin', 'python');
   try {
-    require('fs').accessSync(venv, require('fs').constants.X_OK);
+    accessSync(venv, constants.X_OK);
     return venv;
   } catch {
     return 'python3';
@@ -84,8 +85,8 @@ function spawnPython(script: string, args: string[]): Promise<void> {
 
     proc.on('close', (code: number | null) => {
       clearTimeout(timeout);
-      if (code === 0) resolve();
-      else reject(new Error(`ETL exited ${code}: ${script}`));
+      if (code === 0) {resolve();}
+      else {reject(new Error(`ETL exited ${code}: ${script}`));}
     });
   });
 }

@@ -12,7 +12,7 @@ import { METHODOLOGY_VERSION, SCHEMA_VERSION } from '../src/config/versioning';
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/f1muse_test';
 
 let pool: Pool | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   try {

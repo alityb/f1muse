@@ -1,9 +1,9 @@
 -- PART 6: Driver matchup lookup from precomputed matrix
 -- Parameters: $1=season, $2=driver_a_id, $3=driver_b_id, $4=metric
 --
--- Returns: Precomputed head-to-head results from driver_matchup_matrix
+-- Returns: Precomputed head-to-head results from driver_matchup_matrix_2025
 -- Normalizes driver order to always use lexicographic ordering.
--- Supports seasons 2022-2025 via unified driver_matchup_matrix table
+-- Uses the table maintained by the matchup ingestion job.
 --
 -- Output fields:
 --   - driver_primary_id: Lexicographically first driver
@@ -30,7 +30,7 @@ SELECT
   mm.coverage_status,
   mm.computed_at,
   $4::TEXT AS metric
-FROM driver_matchup_matrix mm
+FROM driver_matchup_matrix_2025 mm
 CROSS JOIN ordered_drivers od
 WHERE mm.driver_a_id = od.driver_a_id
   AND mm.driver_b_id = od.driver_b_id

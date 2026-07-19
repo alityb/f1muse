@@ -11,7 +11,7 @@ import { Pool } from 'pg';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 let pool: Pool | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   if (!TEST_DATABASE_URL) {

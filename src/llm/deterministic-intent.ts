@@ -37,7 +37,7 @@ function withPaceDefaults(intent: Partial<QueryIntent>, question: string): Query
 
 function extractTwoDrivers(question: string): { a: string; b: string } | null {
   const match = question.match(/(.+?)\s+(?:vs\.?|versus|v\.?|and|&)\s+(.+?)(?:\s+\b(?:at|in|on|for|qualifying|quali|race|head to head|h2h)\b|\s+\d{4}|$)/i);
-  if (!match) return null;
+  if (!match) {return null;}
   const a = cleanEntity(match[1]);
   const b = cleanEntity(match[2]);
   return a && b ? { a, b } : null;
@@ -48,7 +48,7 @@ function extractTrackAfter(question: string, patterns: RegExp[]): string | null 
     const match = question.match(pattern);
     if (match?.[1]) {
       const track = cleanEntity(match[1]);
-      if (track) return track;
+      if (track) {return track;}
     }
   }
   return null;
@@ -71,7 +71,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
       /podium(?:\s+at|\s+for)?\s+(.+)$/i,
       /^(.+?)\s+\d{4}\s+results$/i,
     ]);
-    if (!track) return null;
+    if (!track) {return null;}
     return withPaceDefaults({ ...common, kind: 'race_results_summary', track_id: track, clean_air_only: false }, question);
   }
 
@@ -83,7 +83,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
       /qualifying grid(?:\s+at|\s+in|\s+for|\s+of)?\s+(.+)$/i,
       /^(.+?)\s+\d{4}\s+qualifying\s+grid$/i,
     ]);
-    if (!track) return null;
+    if (!track) {return null;}
     return withPaceDefaults({ ...common, kind: 'qualifying_results_summary', track_id: track, clean_air_only: false }, question);
   }
 
@@ -94,25 +94,25 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
       /fastest at\s+(.+)$/i,
       /who was fastest at\s+(.+)$/i,
     ]);
-    if (!track) return null;
+    if (!track) {return null;}
     return withPaceDefaults({ ...common, kind: 'track_fastest_drivers', track_id: track }, question);
   }
 
   if (/\b(wins by circuit|where has .+ won|circuit victories|track victories)\b/i.test(question)) {
     const driver = cleanEntity(question.replace(/wins by circuit|where has|won|circuit victories|track victories/gi, ''));
-    if (!driver) return null;
+    if (!driver) {return null;}
     return withPaceDefaults({ ...common, kind: 'driver_career_wins_by_circuit', driver_id: driver, session_scope: 'all' }, question);
   }
 
   if (/\b(career poles|total poles|how many poles does|poles in (his|her|their) career)\b/i.test(question) && !YEAR_PATTERN.test(question)) {
     const driver = cleanEntity(question.replace(/career poles|total poles|how many poles does|have|poles in (his|her|their) career/gi, ''));
-    if (!driver) return null;
+    if (!driver) {return null;}
     return withPaceDefaults({ ...common, kind: 'driver_career_pole_count', driver_id: driver, session_scope: 'qualifying' }, question);
   }
 
   if (/\b(head to head|h2h)\b/i.test(question)) {
     const drivers = extractTwoDrivers(question.replace(/head to head|h2h/gi, ''));
-    if (!drivers) return null;
+    if (!drivers) {return null;}
     return withPaceDefaults({
       ...common,
       kind: 'driver_vs_driver_comprehensive',
@@ -124,7 +124,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
 
   if (/\bqualifying gap\b|\boutqualified\b|\bqualifies higher\b/i.test(question)) {
     const drivers = extractTwoDrivers(question);
-    if (!drivers) return null;
+    if (!drivers) {return null;}
     return withPaceDefaults({
       ...common,
       kind: 'qualifying_gap_drivers',
@@ -136,7 +136,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
 
   if (/\bqualifying\s*(vs\.?|versus|v\.?)\s*race|\bquali\s*(vs\.?|versus|v\.?)\s*race|\brace\s*(vs\.?|versus|v\.?)\s*qual/i.test(question)) {
     const drivers = extractTwoDrivers(question);
-    if (!drivers) return null;
+    if (!drivers) {return null;}
     return withPaceDefaults({
       ...common,
       kind: 'teammate_gap_dual_comparison',
@@ -150,7 +150,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
 
   if (lower.includes(' vs ') || lower.includes(' versus ') || /\bv\.\b/i.test(question)) {
     const drivers = extractTwoDrivers(question);
-    if (!drivers) return null;
+    if (!drivers) {return null;}
 
     const track = extractTrackAfter(question, [/\b(?:at|in|on)\s+(.+)$/i]);
     if (track) {
@@ -174,7 +174,7 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
 
   if (/\b(points|standings points|championship points)\b/i.test(question)) {
     const driver = cleanEntity(question.replace(/championship points|standings points|how many|points|standings|does|did|has|have|score|scored|season|championship/gi, ''));
-    if (!driver) return null;
+    if (!driver) {return null;}
     return withPaceDefaults({
       ...common,
       kind: 'driver_season_summary',

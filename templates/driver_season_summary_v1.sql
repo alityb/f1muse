@@ -21,7 +21,7 @@ WITH driver_races AS (
   FROM race_data rd
   JOIN race r ON r.id = rd.race_id
   WHERE r.year = $2
-    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_'))
+    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_') OR rd.driver_id = REPLACE($1, '_', '-'))
     AND rd.type IN ('RACE_RESULT', 'race')
 ),
 driver_points_fallback AS (
@@ -29,7 +29,7 @@ driver_points_fallback AS (
   FROM race_data rd
   JOIN race r ON r.id = rd.race_id
   WHERE r.year = $2
-    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_'))
+    AND (rd.driver_id = $1 OR rd.driver_id = REPLACE($1, '-', '_') OR rd.driver_id = REPLACE($1, '_', '-'))
     AND rd.type IN ('RACE_RESULT', 'race', 'SPRINT_RACE_RESULT')
 ),
 season_points AS (
@@ -37,7 +37,7 @@ season_points AS (
     (SELECT sds.points
      FROM season_driver_standing sds
      WHERE sds.year = $2
-       AND (sds.driver_id = $1 OR sds.driver_id = REPLACE($1, '-', '_'))
+       AND (sds.driver_id = $1 OR sds.driver_id = REPLACE($1, '-', '_') OR sds.driver_id = REPLACE($1, '_', '-'))
      LIMIT 1),
     (SELECT points FROM driver_points_fallback),
     0
@@ -59,7 +59,7 @@ pole_count AS (
   SELECT COUNT(*) AS poles
   FROM qualifying_results qr
   WHERE qr.season = $2
-    AND (qr.driver_id = $1 OR qr.driver_id = REPLACE($1, '-', '_'))
+    AND (qr.driver_id = $1 OR qr.driver_id = REPLACE($1, '-', '_') OR qr.driver_id = REPLACE($1, '_', '-'))
     AND qr.qualifying_position = 1
     AND qr.session_type = 'RACE_QUALIFYING'
 ),
@@ -87,7 +87,7 @@ driver_normalized_laps AS (
     ON sm.round = ln.round
     AND sm.track_id = ln.track_id
   WHERE ln.season = $2
-    AND (ln.driver_id = $1 OR ln.driver_id = REPLACE($1, '-', '_'))
+    AND (ln.driver_id = $1 OR ln.driver_id = REPLACE($1, '-', '_') OR ln.driver_id = REPLACE($1, '_', '-'))
     AND ln.is_valid_lap = true
     AND ln.lap_time_seconds IS NOT NULL
 ),

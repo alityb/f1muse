@@ -25,7 +25,7 @@ WITH summary_data AS (
     shared_races,
     faster_driver_primary_count,
     coverage_status
-  FROM teammate_gap_season_summary
+  FROM teammate_gap_season_summary_2025
   WHERE season = $1
     AND driver_primary_id = $2
     AND driver_secondary_id = $3

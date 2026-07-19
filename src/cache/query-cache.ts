@@ -90,7 +90,9 @@ export class CacheService {
       schema_version: SCHEMA_VERSION
     };
 
-    const json = JSON.stringify(payload, Object.keys(payload).sort());
+    // Parameters are already recursively normalized and sorted. A replacer
+    // array here would omit nested parameter keys and cause cache collisions.
+    const json = JSON.stringify(payload);
     return crypto.createHash('sha256').update(json).digest('hex');
   }
 
@@ -359,12 +361,16 @@ export class CacheService {
  * Map confidence level from coverage status
  */
 export function mapCoverageToConfidenceLevel(
-  coverageStatus: 'valid' | 'low_coverage' | 'insufficient' | string
+  coverageStatus: string
 ): 'valid' | 'low_coverage' | 'insufficient' {
-  if (coverageStatus === 'valid') {
+  if (coverageStatus === 'valid' || coverageStatus === 'high') {
     return 'valid';
   }
-  if (coverageStatus === 'low_coverage') {
+  if (
+    coverageStatus === 'low_coverage' ||
+    coverageStatus === 'moderate' ||
+    coverageStatus === 'low'
+  ) {
     return 'low_coverage';
   }
   return 'insufficient';

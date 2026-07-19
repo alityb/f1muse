@@ -10,7 +10,7 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL || 'postgresql://localho
 
 let pool: Pool | null = null;
 let cacheService: CacheService | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 // Mock QueryResult
 function createMockQueryResult(confidenceLevel: 'high' | 'moderate' | 'low' | 'insufficient'): QueryResult {
@@ -158,6 +158,25 @@ describe('CacheService', () => {
       const key2 = cacheService!.computeCacheKey(params2);
 
       expect(key1).not.toBe(key2);
+    });
+
+    it.skipIf(!dbAvailable)('includes nested filter values in the cache key', () => {
+      const params1 = {
+        kind: 'driver_head_to_head_count',
+        parameters: {
+          season: 2025,
+          filters: { rounds: [1, 2, 3] }
+        }
+      };
+      const params2 = {
+        kind: 'driver_head_to_head_count',
+        parameters: {
+          season: 2025,
+          filters: { rounds: [4, 5, 6] }
+        }
+      };
+
+      expect(cacheService!.computeCacheKey(params1)).not.toBe(cacheService!.computeCacheKey(params2));
     });
 
     it.skipIf(!dbAvailable)('ignores raw_query in cache key', () => {
@@ -367,8 +386,17 @@ describe('mapCoverageToConfidenceLevel', () => {
     expect(mapCoverageToConfidenceLevel('valid')).toBe('valid');
   });
 
+  it('maps high execution confidence to a valid cache entry', () => {
+    expect(mapCoverageToConfidenceLevel('high')).toBe('valid');
+  });
+
   it('maps low_coverage to low_coverage', () => {
     expect(mapCoverageToConfidenceLevel('low_coverage')).toBe('low_coverage');
+  });
+
+  it('maps moderate and low execution confidence to low-coverage cache entries', () => {
+    expect(mapCoverageToConfidenceLevel('moderate')).toBe('low_coverage');
+    expect(mapCoverageToConfidenceLevel('low')).toBe('low_coverage');
   });
 
   it('maps insufficient to insufficient', () => {

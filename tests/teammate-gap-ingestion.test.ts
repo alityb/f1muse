@@ -8,6 +8,8 @@ import {
 import { runIngestion as runRaceIngestion } from '../src/etl/teammate-gap/race';
 import { runIngestion as runQualifyingIngestion } from '../src/etl/teammate-gap/qualifying';
 import { validateTableSchema } from '../src/etl/teammate-gap/utils';
+import { QueryExecutor } from '../src/execution/query-executor';
+import { QueryIntent } from '../src/types/query-intent';
 
 let pool: Pool;
 
@@ -44,6 +46,16 @@ async function seedRaceData(): Promise<void> {
       (1001, 'QUALIFYING_RESULT', 'oscar_piastri', 'mclaren', 80500, 79500, 81000),
       (1001, 'QUALIFYING_RESULT', 'max_verstappen', 'red-bull', 79000, 78000, 77000),
       (1001, 'QUALIFYING_RESULT', 'sergio_perez', 'red-bull', 79200, 78100, 77100)
+    ON CONFLICT DO NOTHING;
+  `);
+
+  await pool.query(`
+    INSERT INTO qualifying_results (season, round, driver_id, team_id, q1_time_ms, q2_time_ms, q3_time_ms)
+    VALUES
+      (2025, 1, 'lando_norris', 'mclaren', 80000, 79000, NULL),
+      (2025, 1, 'oscar_piastri', 'mclaren', 80500, 79500, 81000),
+      (2025, 1, 'max_verstappen', 'red-bull', 79000, 78000, 77000),
+      (2025, 1, 'sergio_perez', 'red-bull', 79200, 78100, 77100)
     ON CONFLICT DO NOTHING;
   `);
 }
@@ -206,6 +218,31 @@ describe('Teammate gap ingestion pipelines', () => {
 
     expect(parseInt(result.rows[0].shared_races, 10)).toBe(4);
     expect(result.rows[0].coverage_status).toBe('low_coverage');
+  });
+
+  it('writes a race summary the public teammate query can read', async () => {
+    const executor = new QueryExecutor(pool);
+    const intent: QueryIntent = {
+      kind: 'teammate_gap_summary_season',
+      driver_a_id: 'lando_norris',
+      driver_b_id: 'oscar_piastri',
+      season: 2025,
+      metric: 'teammate_gap_raw',
+      normalization: 'team_baseline',
+      clean_air_only: false,
+      compound_context: 'mixed',
+      session_scope: 'race',
+      raw_query: 'Lando Norris vs Oscar Piastri 2025 race pace'
+    };
+
+    const response = await executor.execute(intent);
+
+    expect('error' in response).toBe(false);
+    if (!('error' in response)) {
+      expect(response.result.type).toBe('teammate_gap_summary_season');
+      expect(response.result.payload.shared_races).toBe(4);
+      expect(response.result.payload.coverage_status).toBe('low_coverage');
+    }
   });
 
   it('fails schema validation when required columns are missing', async () => {

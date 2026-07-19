@@ -41,8 +41,8 @@ function getCoverageStatus(sharedEvents: number): 'valid' | 'low_coverage' | 'in
   return 'insufficient';
 }
 
-async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
-  console.log(`Computing matchups for season ${SEASON}...`);
+async function computeMatchups(pool: Pool, season: number): Promise<MatchupResult[]> {
+  console.log(`Computing matchups for season ${season}...`);
 
   // Get all unique driver pairs that participated in the season
   // We need to compute h2h for both qualifying and race
@@ -88,7 +88,7 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
     FROM driver_pairs
     GROUP BY driver_a_id, driver_b_id
     ORDER BY shared_events DESC
-  `, [SEASON]);
+  `, [season]);
 
   for (const row of qualifyingResult.rows) {
     const sharedEvents = parseInt(row.shared_events, 10);
@@ -113,7 +113,7 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
     `SELECT COUNT(*) AS count FROM race_data rd
      JOIN race r ON r.id = rd.race_id
      WHERE r.year = $1 AND rd.type = 'RACE_RESULT'`,
-    [SEASON]
+    [season]
   );
   const hasRaceResults = parseInt(raceResultCheck.rows[0]?.count || '0', 10) > 0;
 
@@ -161,7 +161,7 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
     FROM driver_pairs
     GROUP BY driver_a_id, driver_b_id
     ORDER BY shared_events DESC
-  `, [SEASON]);
+  `, [season]);
 
   for (const row of raceResult.rows) {
     const sharedEvents = parseInt(row.shared_events, 10);
@@ -183,7 +183,7 @@ async function computeMatchups(pool: Pool): Promise<MatchupResult[]> {
   return matchups;
 }
 
-async function upsertMatchups(pool: Pool, matchups: MatchupResult[]): Promise<void> {
+async function upsertMatchups(pool: Pool, matchups: MatchupResult[], season: number): Promise<void> {
   console.log('Upserting matchups into driver_matchup_matrix_2025...');
 
   let insertCount = 0;
@@ -209,7 +209,7 @@ async function upsertMatchups(pool: Pool, matchups: MatchupResult[]): Promise<vo
       matchup.driver_a_id,
       matchup.driver_b_id,
       matchup.metric,
-      SEASON,
+      season,
       matchup.driver_a_wins,
       matchup.driver_b_wins,
       matchup.ties,
@@ -264,8 +264,8 @@ export async function runMatchupSync(pool: Pool, season: number = SEASON): Promi
     throw new Error('Table driver_matchup_matrix_2025 does not exist. Run migration first.');
   }
 
-  const matchups = await computeMatchups(pool);
-  await upsertMatchups(pool, matchups);
+  const matchups = await computeMatchups(pool, season);
+  await upsertMatchups(pool, matchups, season);
 
   console.log('');
   console.log('=== Ingestion Complete ===');

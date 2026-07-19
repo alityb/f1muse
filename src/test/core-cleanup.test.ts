@@ -10,7 +10,7 @@ let pool: Pool;
 let driverResolver: DriverResolver;
 let trackResolver: TrackResolver;
 let executor: QueryExecutor;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   try {
@@ -61,7 +61,7 @@ describe('Strict literal track resolution', () => {
   it.skipIf(!dbAvailable)('resolves literal circuit names', async () => {
     const result = await trackResolver.resolve('Suzuka');
     expect(result.success).toBe(true);
-    expect(result.f1db_track_id).toBe('suzuka');
+    expect(result.f1db_track_id).toBe('japanese_grand_prix');
   });
 
   it.skipIf(!dbAvailable)('rejects non-literal aliases', async () => {

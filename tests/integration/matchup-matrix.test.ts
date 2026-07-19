@@ -22,7 +22,7 @@ import { EXPECTED_RESULTS } from './fixtures';
 
 let pool: Pool | null = null;
 let executor: QueryExecutor | null = null;
-let dbAvailable = false;
+let dbAvailable = process.env.REQUIRE_TEST_DATABASE === 'true';
 
 beforeAll(async () => {
   dbAvailable = await canRunIntegrationTests();
@@ -129,10 +129,9 @@ describe('Matchup Matrix Integration Tests', () => {
 
       if (isQueryResult(response)) {
         const payload = response.result.payload as DriverMatchupLookupPayload;
-        // From fixtures: LEC vs SAI is 5-5 (stored as carlos_sainz primary due to lexicographic order)
-        // carlos_sainz < charles_leclerc alphabetically
-        expect(payload.driver_primary_id).toBe('carlos_sainz');
-        expect(payload.driver_secondary_id).toBe('charles_leclerc');
+        // Payload preserves user order while the template normalizes storage order.
+        expect(payload.driver_primary_id).toBe('charles_leclerc');
+        expect(payload.driver_secondary_id).toBe('carlos_sainz');
         expect(payload.primary_wins).toBe(5);
         expect(payload.secondary_wins).toBe(5);
       }
@@ -154,12 +153,11 @@ describe('Matchup Matrix Integration Tests', () => {
 
       if (isQueryResult(response)) {
         const payload = response.result.payload as DriverMatchupLookupPayload;
-        // Should normalize to max_verstappen as primary (comes first alphabetically)
-        expect(payload.driver_primary_id).toBe('max_verstappen');
-        expect(payload.driver_secondary_id).toBe('sergio_perez');
-        // Results should still be correct (VER 7-3 PER)
-        expect(payload.primary_wins).toBe(7);
-        expect(payload.secondary_wins).toBe(3);
+        // Payload preserves user order; wins are remapped from canonical storage.
+        expect(payload.driver_primary_id).toBe('sergio_perez');
+        expect(payload.driver_secondary_id).toBe('max_verstappen');
+        expect(payload.primary_wins).toBe(3);
+        expect(payload.secondary_wins).toBe(7);
       }
     });
 
@@ -187,11 +185,12 @@ describe('Matchup Matrix Integration Tests', () => {
         const payloadAB = responseAB.result.payload as DriverMatchupLookupPayload;
         const payloadBA = responseBA.result.payload as DriverMatchupLookupPayload;
 
-        // Both should have same primary driver (lexicographically first)
-        expect(payloadAB.driver_primary_id).toBe(payloadBA.driver_primary_id);
-        expect(payloadAB.driver_secondary_id).toBe(payloadBA.driver_secondary_id);
-        expect(payloadAB.primary_wins).toBe(payloadBA.primary_wins);
-        expect(payloadAB.secondary_wins).toBe(payloadBA.secondary_wins);
+        expect(payloadAB.driver_primary_id).toBe('lando_norris');
+        expect(payloadAB.driver_secondary_id).toBe('oscar_piastri');
+        expect(payloadBA.driver_primary_id).toBe('oscar_piastri');
+        expect(payloadBA.driver_secondary_id).toBe('lando_norris');
+        expect(payloadAB.primary_wins).toBe(payloadBA.secondary_wins);
+        expect(payloadAB.secondary_wins).toBe(payloadBA.primary_wins);
       }
     });
   });
@@ -210,12 +209,10 @@ describe('Matchup Matrix Integration Tests', () => {
 
       if (isQueryResult(response)) {
         const payload = response.result.payload as DriverMatchupLookupPayload;
-        // From fixtures: charles_leclerc vs max_verstappen -> LEC 2-8 VER
-        // charles_leclerc comes first alphabetically
-        expect(payload.driver_primary_id).toBe('charles_leclerc');
-        expect(payload.driver_secondary_id).toBe('max_verstappen');
-        expect(payload.primary_wins).toBe(2);
-        expect(payload.secondary_wins).toBe(8);
+        expect(payload.driver_primary_id).toBe('max_verstappen');
+        expect(payload.driver_secondary_id).toBe('charles_leclerc');
+        expect(payload.primary_wins).toBe(8);
+        expect(payload.secondary_wins).toBe(2);
       }
     });
 
@@ -232,11 +229,10 @@ describe('Matchup Matrix Integration Tests', () => {
 
       if (isQueryResult(response)) {
         const payload = response.result.payload as DriverMatchupLookupPayload;
-        // From fixtures: lando_norris vs max_verstappen -> NOR 3-7 VER
-        expect(payload.driver_primary_id).toBe('lando_norris');
-        expect(payload.driver_secondary_id).toBe('max_verstappen');
-        expect(payload.primary_wins).toBe(3);
-        expect(payload.secondary_wins).toBe(7);
+        expect(payload.driver_primary_id).toBe('max_verstappen');
+        expect(payload.driver_secondary_id).toBe('lando_norris');
+        expect(payload.primary_wins).toBe(7);
+        expect(payload.secondary_wins).toBe(3);
       }
     });
   });

@@ -72,9 +72,12 @@ function buildEndpointList(): Record<string, string> {
                         (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID);
 
   if (llmConfigured) {
-    const backend = (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID)
-      ? 'Mistral-RS'
-      : process.env.LLM_PROVIDER === 'openai-compatible' ? 'compatible inference provider' : 'Claude';
+    let backend = 'Claude';
+    if (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID) {
+      backend = 'Mistral-RS';
+    } else if (process.env.LLM_PROVIDER === 'openai-compatible') {
+      backend = 'compatible inference provider';
+    }
     endpoints['POST /nl-query'] = `Natural language query (powered by ${backend})`;
   }
 
