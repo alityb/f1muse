@@ -9,6 +9,7 @@ import { createQueryRoutes } from './query';
 import { createDriverRoutes } from './driver';
 import { createDebugRoutes } from './debug';
 import { createShareRoutes } from './share';
+import { createProgramRoutes } from './program';
 import { isLLMConfigured } from '../../llm/claude-client';
 
 export function createRoutes(pool: Pool, cachePool?: Pool): Router {
@@ -28,6 +29,9 @@ export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   router.use('/', createQueryRoutes(pool, executor, logger));
   router.use('/', createDriverRoutes(pool));
   router.use('/', createShareRoutes(pool, executor, cachePool));
+  if (process.env.F1QL_ENABLED === 'true') {
+    router.use('/', createProgramRoutes(pool));
+  }
 
   // Debug routes only in development
   if (process.env.NODE_ENV !== 'production') {
@@ -62,6 +66,10 @@ function buildEndpointList(): Record<string, string> {
     'GET /driver/:driver_id/trend': 'Driver trend analysis',
     'GET /': 'API information'
   };
+
+  if (process.env.F1QL_ENABLED === 'true') {
+    endpoints['POST /program'] = 'Execute a validated F1QL program';
+  }
 
   // Debug endpoints only in development
   if (process.env.NODE_ENV !== 'production') {

@@ -10,6 +10,7 @@ let server: ReturnType<ReturnType<typeof express>['listen']>;
 let baseUrl: string;
 
 beforeAll(async () => {
+  process.env.F1QL_ENABLED = 'true';
   pool = new Pool({ connectionString: getTestDatabaseUrl() });
   await pool.query('SELECT 1');
   await setupTestDatabase(pool);
@@ -84,5 +85,75 @@ describe('in-process API routes', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: 'intent_resolution_failed'
     });
+  });
+
+  it('executes a validated F1QL standings program through HTTP', async () => {
+    await pool.query(
+      `INSERT INTO season_driver_standing
+        (year, position_display_order, position_number, position_text, driver_id, points, championship_won)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [2025, 1, 1, '1', 'lando-norris', 423, true]
+    );
+
+    const response = await fetch(`${baseUrl}/program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 1,
+        root: {
+          op: 'aggregate',
+          input: {
+            op: 'filter',
+            input: { op: 'source', source: 'standings' },
+            where: { season: 2025 }
+          },
+          group_by: ['driver_id'],
+          measures: [{ as: 'total_points', function: 'sum', field: 'points' }]
+        }
+      })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.rows).toEqual([{ driver_id: 'lando-norris', total_points: '423' }]);
+    expect(body.rendering).toContain('official driver standings');
+  });
+
+  it('executes a validated F1QL pace comparison through HTTP', async () => {
+    await pool.query(
+      `INSERT INTO laps_normalized
+        (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound)
+       VALUES
+        (2030, 1, 'test-track', 'max-verstappen', 1, 100, true, false, false, false, true, 'MEDIUM'),
+        (2030, 1, 'test-track', 'max-verstappen', 2, 102, true, false, false, false, true, 'MEDIUM'),
+        (2030, 1, 'test-track', 'lando-norris', 1, 101, true, false, false, false, true, 'MEDIUM'),
+        (2030, 1, 'test-track', 'lando-norris', 2, 103, true, false, false, false, true, 'MEDIUM')`
+    );
+
+    const response = await fetch(`${baseUrl}/program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 1,
+        root: {
+          op: 'pace_delta',
+          driver_a_id: 'max-verstappen',
+          driver_b_id: 'lando-norris',
+          scope: { season: 2030 },
+          filters: { clean_air_only: true, compound: 'MEDIUM' }
+        }
+      })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.rows).toEqual([expect.objectContaining({
+      driver_a_id: 'max-verstappen',
+      driver_b_id: 'lando-norris',
+      shared_events: 1,
+      delta_seconds: -1,
+      delta_percent: -0.9803921568627451
+    })]);
+    expect(body.core_program.root.op).toBe('subtract');
   });
 });

@@ -69,6 +69,7 @@ async function main() {
 
   // Rate limiting
   app.use('/query', apiRateLimiter);
+  app.use('/program', apiRateLimiter);
   app.use('/nl-query', apiRateLimiter);
 
   // Metrics endpoint (no rate limiting)
