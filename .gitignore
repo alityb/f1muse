@@ -52,6 +52,7 @@ venv/
 .env
 
 debug-*
+!src/execution/debug-tracer.ts
 prod_test_*.json
 *.tsbuildinfo
 
@@ -61,4 +62,3 @@ f1-muse-logo/
 blog-draft.md
 architecture.excalidraw
 f1muse.png
-
