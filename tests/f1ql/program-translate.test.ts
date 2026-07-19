@@ -17,6 +17,7 @@ let pool: Pool;
 let server: ReturnType<ReturnType<typeof express>['listen']>;
 let baseUrl: string;
 let model: StubModel;
+let executionAttempts = 0;
 
 beforeAll(async () => {
   process.env.F1QL_TRANSLATION_SHADOW = 'true';
@@ -27,7 +28,7 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   model = new StubModel(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2025 } } }));
-  app.use('/', createProgramTranslateRoutes(pool, model));
+  app.use('/', createProgramTranslateRoutes(pool, model, () => { executionAttempts++; throw new Error('shadow mode must not execute'); }));
   await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -68,5 +69,9 @@ describe('shadow F1QL translation', () => {
       succeeded: 1, invalid: 2, unavailable: 1, identity_miss: 1, unsupported: 1
     });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 1');
+  });
+
+  it('never invokes the injected executor in shadow mode', () => {
+    expect(executionAttempts).toBe(0);
   });
 });

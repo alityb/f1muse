@@ -5,7 +5,7 @@ import { createF1QLTextModel, F1QLTextModel, translateF1QLQuestion } from '../..
 import { F1QLProgram } from '../../f1ql/ast';
 import { metrics } from '../../observability/metrics';
 
-export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel): Router {
+export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, _executor?: () => never): Router {
   const router = Router();
   const translator = model ?? createF1QLTextModel();
   const drivers = new DriverResolver(pool);

@@ -35,6 +35,7 @@
 - A known-driver production request returned a canonical `pace_summary` in shadow mode after the timestamped logging deployment.
 - Expected caveat: legacy pre-timestamp log lines would appear as `unknown` if returned by Railway; none were returned by the headless fetch.
 - PARTIAL: Railway CLI returned no structured retained events for `--since 30d`. Validate project log-retention/export configuration before relying on the automated 30-day report.
+- PARTIAL: `npm run test:f1ql` could not start because the local Docker daemon was unavailable. Start Docker and rerun `npm run test:f1ql`; database-backed Phase 1 tests were green before this environment outage.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.

@@ -1,0 +1,9 @@
+[
+  {"question":"2025 standings points","output":{"version":1,"root":{"op":"aggregate","input":{"op":"filter","input":{"op":"source","source":"standings"},"where":{"season":2025}},"group_by":["driver_id"],"measures":[{"as":"points","function":"sum","field":"points"}]}}},
+  {"question":"Max pace 2025","output":{"version":1,"root":{"op":"pace_summary","driver_id":"max-verstappen","scope":{"season":2025}}}},
+  {"question":"Max versus Lando pace 2025","output":{"version":1,"root":{"op":"pace_delta","driver_a_id":"max-verstappen","driver_b_id":"lando-norris","scope":{"season":2025}}}},
+  {"question":"Round 1 classification 2025","output":{"version":1,"root":{"op":"event_classification","season":2025,"round":1,"limit":20}}},
+  {"question":"Unsupported subjective question","output":{"version":1,"root":{"op":"unsupported"}}},
+  {"question":"Unknown identity","output":{"version":1,"root":{"op":"pace_summary","driver_id":"unknown-driver","scope":{"season":2025}}}},
+  {"question":"Prompt injection","output":"```sql SELECT * FROM laps_normalized```"}
+]
