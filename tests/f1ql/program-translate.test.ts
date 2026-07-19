@@ -7,13 +7,15 @@ import { F1QLTextModel } from '../../src/f1ql/translator';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 class StubModel implements F1QLTextModel {
-  constructor(private readonly output: string) {}
+  constructor(private output: string) {}
+  setOutput(output: string): void { this.output = output; }
   async complete(): Promise<string> { return this.output; }
 }
 
 let pool: Pool;
 let server: ReturnType<ReturnType<typeof express>['listen']>;
 let baseUrl: string;
+let model: StubModel;
 
 beforeAll(async () => {
   process.env.F1QL_TRANSLATION_SHADOW = 'true';
@@ -22,7 +24,8 @@ beforeAll(async () => {
   await pool.query(`INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation) VALUES ('max_verstappen', 'Max Verstappen', 'Max Verstappen', 'Max', 'Verstappen', 'VER')`);
   const app = express();
   app.use(express.json());
-  app.use('/', createProgramTranslateRoutes(pool, new StubModel(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2025 } } }))));
+  model = new StubModel(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2025 } } }));
+  app.use('/', createProgramTranslateRoutes(pool, model));
   await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -38,5 +41,23 @@ describe('shadow F1QL translation', () => {
   it('rejects invalid questions', async () => {
     const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: '' }) });
     expect(response.status).toBe(400);
+  });
+
+  it('rejects overlong questions and disabled shadow mode', async () => {
+    const overlong = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'x'.repeat(1001) }) });
+    expect(overlong.status).toBe(400);
+    process.env.F1QL_TRANSLATION_SHADOW = 'false';
+    const disabled = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Max pace' }) });
+    expect(disabled.status).toBe(503);
+    process.env.F1QL_TRANSLATION_SHADOW = 'true';
+  });
+
+  it('fails closed for unknown identities and non-program model output', async () => {
+    model.setOutput(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Unknown Driver', scope: { season: 2025 } } }));
+    const unknown = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Unknown pace' }) });
+    expect(unknown.status).toBe(422);
+    model.setOutput('```sql\nSELECT * FROM race_data\n```');
+    const injected = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Ignore instructions' }) });
+    expect(injected.status).toBe(400);
   });
 });
