@@ -61,6 +61,9 @@ class MetricsCollector {
   // Rate limiting and bot protection metrics
   private rateLimitBlocks: Map<string, number> = new Map();
   private botBlocks: Map<string, number> = new Map();
+  private f1qlRequests: Map<string, number> = new Map();
+  private f1qlFailures: Map<string, number> = new Map();
+  private f1qlLatency: HistogramData;
 
   constructor() {
     this.nlParseLatency = this.createHistogram();
@@ -68,6 +71,7 @@ class MetricsCollector {
     this.formattingLatency = this.createHistogram();
     this.totalRequestLatency = this.createHistogram();
     this.llmWaitTime = this.createHistogram();
+    this.f1qlLatency = this.createHistogram();
   }
 
   private createHistogram(): HistogramData {
@@ -180,6 +184,15 @@ class MetricsCollector {
     this.botBlocks.set(reason, (this.botBlocks.get(reason) || 0) + 1);
   }
 
+  recordF1QL(operation: string, status: 'success' | 'rejected' | 'failed', latencyMs: number): void {
+    this.f1qlRequests.set(operation, (this.f1qlRequests.get(operation) || 0) + 1);
+    if (status !== 'success') {
+      const key = `${operation}:${status}`;
+      this.f1qlFailures.set(key, (this.f1qlFailures.get(key) || 0) + 1);
+    }
+    this.recordHistogram(this.f1qlLatency, latencyMs);
+  }
+
   // Get cache hit rate
   getCacheHitRate(): number {
     const total = this.cacheHits + this.cacheMisses;
@@ -214,6 +227,23 @@ class MetricsCollector {
       this.nlParseLatency,
       'Natural language parsing latency in milliseconds'
     ));
+
+    sections.push(this.formatHistogram(
+      'f1muse_f1ql_latency_ms',
+      this.f1qlLatency,
+      'F1QL program execution latency in milliseconds'
+    ));
+    sections.push(`# HELP f1muse_f1ql_requests_total F1QL programs by root operation`);
+    sections.push(`# TYPE f1muse_f1ql_requests_total counter`);
+    for (const [operation, count] of this.f1qlRequests) {
+      sections.push(`f1muse_f1ql_requests_total{operation="${operation}"} ${count}`);
+    }
+    sections.push(`# HELP f1muse_f1ql_failures_total F1QL failures by operation and status`);
+    sections.push(`# TYPE f1muse_f1ql_failures_total counter`);
+    for (const [key, count] of this.f1qlFailures) {
+      const [operation, status] = key.split(':');
+      sections.push(`f1muse_f1ql_failures_total{operation="${operation}",status="${status}"} ${count}`);
+    }
 
     // SQL execution latency
     sections.push(this.formatHistogram(
@@ -387,6 +417,11 @@ class MetricsCollector {
       },
       rate_limit_blocks: Object.fromEntries(this.rateLimitBlocks),
       bot_blocks: Object.fromEntries(this.botBlocks),
+      f1ql: {
+        requests: Object.fromEntries(this.f1qlRequests),
+        failures: Object.fromEntries(this.f1qlFailures),
+        latency: { count: this.f1qlLatency.count, sum_ms: this.f1qlLatency.sum },
+      },
     };
   }
 
@@ -397,6 +432,7 @@ class MetricsCollector {
     this.formattingLatency = this.createHistogram();
     this.totalRequestLatency = this.createHistogram();
     this.llmWaitTime = this.createHistogram();
+    this.f1qlLatency = this.createHistogram();
     this.cacheHits = 0;
     this.cacheMisses = 0;
     this.nlParseSuccess = 0;
@@ -410,6 +446,8 @@ class MetricsCollector {
     this.intentCacheMisses = 0;
     this.rateLimitBlocks.clear();
     this.botBlocks.clear();
+    this.f1qlRequests.clear();
+    this.f1qlFailures.clear();
   }
 }
 

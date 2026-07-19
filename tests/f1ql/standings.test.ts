@@ -195,6 +195,18 @@ describe('F1QL standings vertical slice', () => {
     })).toThrow();
   });
 
+  it('rejects pace programs whose requested scope exceeds the execution budget', async () => {
+    const rounds = Array.from({ length: 25 }, (_, index) => index + 1);
+    await expect(executeF1QL(pool, {
+      version: 1,
+      root: {
+        op: 'pace_summary',
+        driver_id: 'max-verstappen',
+        scope: { season: 2025, rounds }
+      }
+    })).rejects.toThrow('At most 24 rounds may be requested');
+  });
+
   it('lowers pace_delta to aligned pace aggregates and a scalar subtraction', () => {
     expect(lowerF1QL(paceProgram).root).toMatchObject({
       op: 'subtract',
