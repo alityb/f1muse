@@ -1,12 +1,12 @@
 import { Request, Response, Router } from 'express';
 import { Pool } from 'pg';
 import { DriverResolver } from '../../identity/driver-resolver';
-import { AnthropicF1QLModel, F1QLTextModel, translateF1QLQuestion } from '../../f1ql/translator';
+import { createF1QLTextModel, F1QLTextModel, translateF1QLQuestion } from '../../f1ql/translator';
 import { F1QLProgram } from '../../f1ql/ast';
 
 export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel): Router {
   const router = Router();
-  const translator = model ?? new AnthropicF1QLModel(process.env.ANTHROPIC_API_KEY ?? '');
+  const translator = model ?? createF1QLTextModel();
   const drivers = new DriverResolver(pool);
 
   router.post('/program/translate', async (req: Request, res: Response) => {
