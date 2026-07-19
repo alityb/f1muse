@@ -1,0 +1,6 @@
+[F1QLTranslation] {"timestamp":"2026-07-01T00:00:00.000Z","outcome":"succeeded","reason":"validated_shadow_program","latency_ms":12,"operation":"pace_summary"}
+{"timestamp":"2026-07-02T00:00:00.000Z","message":"[F1QLTranslation] {\"outcome\":\"invalid\",\"reason\":\"question_invalid\",\"latency_ms\":3}"}
+[F1QLTranslation] {"timestamp":"2026-07-03T00:00:00.000Z","outcome":"unsupported","reason":"program_invalid","latency_ms":4}
+{"timestamp":"2026-07-04T00:00:00.000Z","message":"[F1QLTranslation] {\"outcome\":\"identity_miss\",\"reason\":\"identity_unresolved\",\"latency_ms\":5}"}
+[F1QLTranslation] {"timestamp":"2026-07-05T00:00:00.000Z","outcome":"unavailable","reason":"shadow_disabled","latency_ms":6}
+malformed external log line

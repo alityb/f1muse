@@ -17,7 +17,7 @@ jobs:
       - run: npm ci
       - run: |
           if [ -n "$RAILWAY_TOKEN" ]; then
-            npx @railway/cli@latest logs --since 30d --json > shadow.log
+            npx @railway/cli@latest logs --service main --environment production --since 30d --json > shadow.log
           else
             touch shadow.log
           fi

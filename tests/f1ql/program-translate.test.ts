@@ -32,7 +32,7 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 
-afterAll(async () => { if (server) await new Promise<void>((resolve) => server.close(() => resolve())); await pool.end(); });
+afterAll(async () => { if (server) await new Promise<void>((resolve) => server.close(() => resolve())); if (pool) await pool.end(); });
 
 describe('shadow F1QL translation', () => {
   it('returns a resolved program without executing it', async () => {
