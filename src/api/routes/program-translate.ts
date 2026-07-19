@@ -24,7 +24,7 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel):
       console.log('[F1QLTranslation]', JSON.stringify({ status: 'success', operation: resolved.root.op }));
       return res.status(200).json({ mode: 'shadow', program: resolved });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'translation failed';
+      const reason = error instanceof Error && error.message.startsWith('identity_unresolved') ? error.message : 'translation did not produce a supported program';
       const status = reason.startsWith('identity_unresolved') ? 422 : 400;
       console.log('[F1QLTranslation]', JSON.stringify({ status: 'rejected' }));
       return res.status(status).json({ error: status === 422 ? 'identity_unresolved' : 'program_unsupported', reason });
