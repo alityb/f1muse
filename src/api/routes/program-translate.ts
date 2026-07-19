@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { DriverResolver } from '../../identity/driver-resolver';
 import { createF1QLTextModel, F1QLTextModel, translateF1QLQuestion } from '../../f1ql/translator';
 import { F1QLProgram } from '../../f1ql/ast';
+import { metrics } from '../../observability/metrics';
 
 export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel): Router {
   const router = Router();
@@ -10,22 +11,27 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel):
   const drivers = new DriverResolver(pool);
 
   router.post('/program/translate', async (req: Request, res: Response) => {
+    const startedAt = Date.now();
     const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
     if (!question || question.length > 1000) {
+      metrics.recordF1QLTranslation('invalid', Date.now() - startedAt);
       return res.status(400).json({ error: 'translation_invalid', reason: 'question must be 1-1000 characters' });
     }
     if (process.env.F1QL_TRANSLATION_SHADOW !== 'true') {
+      metrics.recordF1QLTranslation('unavailable', Date.now() - startedAt);
       return res.status(503).json({ error: 'translation_unavailable', reason: 'shadow mode is not enabled' });
     }
 
     try {
       const program = await translateF1QLQuestion(question, translator);
       const resolved = await resolveDriverIds(program, drivers);
+      metrics.recordF1QLTranslation('succeeded', Date.now() - startedAt);
       console.log('[F1QLTranslation]', JSON.stringify({ status: 'success', operation: resolved.root.op }));
       return res.status(200).json({ mode: 'shadow', program: resolved });
     } catch (error) {
       const reason = error instanceof Error && error.message.startsWith('identity_unresolved') ? error.message : 'translation did not produce a supported program';
       const status = reason.startsWith('identity_unresolved') ? 422 : 400;
+      metrics.recordF1QLTranslation(status === 422 ? 'identity_miss' : 'unsupported', Date.now() - startedAt);
       console.log('[F1QLTranslation]', JSON.stringify({ status: 'rejected' }));
       return res.status(status).json({ error: status === 422 ? 'identity_unresolved' : 'program_unsupported', reason });
     }

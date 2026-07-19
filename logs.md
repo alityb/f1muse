@@ -19,6 +19,9 @@
 - Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
 
+### Phase 1 Metrics Fixture
+- Local shadow route test observed: succeeded=1, invalid=2, unavailable=1, identity_miss=1, unsupported=1.
+
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.

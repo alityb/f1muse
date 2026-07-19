@@ -64,6 +64,7 @@ class MetricsCollector {
   private f1qlRequests: Map<string, number> = new Map();
   private f1qlFailures: Map<string, number> = new Map();
   private f1qlLatency: HistogramData;
+  private f1qlTranslationOutcomes: Map<string, number> = new Map();
 
   constructor() {
     this.nlParseLatency = this.createHistogram();
@@ -193,6 +194,11 @@ class MetricsCollector {
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
+  recordF1QLTranslation(outcome: 'succeeded' | 'invalid' | 'unsupported' | 'identity_miss' | 'unavailable', latencyMs: number): void {
+    this.f1qlTranslationOutcomes.set(outcome, (this.f1qlTranslationOutcomes.get(outcome) || 0) + 1);
+    this.recordHistogram(this.f1qlLatency, latencyMs);
+  }
+
   // Get cache hit rate
   getCacheHitRate(): number {
     const total = this.cacheHits + this.cacheMisses;
@@ -243,6 +249,11 @@ class MetricsCollector {
     for (const [key, count] of this.f1qlFailures) {
       const [operation, status] = key.split(':');
       sections.push(`f1muse_f1ql_failures_total{operation="${operation}",status="${status}"} ${count}`);
+    }
+    sections.push(`# HELP f1muse_f1ql_translation_outcomes_total Shadow translation outcomes`);
+    sections.push(`# TYPE f1muse_f1ql_translation_outcomes_total counter`);
+    for (const [outcome, count] of this.f1qlTranslationOutcomes) {
+      sections.push(`f1muse_f1ql_translation_outcomes_total{outcome="${outcome}"} ${count}`);
     }
 
     // SQL execution latency
@@ -421,6 +432,7 @@ class MetricsCollector {
         requests: Object.fromEntries(this.f1qlRequests),
         failures: Object.fromEntries(this.f1qlFailures),
         latency: { count: this.f1qlLatency.count, sum_ms: this.f1qlLatency.sum },
+        translation_outcomes: Object.fromEntries(this.f1qlTranslationOutcomes),
       },
     };
   }
@@ -448,6 +460,7 @@ class MetricsCollector {
     this.botBlocks.clear();
     this.f1qlRequests.clear();
     this.f1qlFailures.clear();
+    this.f1qlTranslationOutcomes.clear();
   }
 }
 
