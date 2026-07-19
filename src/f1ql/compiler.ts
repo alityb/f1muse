@@ -41,7 +41,7 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
 
 function compileEventClassification(node: CoreEventClassificationNode): CompiledF1QL {
   return {
-    sql: `SELECT driver_id, finishing_position, points, status FROM f1ql.event_classification WHERE season = $1 AND round = $2 ORDER BY finishing_position ASC, driver_id ASC LIMIT ${node.limit}`,
+    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE season = $1 AND round = $2 ORDER BY finishing_position ASC NULLS LAST, driver_id ASC LIMIT ${node.limit}`,
     params: [node.season, node.round]
   };
 }

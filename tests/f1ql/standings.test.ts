@@ -341,16 +341,20 @@ describe('F1QL standings vertical slice', () => {
       (2001, 'RACE_RESULT', 'max_verstappen', 1, 25, NULL),
       (2001, 'RACE_RESULT', 'lando_norris', 2, 18, NULL),
       (2001, 'RACE_RESULT', 'driver_dnf', NULL, 0, 'DNF')`);
-    const program: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 9, limit: 2 } };
+    await pool.query(`INSERT INTO race_data (race_id, type, driver_id, position_number, race_points, race_reason_retired) VALUES
+      (2001, 'RACE_RESULT', 'driver_dns', NULL, 0, 'DNS')`);
+    const program: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 9, limit: 4 } };
     const compiled = compileF1QL(lowerF1QL(program));
     const executed = await executeF1QL(pool, program);
 
     expect(compiled.sql).toContain('f1ql.event_classification');
     expect(compiled.params).toEqual([2025, 9]);
     expect(executed.rows).toEqual([
-      { driver_id: 'max-verstappen', finishing_position: 1, points: '25', status: 'classified' },
-      { driver_id: 'lando-norris', finishing_position: 2, points: '18', status: 'classified' }
+      { driver_id: 'max-verstappen', finishing_position: 1, points: '25', classification_status: 'classified', status_reason: null },
+      { driver_id: 'lando-norris', finishing_position: 2, points: '18', classification_status: 'classified', status_reason: null },
+      { driver_id: 'driver-dnf', finishing_position: null, points: '0', classification_status: 'dnf', status_reason: 'DNF' },
+      { driver_id: 'driver-dns', finishing_position: null, points: '0', classification_status: 'dns', status_reason: 'DNS' }
     ]);
-    expect(renderF1QL(program)).toBe('Official race classification; season 2025; round 9; top 2.');
+    expect(renderF1QL(program)).toBe('Official race classification; season 2025; round 9; top 4.');
   });
 });
