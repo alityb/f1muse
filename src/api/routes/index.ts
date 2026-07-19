@@ -10,6 +10,7 @@ import { createDriverRoutes } from './driver';
 import { createDebugRoutes } from './debug';
 import { createShareRoutes } from './share';
 import { createProgramRoutes } from './program';
+import { createProgramTranslateRoutes } from './program-translate';
 import { isLLMConfigured } from '../../llm/claude-client';
 
 export function createRoutes(pool: Pool, cachePool?: Pool): Router {
@@ -31,6 +32,9 @@ export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   router.use('/', createShareRoutes(pool, executor, cachePool));
   if (process.env.F1QL_ENABLED === 'true') {
     router.use('/', createProgramRoutes(pool));
+  }
+  if (process.env.F1QL_TRANSLATION_ENABLED === 'true') {
+    router.use('/', createProgramTranslateRoutes(pool));
   }
 
   // Debug routes only in development

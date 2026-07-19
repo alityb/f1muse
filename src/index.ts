@@ -13,6 +13,7 @@ import { initRedisCache, getRedisCache } from './cache/redis-cache';
 import { createMetricsRouter, metricsMiddleware } from './observability/metrics';
 import {
   apiRateLimiter,
+  nlQueryRateLimiter,
   requestTimeout,
   configureCORS,
   requestLogger,
@@ -70,6 +71,7 @@ async function main() {
   // Rate limiting
   app.use('/query', apiRateLimiter);
   app.use('/program', apiRateLimiter);
+  app.use('/program/translate', nlQueryRateLimiter);
   app.use('/nl-query', apiRateLimiter);
 
   // Metrics endpoint (no rate limiting)
