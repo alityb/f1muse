@@ -1,4 +1,5 @@
 import { F1QLProgram } from '../src/f1ql/ast';
+import { resolveChampionshipScoringRules } from '../src/scoring/rules';
 
 export interface ProductionGoldenCase {
   id: string;
@@ -7,6 +8,7 @@ export interface ProductionGoldenCase {
     document: string;
     url: string;
   };
+  scoring_rule_id?: string;
   program: F1QLProgram;
   expected_facts: Array<Record<string, unknown>>;
 }
@@ -20,6 +22,7 @@ export const productionGoldenManifest: readonly ProductionGoldenCase[] = [
       document: '2024 Bahrain Grand Prix Final Race Classification',
       url: 'https://www.fia.com/documents/season/season-2024-2043/championships/formula-1-world-championship-14'
     },
+    scoring_rule_id: 'fia-2022-2024-sprint-top-eight',
     program: {
       version: 1,
       root: {
@@ -60,6 +63,16 @@ export const productionGoldenManifest: readonly ProductionGoldenCase[] = [
     }]
   }
 ];
+
+for (const golden of productionGoldenManifest) {
+  if (!golden.scoring_rule_id || golden.program.root.op !== 'event_classification') {
+    continue;
+  }
+  const resolution = resolveChampionshipScoringRules(golden.program.root.season);
+  if (resolution.status !== 'supported' || resolution.rules.id !== golden.scoring_rule_id) {
+    throw new Error(`Production golden ${golden.id} has an invalid scoring rule reference`);
+  }
+}
 
 if (productionGoldenManifest.length > 3) {
   throw new Error('Production golden manifest exceeds its three-program bound');
