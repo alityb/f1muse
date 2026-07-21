@@ -90,9 +90,16 @@ export interface QualifyingClassificationNode {
   };
 }
 
+export interface EventMetadataNode {
+  op: 'event_metadata';
+  season: number;
+  round: number;
+  session_scope?: 'race' | 'qualifying';
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode;
 }
 
 export interface F1QLResult {

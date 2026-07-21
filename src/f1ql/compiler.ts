@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -15,6 +15,9 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   }
   if (getSource(program.root as CorePipelineNode).source === 'qualifying_classification') {
     return compileQualifyingClassification(program.root as CorePipelineNode);
+  }
+  if (getSource(program.root as CorePipelineNode).source === 'event_metadata') {
+    return compileEventMetadata(program.root as CorePipelineNode);
   }
   const aggregate = getAggregateRoot(program);
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
@@ -150,6 +153,17 @@ function compileQualifyingClassificationPipeline(node: CorePipelineNode): { wher
     return pipeline;
   }
   throw new Error(`Unsupported qualifying classification core operator ${node.op}`);
+}
+
+function compileEventMetadata(node: CorePipelineNode): CompiledF1QL {
+  if (node.op !== 'filter' || node.input.source !== 'event_metadata') {
+    throw new Error('Expected an event metadata filter');
+  }
+  const where = node.where as CoreEventMetadataFilter;
+  return {
+    sql: 'SELECT event_id, event_name, circuit_id, date::text AS date, $3::text AS session_scope FROM f1ql.event_metadata WHERE season = $1 AND round = $2',
+    params: [where.season, where.round, where.session_scope]
+  };
 }
 
 function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {

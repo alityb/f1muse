@@ -2,7 +2,7 @@ import { AggregateMeasure, StandingsFilter } from './ast';
 
 export interface CoreSourceNode {
   op: 'source';
-  source: 'standings' | 'event_classification' | 'qualifying_classification' | 'lap_pace';
+  source: 'standings' | 'event_classification' | 'qualifying_classification' | 'event_metadata' | 'lap_pace';
 }
 
 export interface CoreEventClassificationFilter {
@@ -34,6 +34,12 @@ export interface CoreQualifyingClassificationFilter {
   team_id?: string;
 }
 
+export interface CoreEventMetadataFilter {
+  season: number;
+  round: number;
+  session_scope: 'race' | 'qualifying';
+}
+
 export interface CoreStandingsFilterNode {
   op: 'filter';
   input: CoreSourceNode & { source: 'standings' };
@@ -58,7 +64,13 @@ export interface CoreQualifyingClassificationFilterNode {
   where: CoreQualifyingClassificationFilter;
 }
 
-export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreQualifyingClassificationFilterNode | CoreLapPaceFilterNode;
+export interface CoreEventMetadataFilterNode {
+  op: 'filter';
+  input: CoreSourceNode & { source: 'event_metadata' };
+  where: CoreEventMetadataFilter;
+}
+
+export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreQualifyingClassificationFilterNode | CoreEventMetadataFilterNode | CoreLapPaceFilterNode;
 
 export type CoreAggregateMeasure = AggregateMeasure | {
   as: string;
@@ -113,5 +125,5 @@ export interface CoreDeltaNode {
 
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreSortNode | CoreLimitNode | CoreDeltaNode;
+  root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode;
 }

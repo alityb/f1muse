@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -45,6 +45,15 @@ export interface QualifyingClassificationRow {
   classification_status: string;
 }
 
+export interface EventMetadataRow {
+  season: number;
+  round: number;
+  event_id: string;
+  event_name: string;
+  circuit_id: string | null;
+  date: string | null;
+}
+
 export function interpretEventClassification(program: CoreProgram, rows: EventClassificationRow[]): Array<Record<string, unknown>> {
   return interpretEventClassificationNode(program.root as CorePipelineNode, rows)
     .map(({ driver_id, finishing_position, points, classification_status, status_reason }) => ({ driver_id, finishing_position, points, classification_status, status_reason }));
@@ -55,6 +64,16 @@ export function interpretQualifyingClassification(program: CoreProgram, rows: Qu
     .map(({ driver_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, classification_status }) => ({
       driver_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, classification_status
     }));
+}
+
+export function interpretEventMetadata(program: CoreProgram, rows: EventMetadataRow[]): Array<Record<string, unknown>> {
+  if (program.root.op !== 'filter' || program.root.input.source !== 'event_metadata') {
+    throw new Error('interpretEventMetadata requires an event metadata filter');
+  }
+  const where = program.root.where as CoreEventMetadataFilter;
+  return rows
+    .filter((row) => row.season === where.season && row.round === where.round)
+    .map(({ event_id, event_name, circuit_id, date }) => ({ event_id, event_name, circuit_id, date, session_scope: where.session_scope }));
 }
 
 export function interpretStandingsProgram(

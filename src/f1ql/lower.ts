@@ -38,6 +38,20 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'qualifying_classification') {
     return lowerQualifyingClassification(program.root);
   }
+  if (program.root.op === 'event_metadata') {
+    return {
+      version: 1,
+      root: {
+        op: 'filter',
+        input: { op: 'source', source: 'event_metadata' },
+        where: {
+          season: program.root.season,
+          round: program.root.round,
+          session_scope: program.root.session_scope ?? 'race'
+        }
+      }
+    };
+  }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const coreAggregate = lowerAggregate(aggregate);
 

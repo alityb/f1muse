@@ -99,6 +99,12 @@
 - Added forward migration `migrations/20260721_add_f1ql_qualifying_classification.sql`; it exposes normalized IDs and classification status from `qualifying_results`. Docker fixtures cover canonical-view SQL execution, ordering, filters, participation rejection, signature rejection, reference interpretation, and the real-emitter lowering golden.
 - Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 46 tests; `npm run test:api:inprocess` passed 7 tests. Shadow translation remains non-executing; no deployment was performed.
 
+### Phase 4 Area 2: Event Metadata and Session Scope (2026-07-21)
+- Added the `event_metadata` first-class F1QL source with typed `season`, `round`, event identity/name, circuit, date, and `session_scope` fields. Session scope is constrained to `race` or `qualifying`; omitted scope explicitly lowers to `race`.
+- Added `f1ql.event_metadata` through the forward migration `migrations/20260721_add_f1ql_event_metadata.sql`, generic core source/filter lowering, signature validation, compiler projection with parameterized scope, and a reference interpreter. Date output is normalized to text for SQL/interpreter parity.
+- The real-emitter corpus and lowering golden include default-race metadata. Docker-backed regressions prove canonical-view execution, default and explicit qualifying scope, parameterization, rendering, and invalid generic fields. Event metadata has no driver participation requirement; shadow translation remains non-executing.
+- Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 48 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
+
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.

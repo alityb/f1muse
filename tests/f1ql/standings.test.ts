@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
 import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { F1QLValidationError } from '../../src/f1ql/validation';
-import { EventClassificationRow, interpretEventClassification, interpretLapPaceProgram, interpretQualifyingClassification, interpretStandingsProgram, PaceLapRow, QualifyingClassificationRow, StandingsRow } from '../../src/f1ql/interpreter';
+import { EventClassificationRow, EventMetadataRow, interpretEventClassification, interpretEventMetadata, interpretLapPaceProgram, interpretQualifyingClassification, interpretStandingsProgram, PaceLapRow, QualifyingClassificationRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
 import { F1QLProgram } from '../../src/f1ql/ast';
@@ -441,6 +441,31 @@ describe('F1QL standings vertical slice', () => {
       { season: 2025, round: 9, driver_id: 'driver-dns', team_id: 'test-team', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: null, classification_status: 'dns' }
     ];
     expect(filteredExecuted.rows).toEqual(interpretQualifyingClassification(lowerF1QL(filtered), referenceRows));
+  });
+
+  it('returns event metadata with an explicit race-session default', async () => {
+    await pool.query(`INSERT INTO grand_prix (id, name, full_name, short_name, abbreviation)
+      VALUES ('australian_grand_prix', 'Australian Grand Prix', 'Formula 1 Australian Grand Prix', 'Australian GP', 'AUS')`);
+    await pool.query(`INSERT INTO race (id, year, round, circuit_id, grand_prix_id, official_name, date)
+      VALUES (2002, 2025, 10, 'albert_park', 'australian_grand_prix', 'Formula 1 Australian Grand Prix', '2025-03-16')`);
+    const program: F1QLProgram = { version: 1, root: { op: 'event_metadata', season: 2025, round: 10 } };
+    const compiled = compileF1QL(lowerF1QL(program));
+    const executed = await executeF1QL(pool, program);
+    const referenceRows: EventMetadataRow[] = [{
+      season: 2025, round: 10, event_id: 'australian-grand-prix', event_name: 'Formula 1 Australian Grand Prix', circuit_id: 'albert_park', date: '2025-03-16'
+    }];
+
+    expect(lowerF1QL(program).root).toMatchObject({
+      op: 'filter', input: { op: 'source', source: 'event_metadata' }, where: { session_scope: 'race' }
+    });
+    expect(compiled.sql).toContain('f1ql.event_metadata');
+    expect(compiled.sql).not.toContain('2025');
+    expect(compiled.params).toEqual([2025, 10, 'race']);
+    expect(executed.rows).toEqual(interpretEventMetadata(lowerF1QL(program), referenceRows));
+    expect(renderF1QL(program)).toBe('Event metadata; season 2025; round 10; race session.');
+
+    const qualifyingProgram: F1QLProgram = { version: 1, root: { op: 'event_metadata', season: 2025, round: 10, session_scope: 'qualifying' } };
+    expect((await executeF1QL(pool, qualifyingProgram)).rows).toEqual([expect.objectContaining({ session_scope: 'qualifying' })]);
   });
 
   it('cancels slow statements under the configured read-only timeout', async () => {

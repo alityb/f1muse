@@ -41,6 +41,14 @@ describe('F1QL validation gates', () => {
     }
     (qualifyingCore.root.input as { by: string }).by = 'best_time_ms';
     expect(() => validateCoreProgram(qualifyingCore)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+
+    const eventMetadataCore = lowerF1QL({ version: 1, root: { op: 'event_metadata', season: 2025, round: 1 } });
+    expect(() => validateCoreProgram(eventMetadataCore)).not.toThrow();
+    if (eventMetadataCore.root.op !== 'filter') {
+      throw new Error('Expected event metadata filter');
+    }
+    (eventMetadataCore.root.where as Record<string, unknown>).unsupported = true;
+    expect(() => validateCoreProgram(eventMetadataCore)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
   });
   it('validates generic pace join and compare fields against the phase 2 signature', () => {
     const core = lowerF1QL({

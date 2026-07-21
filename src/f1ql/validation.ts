@@ -7,7 +7,8 @@ export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
   event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] },
-  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'qualifying_classification'] }
+  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'qualifying_classification'] },
+  event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'event_metadata'] }
 } as const;
 
 export type F1QLValidationCode = 'definitions_version_mismatch' | 'complexity_exceeded' | 'coverage_unsupported' | 'participation_missing' | 'signature_invalid';
@@ -52,6 +53,9 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'event_classification' || root.op === 'qualifying_classification') {
     return { season: root.season, drivers: root.filters?.driver_id ? [root.filters.driver_id] : [] };
   }
+  if (root.op === 'event_metadata') {
+    return { drivers: [] };
+  }
   const aggregate = root.op === 'rank' ? root.input : root;
   if (aggregate.input.op !== 'filter' || typeof aggregate.input.where.season !== 'number' || !aggregate.input.where.driver_id) {
     return { drivers: [] };
@@ -72,7 +76,7 @@ export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidatio
     throw new F1QLValidationError('complexity_exceeded', `Program exceeds the ${maxNodes}-node complexity budget`);
   }
   validateSignature(program);
-  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification') && program.root.round > 30) {
+  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata') && program.root.round > 30) {
     throw new F1QLValidationError('coverage_unsupported', 'Round is outside supported event coverage');
   }
 }
@@ -144,7 +148,7 @@ function signatureFieldsForFilter(source: CoreSourceNode['source'], node: CoreFi
   if (source === 'standings') {
     return Object.keys(node.where);
   }
-  if (source === 'event_classification' || source === 'qualifying_classification') {
+  if (source === 'event_classification' || source === 'qualifying_classification' || source === 'event_metadata') {
     return Object.keys(node.where);
   }
   return Object.keys(node.where)
@@ -164,6 +168,7 @@ function signatureFieldsForAggregate(source: CoreSourceNode['source'], node: { g
   return [...node.group_by, ...measures].filter((field) => field !== 'median_lap_time_seconds');
 }
 
+// eslint-disable-next-line complexity
 function validateSignature(program: F1QLProgram): void {
   const root = program.root;
   if (root.op === 'pace_summary' || root.op === 'pace_delta') {
@@ -178,6 +183,10 @@ function validateSignature(program: F1QLProgram): void {
     } as const;
     const positionField = positionFields[root.op];
     assertSignature(root.op, root.op, [positionField, ...Object.keys(root.filters ?? {})]);
+    return;
+  }
+  if (root.op === 'event_metadata') {
+    assertSignature('event_metadata', 'event_metadata', ['season', 'round', 'session_scope']);
     return;
   }
   const aggregate = root.op === 'rank' ? root.input : root;

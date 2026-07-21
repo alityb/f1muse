@@ -114,9 +114,16 @@ export const qualifyingClassificationNodeSchema = z.object({
   }).strict().optional()
 }).strict();
 
+export const eventMetadataNodeSchema = z.object({
+  op: z.literal('event_metadata'),
+  season,
+  round: z.number().int().min(1).max(30),
+  session_scope: z.enum(['race', 'qualifying']).optional()
+}).strict();
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

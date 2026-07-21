@@ -13,6 +13,9 @@ export function renderF1QL(program: F1QLProgram): string {
   if (program.root.op === 'qualifying_classification') {
     return `Official qualifying classification; season ${program.root.season}; round ${program.root.round}; top ${program.root.limit}.`;
   }
+  if (program.root.op === 'event_metadata') {
+    return `Event metadata; season ${program.root.season}; round ${program.root.round}; ${program.root.session_scope ?? 'race'} session.`;
+  }
   return renderStandings(program);
 }
 
@@ -31,7 +34,7 @@ function renderPaceSummary(node: PaceSummaryNode): string {
 }
 
 function renderStandings(program: F1QLProgram): string {
-  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification') {
+  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata') {
     throw new Error('renderStandings does not accept pace programs');
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;

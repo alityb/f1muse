@@ -223,6 +223,24 @@
     }
   },
   {
+    "question": "Round 1 event metadata 2025",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "filter",
+        "input": {
+          "op": "source",
+          "source": "event_metadata"
+        },
+        "where": {
+          "season": 2025,
+          "round": 1,
+          "session_scope": "race"
+        }
+      }
+    }
+  },
+  {
     "question": "Unknown identity",
     "core_program": {
       "version": 1,
