@@ -23,3 +23,4 @@
 - Began Phase 3 by adding a real-emitter lowering snapshot generator and exact golden test for every schema-valid shadow corpus program.
 - Generated the Phase 3 lowering fixture and verified 42 Docker-backed F1QL tests before the IR refactor.
 - Replaced the fused core `sort_limit` node with composable `sort` and `limit` nodes; regenerated the real-emitter lowering snapshot and verified typecheck, lint, F1QL, and in-process API suites.
+- Began the next Phase 3 milestone by moving standings lowering onto a core-owned source node, separating surface AST source nodes from the IR.

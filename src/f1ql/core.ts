@@ -1,14 +1,19 @@
-import { AggregateMeasure, SourceNode, StandingsFilter } from './ast';
+import { AggregateMeasure, StandingsFilter } from './ast';
+
+export interface CoreSourceNode {
+  op: 'source';
+  source: 'standings';
+}
 
 export interface CoreFilterNode {
   op: 'filter';
-  input: SourceNode;
+  input: CoreSourceNode;
   where: StandingsFilter;
 }
 
 export interface CoreAggregateNode {
   op: 'aggregate';
-  input: CoreFilterNode | SourceNode;
+  input: CoreFilterNode | CoreSourceNode;
   group_by: ['driver_id'];
   measures: AggregateMeasure[];
 }

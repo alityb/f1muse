@@ -1,5 +1,5 @@
 import { AggregateNode, F1QLProgram } from './ast';
-import { CoreAggregateNode, CoreProgram } from './core';
+import { CoreAggregateNode, CoreProgram, CoreSourceNode } from './core';
 
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'pace_delta') {
@@ -68,11 +68,12 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
 }
 
 function lowerAggregate(node: AggregateNode): CoreAggregateNode {
+  const source: CoreSourceNode = { op: 'source', source: node.input.op === 'filter' ? node.input.input.source : node.input.source };
   return {
     op: 'aggregate',
     input: node.input.op === 'filter'
-      ? { op: 'filter', input: node.input.input, where: node.input.where }
-      : node.input,
+      ? { op: 'filter', input: source, where: node.input.where }
+      : source,
     group_by: ['driver_id'],
     measures: node.measures
   };
