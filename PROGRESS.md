@@ -18,7 +18,12 @@
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
 - Phase 4: PARTIAL. Areas 1-3 and retirement-reason normalization/sampling safeguards are complete locally; production sampling is intentionally unrun.
 - Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
-- Phase 5: PARTIAL. A data-driven initial golden corpus covers all current Phase 4 sources, core edge cases, and deliberate rejections; the 100-question expansion, property, metamorphic, and nightly suites do not.
+- Phase 5: PARTIAL. A data-driven initial golden corpus and bounded core-IR property backbone cover all current Phase 4 sources; the 100-question expansion, metamorphic, differential, and nightly suites do not.
+
+### Phase 5 Property Backbone (2026-07-21)
+- Added `fast-check` and `tests/f1ql/core-properties.test.ts`. A deterministic 100-run bounded generator emits only signature-approved generic core IR shapes for standings, event and qualifying classification, event metadata, lap-pace summaries, and lap-pace deltas. Generated limits are 1-20, requested round lists are capped at six (under the Phase 2 24-round budget), and the largest generated pipeline has seven nodes (under the Phase 2 12-node budget).
+- Each generated program passes `validateCoreProgram`, compiles without execution, and asserts read-only `SELECT`/`WITH` SQL with no write/DDL keywords, no statement delimiter, and a parameter count matching generated placeholders. No production access or execution was performed; the existing Docker-backed F1QL fixture wrapper remains the only execution path.
+- Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 68 tests in 10 files; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
 
 ### Phase 5 Initial Golden Corpus (2026-07-21)
 - Added `tests/fixtures/f1ql-golden-corpus.json` with 15 question/program cases: 10 fixture-runnable cases across standings, pace, race and qualifying classification, composable entity filters, and both event-metadata session scopes; five expected schema, participation, and cost-budget rejections.
