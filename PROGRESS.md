@@ -70,6 +70,7 @@
 - Fix: participation now derives every currently scoped driver/season pair, including standings filters and event-classification filters. `/program` now returns a typed 400 rejection code and logs the validation code. Railway report parsing now ignores non-string external `message` envelopes rather than throwing.
 - New Docker-backed regressions cover driver-filtered standings participation, event-classification participation, environment-backed definitions refresh, and HTTP typed participation rejection. The metric expectation was expanded to account for that new rejection.
 - Verification after the audit: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 existing warnings; `npm run test:f1ql` passed 41 tests; `npm run test:api:inprocess` passed 7 tests; `npm run test:unit:db:docker` passed 598 tests in 36 files.
+- Production confidence round-trip: deployment `0e242331-c5e6-4163-823d-1f7419ff38b6` reached `SUCCESS`. A known-driver shadow request returned `pace_summary`; after 15 seconds, the Railway JSONL report showed one attempt, 100.00% success, no rejection reasons, and operation `pace_summary`.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.

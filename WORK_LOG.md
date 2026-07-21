@@ -19,3 +19,4 @@
 - Began a Phase 0-2 confidence audit. It found and corrected participation coverage for driver-filtered standings and event classifications, typed `/program` validation rejections, and non-string Railway log envelope handling; added focused regression tests.
 - The expanded API suite caught the expected additional rejected `pace_summary` metric from the new participation test; updated the exact metric contract accordingly.
 - Confidence verification passed: 41 F1QL tests, 7 in-process API tests, lint with 0 errors, and 598 Docker-backed unit tests across 36 files.
+- Deployed audit hardening as `0e242331-c5e6-4163-823d-1f7419ff38b6`; the production shadow request and report verification both succeeded.
