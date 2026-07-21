@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreEventClassificationNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
+import { CoreAggregateNode, CoreEventClassificationFilterNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -13,8 +13,8 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   if (program.root.op === 'pace_aggregate') {
     return compilePaceAggregate(program.root);
   }
-  if (program.root.op === 'event_classification') {
-    return compileEventClassification(program.root);
+  if (isEventClassificationProgram(program)) {
+    return compileEventClassification(program.root.input.input, program.root.input, program.root.limit);
   }
   const aggregate = getAggregateRoot(program);
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
@@ -40,10 +40,10 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
 }
 
 function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
-  if (program.root.op === 'limit') {
+  if (program.root.op === 'limit' && program.root.input.input.op === 'aggregate') {
     return program.root.input.input;
   }
-  if (program.root.op === 'sort') {
+  if (program.root.op === 'sort' && program.root.input.op === 'aggregate') {
     return program.root.input;
   }
   if (program.root.op === 'aggregate') {
@@ -52,23 +52,32 @@ function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
   throw new Error('Expected a standings aggregate core program');
 }
 
-function compileEventClassification(node: CoreEventClassificationNode): CompiledF1QL {
-  const params: unknown[] = [node.season, node.round];
+function isEventClassificationProgram(program: CoreProgram): program is CoreProgram & { root: CoreLimitNode & { input: { input: CoreEventClassificationFilterNode } } } {
+  return program.root.op === 'limit'
+    && program.root.input.input.op === 'filter'
+    && program.root.input.input.input.source === 'event_classification';
+}
+
+function compileEventClassification(node: CoreEventClassificationFilterNode, sort: CoreLimitNode['input'], limit: number): CompiledF1QL {
+  if (sort.by !== 'finishing_position') {
+    throw new Error(`Unsupported event classification sort field: ${sort.by}`);
+  }
+  const params: unknown[] = [node.where.season, node.where.round];
   const clauses = ['season = $1', 'round = $2'];
-  if (node.filters?.classification_status) {
-    params.push(node.filters.classification_status);
+  if (node.where.classification_status) {
+    params.push(node.where.classification_status);
     clauses.push(`classification_status = ANY($${params.length}::text[])`);
   }
-  if (node.filters?.driver_id) {
-    params.push(node.filters.driver_id);
+  if (node.where.driver_id) {
+    params.push(node.where.driver_id);
     clauses.push(`driver_id = $${params.length}`);
   }
-  if (node.filters?.team_id) {
-    params.push(node.filters.team_id);
+  if (node.where.team_id) {
+    params.push(node.where.team_id);
     clauses.push(`team_id = $${params.length}`);
   }
   return {
-    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE ${clauses.join(' AND ')} ORDER BY finishing_position ASC NULLS LAST, driver_id ASC LIMIT ${node.limit}`,
+    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE ${clauses.join(' AND ')} ORDER BY finishing_position ${sort.direction.toUpperCase()} NULLS ${(sort.nulls ?? 'last').toUpperCase()}, driver_id ASC LIMIT ${limit}`,
     params
   };
 }

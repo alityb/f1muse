@@ -2,27 +2,44 @@ import { AggregateMeasure, StandingsFilter } from './ast';
 
 export interface CoreSourceNode {
   op: 'source';
-  source: 'standings';
+  source: 'standings' | 'event_classification';
 }
 
-export interface CoreFilterNode {
+export interface CoreEventClassificationFilter {
+  season: number;
+  round: number;
+  classification_status?: string[];
+  driver_id?: string;
+  team_id?: string;
+}
+
+export interface CoreStandingsFilterNode {
   op: 'filter';
-  input: CoreSourceNode;
+  input: CoreSourceNode & { source: 'standings' };
   where: StandingsFilter;
 }
 
+export interface CoreEventClassificationFilterNode {
+  op: 'filter';
+  input: CoreSourceNode & { source: 'event_classification' };
+  where: CoreEventClassificationFilter;
+}
+
+export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode;
+
 export interface CoreAggregateNode {
   op: 'aggregate';
-  input: CoreFilterNode | CoreSourceNode;
+  input: CoreStandingsFilterNode | (CoreSourceNode & { source: 'standings' });
   group_by: ['driver_id'];
   measures: AggregateMeasure[];
 }
 
 export interface CoreSortNode {
   op: 'sort';
-  input: CoreAggregateNode;
+  input: CoreAggregateNode | CoreEventClassificationFilterNode;
   by: string;
   direction: 'asc' | 'desc';
+  nulls?: 'first' | 'last';
 }
 
 export interface CoreLimitNode {
@@ -47,19 +64,7 @@ export interface CoreSubtractNode {
   alignment: 'shared_events';
 }
 
-export interface CoreEventClassificationNode {
-  op: 'event_classification';
-  season: number;
-  round: number;
-  limit: number;
-  filters?: {
-    classification_status?: string[];
-    driver_id?: string;
-    team_id?: string;
-  };
-}
-
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreSortNode | CoreLimitNode | CorePaceAggregateNode | CoreSubtractNode | CoreEventClassificationNode;
+  root: CoreAggregateNode | CoreSortNode | CoreLimitNode | CorePaceAggregateNode | CoreSubtractNode;
 }

@@ -67,9 +67,24 @@
     "core_program": {
       "version": 1,
       "root": {
-        "op": "event_classification",
-        "season": 2025,
-        "round": 1,
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "event_classification"
+            },
+            "where": {
+              "season": 2025,
+              "round": 1
+            }
+          },
+          "by": "finishing_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
         "limit": 20
       }
     }

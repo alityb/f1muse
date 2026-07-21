@@ -381,9 +381,6 @@ describe('F1QL standings vertical slice', () => {
     })]);
 
     const filteredCore = lowerF1QL(filtered);
-    if (filteredCore.root.op !== 'event_classification') {
-      throw new Error('Expected event classification');
-    }
     const referenceRows: EventClassificationRow[] = [
       { season: 2025, round: 9, driver_id: 'max-verstappen', team_id: null, finishing_position: 1, points: 25, classification_status: 'classified', status_reason: null },
       { season: 2025, round: 9, driver_id: 'lando-norris', team_id: null, finishing_position: 2, points: 18, classification_status: 'classified', status_reason: null },
@@ -391,7 +388,7 @@ describe('F1QL standings vertical slice', () => {
       { season: 2025, round: 9, driver_id: 'driver-dns', team_id: null, finishing_position: null, points: 0, classification_status: 'dns', status_reason: 'DNS' }
     ];
     expect(filteredExecuted.rows.map((row) => ({ ...row, points: Number(row.points) })))
-      .toEqual(interpretEventClassification(filteredCore.root, referenceRows));
+      .toEqual(interpretEventClassification(filteredCore, referenceRows));
   });
 
   it('cancels slow statements under the configured read-only timeout', async () => {
