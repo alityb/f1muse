@@ -33,10 +33,49 @@
     "core_program": {
       "version": 1,
       "root": {
-        "op": "pace_aggregate",
-        "driver_id": "max-verstappen",
-        "season": 2025,
-        "clean_air_only": false
+        "op": "aggregate",
+        "input": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "lap_pace"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "max-verstappen",
+              "lap_time_seconds": "not_null",
+              "is_valid_lap": true,
+              "is_pit_lap": false,
+              "is_in_lap": false,
+              "is_out_lap": false,
+              "clean_air_only": false
+            }
+          },
+          "group_by": [
+            "round"
+          ],
+          "measures": [
+            {
+              "as": "median_lap_time_seconds",
+              "function": "median",
+              "field": "lap_time_seconds"
+            }
+          ]
+        },
+        "group_by": [],
+        "measures": [
+          {
+            "as": "events",
+            "function": "count"
+          },
+          {
+            "as": "avg_lap_time_seconds",
+            "function": "avg",
+            "field": "median_lap_time_seconds"
+          }
+        ]
       }
     }
   },
@@ -45,20 +84,87 @@
     "core_program": {
       "version": 1,
       "root": {
-        "op": "subtract",
-        "left": {
-          "op": "pace_aggregate",
-          "driver_id": "max-verstappen",
-          "season": 2025,
-          "clean_air_only": false
+        "op": "delta",
+        "input": {
+          "op": "compare",
+          "input": {
+            "op": "join",
+            "left": {
+              "op": "aggregate",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "source",
+                  "source": "lap_pace"
+                },
+                "where": {
+                  "season": 2025,
+                  "driver_id": "max-verstappen",
+                  "lap_time_seconds": "not_null",
+                  "is_valid_lap": true,
+                  "is_pit_lap": false,
+                  "is_in_lap": false,
+                  "is_out_lap": false,
+                  "clean_air_only": false
+                }
+              },
+              "group_by": [
+                "round"
+              ],
+              "measures": [
+                {
+                  "as": "median_lap_time_seconds",
+                  "function": "median",
+                  "field": "lap_time_seconds"
+                }
+              ]
+            },
+            "right": {
+              "op": "aggregate",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "source",
+                  "source": "lap_pace"
+                },
+                "where": {
+                  "season": 2025,
+                  "driver_id": "lando-norris",
+                  "lap_time_seconds": "not_null",
+                  "is_valid_lap": true,
+                  "is_pit_lap": false,
+                  "is_in_lap": false,
+                  "is_out_lap": false,
+                  "clean_air_only": false
+                }
+              },
+              "group_by": [
+                "round"
+              ],
+              "measures": [
+                {
+                  "as": "median_lap_time_seconds",
+                  "function": "median",
+                  "field": "lap_time_seconds"
+                }
+              ]
+            },
+            "on": [
+              "round"
+            ],
+            "type": "inner"
+          },
+          "left": {
+            "field": "median_lap_time_seconds",
+            "as": "driver_a_median"
+          },
+          "right": {
+            "field": "median_lap_time_seconds",
+            "as": "driver_b_median"
+          }
         },
-        "right": {
-          "op": "pace_aggregate",
-          "driver_id": "lando-norris",
-          "season": 2025,
-          "clean_air_only": false
-        },
-        "alignment": "shared_events"
+        "left_id": "max-verstappen",
+        "right_id": "lando-norris"
       }
     }
   },
@@ -94,10 +200,49 @@
     "core_program": {
       "version": 1,
       "root": {
-        "op": "pace_aggregate",
-        "driver_id": "unknown-driver",
-        "season": 2025,
-        "clean_air_only": false
+        "op": "aggregate",
+        "input": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "lap_pace"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "unknown-driver",
+              "lap_time_seconds": "not_null",
+              "is_valid_lap": true,
+              "is_pit_lap": false,
+              "is_in_lap": false,
+              "is_out_lap": false,
+              "clean_air_only": false
+            }
+          },
+          "group_by": [
+            "round"
+          ],
+          "measures": [
+            {
+              "as": "median_lap_time_seconds",
+              "function": "median",
+              "field": "lap_time_seconds"
+            }
+          ]
+        },
+        "group_by": [],
+        "measures": [
+          {
+            "as": "events",
+            "function": "count"
+          },
+          {
+            "as": "avg_lap_time_seconds",
+            "function": "avg",
+            "field": "median_lap_time_seconds"
+          }
+        ]
       }
     }
   }

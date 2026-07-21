@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreEventClassificationFilterNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilterNode, CoreLapPaceFilter, CoreLimitNode, CoreProgram } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -58,7 +58,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'subtract' || program.root.op === 'pace_aggregate' || isEventClassificationProgram(program)) {
+  if (program.root.op === 'delta' || isLapPaceAggregate(program.root) || isEventClassificationProgram(program)) {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = getAggregateRoot(program);
@@ -75,7 +75,7 @@ export function interpretStandingsProgram(
 
   const result = Array.from(grouped.entries()).map(([driverId, group]) => {
     const output: Record<string, unknown> = { driver_id: driverId };
-    for (const measure of aggregate.measures) {
+    for (const measure of aggregate.measures as AggregateMeasure[]) {
       output[measure.as] = evaluateMeasure(measure, group);
     }
     return output;
@@ -106,12 +106,26 @@ function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
   throw new Error('Expected a standings aggregate core program');
 }
 
-export function interpretPaceSubtract(
-  node: CoreSubtractNode,
-  rows: PaceLapRow[]
-): Array<Record<string, unknown>> {
-  const leftByRound = aggregatePace(node.left, rows);
-  const rightByRound = aggregatePace(node.right, rows);
+export function interpretLapPaceProgram(program: CoreProgram, rows: PaceLapRow[]): Array<Record<string, unknown>> {
+  if (program.root.op === 'delta') {
+    return interpretDelta(program.root, rows);
+  }
+  if (!isLapPaceAggregate(program.root)) {
+    throw new Error('interpretLapPaceProgram expects a lap pace core program');
+  }
+  const eventMedians = aggregateLapPace(program.root.input as CoreAggregateNode, rows);
+  const values = Array.from(eventMedians.values());
+  const filter = (program.root.input as CoreAggregateNode).input as { where: CoreLapPaceFilter };
+  return [{
+    driver_id: filter.where.driver_id,
+    events: values.length,
+    avg_lap_time_seconds: mean(values)
+  }];
+}
+
+function interpretDelta(node: CoreDeltaNode, rows: PaceLapRow[]): Array<Record<string, unknown>> {
+  const leftByRound = aggregateLapPace(node.input.input.left, rows);
+  const rightByRound = aggregateLapPace(node.input.input.right, rows);
   const sharedRounds = Array.from(leftByRound.keys()).filter((round) => rightByRound.has(round));
   const driverAValues = sharedRounds.map((round) => leftByRound.get(round)!);
   const driverBValues = sharedRounds.map((round) => rightByRound.get(round)!);
@@ -119,8 +133,8 @@ export function interpretPaceSubtract(
   const driverBAvg = mean(driverBValues);
 
   return [{
-    driver_a_id: node.left.driver_id,
-    driver_b_id: node.right.driver_id,
+    driver_a_id: node.left_id,
+    driver_b_id: node.right_id,
     shared_events: sharedRounds.length,
     driver_a_avg_lap_time_seconds: driverAAvg,
     driver_b_avg_lap_time_seconds: driverBAvg,
@@ -128,19 +142,6 @@ export function interpretPaceSubtract(
     delta_percent: driverAAvg === null || driverBAvg === null || driverBAvg === 0
       ? null
       : ((driverAAvg - driverBAvg) / driverBAvg) * 100
-  }];
-}
-
-export function interpretPaceAggregate(
-  node: CorePaceAggregateNode,
-  rows: PaceLapRow[]
-): Array<Record<string, unknown>> {
-  const eventMedians = aggregatePace(node, rows);
-  const values = Array.from(eventMedians.values());
-  return [{
-    driver_id: node.driver_id,
-    events: values.length,
-    avg_lap_time_seconds: mean(values)
   }];
 }
 
@@ -188,10 +189,21 @@ function limitRows(rows: Array<Record<string, unknown>>, node: CoreLimitNode): A
     .slice(0, node.limit);
 }
 
-function aggregatePace(node: CorePaceAggregateNode, rows: PaceLapRow[]): Map<number, number> {
+function isLapPaceAggregate(node: CoreProgram['root']): node is CoreAggregateNode {
+  return node.op === 'aggregate'
+    && node.input.op === 'aggregate'
+    && node.input.input.op === 'filter'
+    && node.input.input.input.source === 'lap_pace';
+}
+
+function aggregateLapPace(node: CoreAggregateNode, rows: PaceLapRow[]): Map<number, number> {
+  if (!isLapPaceEventAggregate(node)) {
+    throw new Error('Expected per-round lap pace aggregate');
+  }
+  const filter = node.input as { where: CoreLapPaceFilter };
   const byRound = new Map<number, number[]>();
   for (const row of rows) {
-    if (!matchesPaceAggregate(row, node)) {
+    if (!matchesLapPaceFilter(row, filter.where)) {
       continue;
     }
     const values = byRound.get(row.round) ?? [];
@@ -204,13 +216,18 @@ function aggregatePace(node: CorePaceAggregateNode, rows: PaceLapRow[]): Map<num
   return new Map(Array.from(byRound.entries()).map(([round, values]) => [round, median(values)]));
 }
 
-function matchesPaceAggregate(row: PaceLapRow, node: CorePaceAggregateNode): boolean {
-  const matchesRounds = node.rounds === undefined ? true : node.rounds.includes(row.round);
-  const matchesCleanAir = node.clean_air_only ? row.clean_air_flag : true;
-  const matchesCompound = node.compound === undefined ? true : row.compound === node.compound;
+function isLapPaceEventAggregate(node: CoreAggregateNode): boolean {
+  return node.input.op === 'filter' && node.input.input.source === 'lap_pace'
+    && node.group_by.length === 1 && node.group_by[0] === 'round';
+}
+
+function matchesLapPaceFilter(row: PaceLapRow, filter: CoreLapPaceFilter): boolean {
+  const matchesRounds = filter.rounds === undefined ? true : filter.rounds.includes(row.round);
+  const matchesCleanAir = filter.clean_air_only ? row.clean_air_flag : true;
+  const matchesCompound = filter.compound === undefined ? true : row.compound === filter.compound;
   return [
-    row.season === node.season,
-    row.driver_id === node.driver_id,
+    row.season === filter.season,
+    row.driver_id === filter.driver_id,
     matchesRounds,
     row.lap_time_seconds !== null,
     row.is_valid_lap,

@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreEventClassificationFilterNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilterNode, CoreLapPaceFilter, CoreLimitNode, CoreProgram } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -7,11 +7,11 @@ export interface CompiledF1QL {
 }
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
-  if (program.root.op === 'subtract') {
-    return compilePaceSubtract(program.root);
+  if (program.root.op === 'delta') {
+    return compileDelta(program.root);
   }
-  if (program.root.op === 'pace_aggregate') {
-    return compilePaceAggregate(program.root);
+  if (isLapPaceAggregate(program.root)) {
+    return compileLapPaceAggregate(program.root);
   }
   if (isEventClassificationProgram(program)) {
     return compileEventClassification(program.root.input.input, program.root.input, program.root.limit);
@@ -82,13 +82,22 @@ function compileEventClassification(node: CoreEventClassificationFilterNode, sor
   };
 }
 
-function compilePaceAggregate(node: CorePaceAggregateNode): CompiledF1QL {
+function isLapPaceAggregate(node: CoreProgram['root']): node is CoreAggregateNode {
+  return node.op === 'aggregate'
+    && node.input.op === 'aggregate'
+    && node.input.input.op === 'filter'
+    && node.input.input.input.source === 'lap_pace';
+}
+
+function compileLapPaceAggregate(node: CoreAggregateNode): CompiledF1QL {
+  const eventMedians = node.input as CoreAggregateNode;
+  const filter = eventMedians.input as { where: CoreLapPaceFilter };
   const params: unknown[] = [
-    node.season,
-    node.driver_id,
-    node.rounds ?? null,
-    node.clean_air_only,
-    node.compound ?? null
+    filter.where.season,
+    filter.where.driver_id,
+    filter.where.rounds ?? null,
+    filter.where.clean_air_only,
+    filter.where.compound ?? null
   ];
 
   return {
@@ -124,15 +133,8 @@ function compilePaceAggregate(node: CorePaceAggregateNode): CompiledF1QL {
   };
 }
 
-function compilePaceSubtract(node: CoreSubtractNode): CompiledF1QL {
-  const params: unknown[] = [
-    node.left.season,
-    node.left.driver_id,
-    node.right.driver_id,
-    node.left.rounds ?? null,
-    node.left.clean_air_only,
-    node.left.compound ?? null
-  ];
+function compileDelta(node: CoreDeltaNode): CompiledF1QL {
+  const params = compileDeltaParams(node);
 
   return {
     sql: `
@@ -182,6 +184,34 @@ function compilePaceSubtract(node: CoreSubtractNode): CompiledF1QL {
     `,
     params
   };
+}
+
+function compileDeltaParams(node: CoreDeltaNode): unknown[] {
+  const { left, right } = node.input.input;
+  if (!isLapPaceEventAggregate(left) || !isLapPaceEventAggregate(right)) {
+    throw new Error('Expected lap pace aggregates for delta');
+  }
+  const leftFilter = left.input as { where: CoreLapPaceFilter };
+  const rightFilter = right.input as { where: CoreLapPaceFilter };
+  if (leftFilter.where.season !== rightFilter.where.season
+    || JSON.stringify(leftFilter.where.rounds) !== JSON.stringify(rightFilter.where.rounds)
+    || leftFilter.where.clean_air_only !== rightFilter.where.clean_air_only
+    || leftFilter.where.compound !== rightFilter.where.compound) {
+    throw new Error('Delta inputs must share lap pace eligibility filters');
+  }
+  return [
+    leftFilter.where.season,
+    leftFilter.where.driver_id,
+    rightFilter.where.driver_id,
+    leftFilter.where.rounds ?? null,
+    leftFilter.where.clean_air_only,
+    leftFilter.where.compound ?? null
+  ];
+}
+
+function isLapPaceEventAggregate(node: CoreAggregateNode): boolean {
+  return node.input.op === 'filter' && node.input.input.source === 'lap_pace'
+    && node.group_by.length === 1 && node.group_by[0] === 'round';
 }
 
 function compileStandingsFilter(filter: StandingsFilter): { whereSql: string; params: unknown[] } {

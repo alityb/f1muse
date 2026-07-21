@@ -161,7 +161,7 @@ describe('in-process API routes', () => {
       delta_seconds: -1,
       delta_percent: -0.9803921568627451
     })]);
-    expect(body.core_program.root.op).toBe('subtract');
+    expect(body.core_program.root.op).toBe('delta');
   });
 
   it('rejects malformed programs and requests over the F1QL cost budget', async () => {

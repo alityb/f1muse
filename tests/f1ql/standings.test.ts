@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
 import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { F1QLValidationError } from '../../src/f1ql/validation';
-import { EventClassificationRow, interpretEventClassification, interpretPaceAggregate, interpretPaceSubtract, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
+import { EventClassificationRow, interpretEventClassification, interpretLapPaceProgram, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
 import { F1QLProgram } from '../../src/f1ql/ast';
@@ -216,22 +216,28 @@ describe('F1QL standings vertical slice', () => {
     })).rejects.toThrow('At most 24 rounds may be requested');
   });
 
-  it('lowers pace_delta to aligned pace aggregates and a scalar subtraction', () => {
+  it('lowers pace_delta through shared-round generic core nodes', () => {
     expect(lowerF1QL(paceProgram).root).toMatchObject({
-      op: 'subtract',
-      alignment: 'shared_events',
-      left: { op: 'pace_aggregate', driver_id: 'max-verstappen' },
-      right: { op: 'pace_aggregate', driver_id: 'lando-norris' }
+      op: 'delta',
+      input: {
+        op: 'compare',
+        input: {
+          op: 'join',
+          on: ['round'],
+          left: { op: 'aggregate', input: { op: 'filter', where: { driver_id: 'max-verstappen' } } },
+          right: { op: 'aggregate', input: { op: 'filter', where: { driver_id: 'lando-norris' } } }
+        }
+      }
     });
   });
 
   it('compiles pace delta with parameters and matches the reference interpreter', async () => {
     const coreProgram = lowerF1QL(paceProgram);
-    if (coreProgram.root.op !== 'subtract') {
-      throw new Error('Expected pace subtraction');
+    if (coreProgram.root.op !== 'delta') {
+      throw new Error('Expected pace delta');
     }
     const compiled = compileF1QL(coreProgram);
-    const reference = interpretPaceSubtract(coreProgram.root, paceReferenceRows);
+    const reference = interpretLapPaceProgram(coreProgram, paceReferenceRows);
     const executed = await executeF1QL(pool, paceProgram);
     const actual = executed.rows.map((row) => ({
       driver_a_id: row.driver_a_id,
@@ -252,13 +258,13 @@ describe('F1QL standings vertical slice', () => {
     );
   });
 
-  it('compiles a pace summary from the reusable pace aggregate core primitive', async () => {
+  it('compiles a pace summary from staged generic aggregates', async () => {
     const coreProgram = lowerF1QL(paceSummaryProgram);
-    if (coreProgram.root.op !== 'pace_aggregate') {
+    if (coreProgram.root.op !== 'aggregate') {
       throw new Error('Expected pace aggregate');
     }
     const compiled = compileF1QL(coreProgram);
-    const reference = interpretPaceAggregate(coreProgram.root, paceReferenceRows);
+    const reference = interpretLapPaceProgram(coreProgram, paceReferenceRows);
     const executed = await executeF1QL(pool, paceSummaryProgram);
     const actual = executed.rows.map((row) => ({
       driver_id: row.driver_id,
@@ -285,8 +291,8 @@ describe('F1QL standings vertical slice', () => {
         filters: { clean_air_only: true }
       }
     });
-    if (coreProgram.root.op !== 'subtract') {
-      throw new Error('Expected pace subtraction');
+    if (coreProgram.root.op !== 'delta') {
+      throw new Error('Expected pace delta');
     }
 
     const rows: PaceLapRow[] = [
@@ -300,7 +306,7 @@ describe('F1QL standings vertical slice', () => {
       { season: 2026, round: 2, driver_id: 'driver-b', lap_time_seconds: 111, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: false, compound: 'HARD' }
     ];
 
-    expect(interpretPaceSubtract(coreProgram.root, rows)).toEqual([expect.objectContaining({
+    expect(interpretLapPaceProgram(coreProgram, rows)).toEqual([expect.objectContaining({
       shared_events: 1,
       delta_seconds: -1
     })]);
@@ -321,8 +327,8 @@ describe('F1QL standings vertical slice', () => {
       { season: 2027, round: 2, driver_id: 'driver-b', lap_time_seconds: 101, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: false, compound: null }
     ];
     const coreProgram = lowerF1QL(noOverlapProgram);
-    if (coreProgram.root.op !== 'subtract') {
-      throw new Error('Expected pace subtraction');
+    if (coreProgram.root.op !== 'delta') {
+      throw new Error('Expected pace delta');
     }
     await pool.query(
       `INSERT INTO laps_normalized
@@ -340,7 +346,7 @@ describe('F1QL standings vertical slice', () => {
       delta_seconds: null,
       delta_percent: null
     });
-    expect(interpretPaceSubtract(coreProgram.root, noOverlapRows)).toEqual([expected]);
+    expect(interpretLapPaceProgram(coreProgram, noOverlapRows)).toEqual([expected]);
     expect(executed.rows).toEqual([expected]);
   });
 

@@ -1,5 +1,5 @@
 import { AggregateNode, F1QLProgram } from './ast';
-import { CoreAggregateNode, CoreProgram, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreLapPaceFilter, CoreProgram, CoreSourceNode } from './core';
 
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'pace_delta') {
@@ -7,24 +7,21 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
     return {
       version: 1,
       root: {
-        op: 'subtract',
-        left: {
-          op: 'pace_aggregate',
-          driver_id: program.root.driver_a_id,
-          season: program.root.scope.season,
-          rounds: program.root.scope.rounds,
-          clean_air_only: filters.clean_air_only === true,
-          compound: filters.compound
+        op: 'delta',
+        input: {
+          op: 'compare',
+          input: {
+            op: 'join',
+            left: lowerPaceEventMedians(program.root.driver_a_id, program.root.scope, filters),
+            right: lowerPaceEventMedians(program.root.driver_b_id, program.root.scope, filters),
+            on: ['round'],
+            type: 'inner'
+          },
+          left: { field: 'median_lap_time_seconds', as: 'driver_a_median' },
+          right: { field: 'median_lap_time_seconds', as: 'driver_b_median' }
         },
-        right: {
-          op: 'pace_aggregate',
-          driver_id: program.root.driver_b_id,
-          season: program.root.scope.season,
-          rounds: program.root.scope.rounds,
-          clean_air_only: filters.clean_air_only === true,
-          compound: filters.compound
-        },
-        alignment: 'shared_events'
+        left_id: program.root.driver_a_id,
+        right_id: program.root.driver_b_id
       }
     };
   }
@@ -32,14 +29,7 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
     const filters = program.root.filters ?? {};
     return {
       version: 1,
-      root: {
-        op: 'pace_aggregate',
-        driver_id: program.root.driver_id,
-        season: program.root.scope.season,
-        rounds: program.root.scope.rounds,
-        clean_air_only: filters.clean_air_only === true,
-        compound: filters.compound
-      }
+      root: lowerPaceSummary(program.root.driver_id, program.root.scope, filters)
     };
   }
   if (program.root.op === 'event_classification') {
@@ -53,6 +43,39 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   }
 
   return { version: 1, root: coreAggregate };
+}
+
+function lowerPaceSummary(driverId: string, scope: { season: number; rounds?: number[] }, filters: { clean_air_only?: boolean; compound?: string }): CoreAggregateNode {
+  return {
+    op: 'aggregate',
+    input: lowerPaceEventMedians(driverId, scope, filters),
+    group_by: [],
+    measures: [
+      { as: 'events', function: 'count' },
+      { as: 'avg_lap_time_seconds', function: 'avg', field: 'median_lap_time_seconds' }
+    ]
+  };
+}
+
+function lowerPaceEventMedians(driverId: string, scope: { season: number; rounds?: number[] }, filters: { clean_air_only?: boolean; compound?: string }): CoreAggregateNode {
+  const where: CoreLapPaceFilter = {
+    season: scope.season,
+    driver_id: driverId,
+    rounds: scope.rounds,
+    lap_time_seconds: 'not_null',
+    is_valid_lap: true,
+    is_pit_lap: false,
+    is_in_lap: false,
+    is_out_lap: false,
+    clean_air_only: filters.clean_air_only === true,
+    compound: filters.compound
+  };
+  return {
+    op: 'aggregate',
+    input: { op: 'filter', input: { op: 'source', source: 'lap_pace' }, where },
+    group_by: ['round'],
+    measures: [{ as: 'median_lap_time_seconds', function: 'median', field: 'lap_time_seconds' }]
+  };
 }
 
 function lowerEventClassification(node: Extract<F1QLProgram['root'], { op: 'event_classification' }>): CoreProgram {
