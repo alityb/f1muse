@@ -3,4 +3,9 @@
 [F1QLTranslation] {"timestamp":"2026-07-03T00:00:00.000Z","outcome":"unsupported","reason":"program_invalid","latency_ms":4}
 {"timestamp":"2026-07-04T00:00:00.000Z","message":"[F1QLTranslation] {\"outcome\":\"identity_miss\",\"reason\":\"identity_unresolved\",\"latency_ms\":5}"}
 [F1QLTranslation] {"timestamp":"2026-07-05T00:00:00.000Z","outcome":"unavailable","reason":"shadow_disabled","latency_ms":6}
+[F1QLTranslation] {"timestamp":"2026-07-06T00:00:00.000Z","outcome":"unsupported","reason":"participation_missing","latency_ms":7}
+[F1QLTranslation] {"timestamp":"2026-07-07T00:00:00.000Z","outcome":"unsupported","reason":"complexity_exceeded","latency_ms":8}
+[F1QLTranslation] {"timestamp":"2026-07-08T00:00:00.000Z","outcome":"unsupported","reason":"coverage_unsupported","latency_ms":9}
+[F1QLTranslation] {"timestamp":"2026-07-09T00:00:00.000Z","outcome":"unsupported","reason":"definitions_version_mismatch","latency_ms":10}
+[F1QLTranslation] {"timestamp":"2026-07-10T00:00:00.000Z","outcome":"unsupported","reason":"signature_invalid","latency_ms":11}
 malformed external log line

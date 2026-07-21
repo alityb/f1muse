@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
-import { executeF1QL } from '../../src/f1ql/executor';
+import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { EventClassificationRow, interpretEventClassification, interpretPaceAggregate, interpretPaceSubtract, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
@@ -390,5 +390,10 @@ describe('F1QL standings vertical slice', () => {
     ];
     expect(filteredExecuted.rows.map((row) => ({ ...row, points: Number(row.points) })))
       .toEqual(interpretEventClassification(filteredCore.root, referenceRows));
+  });
+
+  it('cancels slow statements under the configured read-only timeout', async () => {
+    await expect(executeF1QLReadOnly(pool, 'SELECT pg_sleep(0.1)', [], { statementTimeoutMs: 10 }))
+      .rejects.toBeInstanceOf(F1QLStatementTimeoutError);
   });
 });

@@ -31,18 +31,29 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, 
       recordOutcome('succeeded', 'validated_shadow_program', Date.now() - startedAt, resolved.root.op);
       return res.status(200).json({ mode: 'shadow', program: resolved });
     } catch (error) {
-      const reason = error instanceof F1QLValidationError ? error.code : error instanceof Error && error.message.startsWith('identity_unresolved') ? error.message : 'translation did not produce a supported program';
-      const status = reason.startsWith('identity_unresolved') ? 422 : 400;
-      recordOutcome(status === 422 ? 'identity_miss' : 'unsupported', status === 422 ? 'identity_unresolved' : 'program_invalid', Date.now() - startedAt);
-      return res.status(status).json({ error: status === 422 ? 'identity_unresolved' : 'program_unsupported', reason });
+      const reason = validationReason(error);
+      const identityMiss = reason.startsWith('identity_unresolved');
+      const status = identityMiss ? 422 : 400;
+      recordOutcome(identityMiss ? 'identity_miss' : 'unsupported', identityMiss ? 'identity_unresolved' : reason, Date.now() - startedAt);
+      return res.status(status).json({ error: identityMiss ? 'identity_unresolved' : 'program_unsupported', reason });
     }
   });
 
   return router;
 }
 
+function validationReason(error: unknown): string {
+  if (error instanceof F1QLValidationError) {
+    return error.code;
+  }
+  if (error instanceof Error && error.message.startsWith('identity_unresolved')) {
+    return error.message;
+  }
+  return 'program_invalid';
+}
+
 function recordOutcome(outcome: 'succeeded' | 'invalid' | 'unsupported' | 'identity_miss' | 'unavailable', reason: string, latency_ms: number, operation?: string): void {
-  metrics.recordF1QLTranslation(outcome, latency_ms);
+  metrics.recordF1QLTranslation(outcome, reason, latency_ms);
   console.log('[F1QLTranslation]', JSON.stringify({ timestamp: new Date().toISOString(), outcome, reason, latency_ms, operation }));
 }
 

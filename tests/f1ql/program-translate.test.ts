@@ -65,10 +65,18 @@ describe('shadow F1QL translation', () => {
     expect(injected.status).toBe(400);
   });
 
+  it('logs typed participation rejections', async () => {
+    model.setOutput(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2024 } } }));
+    const missing = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Max pace in 2024' }) });
+    expect(missing.status).toBe(400);
+    await expect(missing.json()).resolves.toMatchObject({ reason: 'participation_missing' });
+  });
+
   it('records typed shadow outcomes', () => {
     expect(metrics.toJSON().f1ql.translation_outcomes).toMatchObject({
-      succeeded: 1, invalid: 2, unavailable: 1, identity_miss: 1, unsupported: 1
+      succeeded: 1, invalid: 2, unavailable: 1, identity_miss: 1, unsupported: 2
     });
+    expect(metrics.toJSON().f1ql.translation_reasons).toMatchObject({ participation_missing: 1 });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 1');
   });
 

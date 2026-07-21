@@ -65,6 +65,7 @@ class MetricsCollector {
   private f1qlFailures: Map<string, number> = new Map();
   private f1qlLatency: HistogramData;
   private f1qlTranslationOutcomes: Map<string, number> = new Map();
+  private f1qlTranslationReasons: Map<string, number> = new Map();
 
   constructor() {
     this.nlParseLatency = this.createHistogram();
@@ -194,8 +195,9 @@ class MetricsCollector {
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
-  recordF1QLTranslation(outcome: 'succeeded' | 'invalid' | 'unsupported' | 'identity_miss' | 'unavailable', latencyMs: number): void {
+  recordF1QLTranslation(outcome: 'succeeded' | 'invalid' | 'unsupported' | 'identity_miss' | 'unavailable', reason: string, latencyMs: number): void {
     this.f1qlTranslationOutcomes.set(outcome, (this.f1qlTranslationOutcomes.get(outcome) || 0) + 1);
+    this.f1qlTranslationReasons.set(reason, (this.f1qlTranslationReasons.get(reason) || 0) + 1);
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
@@ -254,6 +256,11 @@ class MetricsCollector {
     sections.push(`# TYPE f1muse_f1ql_translation_outcomes_total counter`);
     for (const [outcome, count] of this.f1qlTranslationOutcomes) {
       sections.push(`f1muse_f1ql_translation_outcomes_total{outcome="${outcome}"} ${count}`);
+    }
+    sections.push(`# HELP f1muse_f1ql_translation_reasons_total Shadow translation outcomes by reason`);
+    sections.push(`# TYPE f1muse_f1ql_translation_reasons_total counter`);
+    for (const [reason, count] of this.f1qlTranslationReasons) {
+      sections.push(`f1muse_f1ql_translation_reasons_total{reason="${reason}"} ${count}`);
     }
 
     // SQL execution latency
@@ -433,6 +440,7 @@ class MetricsCollector {
         failures: Object.fromEntries(this.f1qlFailures),
         latency: { count: this.f1qlLatency.count, sum_ms: this.f1qlLatency.sum },
         translation_outcomes: Object.fromEntries(this.f1qlTranslationOutcomes),
+        translation_reasons: Object.fromEntries(this.f1qlTranslationReasons),
       },
     };
   }
@@ -461,6 +469,7 @@ class MetricsCollector {
     this.f1qlRequests.clear();
     this.f1qlFailures.clear();
     this.f1qlTranslationOutcomes.clear();
+    this.f1qlTranslationReasons.clear();
   }
 }
 

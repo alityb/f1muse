@@ -28,7 +28,7 @@ for (const line of lines) {
 }
 
 const total = Array.from(outcomes.values()).reduce((sum, value) => sum + value, 0);
-const succeeded = outcomes.get('success') ?? 0;
+const succeeded = outcomes.get('succeeded') ?? 0;
 console.log('# F1QL Shadow Translation Review');
 console.log('');
 console.log(`- Window: ${timestamps.length ? `${timestamps.sort()[0]} to ${timestamps.sort().at(-1)}` : 'no retained events'}`);
