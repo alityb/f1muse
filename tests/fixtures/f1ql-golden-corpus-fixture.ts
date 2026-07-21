@@ -7,18 +7,20 @@ export async function seedGoldenCorpusFixture(pool: Pool): Promise<void> {
   await pool.query(`INSERT INTO season_driver_standing (year, position_display_order, position_number, position_text, driver_id, points) VALUES
     (2025, 1, 1, '1', 'max_verstappen', 25),
     (2025, 2, 2, '2', 'lando_norris', 18)`);
-  await pool.query(`INSERT INTO laps_normalized
-    (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound) VALUES
-    (2025, 1, 'albert-park', 'max_verstappen', 1, 100, true, false, false, false, true, 'MEDIUM'),
-    (2025, 1, 'albert-park', 'max_verstappen', 2, 102, true, false, false, false, true, 'MEDIUM'),
-    (2025, 1, 'albert-park', 'max_verstappen', 3, 104, true, false, false, false, true, 'MEDIUM'),
-    (2025, 1, 'albert-park', 'lando_norris', 1, 101, true, false, false, false, true, 'MEDIUM'),
-    (2025, 1, 'albert-park', 'lando_norris', 2, 103, true, false, false, false, true, 'MEDIUM'),
-    (2025, 1, 'albert-park', 'lando_norris', 3, 105, true, false, false, false, true, 'MEDIUM'),
-    (2025, 2, 'albert-park', 'max_verstappen', 1, 110, true, false, false, false, true, 'MEDIUM'),
-    (2025, 2, 'albert-park', 'max_verstappen', 2, 112, true, false, false, false, true, 'MEDIUM'),
-    (2025, 2, 'albert-park', 'lando_norris', 1, 111, true, false, false, false, true, 'MEDIUM'),
-    (2025, 2, 'albert-park', 'lando_norris', 2, 113, true, false, false, false, true, 'MEDIUM')`);
+  await pool.query(`INSERT INTO laps_normalized_v2
+    (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound, methodology_version) VALUES
+    (2025, 1, 'albert-park', 'max_verstappen', 'R', 1, 100, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 1, 'albert-park', 'max_verstappen', 'R', 2, 102, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 1, 'albert-park', 'max_verstappen', 'R', 3, 104, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 1, 'albert-park', 'lando_norris', 'R', 1, 101, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 1, 'albert-park', 'lando_norris', 'R', 2, 103, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 1, 'albert-park', 'lando_norris', 'R', 3, 105, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'max_verstappen', 'R', 1, 110, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'max_verstappen', 'R', 2, 112, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'max_verstappen', 'R', 3, 114, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'lando_norris', 'R', 1, 111, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'lando_norris', 'R', 2, 113, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+    (2025, 2, 'albert-park', 'lando_norris', 'R', 3, 115, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1')`);
   await pool.query(`INSERT INTO grand_prix (id, name, full_name, short_name, abbreviation) VALUES
     ('australian_grand_prix', 'Australian Grand Prix', 'Formula 1 Australian Grand Prix', 'Australian GP', 'AUS')`);
   await pool.query(`INSERT INTO race (id, year, round, circuit_id, grand_prix_id, official_name, date) VALUES

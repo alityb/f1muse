@@ -44,6 +44,7 @@ export async function setupTestDatabase(
     season_constructor_standing,
     driver_matchup_matrix_2025,
     api_query_cache,
+    laps_normalized_v2,
     laps_normalized, 
     pace_metric_summary_driver_track, 
     pace_metric_summary_driver_season, 
@@ -359,6 +360,20 @@ export async function setupTestDatabase(
     );
   `);
 
+  console.log('Creating table: laps_normalized_v2');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS laps_normalized_v2 (
+      season INTEGER NOT NULL, round INTEGER NOT NULL, track_id TEXT NOT NULL,
+      driver_id TEXT NOT NULL, session_type TEXT NOT NULL, lap_number INTEGER NOT NULL,
+      lap_time_seconds NUMERIC, is_valid_lap BOOLEAN NOT NULL, is_pit_lap BOOLEAN NOT NULL,
+      clean_air_flag BOOLEAN NOT NULL, stint_id INTEGER NOT NULL DEFAULT 0,
+      stint_lap_index INTEGER NOT NULL DEFAULT 0, compound TEXT, tyre_age_laps INTEGER,
+      is_out_lap BOOLEAN NOT NULL DEFAULT false, is_in_lap BOOLEAN NOT NULL DEFAULT false,
+      methodology_version TEXT NOT NULL,
+      PRIMARY KEY (season, round, track_id, driver_id, session_type, lap_number)
+    );
+  `);
+
   console.log('Creating table: teammate gap compatibility tables');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teammate_gap_season_summary (
@@ -456,13 +471,16 @@ export async function setupTestDatabase(
       l.clean_air_flag,
       l.compound,
       l.tyre_age_laps,
-      l.session_type
-    FROM laps_normalized l;
+      l.session_type,
+      l.methodology_version
+    FROM laps_normalized_v2 l;
 
     CREATE OR REPLACE VIEW f1ql.event_classification AS
     SELECT r.year AS season, r.round, REPLACE(rd.driver_id, '_', '-') AS driver_id, rd.constructor_id AS team_id,
       rd.position_number AS finishing_position, rd.race_points AS points,
       CASE
+        WHEN UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('DSQ', 'DISQUALIFIED') THEN 'dsq'
+        WHEN UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('DNS', 'DID NOT START') THEN 'dns'
         WHEN rd.position_number IS NOT NULL AND rd.race_reason_retired IS NULL THEN 'classified'
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('DNS', 'DID NOT START') THEN 'dns'
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('DSQ', 'DISQUALIFIED') THEN 'dsq'
@@ -470,7 +488,7 @@ export async function setupTestDatabase(
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('WD', 'WITHDRAWN') THEN 'withdrawn'
         ELSE 'dnf'
       END AS classification_status,
-      rd.race_reason_retired AS status_reason
+      COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired) AS status_reason
     FROM race_data rd JOIN race r ON r.id = rd.race_id
     WHERE LOWER(rd.type) IN ('race', 'race_result');
 

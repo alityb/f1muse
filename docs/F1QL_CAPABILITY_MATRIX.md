@@ -36,7 +36,7 @@ authorities it uses, and where F1QL must extend it.
 | Championship points | `season_driver_standing.points` | Never substitute summed race rows when official standing exists |
 | Wins, podiums, classified finishes | `race_data` / race classification | `Lapped` is classified; DNS/W are not positions |
 | Pole positions | `qualifying_results.qualifying_position = 1` | Do not confuse with post-penalty grid position |
-| Pace | `laps_normalized` | Valid, non-pit, non-in/out lap rules must be explicit |
+| Pace | `laps_normalized_v2` | Race session only; valid non-pit/non-in-out laps; at least two eligible laps per event; active methodology version required |
 | Seasonal eligibility | `season_driver_standing` today; future `f1.season_entries` | Do not emit zero-filled comparisons for absent entrants |
 
 ## Explicit Current Limitations
@@ -49,8 +49,9 @@ authorities it uses, and where F1QL must extend it.
    A query can be answerable for results but not for pace.
 4. Raw table identity formats still vary by source (hyphen/underscore driver
    IDs and circuit/grand-prix track IDs).
-5. Cache correctness currently depends on explicit version bumps and manual
-   invalidation after methodology changes.
+5. F1QL pace reads only `laps_normalized_v2`. Legacy rows are not silently
+   backfilled, so pace fails closed until an explicitly reviewed v2 ingestion
+   has supplied the active clean-air methodology version.
 
 ## F1QL v1 Target Delta
 

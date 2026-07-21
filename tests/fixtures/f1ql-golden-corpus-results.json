@@ -241,8 +241,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 106.5
+        "avg_lap_time_seconds": 107
       }
     ]
   },
@@ -251,6 +252,7 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 1,
         "avg_lap_time_seconds": 102
       }
@@ -261,8 +263,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 1,
-        "avg_lap_time_seconds": 111
+        "avg_lap_time_seconds": 112
       }
     ]
   },
@@ -271,8 +274,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 106.5
+        "avg_lap_time_seconds": 107
       }
     ]
   },
@@ -281,8 +285,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 106.5
+        "avg_lap_time_seconds": 107
       }
     ]
   },
@@ -291,8 +296,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 106.5
+        "avg_lap_time_seconds": 107
       }
     ]
   },
@@ -301,8 +307,9 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 106.5
+        "avg_lap_time_seconds": 107
       }
     ]
   },
@@ -311,6 +318,7 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 0,
         "avg_lap_time_seconds": null
       }
@@ -321,8 +329,9 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 107.5
+        "avg_lap_time_seconds": 108
       }
     ]
   },
@@ -331,6 +340,7 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 1,
         "avg_lap_time_seconds": 103
       }
@@ -341,8 +351,9 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 1,
-        "avg_lap_time_seconds": 112
+        "avg_lap_time_seconds": 113
       }
     ]
   },
@@ -351,8 +362,9 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 107.5
+        "avg_lap_time_seconds": 108
       }
     ]
   },
@@ -361,8 +373,9 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 107.5
+        "avg_lap_time_seconds": 108
       }
     ]
   },
@@ -371,8 +384,9 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 2,
-        "avg_lap_time_seconds": 107.5
+        "avg_lap_time_seconds": 108
       }
     ]
   },
@@ -381,6 +395,7 @@
     "rows": [
       {
         "driver_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 0,
         "avg_lap_time_seconds": null
       }
@@ -391,6 +406,7 @@
     "rows": [
       {
         "driver_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "events": 0,
         "avg_lap_time_seconds": null
       }
@@ -402,11 +418,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 106.5,
-        "driver_b_avg_lap_time_seconds": 107.5,
+        "driver_a_avg_lap_time_seconds": 107,
+        "driver_b_avg_lap_time_seconds": 108,
         "delta_seconds": -1,
-        "delta_percent": -0.9302325581395349
+        "delta_percent": -0.9259259259259258
       }
     ]
   },
@@ -416,6 +433,7 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 1,
         "driver_a_avg_lap_time_seconds": 102,
         "driver_b_avg_lap_time_seconds": 103,
@@ -430,11 +448,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 1,
-        "driver_a_avg_lap_time_seconds": 111,
-        "driver_b_avg_lap_time_seconds": 112,
+        "driver_a_avg_lap_time_seconds": 112,
+        "driver_b_avg_lap_time_seconds": 113,
         "delta_seconds": -1,
-        "delta_percent": -0.8928571428571428
+        "delta_percent": -0.8849557522123894
       }
     ]
   },
@@ -444,11 +463,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 106.5,
-        "driver_b_avg_lap_time_seconds": 107.5,
+        "driver_a_avg_lap_time_seconds": 107,
+        "driver_b_avg_lap_time_seconds": 108,
         "delta_seconds": -1,
-        "delta_percent": -0.9302325581395349
+        "delta_percent": -0.9259259259259258
       }
     ]
   },
@@ -458,11 +478,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 106.5,
-        "driver_b_avg_lap_time_seconds": 107.5,
+        "driver_a_avg_lap_time_seconds": 107,
+        "driver_b_avg_lap_time_seconds": 108,
         "delta_seconds": -1,
-        "delta_percent": -0.9302325581395349
+        "delta_percent": -0.9259259259259258
       }
     ]
   },
@@ -472,11 +493,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 106.5,
-        "driver_b_avg_lap_time_seconds": 107.5,
+        "driver_a_avg_lap_time_seconds": 107,
+        "driver_b_avg_lap_time_seconds": 108,
         "delta_seconds": -1,
-        "delta_percent": -0.9302325581395349
+        "delta_percent": -0.9259259259259258
       }
     ]
   },
@@ -486,11 +508,12 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 106.5,
-        "driver_b_avg_lap_time_seconds": 107.5,
+        "driver_a_avg_lap_time_seconds": 107,
+        "driver_b_avg_lap_time_seconds": 108,
         "delta_seconds": -1,
-        "delta_percent": -0.9302325581395349
+        "delta_percent": -0.9259259259259258
       }
     ]
   },
@@ -500,6 +523,7 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 0,
         "driver_a_avg_lap_time_seconds": null,
         "driver_b_avg_lap_time_seconds": null,
@@ -514,11 +538,12 @@
       {
         "driver_a_id": "lando-norris",
         "driver_b_id": "max-verstappen",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 2,
-        "driver_a_avg_lap_time_seconds": 107.5,
-        "driver_b_avg_lap_time_seconds": 106.5,
+        "driver_a_avg_lap_time_seconds": 108,
+        "driver_b_avg_lap_time_seconds": 107,
         "delta_seconds": 1,
-        "delta_percent": 0.9389671361502347
+        "delta_percent": 0.9345794392523363
       }
     ]
   },
@@ -528,6 +553,7 @@
       {
         "driver_a_id": "max-verstappen",
         "driver_b_id": "lando-norris",
+        "methodology_version": "clean_air_gap_2_0s_v1",
         "shared_events": 0,
         "driver_a_avg_lap_time_seconds": null,
         "driver_b_avg_lap_time_seconds": null,

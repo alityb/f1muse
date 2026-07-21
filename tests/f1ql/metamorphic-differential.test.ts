@@ -63,8 +63,8 @@ beforeAll(async () => {
     (2025, 1, 'lando_norris', 'mclaren', 2, 80100, 'Q3', false, false),
     (2025, 1, 'driver_dns', 'test-team', NULL, NULL, NULL, false, true)`);
   for (const [index, row] of paceRows.entries()) {
-    await pool.query(`INSERT INTO laps_normalized (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound)
-      VALUES ($1, $2, 'test-track', $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    await pool.query(`INSERT INTO laps_normalized_v2 (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound, methodology_version)
+      VALUES ($1, $2, 'test-track', $3, 'R', $4, $5, $6, $7, $8, $9, $10, $11, 'clean_air_gap_2_0s_v1')`,
     [row.season, row.round, row.driver_id, index + 1, row.lap_time_seconds, row.is_valid_lap, row.is_pit_lap, row.is_in_lap, row.is_out_lap, row.clean_air_flag, row.compound]);
   }
 });

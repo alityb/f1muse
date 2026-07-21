@@ -697,7 +697,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -751,7 +752,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -805,7 +807,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -860,7 +863,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -915,7 +919,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -970,7 +975,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1026,7 +1032,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1082,7 +1089,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1133,7 +1141,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1187,7 +1196,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1241,7 +1251,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1296,7 +1307,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1352,7 +1364,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1408,7 +1421,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1462,7 +1476,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1517,7 +1532,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -1572,7 +1588,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -1602,7 +1619,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -1664,7 +1682,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -1697,7 +1716,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -1759,7 +1779,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -1792,7 +1813,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -1855,7 +1877,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -1889,7 +1912,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -1952,7 +1976,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -1986,7 +2011,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -2049,7 +2075,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -2083,7 +2110,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -2147,7 +2175,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -2182,7 +2211,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -2246,7 +2276,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -2281,7 +2312,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -2345,7 +2377,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -2380,7 +2413,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -2442,7 +2476,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "right": {
               "op": "aggregate",
@@ -2475,7 +2510,8 @@
                   "function": "median",
                   "field": "lap_time_seconds"
                 }
-              ]
+              ],
+              "minimum_rows": 2
             },
             "on": [
               "round"
@@ -3776,7 +3812,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -3827,7 +3864,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -3878,7 +3916,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [
@@ -3929,7 +3968,8 @@
               "function": "median",
               "field": "lap_time_seconds"
             }
-          ]
+          ],
+          "minimum_rows": 2
         },
         "group_by": [],
         "measures": [

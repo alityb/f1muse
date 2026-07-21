@@ -128,13 +128,15 @@ describe('in-process API routes', () => {
         (2030, 'mclaren', 'mclaren', 'lando-norris', false)`
     );
     await pool.query(
-      `INSERT INTO laps_normalized
-        (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound)
+      `INSERT INTO laps_normalized_v2
+        (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound, methodology_version)
        VALUES
-        (2030, 1, 'test-track', 'max-verstappen', 1, 100, true, false, false, false, true, 'MEDIUM'),
-        (2030, 1, 'test-track', 'max-verstappen', 2, 102, true, false, false, false, true, 'MEDIUM'),
-        (2030, 1, 'test-track', 'lando-norris', 1, 101, true, false, false, false, true, 'MEDIUM'),
-        (2030, 1, 'test-track', 'lando-norris', 2, 103, true, false, false, false, true, 'MEDIUM')`
+        (2030, 1, 'test-track', 'max-verstappen', 'R', 1, 100, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+        (2030, 1, 'test-track', 'max-verstappen', 'R', 2, 102, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+        (2030, 1, 'test-track', 'max-verstappen', 'R', 3, 104, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+        (2030, 1, 'test-track', 'lando-norris', 'R', 1, 101, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+        (2030, 1, 'test-track', 'lando-norris', 'R', 2, 103, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1'),
+        (2030, 1, 'test-track', 'lando-norris', 'R', 3, 105, true, false, false, false, true, 'MEDIUM', 'clean_air_gap_2_0s_v1')`
     );
 
     const response = await fetch(`${baseUrl}/program`, {
@@ -159,7 +161,8 @@ describe('in-process API routes', () => {
       driver_b_id: 'lando-norris',
       shared_events: 1,
       delta_seconds: -1,
-      delta_percent: -0.9803921568627451
+      delta_percent: -0.9708737864077669,
+      methodology_version: 'clean_air_gap_2_0s_v1'
     })]);
     expect(body.core_program.root.op).toBe('delta');
   });

@@ -95,9 +95,9 @@ beforeAll(async () => {
 
   for (const [index, row] of paceReferenceRows.entries()) {
     await pool.query(
-      `INSERT INTO laps_normalized
-        (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound)
-       VALUES ($1, $2, 'test-track', $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      `INSERT INTO laps_normalized_v2
+        (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound, methodology_version)
+       VALUES ($1, $2, 'test-track', $3, 'R', $4, $5, $6, $7, $8, $9, $10, $11, 'clean_air_gap_2_0s_v1')`,
       [row.season, row.round, row.driver_id, index + 1, row.lap_time_seconds, row.is_valid_lap, row.is_pit_lap, row.is_in_lap, row.is_out_lap, row.clean_air_flag, row.compound]
     );
   }
@@ -242,6 +242,7 @@ describe('F1QL standings vertical slice', () => {
     const actual = executed.rows.map((row) => ({
       driver_a_id: row.driver_a_id,
       driver_b_id: row.driver_b_id,
+      methodology_version: row.methodology_version,
       shared_events: Number(row.shared_events),
       driver_a_avg_lap_time_seconds: Number(row.driver_a_avg_lap_time_seconds),
       driver_b_avg_lap_time_seconds: Number(row.driver_b_avg_lap_time_seconds),
@@ -268,6 +269,7 @@ describe('F1QL standings vertical slice', () => {
     const executed = await executeF1QL(pool, paceSummaryProgram);
     const actual = executed.rows.map((row) => ({
       driver_id: row.driver_id,
+      methodology_version: row.methodology_version,
       events: Number(row.events),
       avg_lap_time_seconds: Number(row.avg_lap_time_seconds)
     }));
@@ -297,9 +299,11 @@ describe('F1QL standings vertical slice', () => {
 
     const rows: PaceLapRow[] = [
       { season: 2026, round: 1, driver_id: 'driver-a', lap_time_seconds: 100, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'SOFT' },
+      { season: 2026, round: 1, driver_id: 'driver-a', lap_time_seconds: 102, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'SOFT' },
       { season: 2026, round: 1, driver_id: 'driver-a', lap_time_seconds: 10, is_valid_lap: true, is_pit_lap: true, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'SOFT' },
       { season: 2026, round: 1, driver_id: 'driver-a', lap_time_seconds: null, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'SOFT' },
       { season: 2026, round: 1, driver_id: 'driver-b', lap_time_seconds: 101, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'HARD' },
+      { season: 2026, round: 1, driver_id: 'driver-b', lap_time_seconds: 103, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: true, compound: 'HARD' },
       { season: 2026, round: 1, driver_id: 'driver-b', lap_time_seconds: 10, is_valid_lap: true, is_pit_lap: false, is_in_lap: true, is_out_lap: false, clean_air_flag: true, compound: 'HARD' },
       { season: 2026, round: 1, driver_id: 'driver-b', lap_time_seconds: 10, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: true, clean_air_flag: true, compound: 'HARD' },
       { season: 2026, round: 2, driver_id: 'driver-a', lap_time_seconds: 110, is_valid_lap: true, is_pit_lap: false, is_in_lap: false, is_out_lap: false, clean_air_flag: false, compound: 'SOFT' },
@@ -331,11 +335,11 @@ describe('F1QL standings vertical slice', () => {
       throw new Error('Expected pace delta');
     }
     await pool.query(
-      `INSERT INTO laps_normalized
-        (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag)
+      `INSERT INTO laps_normalized_v2
+        (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version)
        VALUES
-        (2027, 1, 'test-track', 'driver-a', 1, 100, true, false, false, false, false),
-        (2027, 2, 'test-track', 'driver-b', 1, 101, true, false, false, false, false)`
+        (2027, 1, 'test-track', 'driver-a', 'R', 1, 100, true, false, false, false, false, 'clean_air_gap_2_0s_v1'),
+        (2027, 2, 'test-track', 'driver-b', 'R', 1, 101, true, false, false, false, false, 'clean_air_gap_2_0s_v1')`
     );
 
     const executed = await executeF1QL(pool, noOverlapProgram);
