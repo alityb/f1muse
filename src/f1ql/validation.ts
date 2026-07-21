@@ -5,8 +5,8 @@ import { CoreDeltaNode, CoreFilterNode, CorePipelineNode, CoreProgram, CoreSourc
 export const F1QL_DEFINITIONS_VERSION = 'v1';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
-  lap_pace: { fields: ['driver_id', 'lap_time_seconds', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] }
+  lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
+  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] }
 } as const;
 
 export type F1QLValidationCode = 'definitions_version_mismatch' | 'complexity_exceeded' | 'coverage_unsupported' | 'participation_missing' | 'signature_invalid';
@@ -123,8 +123,11 @@ function validateDelta(node: CoreDeltaNode): void {
   const { left, right } = node.input.input;
   const leftSource = validatePipeline(left);
   const rightSource = validatePipeline(right);
-  if (leftSource !== 'lap_pace' || rightSource !== 'lap_pace' || node.input.input.on.join(',') !== 'round') {
+  if (leftSource !== 'lap_pace' || rightSource !== 'lap_pace' || node.input.input.on.length !== 1 || node.input.input.on[0] !== 'round') {
     throw new F1QLValidationError('signature_invalid', 'Delta requires lap pace inputs joined on round');
+  }
+  if (node.input.left.field !== 'median_lap_time_seconds' || node.input.right.field !== 'median_lap_time_seconds') {
+    throw new F1QLValidationError('signature_invalid', 'Delta compares per-round lap pace medians');
   }
   assertSignature('lap_pace', 'join', []);
   assertSignature('lap_pace', 'compare', []);
@@ -136,11 +139,15 @@ function signatureFieldsForFilter(source: CoreSourceNode['source'], node: CoreFi
     return Object.keys(node.where);
   }
   if (source === 'event_classification') {
-    return ['finishing_position', ...Object.keys(node.where).filter((field) => field !== 'season' && field !== 'round')];
+    return Object.keys(node.where);
   }
-  return ['driver_id', 'lap_time_seconds', ...Object.keys(node.where)
-    .filter((field) => field === 'compound' || field === 'clean_air_only')
-    .map((field) => field === 'clean_air_only' ? 'clean_air_flag' : field)];
+  return Object.keys(node.where)
+    .map((field) => {
+      if (field === 'clean_air_only') {
+        return 'clean_air_flag';
+      }
+      return field === 'rounds' ? 'round' : field;
+    });
 }
 
 function signatureFieldsForAggregate(source: CoreSourceNode['source'], node: { group_by: string[]; measures: Array<{ field?: string }> }): string[] {
@@ -148,7 +155,7 @@ function signatureFieldsForAggregate(source: CoreSourceNode['source'], node: { g
   if (source === 'standings') {
     return [...node.group_by, ...measures];
   }
-  return measures.filter((field) => field !== 'median_lap_time_seconds');
+  return [...node.group_by, ...measures].filter((field) => field !== 'median_lap_time_seconds');
 }
 
 function validateSignature(program: F1QLProgram): void {

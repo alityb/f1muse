@@ -7,11 +7,8 @@ export interface CompiledF1QL {
 }
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
-  if (program.root.op === 'delta') {
-    return compileDelta(program.root);
-  }
-  if (isLapPaceAggregate(program.root)) {
-    return compileLapPaceAggregate(program.root);
+  if (getSource(program.root as CorePipelineNode | CoreDeltaNode).source === 'lap_pace') {
+    return compileLapPace(program.root);
   }
   if (getSource(program.root as CorePipelineNode).source === 'event_classification') {
     return compileEventClassification(program.root as CorePipelineNode);
@@ -40,7 +37,7 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
 }
 
 function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
-  if (program.root.op === 'limit' && program.root.input.input.op === 'aggregate') {
+  if (program.root.op === 'limit' && program.root.input.op === 'sort' && program.root.input.input.op === 'aggregate') {
     return program.root.input.input;
   }
   if (program.root.op === 'sort' && program.root.input.op === 'aggregate') {
@@ -112,23 +109,39 @@ function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {
   return getSource(node.input);
 }
 
-function isLapPaceAggregate(node: CoreProgram['root']): node is CoreAggregateNode {
-  return node.op === 'aggregate'
-    && node.input.op === 'aggregate'
-    && node.input.input.op === 'filter'
-    && node.input.input.input.source === 'lap_pace';
+interface PaceFilterPlan {
+  where: CoreLapPaceFilter;
 }
 
-function compileLapPaceAggregate(node: CoreAggregateNode): CompiledF1QL {
-  const eventMedians = node.input as CoreAggregateNode;
-  const filter = eventMedians.input as { where: CoreLapPaceFilter };
-  const params: unknown[] = [
-    filter.where.season,
-    filter.where.driver_id,
-    filter.where.rounds ?? null,
-    filter.where.clean_air_only,
-    filter.where.compound ?? null
-  ];
+interface PaceSourcePlan {
+  source: 'lap_pace';
+}
+
+interface PaceAggregatePlan {
+  input: PaceFilterPlan | PaceAggregatePlan;
+  groupBy: string[];
+  measures: CoreAggregateNode['measures'];
+}
+
+interface PaceJoinPlan {
+  left: PaceAggregatePlan;
+  right: PaceAggregatePlan;
+  on: string[];
+}
+
+function compileLapPace(node: CoreProgram['root']): CompiledF1QL {
+  if (node.op === 'delta') {
+    return compilePaceDelta(node);
+  }
+  const aggregate = compilePacePipeline(node);
+  if (!isPaceAggregatePlan(aggregate) || !isPaceAggregatePlan(aggregate.input)) {
+    throw new Error('Expected a final lap pace aggregate');
+  }
+  const filter = aggregate.input.input;
+  if (!isPaceFilterPlan(filter)) {
+    throw new Error('Expected a filtered lap pace aggregate');
+  }
+  const params = compilePaceParams(filter.where);
 
   return {
     sql: `
@@ -163,8 +176,22 @@ function compileLapPaceAggregate(node: CoreAggregateNode): CompiledF1QL {
   };
 }
 
-function compileDelta(node: CoreDeltaNode): CompiledF1QL {
-  const params = compileDeltaParams(node);
+// The SQL text is intentionally kept contiguous to preserve the established parameter contract.
+// eslint-disable-next-line max-lines-per-function
+function compilePaceDelta(node: CoreDeltaNode): CompiledF1QL {
+  const compare = compilePaceCompare(node.input);
+  const { left, right } = compare.input;
+  const leftFilter = getPaceFilter(left);
+  const rightFilter = getPaceFilter(right);
+  validateSharedPaceFilters(leftFilter, rightFilter);
+  const params = [
+    leftFilter.season,
+    leftFilter.driver_id,
+    rightFilter.driver_id,
+    leftFilter.rounds ?? null,
+    leftFilter.clean_air_only,
+    leftFilter.compound ?? null
+  ];
 
   return {
     sql: `
@@ -216,32 +243,80 @@ function compileDelta(node: CoreDeltaNode): CompiledF1QL {
   };
 }
 
-function compileDeltaParams(node: CoreDeltaNode): unknown[] {
-  const { left, right } = node.input.input;
-  if (!isLapPaceEventAggregate(left) || !isLapPaceEventAggregate(right)) {
-    throw new Error('Expected lap pace aggregates for delta');
+function compilePacePipeline(node: CorePipelineNode): PaceSourcePlan | PaceFilterPlan | PaceAggregatePlan {
+  if (node.op === 'source') {
+    if (node.source !== 'lap_pace') {
+      throw new Error(`Expected lap pace source, received ${node.source}`);
+    }
+    return { source: node.source };
   }
-  const leftFilter = left.input as { where: CoreLapPaceFilter };
-  const rightFilter = right.input as { where: CoreLapPaceFilter };
-  if (leftFilter.where.season !== rightFilter.where.season
-    || JSON.stringify(leftFilter.where.rounds) !== JSON.stringify(rightFilter.where.rounds)
-    || leftFilter.where.clean_air_only !== rightFilter.where.clean_air_only
-    || leftFilter.where.compound !== rightFilter.where.compound) {
-    throw new Error('Delta inputs must share lap pace eligibility filters');
+  if (node.op === 'filter') {
+    const input = compilePacePipeline(node.input);
+    if (!isPaceSourcePlan(input)) {
+      throw new Error('Lap pace filters require a lap pace source');
+    }
+    return { where: node.where as CoreLapPaceFilter };
   }
-  return [
-    leftFilter.where.season,
-    leftFilter.where.driver_id,
-    rightFilter.where.driver_id,
-    leftFilter.where.rounds ?? null,
-    leftFilter.where.clean_air_only,
-    leftFilter.where.compound ?? null
-  ];
+  if (node.op === 'aggregate') {
+    const input = compilePacePipeline(node.input);
+    if (isPaceSourcePlan(input)) {
+      throw new Error('Lap pace aggregates require a filter');
+    }
+    return { input, groupBy: node.group_by, measures: node.measures };
+  }
+  throw new Error(`Unsupported lap pace core operator ${node.op}`);
 }
 
-function isLapPaceEventAggregate(node: CoreAggregateNode): boolean {
-  return node.input.op === 'filter' && node.input.input.source === 'lap_pace'
-    && node.group_by.length === 1 && node.group_by[0] === 'round';
+function compilePaceCompare(node: CoreDeltaNode['input']): { input: PaceJoinPlan } {
+  if (node.op !== 'compare') {
+    throw new Error(`Expected lap pace compare, received ${node.op}`);
+  }
+  return { input: compilePaceJoin(node.input) };
+}
+
+function compilePaceJoin(node: CoreDeltaNode['input']['input']): PaceJoinPlan {
+  if (node.op !== 'join') {
+    throw new Error(`Expected lap pace join, received ${node.op}`);
+  }
+  const left = compilePacePipeline(node.left);
+  const right = compilePacePipeline(node.right);
+  if (!isPaceAggregatePlan(left) || !isPaceAggregatePlan(right)) {
+    throw new Error('Lap pace joins require aggregate inputs');
+  }
+  return { left, right, on: node.on };
+}
+
+function getPaceFilter(node: PaceAggregatePlan): CoreLapPaceFilter {
+  let input: PaceFilterPlan | PaceAggregatePlan = node;
+  while (isPaceAggregatePlan(input)) {
+    input = input.input;
+  }
+  return input.where;
+}
+
+function compilePaceParams(filter: CoreLapPaceFilter): unknown[] {
+  return [filter.season, filter.driver_id, filter.rounds ?? null, filter.clean_air_only, filter.compound ?? null];
+}
+
+function validateSharedPaceFilters(left: CoreLapPaceFilter, right: CoreLapPaceFilter): void {
+  if (left.season !== right.season
+    || JSON.stringify(left.rounds) !== JSON.stringify(right.rounds)
+    || left.clean_air_only !== right.clean_air_only
+    || left.compound !== right.compound) {
+    throw new Error('Delta inputs must share lap pace eligibility filters');
+  }
+}
+
+function isPaceFilterPlan(plan: PaceSourcePlan | PaceFilterPlan | PaceAggregatePlan): plan is PaceFilterPlan {
+  return 'where' in plan;
+}
+
+function isPaceAggregatePlan(plan: PaceSourcePlan | PaceFilterPlan | PaceAggregatePlan): plan is PaceAggregatePlan {
+  return 'groupBy' in plan;
+}
+
+function isPaceSourcePlan(plan: PaceSourcePlan | PaceFilterPlan | PaceAggregatePlan): plan is PaceSourcePlan {
+  return 'source' in plan;
 }
 
 function compileStandingsFilter(filter: StandingsFilter): { whereSql: string; params: unknown[] } {
@@ -266,6 +341,9 @@ function compileStandingsFilter(filter: StandingsFilter): { whereSql: string; pa
 }
 
 function compileLimit(node: CoreLimitNode): string {
+  if (node.input.op !== 'sort') {
+    throw new Error('Expected a sort before limit');
+  }
   const direction = node.input.direction === 'asc' ? 'ASC' : 'DESC';
   return `ORDER BY ${node.input.by} ${direction}, driver_id ASC LIMIT ${node.limit}`;
 }

@@ -54,14 +54,14 @@ export type CoreAggregateMeasure = AggregateMeasure | {
 
 export interface CoreAggregateNode {
   op: 'aggregate';
-  input: CoreSourceNode | CoreFilterNode | CoreAggregateNode;
+  input: CorePipelineNode;
   group_by: string[];
   measures: CoreAggregateMeasure[];
 }
 
 export interface CoreSortNode {
   op: 'sort';
-  input: CoreAggregateNode | CoreEventClassificationFilterNode;
+  input: CorePipelineNode;
   by: string;
   direction: 'asc' | 'desc';
   nulls?: 'first' | 'last';
@@ -69,7 +69,7 @@ export interface CoreSortNode {
 
 export interface CoreLimitNode {
   op: 'limit';
-  input: CoreSortNode;
+  input: CorePipelineNode;
   limit: number;
 }
 
@@ -77,8 +77,8 @@ export type CorePipelineNode = CoreSourceNode | CoreFilterNode | CoreAggregateNo
 
 export interface CoreJoinNode {
   op: 'join';
-  left: CoreAggregateNode;
-  right: CoreAggregateNode;
+  left: CorePipelineNode;
+  right: CorePipelineNode;
   on: string[];
   type: 'inner';
 }

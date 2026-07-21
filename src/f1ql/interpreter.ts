@@ -42,7 +42,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'delta' || isLapPaceAggregate(program.root) || getSourceName(program.root) === 'event_classification') {
+  if (program.root.op === 'delta' || getSourceName(program.root) !== 'standings') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = getAggregateRoot(program);
@@ -109,7 +109,7 @@ function getSourceName(node: CorePipelineNode | CoreDeltaNode): string {
 }
 
 function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
-  if (program.root.op === 'limit' && program.root.input.input.op === 'aggregate') {
+  if (program.root.op === 'limit' && program.root.input.op === 'sort' && program.root.input.input.op === 'aggregate') {
     return program.root.input.input;
   }
   if (program.root.op === 'sort' && program.root.input.op === 'aggregate') {
@@ -123,34 +123,27 @@ function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
 
 export function interpretLapPaceProgram(program: CoreProgram, rows: PaceLapRow[]): Array<Record<string, unknown>> {
   if (program.root.op === 'delta') {
-    return interpretDelta(program.root, rows);
+    return interpretPaceDelta(program.root, rows);
   }
-  if (!isLapPaceAggregate(program.root)) {
-    throw new Error('interpretLapPaceProgram expects a lap pace core program');
+  const result = interpretPacePipeline(program.root, rows);
+  const driverId = getPaceConstant(program.root, 'driver_id');
+  if (driverId === undefined) {
+    throw new Error('Lap pace summary requires a driver filter');
   }
-  const eventMedians = aggregateLapPace(program.root.input as CoreAggregateNode, rows);
-  const values = Array.from(eventMedians.values());
-  const filter = (program.root.input as CoreAggregateNode).input as { where: CoreLapPaceFilter };
-  return [{
-    driver_id: filter.where.driver_id,
-    events: values.length,
-    avg_lap_time_seconds: mean(values)
-  }];
+  return result.map((row) => ({ driver_id: driverId, ...row }));
 }
 
-function interpretDelta(node: CoreDeltaNode, rows: PaceLapRow[]): Array<Record<string, unknown>> {
-  const leftByRound = aggregateLapPace(node.input.input.left, rows);
-  const rightByRound = aggregateLapPace(node.input.input.right, rows);
-  const sharedRounds = Array.from(leftByRound.keys()).filter((round) => rightByRound.has(round));
-  const driverAValues = sharedRounds.map((round) => leftByRound.get(round)!);
-  const driverBValues = sharedRounds.map((round) => rightByRound.get(round)!);
+function interpretPaceDelta(node: CoreDeltaNode, rows: PaceLapRow[]): Array<Record<string, unknown>> {
+  const comparisons = interpretPaceCompare(node.input, rows);
+  const driverAValues = comparisons.map((row) => row.driver_a_median as number);
+  const driverBValues = comparisons.map((row) => row.driver_b_median as number);
   const driverAAvg = mean(driverAValues);
   const driverBAvg = mean(driverBValues);
 
   return [{
     driver_a_id: node.left_id,
     driver_b_id: node.right_id,
-    shared_events: sharedRounds.length,
+    shared_events: comparisons.length,
     driver_a_avg_lap_time_seconds: driverAAvg,
     driver_b_avg_lap_time_seconds: driverBAvg,
     delta_seconds: driverAAvg === null || driverBAvg === null ? null : driverAAvg - driverBAvg,
@@ -191,11 +184,15 @@ function evaluateMeasure(measure: AggregateMeasure, rows: StandingsRow[]): numbe
 }
 
 function limitRows(rows: Array<Record<string, unknown>>, node: CoreLimitNode): Array<Record<string, unknown>> {
-  const direction = node.input.direction === 'asc' ? 1 : -1;
+  if (node.input.op !== 'sort') {
+    throw new Error('Expected a sort before limit');
+  }
+  const sort = node.input;
+  const direction = sort.direction === 'asc' ? 1 : -1;
   return [...rows]
     .sort((a, b) => {
-      const aValue = Number(a[node.input.by]);
-      const bValue = Number(b[node.input.by]);
+      const aValue = Number(a[sort.by]);
+      const bValue = Number(b[sort.by]);
       if (aValue !== bValue) {
         return (aValue - bValue) * direction;
       }
@@ -204,36 +201,89 @@ function limitRows(rows: Array<Record<string, unknown>>, node: CoreLimitNode): A
     .slice(0, node.limit);
 }
 
-function isLapPaceAggregate(node: CoreProgram['root']): node is CoreAggregateNode {
-  return node.op === 'aggregate'
-    && node.input.op === 'aggregate'
-    && node.input.input.op === 'filter'
-    && node.input.input.input.source === 'lap_pace';
+function interpretPacePipeline(node: CorePipelineNode, rows: PaceLapRow[]): Array<Record<string, unknown>> {
+  if (node.op === 'source') {
+    if (node.source !== 'lap_pace') {
+      throw new Error(`interpretLapPaceProgram received ${node.source}`);
+    }
+    return rows.map((row) => ({ ...row }));
+  }
+  if (node.op === 'filter') {
+    const where = node.where as CoreLapPaceFilter;
+    return interpretPacePipeline(node.input, rows)
+      .filter((row) => matchesLapPaceFilter(row as unknown as PaceLapRow, where));
+  }
+  if (node.op === 'aggregate') {
+    const input = interpretPacePipeline(node.input, rows);
+    const groups = new Map<string, Array<Record<string, unknown>>>();
+    for (const row of input) {
+      const key = JSON.stringify(node.group_by.map((field) => row[field]));
+      const group = groups.get(key) ?? [];
+      group.push(row);
+      groups.set(key, group);
+    }
+    if (node.group_by.length === 0 && groups.size === 0) {
+      groups.set('[]', []);
+    }
+    return Array.from(groups.values()).map((group) => {
+      const output: Record<string, unknown> = {};
+      for (const field of node.group_by) {
+        output[field] = group[0]?.[field];
+      }
+      for (const measure of node.measures) {
+        output[measure.as] = evaluatePaceMeasure(measure, group);
+      }
+      return output;
+    });
+  }
+  throw new Error(`Unsupported lap pace core operator ${node.op}`);
 }
 
-function aggregateLapPace(node: CoreAggregateNode, rows: PaceLapRow[]): Map<number, number> {
-  if (!isLapPaceEventAggregate(node)) {
-    throw new Error('Expected per-round lap pace aggregate');
+function interpretPaceCompare(node: CoreDeltaNode['input'], rows: PaceLapRow[]): Array<Record<string, unknown>> {
+  if (node.op !== 'compare') {
+    throw new Error(`Expected lap pace compare, received ${node.op}`);
   }
-  const filter = node.input as { where: CoreLapPaceFilter };
-  const byRound = new Map<number, number[]>();
-  for (const row of rows) {
-    if (!matchesLapPaceFilter(row, filter.where)) {
-      continue;
-    }
-    const values = byRound.get(row.round) ?? [];
-    if (row.lap_time_seconds !== null) {
-      values.push(row.lap_time_seconds);
-    }
-    byRound.set(row.round, values);
-  }
-
-  return new Map(Array.from(byRound.entries()).map(([round, values]) => [round, median(values)]));
+  return interpretPaceJoin(node.input, rows).map(({ left, right }) => ({
+    [node.left.as]: left[node.left.field],
+    [node.right.as]: right[node.right.field]
+  }));
 }
 
-function isLapPaceEventAggregate(node: CoreAggregateNode): boolean {
-  return node.input.op === 'filter' && node.input.input.source === 'lap_pace'
-    && node.group_by.length === 1 && node.group_by[0] === 'round';
+function interpretPaceJoin(node: CoreDeltaNode['input']['input'], rows: PaceLapRow[]): Array<{ left: Record<string, unknown>; right: Record<string, unknown> }> {
+  if (node.op !== 'join') {
+    throw new Error(`Expected lap pace join, received ${node.op}`);
+  }
+  const left = interpretPacePipeline(node.left, rows);
+  const right = interpretPacePipeline(node.right, rows);
+  return left.flatMap((leftRow) => right
+    .filter((rightRow) => node.on.every((field) => leftRow[field] === rightRow[field]))
+    .map((rightRow) => ({ left: leftRow, right: rightRow })));
+}
+
+function evaluatePaceMeasure(measure: CoreAggregateNode['measures'][number], rows: Array<Record<string, unknown>>): number | null {
+  if (measure.function === 'count') {
+    return rows.length;
+  }
+  const values = rows
+    .map((row) => row[measure.field!])
+    .filter((value): value is number => typeof value === 'number');
+  if (!values.length) {
+    return null;
+  }
+  if (measure.function === 'median') {
+    return median(values);
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getPaceConstant(node: CorePipelineNode, field: keyof CoreLapPaceFilter): unknown {
+  if (node.op === 'source') {
+    return undefined;
+  }
+  if (node.op === 'filter') {
+    return (node.where as CoreLapPaceFilter)[field] ?? getPaceConstant(node.input, field);
+  }
+  return getPaceConstant(node.input, field);
 }
 
 function matchesLapPaceFilter(row: PaceLapRow, filter: CoreLapPaceFilter): boolean {

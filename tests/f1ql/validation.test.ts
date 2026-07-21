@@ -34,4 +34,17 @@ describe('F1QL validation gates', () => {
     (core.root.input as { by: string }).by = 'status_reason';
     expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
   });
+  it('validates generic pace join and compare fields against the phase 2 signature', () => {
+    const core = lowerF1QL({
+      version: 1,
+      root: { op: 'pace_delta', driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris', scope: { season: 2025 } }
+    });
+    expect(() => validateCoreProgram(core)).not.toThrow();
+
+    if (core.root.op !== 'delta') {
+      throw new Error('Expected pace delta');
+    }
+    core.root.input.left.field = 'lap_time_seconds';
+    expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+  });
 });

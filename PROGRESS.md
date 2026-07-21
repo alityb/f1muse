@@ -15,7 +15,7 @@
 ### Phase Status
 - Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
 - Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
-- Phase 3: PARTIAL. Current core IR still has specialized pace and classification nodes. Preserve behavior before refactoring.
+- Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
 - Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
 
@@ -84,6 +84,13 @@
 - Completed generic classification consumption: compiler and reference interpreter now recursively apply core `source`, `filter`, `sort`, and `limit` nodes. Classification no longer uses a recovered macro topology or bespoke flattened-node dispatch; source-specific SQL projection remains at the source boundary. Pace retains its bounded specialized compilation path.
 - Added `validateCoreProgram` immediately after lowering and before compilation. It applies the Phase 2 source/field signature catalog to generic core operators, rejects unsupported classification sort fields, and permits only established internal staged pace aliases. The lowering golden is unchanged because lowering output did not change; its exact real-emitter comparison remains green.
 - Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 43 tests; `npm run test:api:inprocess` passed 7 tests.
+
+### Phase 3 Generic Pace Execution Completion (2026-07-21)
+- Completed the remaining pace execution conversion. The compiler now dispatches lap-pace `source`, `filter`, `aggregate`, `join`, `compare`, and `delta` nodes into the established SQL shape rather than detecting pace-summary or pace-delta aggregate topologies. The reference interpreter dispatches the same generic node operations, including generic grouping, median/mean/count measures, join alignment, comparison aliases, and delta output.
+- Preserved the established SQL parameter contracts: summary `[season, driver_id, rounds, clean_air_only, compound]`; delta `[season, driver_a_id, driver_b_id, rounds, clean_air_only, compound]`. Docker-backed differential tests retain eligible-lap exclusions, median-per-round then mean behavior, shared-round alignment, no-overlap null output, and output field shapes.
+- Generalized core node input types so aggregate, sort, limit, and join compose through `CorePipelineNode`. Core signature validation now validates pace source fields used by generic filters/grouping and rejects a non-median generic compare input; the new regression covers that rejection.
+- The lowering emitter and serialized core shape did not change in this execution-only milestone, so `tests/fixtures/f1ql-lowering-golden.json` was intentionally not regenerated. Its existing real-emitter exact comparison passed.
+- Definition of done verified locally: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 44 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
