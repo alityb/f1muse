@@ -65,6 +65,6 @@ SELECT r.year AS season, r.round, REPLACE(rd.driver_id, '_', '-') AS driver_id,
     -- Do not infer a non-start from lap count or grid position: formation-lap DNFs remain DNF.
     ELSE 'dnf'
   END AS classification_status,
-  COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired) AS status_reason
+  COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired)::varchar(100) AS status_reason
 FROM race_data rd JOIN race r ON r.id = rd.race_id
 WHERE LOWER(rd.type) IN ('race', 'race_result');

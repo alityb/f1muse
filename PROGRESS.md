@@ -198,6 +198,7 @@
 - Pace correctness migration first production attempt rolled back cleanly because PostgreSQL forbids `CREATE OR REPLACE VIEW` from changing the established `lap_time_seconds numeric` typmod to `numeric(8,3)`. Fixed the migration view projection to cast the v2 value back to untyped `numeric`, preserving the existing canonical-view contract before retry.
 - Second retry also rolled back cleanly on the existing `session_type varchar(5)` view contract; the v2 projection now preserves that type explicitly before the final retry.
 - Final corrected migration attempt reached production but was rejected with `cannot execute CREATE TABLE in a read-only transaction`. Railway production has only `DATABASE_URL`, with no separate primary/replica variables, and that role is read-only. No DDL was applied. PARTIAL: apply `migrations/20260721_pace_correctness_v2.sql` through the Supabase SQL editor or an approved primary migration credential, then verify `laps_normalized_v2`, `f1ql.lap_pace`, and `f1ql.event_classification` before deploying pace correctness code.
+- Supabase SQL Editor retry exposed one additional legacy view contract: `f1ql.event_classification.status_reason` is `varchar(100)`. The migration now casts the revised expression to `varchar(100)`; rerun the full transaction after pulling commit containing this fix.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
