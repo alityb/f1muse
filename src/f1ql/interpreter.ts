@@ -20,6 +20,8 @@ export interface PaceLapRow {
   is_out_lap: boolean;
   clean_air_flag: boolean;
   compound: string | null;
+  session_type?: string;
+  methodology_version?: string;
 }
 
 export interface EventClassificationRow {
@@ -210,7 +212,7 @@ export function interpretLapPaceProgram(program: CoreProgram, rows: PaceLapRow[]
   if (driverId === undefined) {
     throw new Error('Lap pace summary requires a driver filter');
   }
-  return result.map((row) => ({ driver_id: driverId, ...row }));
+  return result.map((row) => ({ driver_id: driverId, methodology_version: 'clean_air_gap_2_0s_v1', ...row }));
 }
 
 function interpretPaceDelta(node: CoreDeltaNode, rows: PaceLapRow[]): Array<Record<string, unknown>> {
@@ -223,6 +225,7 @@ function interpretPaceDelta(node: CoreDeltaNode, rows: PaceLapRow[]): Array<Reco
   return [{
     driver_a_id: node.left_id,
     driver_b_id: node.right_id,
+    methodology_version: 'clean_air_gap_2_0s_v1',
     shared_events: comparisons.length,
     driver_a_avg_lap_time_seconds: driverAAvg,
     driver_b_avg_lap_time_seconds: driverBAvg,
@@ -326,7 +329,7 @@ function interpretPacePipeline(node: CorePipelineNode, rows: PaceLapRow[]): Arra
     if (node.group_by.length === 0 && groups.size === 0) {
       groups.set('[]', []);
     }
-    return Array.from(groups.values()).map((group) => {
+    return Array.from(groups.values()).filter((group) => node.minimum_rows === undefined || group.length >= node.minimum_rows).map((group) => {
       const output: Record<string, unknown> = {};
       for (const field of node.group_by) {
         output[field] = group[0]?.[field];
@@ -400,6 +403,8 @@ function matchesLapPaceFilter(row: PaceLapRow, filter: CoreLapPaceFilter): boole
     !row.is_pit_lap,
     !row.is_in_lap,
     !row.is_out_lap,
+    row.session_type === undefined || row.session_type === 'R',
+    row.methodology_version === undefined || row.methodology_version === 'clean_air_gap_2_0s_v1',
     matchesCleanAir,
     matchesCompound
   ].every(Boolean);

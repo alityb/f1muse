@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { F1QLProgram } from './ast';
 import { CoreDeltaNode, CoreFilterNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 
-export const F1QL_DEFINITIONS_VERSION = 'v1';
+export const F1QL_DEFINITIONS_VERSION = 'v2';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },

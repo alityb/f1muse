@@ -83,6 +83,7 @@ export interface CoreAggregateNode {
   input: CorePipelineNode;
   group_by: string[];
   measures: CoreAggregateMeasure[];
+  minimum_rows?: number;
 }
 
 export interface CoreSortNode {

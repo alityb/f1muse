@@ -18,12 +18,13 @@ import path from 'path';
 
 const TARGET_SEASON = 2026;
 const CLEAN_AIR_GAP_THRESHOLD = 2.0; // seconds
+const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 const MIN_DRIVERS_PER_RACE = 10;
-const SQL_TEMPLATE = `INSERT INTO laps_normalized (
-  season, round, track_id, driver_id, lap_number,
+const SQL_TEMPLATE = `INSERT INTO laps_normalized_v2 (
+  season, round, track_id, driver_id, session_type, lap_number,
   stint_id, stint_lap_index, lap_time_seconds,
   is_valid_lap, is_pit_lap, is_out_lap, is_in_lap,
-  clean_air_flag, compound, tyre_age_laps
+  clean_air_flag, compound, tyre_age_laps, methodology_version
 ) VALUES (...)`;
 
 const FASTF1_CODE_OVERRIDES: Record<string, { driver_id?: string; first_name?: string; last_name?: string; full_name?: string }> = {
@@ -540,6 +541,7 @@ async function validateLapsSchema(pool: Pool): Promise<void> {
     'round',
     'track_id',
     'driver_id',
+    'session_type',
     'lap_number',
     'stint_id',
     'stint_lap_index',
@@ -550,7 +552,8 @@ async function validateLapsSchema(pool: Pool): Promise<void> {
     'is_in_lap',
     'clean_air_flag',
     'compound',
-    'tyre_age_laps'
+    'tyre_age_laps',
+    'methodology_version'
   ];
 
   const result = await pool.query(
@@ -558,12 +561,12 @@ async function validateLapsSchema(pool: Pool): Promise<void> {
     SELECT column_name
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name = 'laps_normalized'
+      AND table_name = 'laps_normalized_v2'
     `
   );
 
   if (result.rows.length === 0) {
-    throw new Error('FAIL_CLOSED: laps_normalized table not found');
+    throw new Error('FAIL_CLOSED: laps_normalized_v2 table not found; apply the pace correctness migration before ingestion');
   }
 
   const existing = new Set<string>(result.rows.map(row => row.column_name));
@@ -571,7 +574,7 @@ async function validateLapsSchema(pool: Pool): Promise<void> {
 
   if (missing.length > 0) {
     throw new Error(
-      `FAIL_CLOSED: laps_normalized missing required columns: ${missing.join(', ')}`
+      `FAIL_CLOSED: laps_normalized_v2 missing required columns: ${missing.join(', ')}`
     );
   }
 }
@@ -1139,7 +1142,7 @@ async function loadExistingLapHash(
   const trackRows = await client.query(
     `
     SELECT DISTINCT track_id
-    FROM laps_normalized
+    FROM laps_normalized_v2
     WHERE season = $1
       AND round = $2
     `,
@@ -1153,7 +1156,7 @@ async function loadExistingLapHash(
   const existingTrackIds = trackRows.rows.map(row => row.track_id);
   if (existingTrackIds.some(id => id !== trackId)) {
     throw new Error(
-      `FAIL_CLOSED: Existing laps_normalized rows for round ${round} have mismatched track_id`
+      `FAIL_CLOSED: Existing laps_normalized_v2 rows for round ${round} have mismatched track_id`
     );
   }
 
@@ -1175,7 +1178,7 @@ async function loadExistingLapHash(
       clean_air_flag,
       compound,
       tyre_age_laps
-    FROM laps_normalized
+    FROM laps_normalized_v2
     WHERE season = $1
       AND round = $2
       AND track_id = $3
@@ -1231,6 +1234,7 @@ async function insertRoundLaps(
     'round',
     'track_id',
     'driver_id',
+    'session_type',
     'lap_number',
     'stint_id',
     'stint_lap_index',
@@ -1241,7 +1245,8 @@ async function insertRoundLaps(
     'is_in_lap',
     'clean_air_flag',
     'compound',
-    'tyre_age_laps'
+    'tyre_age_laps',
+    'methodology_version'
   ];
 
   const valuesPerRow = columnList.length;
@@ -1263,6 +1268,7 @@ async function insertRoundLaps(
         lap.round,
         lap.track_id,
         lap.driver_id,
+        'R',
         lap.lap_number,
         lap.stint_id,
         lap.stint_lap_index,
@@ -1273,11 +1279,12 @@ async function insertRoundLaps(
         lap.is_in_lap,
         lap.clean_air_flag,
         lap.compound,
-        lap.tyre_age_laps
+        lap.tyre_age_laps,
+        CLEAN_AIR_METHODOLOGY_VERSION
       );
     });
 
-    const sql = `INSERT INTO laps_normalized (${columnList.join(', ')}) VALUES ${placeholders.join(', ')}`;
+    const sql = `INSERT INTO laps_normalized_v2 (${columnList.join(', ')}) VALUES ${placeholders.join(', ')}`;
     await client.query(sql, values);
   }
 

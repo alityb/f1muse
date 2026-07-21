@@ -1,5 +1,8 @@
 import { StandingsFilter } from './ast';
 import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { MINIMUM_ELIGIBLE_LAPS_PER_EVENT } from './lower';
+
+export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
 export interface CompiledF1QL {
   sql: string;
@@ -248,6 +251,8 @@ function compileLapPace(node: CoreProgram['root']): CompiledF1QL {
           AND COALESCE(is_pit_lap, false) = false
           AND COALESCE(is_in_lap, false) = false
           AND COALESCE(is_out_lap, false) = false
+          AND session_type = 'R'
+          AND methodology_version = '${CLEAN_AIR_METHODOLOGY_VERSION}'
           AND (NOT $4::boolean OR COALESCE(clean_air_flag, false) = true)
           AND ($5::text IS NULL OR compound = $5::text)
       ),
@@ -257,9 +262,11 @@ function compileLapPace(node: CoreProgram['root']): CompiledF1QL {
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lap_time_seconds) AS median_lap_time_seconds
         FROM filtered_laps
         GROUP BY round
+        HAVING COUNT(*) >= ${MINIMUM_ELIGIBLE_LAPS_PER_EVENT}
       )
       SELECT
         $2::text AS driver_id,
+        '${CLEAN_AIR_METHODOLOGY_VERSION}'::text AS methodology_version,
         COUNT(*)::integer AS events,
         AVG(median_lap_time_seconds) AS avg_lap_time_seconds
       FROM event_medians
@@ -298,6 +305,8 @@ function compilePaceDelta(node: CoreDeltaNode): CompiledF1QL {
           AND COALESCE(is_pit_lap, false) = false
           AND COALESCE(is_in_lap, false) = false
           AND COALESCE(is_out_lap, false) = false
+          AND session_type = 'R'
+          AND methodology_version = '${CLEAN_AIR_METHODOLOGY_VERSION}'
           AND (NOT $5::boolean OR COALESCE(clean_air_flag, false) = true)
           AND ($6::text IS NULL OR compound = $6::text)
       ),
@@ -308,6 +317,7 @@ function compilePaceDelta(node: CoreDeltaNode): CompiledF1QL {
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lap_time_seconds) AS median_lap_time_seconds
         FROM filtered_laps
         GROUP BY round, driver_id
+        HAVING COUNT(*) >= ${MINIMUM_ELIGIBLE_LAPS_PER_EVENT}
       ),
       shared_events AS (
         SELECT
@@ -321,6 +331,7 @@ function compilePaceDelta(node: CoreDeltaNode): CompiledF1QL {
       SELECT
         $2::text AS driver_a_id,
         $3::text AS driver_b_id,
+        '${CLEAN_AIR_METHODOLOGY_VERSION}'::text AS methodology_version,
         COUNT(*)::integer AS shared_events,
         AVG(driver_a_median) AS driver_a_avg_lap_time_seconds,
         AVG(driver_b_median) AS driver_b_avg_lap_time_seconds,

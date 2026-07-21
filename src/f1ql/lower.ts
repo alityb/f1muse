@@ -1,6 +1,8 @@
 import { AggregateNode, F1QLProgram } from './ast';
 import { CoreAggregateNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 
+export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
+
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'pace_delta') {
     const filters = program.root.filters ?? {};
@@ -86,7 +88,8 @@ function lowerPaceEventMedians(driverId: string, scope: { season: number; rounds
     op: 'aggregate',
     input: { op: 'filter', input: { op: 'source', source: 'lap_pace' }, where },
     group_by: ['round'],
-    measures: [{ as: 'median_lap_time_seconds', function: 'median', field: 'lap_time_seconds' }]
+    measures: [{ as: 'median_lap_time_seconds', function: 'median', field: 'lap_time_seconds' }],
+    minimum_rows: MINIMUM_ELIGIBLE_LAPS_PER_EVENT
   };
 }
 

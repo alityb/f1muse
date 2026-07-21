@@ -39,7 +39,8 @@ load_dotenv()
 
 # Configuration
 TARGET_SEASON = 2025
-CLEAN_AIR_GAP_THRESHOLD = 1.5  # seconds - gap to car ahead to be considered "clean air"
+CLEAN_AIR_GAP_THRESHOLD = 2.0  # seconds - gap to car ahead to be considered "clean air"
+CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1'
 
 # Driver ID mapping: FastF1 generates IDs from first_name_last_name, but some differ from F1DB canonical IDs
 # This maps FastF1-generated IDs to canonical F1DB IDs
@@ -463,13 +464,13 @@ def load_race_data(conn, season: int, round_number: int) -> Dict[str, Any]:
             try:
                 # Prepare insert values
                 insert_query = """
-                    INSERT INTO laps_normalized (
+                    INSERT INTO laps_normalized_v2 (
                         season, round, track_id, driver_id, session_type, lap_number,
                         stint_id, stint_lap_index, lap_time_seconds,
                         is_valid_lap, is_pit_lap, is_out_lap, is_in_lap,
-                        clean_air_flag, compound, tyre_age_laps
+                        clean_air_flag, compound, tyre_age_laps, methodology_version
                     ) VALUES %s
-                    ON CONFLICT (season, round, track_id, driver_id, lap_number)
+                    ON CONFLICT (season, round, track_id, driver_id, session_type, lap_number)
                     DO UPDATE SET
                         session_type = EXCLUDED.session_type,
                         stint_id = EXCLUDED.stint_id,
@@ -485,7 +486,7 @@ def load_race_data(conn, season: int, round_number: int) -> Dict[str, Any]:
                         lap['session_type'], lap['lap_number'], lap['stint_id'], lap['stint_lap_index'],
                         lap['lap_time_seconds'], lap['is_valid_lap'], lap['is_pit_lap'],
                         lap['is_out_lap'], lap['is_in_lap'], lap['clean_air_flag'],
-                        lap['compound'], lap['tyre_age_laps']
+                        lap['compound'], lap['tyre_age_laps'], CLEAN_AIR_METHODOLOGY_VERSION
                     )
                     for lap in transformed_laps
                 ]
