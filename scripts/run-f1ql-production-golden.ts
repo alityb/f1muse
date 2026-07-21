@@ -3,7 +3,7 @@ import { compileF1QL } from '../src/f1ql/compiler';
 import { lowerF1QL } from '../src/f1ql/lower';
 import { parseF1QLProgram } from '../src/f1ql/schema';
 import { validateCoreProgram, validateF1QLProgram } from '../src/f1ql/validation';
-import { productionGoldenManifest, type ProductionGoldenCase } from './f1ql-production-golden-manifest';
+import { productionCorpusAudit, productionCorpusManifest, type ProductionCorpusCase } from './f1ql-production-corpus-manifest';
 
 const STATEMENT_TIMEOUT_MS = 5_000;
 
@@ -22,11 +22,16 @@ export interface ProductionGoldenResult {
   statement_timeout_ms: number;
   cases: Array<{
     id: string;
-    authority: ProductionGoldenCase['authority'];
-    expected_facts: Array<Record<string, unknown>>;
-    actual_rows: Array<Record<string, unknown>>;
+    disposition: ProductionCorpusCase['disposition'];
+    outcome: 'passed' | 'failed' | 'skipped';
+    required_relation: string;
+    authority?: ProductionCorpusCase['authority'];
+    expected_facts?: Array<Record<string, unknown>>;
+    actual_rows?: Array<Record<string, unknown>>;
     matched: boolean;
+    skip_reason?: 'missing_production_view';
   }>;
+  corpus_audit: typeof productionCorpusAudit;
 }
 
 export function requireProductionGoldenConfiguration(environment: NodeJS.ProcessEnv = process.env): string {
@@ -75,7 +80,18 @@ export async function runProductionGolden(pool: QueryPool): Promise<ProductionGo
     await client.query('BEGIN READ ONLY');
     await client.query("SELECT set_config('statement_timeout', $1, true)", [`${STATEMENT_TIMEOUT_MS}ms`]);
     const cases: ProductionGoldenResult['cases'] = [];
-    for (const testCase of productionGoldenManifest) {
+    const relationExists = new Map<string, boolean>();
+    for (const testCase of productionCorpusManifest) {
+      let exists = relationExists.get(testCase.required_relation);
+      if (exists === undefined) {
+        const result = await client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', [testCase.required_relation]);
+        exists = result.rows[0]?.relation === testCase.required_relation;
+        relationExists.set(testCase.required_relation, exists);
+      }
+      if (!exists) {
+        cases.push({ id: testCase.id, disposition: testCase.disposition, outcome: 'skipped', required_relation: testCase.required_relation, authority: testCase.authority, expected_facts: testCase.expected_facts, matched: false, skip_reason: 'missing_production_view' });
+        continue;
+      }
       const program = parseF1QLProgram(testCase.program);
       validateF1QLProgram(program);
       const coreProgram = lowerF1QL(program);
@@ -85,17 +101,21 @@ export async function runProductionGolden(pool: QueryPool): Promise<ProductionGo
       const result = await client.query(compiled.sql, compiled.params);
       cases.push({
         id: testCase.id,
+        disposition: testCase.disposition,
+        outcome: testCase.disposition === 'authoritative_factual' && !hasExpectedFacts(result.rows, testCase.expected_facts ?? []) ? 'failed' : 'passed',
+        required_relation: testCase.required_relation,
         authority: testCase.authority,
         expected_facts: testCase.expected_facts,
         actual_rows: result.rows,
-        matched: hasExpectedFacts(result.rows, testCase.expected_facts)
+        matched: testCase.disposition === 'production_runnable_structural' || hasExpectedFacts(result.rows, testCase.expected_facts ?? [])
       });
     }
     await client.query('ROLLBACK');
     return {
-      status: cases.every(testCase => testCase.matched) ? 'passed' : 'failed',
+      status: cases.every(testCase => testCase.outcome !== 'failed') ? 'passed' : 'failed',
       statement_timeout_ms: STATEMENT_TIMEOUT_MS,
-      cases
+      cases,
+      corpus_audit: productionCorpusAudit
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
@@ -121,7 +141,7 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
+    process.stdout.write(`${JSON.stringify({ status: 'refused', error: error instanceof Error ? error.message : String(error) })}\n`);
     process.exitCode = 1;
   });
 }

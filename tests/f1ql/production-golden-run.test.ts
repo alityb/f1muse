@@ -3,9 +3,9 @@ import {
   requireProductionGoldenConfiguration,
   runProductionGolden
 } from '../../scripts/run-f1ql-production-golden';
-import { productionGoldenManifest } from '../../scripts/f1ql-production-golden-manifest';
+import { productionCorpusAudit, productionCorpusManifest } from '../../scripts/f1ql-production-corpus-manifest';
 
-function mockPool(rows: Array<Array<Record<string, unknown>>>) {
+function mockPool(rows: Array<Array<Record<string, unknown>>>, missingRelations = new Set<string>()) {
   const calls: Array<{ sql: string; params?: unknown[] }> = [];
   let resultIndex = 0;
   return {
@@ -15,6 +15,9 @@ function mockPool(rows: Array<Array<Record<string, unknown>>>) {
         return {
           async query(sql: string, params?: unknown[]) {
             calls.push({ sql, params });
+            if (sql.includes('to_regclass')) {
+              return { rows: [{ relation: missingRelations.has(String(params?.[0])) ? null : params?.[0] }] };
+            }
             if (!sql.includes('set_config') && (sql.trim().startsWith('SELECT') || sql.trim().startsWith('WITH'))) {
               return { rows: rows[resultIndex++] ?? [] };
             }
@@ -44,11 +47,13 @@ describe('production F1QL golden run', () => {
   });
 
   it('uses one read-only transaction, a local timeout, and compares manifest facts', async () => {
-    const { pool, calls } = mockPool(productionGoldenManifest.map(testCase => testCase.expected_facts));
+    const rows = productionCorpusManifest.map((testCase) => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
+    const { pool, calls } = mockPool(rows);
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases).toHaveLength(2);
+    expect(result.cases).toHaveLength(5);
+    expect(result.corpus_audit).toHaveLength(100);
     expect(calls[0]).toEqual({ sql: 'BEGIN READ ONLY', params: undefined });
     expect(calls[1]).toEqual({ sql: "SELECT set_config('statement_timeout', $1, true)", params: ['5000ms'] });
     expect(calls.at(-1)).toEqual({ sql: 'ROLLBACK', params: undefined });
@@ -57,17 +62,43 @@ describe('production F1QL golden run', () => {
   });
 
   it('reports factual mismatches as JSON-safe failed results without writes', async () => {
-    const { pool } = mockPool([[{ driver_id: 'max-verstappen', finishing_position: 2 }], productionGoldenManifest[1].expected_facts]);
+    const rows = productionCorpusManifest.map((testCase) => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
+    rows[3] = [{ driver_id: 'max-verstappen', finishing_position: 2 }];
+    const { pool } = mockPool(rows);
     const result = await runProductionGolden(pool);
     expect(result.status).toBe('failed');
-    expect(result.cases[0]).toMatchObject({ id: '2024-bahrain-race-winner', matched: false });
+    expect(result.cases[3]).toMatchObject({ id: '2024-bahrain-race-winner', matched: false });
   });
 
   it('matches PostgreSQL numeric output against numeric authoritative facts', async () => {
-    const expected = productionGoldenManifest.map(testCase => testCase.expected_facts);
-    expected[0] = [{ ...expected[0][0], points: '26.00' }];
-    const { pool } = mockPool(expected);
+    const rows = productionCorpusManifest.map((testCase) => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
+    rows[3] = [{ ...rows[3][0], points: '26.00' }];
+    const { pool } = mockPool(rows);
     const result = await runProductionGolden(pool);
     expect(result.status).toBe('passed');
+  });
+
+  it('explicitly skips cases whose required production view is unavailable', async () => {
+    const rows = [
+      [{ driver_id: 'max-verstappen', points: '25' }],
+      [{ driver_id: 'max-verstappen', qualifying_position: 1 }],
+      productionCorpusManifest[4].expected_facts ?? []
+    ];
+    const { pool, calls } = mockPool(rows, new Set(['f1ql.event_classification']));
+    const result = await runProductionGolden(pool);
+
+    expect(result.status).toBe('passed');
+    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toEqual([
+      expect.objectContaining({ id: '2025-race-classification-structural', outcome: 'skipped' }),
+      expect.objectContaining({ id: '2024-bahrain-race-winner', outcome: 'skipped' })
+    ]);
+    expect(calls.filter(call => call.sql.includes('f1ql.event_classification') && !call.sql.includes('to_regclass'))).toHaveLength(0);
+  });
+
+  it('audits all 100 fixture cases and separates source-dependent pace coverage', () => {
+    expect(productionCorpusAudit.filter(testCase => testCase.disposition === 'fixture_only')).toHaveLength(41);
+    expect(productionCorpusAudit.filter(testCase => testCase.disposition === 'production_runnable_structural')).toHaveLength(59);
+    expect(productionCorpusAudit.filter(testCase => testCase.runner_action === 'skipped_fixture_only')).toHaveLength(41);
+    expect(productionCorpusAudit.some(testCase => testCase.reason.includes('Lap pace'))).toBe(true);
   });
 });
