@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { DriverResolver } from '../../identity/driver-resolver';
 import { createF1QLTextModel, F1QLTextModel, translateF1QLQuestion } from '../../f1ql/translator';
 import { F1QLProgram } from '../../f1ql/ast';
+import { F1QLValidationError, validateF1QLProgram, validateParticipation } from '../../f1ql/validation';
 import { metrics } from '../../observability/metrics';
 
 export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, _executor?: () => never): Router {
@@ -25,10 +26,12 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, 
     try {
       const program = await translateF1QLQuestion(question, translator);
       const resolved = await resolveDriverIds(program, drivers);
+      validateF1QLProgram(resolved);
+      await validateParticipation(pool, resolved);
       recordOutcome('succeeded', 'validated_shadow_program', Date.now() - startedAt, resolved.root.op);
       return res.status(200).json({ mode: 'shadow', program: resolved });
     } catch (error) {
-      const reason = error instanceof Error && error.message.startsWith('identity_unresolved') ? error.message : 'translation did not produce a supported program';
+      const reason = error instanceof F1QLValidationError ? error.code : error instanceof Error && error.message.startsWith('identity_unresolved') ? error.message : 'translation did not produce a supported program';
       const status = reason.startsWith('identity_unresolved') ? 422 : 400;
       recordOutcome(status === 422 ? 'identity_miss' : 'unsupported', status === 422 ? 'identity_unresolved' : 'program_invalid', Date.now() - startedAt);
       return res.status(status).json({ error: status === 422 ? 'identity_unresolved' : 'program_unsupported', reason });
@@ -45,18 +48,30 @@ function recordOutcome(outcome: 'succeeded' | 'invalid' | 'unsupported' | 'ident
 
 async function resolveDriverIds(program: F1QLProgram, resolver: DriverResolver): Promise<F1QLProgram> {
   const root = program.root;
-  const ids = root.op === 'pace_delta' ? [root.driver_a_id, root.driver_b_id]
-    : root.op === 'pace_summary' ? [root.driver_id]
-    : root.op === 'event_classification' && root.filters?.driver_id ? [root.filters.driver_id]
-    : [];
+  let ids: string[] = [];
+  if (root.op === 'pace_delta') {
+    ids = [root.driver_a_id, root.driver_b_id];
+  } else if (root.op === 'pace_summary') {
+    ids = [root.driver_id];
+  } else if (root.op === 'event_classification' && root.filters?.driver_id) {
+    ids = [root.filters.driver_id];
+  }
   const resolved = new Map<string, string>();
   for (const id of ids) {
     const result = await resolver.resolve(id);
-    if (!result.success || !result.f1db_driver_id) throw new Error(`identity_unresolved: ${id}`);
+    if (!result.success || !result.f1db_driver_id) {
+      throw new Error(`identity_unresolved: ${id}`);
+    }
     resolved.set(id, result.f1db_driver_id.replace(/_/g, '-'));
   }
-  if (root.op === 'pace_delta') return { ...program, root: { ...root, driver_a_id: resolved.get(root.driver_a_id)!, driver_b_id: resolved.get(root.driver_b_id)! } };
-  if (root.op === 'pace_summary') return { ...program, root: { ...root, driver_id: resolved.get(root.driver_id)! } };
-  if (root.op === 'event_classification' && root.filters?.driver_id) return { ...program, root: { ...root, filters: { ...root.filters, driver_id: resolved.get(root.filters.driver_id) } } };
+  if (root.op === 'pace_delta') {
+    return { ...program, root: { ...root, driver_a_id: resolved.get(root.driver_a_id)!, driver_b_id: resolved.get(root.driver_b_id)! } };
+  }
+  if (root.op === 'pace_summary') {
+    return { ...program, root: { ...root, driver_id: resolved.get(root.driver_id)! } };
+  }
+  if (root.op === 'event_classification' && root.filters?.driver_id) {
+    return { ...program, root: { ...root, filters: { ...root.filters, driver_id: resolved.get(root.filters.driver_id) } } };
+  }
   return program;
 }

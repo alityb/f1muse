@@ -61,7 +61,9 @@ export class OpenAICompatibleF1QLModel implements F1QLTextModel {
         tool_choice: { type: 'function', function: { name: 'emit_f1ql_program' } }
       })
     });
-    if (!response.ok) throw new Error('F1QL translation provider unavailable');
+    if (!response.ok) {
+      throw new Error('F1QL translation provider unavailable');
+    }
     const body = await response.json() as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }> };
     return body.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ?? '';
   }
@@ -72,7 +74,9 @@ export function createF1QLTextModel(): F1QLTextModel {
     const baseUrl = process.env.LLM_BASE_URL;
     const apiKey = process.env.LLM_API_KEY;
     const model = process.env.F1QL_MODEL || process.env.ANTHROPIC_MODEL;
-    if (!baseUrl || !apiKey || !model) throw new Error('F1QL translation provider is not configured');
+    if (!baseUrl || !apiKey || !model) {
+      throw new Error('F1QL translation provider is not configured');
+    }
     return new OpenAICompatibleF1QLModel(baseUrl, apiKey, model);
   }
   return new AnthropicF1QLModel(process.env.ANTHROPIC_API_KEY ?? '');

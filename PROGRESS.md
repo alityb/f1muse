@@ -15,6 +15,7 @@
 ### Phase Status
 - Phase 1: IN PROGRESS. Shadow route exists; typed outcome metrics, report automation, nightly CI, and corpus smoke are not yet complete.
 - Phase 2: NOT STARTED. Existing schema and round/result budgets are partial validation only.
+- Phase 2: IN PROGRESS. Definitions, structural complexity, coverage foundation, participation, and transaction-scoped timeout gates are implemented. Docker is required for timeout/participation integration fixtures.
 - Phase 3: PARTIAL. Current core IR still has specialized pace and classification nodes. Preserve behavior before refactoring.
 - Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.

@@ -25,6 +25,7 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: getTestDatabaseUrl() });
   await setupTestDatabase(pool, { seed: false });
   await pool.query(`INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation) VALUES ('max_verstappen', 'Max Verstappen', 'Max Verstappen', 'Max', 'Verstappen', 'VER')`);
+  await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES (2025, 'red-bull', 'red-bull', 'max_verstappen', false)`);
   const app = express();
   app.use(express.json());
   model = new StubModel(JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2025 } } }));

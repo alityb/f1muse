@@ -100,6 +100,13 @@ beforeAll(async () => {
       [row.season, row.round, row.driver_id, index + 1, row.lap_time_seconds, row.is_valid_lap, row.is_pit_lap, row.is_in_lap, row.is_out_lap, row.clean_air_flag, row.compound]
     );
   }
+  await pool.query(
+    `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2025, 'red-bull', 'red-bull', 'max-verstappen', false),
+      (2025, 'mclaren', 'mclaren', 'lando-norris', false),
+      (2027, 'team-a', 'team-a', 'driver-a', false),
+      (2027, 'team-b', 'team-b', 'driver-b', false)`
+  );
 });
 
 afterAll(async () => {
