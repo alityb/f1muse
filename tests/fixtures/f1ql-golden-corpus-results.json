@@ -1,0 +1,928 @@
+[
+  {
+    "question": "standings points 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "points": "18"
+      },
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      }
+    ]
+  },
+  {
+    "question": "standings points max 2025",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      }
+    ]
+  },
+  {
+    "question": "standings points both drivers 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "points": "18"
+      },
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      }
+    ]
+  },
+  {
+    "question": "standings appearances 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "appearances": 1
+      },
+      {
+        "driver_id": "max-verstappen",
+        "appearances": 1
+      }
+    ]
+  },
+  {
+    "question": "standings appearances max 2025",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "appearances": 1
+      }
+    ]
+  },
+  {
+    "question": "standings appearances both drivers 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "appearances": 1
+      },
+      {
+        "driver_id": "max-verstappen",
+        "appearances": 1
+      }
+    ]
+  },
+  {
+    "question": "standings best position 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "best_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings best position max 2025",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings best position both drivers 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "best_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings worst position 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "worst_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "worst_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings worst position max 2025",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "worst_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings worst position both drivers 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "worst_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "worst_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings combined measures 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "points": "18",
+        "appearances": 1,
+        "best_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "points": "25",
+        "appearances": 1,
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings combined measures max 2025",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "points": "25",
+        "appearances": 1,
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "standings combined measures both drivers 2025",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "points": "18",
+        "appearances": 1,
+        "best_position": 2
+      },
+      {
+        "driver_id": "max-verstappen",
+        "points": "25",
+        "appearances": 1,
+        "best_position": 1
+      }
+    ]
+  },
+  {
+    "question": "rank points descending top one",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      }
+    ]
+  },
+  {
+    "question": "rank points descending top two",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      },
+      {
+        "driver_id": "lando-norris",
+        "points": "18"
+      }
+    ]
+  },
+  {
+    "question": "rank points ascending",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "points": "18"
+      },
+      {
+        "driver_id": "max-verstappen",
+        "points": "25"
+      }
+    ]
+  },
+  {
+    "question": "rank appearances descending",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "appearances": 1
+      },
+      {
+        "driver_id": "max-verstappen",
+        "appearances": 1
+      }
+    ]
+  },
+  {
+    "question": "standings absent season",
+    "rows": []
+  },
+  {
+    "question": "max-verstappen pace season {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 2,
+        "avg_lap_time_seconds": 106.5
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 1,
+        "avg_lap_time_seconds": 102
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 2 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 1,
+        "avg_lap_time_seconds": 111
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1-2 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 2,
+        "avg_lap_time_seconds": 106.5
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1-2 {\"clean_air_only\":true}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 2,
+        "avg_lap_time_seconds": 106.5
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1-2 {\"clean_air_only\":false}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 2,
+        "avg_lap_time_seconds": 106.5
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1-2 {\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 2,
+        "avg_lap_time_seconds": 106.5
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 1-2 {\"compound\":\"SOFT\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 0,
+        "avg_lap_time_seconds": null
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace season {}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 2,
+        "avg_lap_time_seconds": 107.5
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 1 {}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 1,
+        "avg_lap_time_seconds": 103
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 2 {}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 1,
+        "avg_lap_time_seconds": 112
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 1-2 {}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 2,
+        "avg_lap_time_seconds": 107.5
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 1-2 {\"clean_air_only\":true,\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 2,
+        "avg_lap_time_seconds": 107.5
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 1-2 {\"clean_air_only\":false,\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 2,
+        "avg_lap_time_seconds": 107.5
+      }
+    ]
+  },
+  {
+    "question": "lando-norris pace 3 {}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "events": 0,
+        "avg_lap_time_seconds": null
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen pace 3 {\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "events": 0,
+        "avg_lap_time_seconds": null
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace season {}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 106.5,
+        "driver_b_avg_lap_time_seconds": 107.5,
+        "delta_seconds": -1,
+        "delta_percent": -0.9302325581395349
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1 {}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 1,
+        "driver_a_avg_lap_time_seconds": 102,
+        "driver_b_avg_lap_time_seconds": 103,
+        "delta_seconds": -1,
+        "delta_percent": -0.9708737864077669
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 2 {}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 1,
+        "driver_a_avg_lap_time_seconds": 111,
+        "driver_b_avg_lap_time_seconds": 112,
+        "delta_seconds": -1,
+        "delta_percent": -0.8928571428571428
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1-2 {}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 106.5,
+        "driver_b_avg_lap_time_seconds": 107.5,
+        "delta_seconds": -1,
+        "delta_percent": -0.9302325581395349
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1-2 {\"clean_air_only\":true}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 106.5,
+        "driver_b_avg_lap_time_seconds": 107.5,
+        "delta_seconds": -1,
+        "delta_percent": -0.9302325581395349
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1-2 {\"clean_air_only\":false}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 106.5,
+        "driver_b_avg_lap_time_seconds": 107.5,
+        "delta_seconds": -1,
+        "delta_percent": -0.9302325581395349
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1-2 {\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 106.5,
+        "driver_b_avg_lap_time_seconds": 107.5,
+        "delta_seconds": -1,
+        "delta_percent": -0.9302325581395349
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 1-2 {\"compound\":\"SOFT\"}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 0,
+        "driver_a_avg_lap_time_seconds": null,
+        "driver_b_avg_lap_time_seconds": null,
+        "delta_seconds": null,
+        "delta_percent": null
+      }
+    ]
+  },
+  {
+    "question": "lando-norris versus max-verstappen pace 1-2 {\"clean_air_only\":true,\"compound\":\"MEDIUM\"}",
+    "rows": [
+      {
+        "driver_a_id": "lando-norris",
+        "driver_b_id": "max-verstappen",
+        "shared_events": 2,
+        "driver_a_avg_lap_time_seconds": 107.5,
+        "driver_b_avg_lap_time_seconds": 106.5,
+        "delta_seconds": 1,
+        "delta_percent": 0.9389671361502347
+      }
+    ]
+  },
+  {
+    "question": "max-verstappen versus lando-norris pace 3 {}",
+    "rows": [
+      {
+        "driver_a_id": "max-verstappen",
+        "driver_b_id": "lando-norris",
+        "shared_events": 0,
+        "driver_a_avg_lap_time_seconds": null,
+        "driver_b_avg_lap_time_seconds": null,
+        "delta_seconds": null,
+        "delta_percent": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 1 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 2 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      },
+      {
+        "driver_id": "lando-norris",
+        "finishing_position": null,
+        "points": "0",
+        "classification_status": "dnf",
+        "status_reason": "Engine"
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      },
+      {
+        "driver_id": "lando-norris",
+        "finishing_position": null,
+        "points": "0",
+        "classification_status": "dnf",
+        "status_reason": "Engine"
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 2 limit 10 {}",
+    "rows": []
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"classified\"]}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"dnf\"]}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "finishing_position": null,
+        "points": "0",
+        "classification_status": "dnf",
+        "status_reason": "Engine"
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"dns\"]}",
+    "rows": []
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"dsq\"]}",
+    "rows": []
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"not_classified\"]}",
+    "rows": []
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"withdrawn\"]}",
+    "rows": []
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"driver_id\":\"max-verstappen\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"driver_id\":\"lando-norris\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "finishing_position": null,
+        "points": "0",
+        "classification_status": "dnf",
+        "status_reason": "Engine"
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"team_id\":\"red-bull\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"team_id\":\"mclaren\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "finishing_position": null,
+        "points": "0",
+        "classification_status": "dnf",
+        "status_reason": "Engine"
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"classified\"],\"driver_id\":\"max-verstappen\",\"team_id\":\"red-bull\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "finishing_position": 1,
+        "points": "25",
+        "classification_status": "classified",
+        "status_reason": null
+      }
+    ]
+  },
+  {
+    "question": "event_classification round 1 limit 10 {\"classification_status\":[\"dnf\"],\"driver_id\":\"max-verstappen\"}",
+    "rows": []
+  },
+  {
+    "question": "qualifying_classification round 1 limit 1 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 2 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      },
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      },
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 2 limit 10 {}",
+    "rows": []
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"classified\"]}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"dnf\"]}",
+    "rows": []
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"dns\"]}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"driver_id\":\"max-verstappen\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"driver_id\":\"lando-norris\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"team_id\":\"red-bull\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"team_id\":\"mclaren\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"classified\"],\"driver_id\":\"max-verstappen\",\"team_id\":\"red-bull\"}",
+    "rows": [
+      {
+        "driver_id": "max-verstappen",
+        "qualifying_position": 1,
+        "best_time_ms": 80000,
+        "best_session": "Q3",
+        "eliminated_in_round": null,
+        "classification_status": "classified"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"dns\"],\"team_id\":\"mclaren\"}",
+    "rows": [
+      {
+        "driver_id": "lando-norris",
+        "qualifying_position": null,
+        "best_time_ms": null,
+        "best_session": null,
+        "eliminated_in_round": null,
+        "classification_status": "dns"
+      }
+    ]
+  },
+  {
+    "question": "qualifying_classification round 1 limit 10 {\"classification_status\":[\"dnf\"],\"driver_id\":\"max-verstappen\"}",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 1 default-race",
+    "rows": [
+      {
+        "event_id": "australian-grand-prix",
+        "event_name": "Formula 1 Australian Grand Prix",
+        "circuit_id": "albert-park",
+        "date": "2025-03-16",
+        "session_scope": "race"
+      }
+    ]
+  },
+  {
+    "question": "event metadata round 1 race",
+    "rows": [
+      {
+        "event_id": "australian-grand-prix",
+        "event_name": "Formula 1 Australian Grand Prix",
+        "circuit_id": "albert-park",
+        "date": "2025-03-16",
+        "session_scope": "race"
+      }
+    ]
+  },
+  {
+    "question": "event metadata round 1 qualifying",
+    "rows": [
+      {
+        "event_id": "australian-grand-prix",
+        "event_name": "Formula 1 Australian Grand Prix",
+        "circuit_id": "albert-park",
+        "date": "2025-03-16",
+        "session_scope": "qualifying"
+      }
+    ]
+  },
+  {
+    "question": "event metadata round 2 default-race",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 2 race",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 2 qualifying",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 30 default-race",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 30 race",
+    "rows": []
+  },
+  {
+    "question": "event metadata round 30 qualifying",
+    "rows": []
+  }
+]
