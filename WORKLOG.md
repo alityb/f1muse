@@ -12,3 +12,6 @@
 - The guarded run found the FIA-authoritative Australia DNS and Las Vegas DSQ
   rows absent from `f1ql.event_classification`; they are recorded as coverage
   gaps, not claimed as production facts.
+- Guarded Railway production golden passed on committed `5da0e0a`: 26 cases,
+  23 factual, all canonical views present, one read-only transaction, and a
+  five-second local statement timeout.
