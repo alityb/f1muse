@@ -8,3 +8,4 @@
 - Started the Phase 2 defect milestone: added typed signature enforcement, configurable complexity and definitions refresh inputs, configurable read-only statement timeout, typed timeout error, typed validation logging and metrics reason labels, and expanded report coverage fixtures/tests.
 - Added this append-only work log at the user's request.
 - `npm run typecheck` passes after the first defect implementation. The first Docker-backed F1QL run proved the short statement timeout test and typed participation logging, then exposed signature catalog omissions for `season` and the `clean_air_only` AST alias; corrected those catalog mappings.
+- Railway CLI inspection confirmed service `main`, environment `production`, runtime `logsV2`, and that `--since` fetches historical logs. `npm run test:api:inprocess` exposed a missing participation fixture for its 2030 pace program; added its two season entrants.

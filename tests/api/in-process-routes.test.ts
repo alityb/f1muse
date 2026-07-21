@@ -123,6 +123,11 @@ describe('in-process API routes', () => {
 
   it('executes a validated F1QL pace comparison through HTTP', async () => {
     await pool.query(
+      `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+        (2030, 'red-bull', 'red-bull', 'max-verstappen', false),
+        (2030, 'mclaren', 'mclaren', 'lando-norris', false)`
+    );
+    await pool.query(
       `INSERT INTO laps_normalized
         (season, round, track_id, driver_id, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound)
        VALUES
