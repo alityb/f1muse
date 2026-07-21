@@ -1,0 +1,552 @@
+[
+  {
+    "question": "Rank 2025 standings by points",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "points",
+                "function": "sum",
+                "field": "points"
+              },
+              {
+                "as": "appearances",
+                "function": "count"
+              }
+            ]
+          },
+          "by": "points",
+          "direction": "desc"
+        },
+        "limit": 2
+      }
+    }
+  },
+  {
+    "question": "Max Verstappen 2025 standings position",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "aggregate",
+        "input": {
+          "op": "filter",
+          "input": {
+            "op": "source",
+            "source": "standings"
+          },
+          "where": {
+            "season": 2025,
+            "driver_id": "max-verstappen"
+          }
+        },
+        "group_by": [
+          "driver_id"
+        ],
+        "measures": [
+          {
+            "as": "best_position",
+            "function": "min",
+            "field": "championship_position"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "Max Verstappen pace in rounds one and two",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "aggregate",
+        "input": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "lap_pace"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "max-verstappen",
+              "lap_time_seconds": "not_null",
+              "is_valid_lap": true,
+              "is_pit_lap": false,
+              "is_in_lap": false,
+              "is_out_lap": false,
+              "clean_air_only": true,
+              "rounds": [
+                1,
+                2
+              ],
+              "compound": "MEDIUM"
+            }
+          },
+          "group_by": [
+            "round"
+          ],
+          "measures": [
+            {
+              "as": "median_lap_time_seconds",
+              "function": "median",
+              "field": "lap_time_seconds"
+            }
+          ]
+        },
+        "group_by": [],
+        "measures": [
+          {
+            "as": "events",
+            "function": "count"
+          },
+          {
+            "as": "avg_lap_time_seconds",
+            "function": "avg",
+            "field": "median_lap_time_seconds"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "Max Verstappen compared with Lando Norris pace",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "delta",
+        "input": {
+          "op": "compare",
+          "input": {
+            "op": "join",
+            "left": {
+              "op": "aggregate",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "source",
+                  "source": "lap_pace"
+                },
+                "where": {
+                  "season": 2025,
+                  "driver_id": "max-verstappen",
+                  "lap_time_seconds": "not_null",
+                  "is_valid_lap": true,
+                  "is_pit_lap": false,
+                  "is_in_lap": false,
+                  "is_out_lap": false,
+                  "clean_air_only": true,
+                  "rounds": [
+                    1,
+                    2
+                  ],
+                  "compound": "MEDIUM"
+                }
+              },
+              "group_by": [
+                "round"
+              ],
+              "measures": [
+                {
+                  "as": "median_lap_time_seconds",
+                  "function": "median",
+                  "field": "lap_time_seconds"
+                }
+              ]
+            },
+            "right": {
+              "op": "aggregate",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "source",
+                  "source": "lap_pace"
+                },
+                "where": {
+                  "season": 2025,
+                  "driver_id": "lando-norris",
+                  "lap_time_seconds": "not_null",
+                  "is_valid_lap": true,
+                  "is_pit_lap": false,
+                  "is_in_lap": false,
+                  "is_out_lap": false,
+                  "clean_air_only": true,
+                  "rounds": [
+                    1,
+                    2
+                  ],
+                  "compound": "MEDIUM"
+                }
+              },
+              "group_by": [
+                "round"
+              ],
+              "measures": [
+                {
+                  "as": "median_lap_time_seconds",
+                  "function": "median",
+                  "field": "lap_time_seconds"
+                }
+              ]
+            },
+            "on": [
+              "round"
+            ],
+            "type": "inner"
+          },
+          "left": {
+            "field": "median_lap_time_seconds",
+            "as": "driver_a_median"
+          },
+          "right": {
+            "field": "median_lap_time_seconds",
+            "as": "driver_b_median"
+          }
+        },
+        "left_id": "max-verstappen",
+        "right_id": "lando-norris"
+      }
+    }
+  },
+  {
+    "question": "2025 round one race classification",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "event_classification"
+            },
+            "where": {
+              "season": 2025,
+              "round": 1
+            }
+          },
+          "by": "finishing_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 10
+      }
+    }
+  },
+  {
+    "question": "2025 round one classified Red Bull race result",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "filter",
+                  "input": {
+                    "op": "source",
+                    "source": "event_classification"
+                  },
+                  "where": {
+                    "season": 2025,
+                    "round": 1
+                  }
+                },
+                "where": {
+                  "classification_status": [
+                    "classified"
+                  ]
+                }
+              },
+              "where": {
+                "driver_id": "max-verstappen"
+              }
+            },
+            "where": {
+              "team_id": "red-bull"
+            }
+          },
+          "by": "finishing_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 10
+      }
+    }
+  },
+  {
+    "question": "2025 round one qualifying classification",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "qualifying_classification"
+            },
+            "where": {
+              "season": 2025,
+              "round": 1
+            }
+          },
+          "by": "qualifying_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 10
+      }
+    }
+  },
+  {
+    "question": "2025 round one Red Bull qualifying result",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "filter",
+                  "input": {
+                    "op": "source",
+                    "source": "qualifying_classification"
+                  },
+                  "where": {
+                    "season": 2025,
+                    "round": 1
+                  }
+                },
+                "where": {
+                  "classification_status": [
+                    "classified"
+                  ]
+                }
+              },
+              "where": {
+                "driver_id": "max-verstappen"
+              }
+            },
+            "where": {
+              "team_id": "red-bull"
+            }
+          },
+          "by": "qualifying_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 10
+      }
+    }
+  },
+  {
+    "question": "2025 round one race event metadata",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "filter",
+        "input": {
+          "op": "filter",
+          "input": {
+            "op": "source",
+            "source": "event_metadata"
+          },
+          "where": {
+            "season": 2025,
+            "round": 1
+          }
+        },
+        "where": {
+          "session_scope": "race"
+        }
+      }
+    }
+  },
+  {
+    "question": "2025 round one qualifying event metadata",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "filter",
+        "input": {
+          "op": "filter",
+          "input": {
+            "op": "source",
+            "source": "event_metadata"
+          },
+          "where": {
+            "season": 2025,
+            "round": 1
+          }
+        },
+        "where": {
+          "session_scope": "qualifying"
+        }
+      }
+    }
+  },
+  {
+    "question": "Reject a non-participating pace driver",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "aggregate",
+        "input": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "lap_pace"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "unknown-driver",
+              "lap_time_seconds": "not_null",
+              "is_valid_lap": true,
+              "is_pit_lap": false,
+              "is_in_lap": false,
+              "is_out_lap": false,
+              "clean_air_only": false
+            }
+          },
+          "group_by": [
+            "round"
+          ],
+          "measures": [
+            {
+              "as": "median_lap_time_seconds",
+              "function": "median",
+              "field": "lap_time_seconds"
+            }
+          ]
+        },
+        "group_by": [],
+        "measures": [
+          {
+            "as": "events",
+            "function": "count"
+          },
+          {
+            "as": "avg_lap_time_seconds",
+            "function": "avg",
+            "field": "median_lap_time_seconds"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "question": "Reject a pace request beyond the round budget",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "aggregate",
+        "input": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "lap_pace"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "max-verstappen",
+              "lap_time_seconds": "not_null",
+              "is_valid_lap": true,
+              "is_pit_lap": false,
+              "is_in_lap": false,
+              "is_out_lap": false,
+              "clean_air_only": false,
+              "rounds": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25
+              ]
+            }
+          },
+          "group_by": [
+            "round"
+          ],
+          "measures": [
+            {
+              "as": "median_lap_time_seconds",
+              "function": "median",
+              "field": "lap_time_seconds"
+            }
+          ]
+        },
+        "group_by": [],
+        "measures": [
+          {
+            "as": "events",
+            "function": "count"
+          },
+          {
+            "as": "avg_lap_time_seconds",
+            "function": "avg",
+            "field": "median_lap_time_seconds"
+          }
+        ]
+      }
+    }
+  }
+]

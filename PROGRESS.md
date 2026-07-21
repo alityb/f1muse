@@ -18,7 +18,12 @@
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
 - Phase 4: PARTIAL. Areas 1-3 and retirement-reason normalization/sampling safeguards are complete locally; production sampling is intentionally unrun.
 - Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
-- Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
+- Phase 5: PARTIAL. A data-driven initial golden corpus covers all current Phase 4 sources, core edge cases, and deliberate rejections; the 100-question expansion, property, metamorphic, and nightly suites do not.
+
+### Phase 5 Initial Golden Corpus (2026-07-21)
+- Added `tests/fixtures/f1ql-golden-corpus.json` with 15 question/program cases: 10 fixture-runnable cases across standings, pace, race and qualifying classification, composable entity filters, and both event-metadata session scopes; five expected schema, participation, and cost-budget rejections.
+- `scripts/snapshot-f1ql-golden-corpus.ts` generates `tests/fixtures/f1ql-golden-corpus-programs.json` from the real parser/lowering emitter. `tests/f1ql/golden-corpus.test.ts` compares that emitted core IR exactly, executes only explicitly runnable corpus cases through the ordinary read-only executor, and asserts typed rejections. The corpus runner does not invoke translation and therefore cannot execute shadow output.
+- Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 67 tests in 9 files; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
 
 ### Phase 1 Metrics Fixture
 - Local shadow route test observed: succeeded=1, invalid=2, unavailable=1, identity_miss=1, unsupported=1.
