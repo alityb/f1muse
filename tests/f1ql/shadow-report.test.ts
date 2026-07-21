@@ -15,6 +15,7 @@ describe('F1QL shadow report', () => {
     expect(output).toContain('- coverage_unsupported: 1');
     expect(output).toContain('- definitions_version_mismatch: 1');
     expect(output).toContain('- signature_invalid: 1');
+    expect(output).not.toContain('- validated_shadow_program: 1');
     expect(output).toContain('2026-07-01T00:00:00.000Z to 2026-07-10T00:00:00.000Z');
   });
 });

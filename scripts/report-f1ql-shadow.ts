@@ -21,7 +21,7 @@ for (const line of lines) {
     const event = JSON.parse(payload) as { outcome?: string; reason?: string; operation?: string; timestamp?: string };
     const outcome = event.outcome ?? 'unknown';
     outcomes.set(outcome, (outcomes.get(outcome) ?? 0) + 1);
-    if (event.reason) reasons.set(event.reason, (reasons.get(event.reason) ?? 0) + 1);
+    if (event.reason && outcome !== 'succeeded') reasons.set(event.reason, (reasons.get(event.reason) ?? 0) + 1);
     if (event.timestamp ?? envelopeTimestamp) timestamps.push(event.timestamp ?? envelopeTimestamp!);
     if (event.operation) operations.set(event.operation, (operations.get(event.operation) ?? 0) + 1);
   } catch { /* Ignore malformed external log lines. */ }

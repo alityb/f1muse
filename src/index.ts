@@ -37,6 +37,8 @@ import { requireAdmin } from './api/middleware/admin-auth';
  */
 async function main() {
   const app = express();
+  // Railway terminates one proxy hop before the application; preserve client IP rate-limit keys.
+  app.set('trust proxy', 1);
   const port = process.env.PORT || 3000;
 
   // log llm config at startup

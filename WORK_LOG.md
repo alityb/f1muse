@@ -12,3 +12,4 @@
 - Final local verification passed: typecheck, lint (0 errors; 117 existing warnings), 39 Docker-backed F1QL tests, and 7 Docker-backed in-process API tests.
 - Railway historical fetch wrote raw JSONL to the approved temporary directory. It returned runtime history in `{timestamp,message,level}` envelopes. A live production shadow request was captured and parsed as one successful `pace_summary` translation by `report:f1ql-shadow`.
 - `railway up --service main --environment production` created deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320`. Its build completed image export/push, but Railway still reports `BUILDING` with `deploymentStopped: true`; recorded the production round-trip as PARTIAL in `PROGRESS.md` with resume steps.
+- Set Express `trust proxy` to Railway's explicit one-hop count and excluded successful shadow reasons from the report's rejection ranking.
