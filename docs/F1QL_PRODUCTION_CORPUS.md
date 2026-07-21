@@ -12,13 +12,18 @@ The committed `productionCorpusAudit` classifies all 100 local cases:
 | --- | ---: | --- |
 | Fixture-only | 41 | Explicitly skipped |
 | Production-runnable structural | 59 | Audited; only the fixed manifest projection runs |
-| Authoritative factual | 0 in the fixture corpus | Separate FIA-backed manifest cases |
+| Authoritative factual | 0 in the fixture corpus | Separate official-source manifest cases |
 
 The local corpus is synthetic 2025 data, so its result rows are not facts about
 production. All pace cases are fixture-only: FastF1 lap coverage is
 source-dependent. The 15 deliberate malformed/rejected programs are also
-fixture-only. The fixed manifest has three structural checks and two
-FIA-backed Bahrain 2024 factual checks, well below its six-program bound.
+fixture-only. The fixed manifest has three structural checks and ten
+official-source factual checks, within its sixteen-program bound. The factual
+checks cover the 1950, 2014, 2019, 2021, 2022, 2024, and 2025 scoring-rule
+intervals and exercise standings, race classification, qualifying
+classification, and event metadata. Every factual check carries a FIA or
+Formula 1 URL in committed code; research and cost are in
+`F1QL_CORPUS_SOURCE_EVIDENCE.md`.
 
 ## Guardrails
 
@@ -47,15 +52,20 @@ rewrite the expected fact without an updated authority.
 
 The production projection intentionally does not claim factual proof for:
 
-- Historical scoring eras, shared-drive points, or dropped-score boundaries.
-- The 2014 double-points season-final exception.
-- Fastest-lap boundaries: 2019-2024 bonus versus its 2025 removal.
-- Sprint transitions: 2021 top-three trial and 2022 onward top-eight schedule.
+- Historical scoring eras beyond the one cited 1950 metadata case, including
+  shared-drive points and dropped-score boundaries.
+- Per-event coverage beyond the cited 2014 double-points, 2019 fastest-lap,
+  2021 abbreviated-race, 2022 scoring-interval, 2024, and 2025 cases.
+- Sprint-session facts: 2021's top-three trial and 2022 onward top-eight
+  schedules are represented in the scoring registry, but no sprint source is
+  available to F1QL's race-only event-classification query.
 - Null finishing/qualifying positions, status normalization, and DNS/DNF/DSQ
   source variation.
 - Driver identity aliases across F1DB, Jolpica, and FastF1 identifiers.
 - Historical qualifying and lap-pace data coverage.
 
-These are represented by the scoring registry and local fixtures where
-applicable, but each needs an event-specific authoritative production case
-before being promoted to factual verification.
+The factual projection does not prove source completeness: a missing view is a
+skip, and a successful case proves only the cited event fields. It does not
+derive season totals from race points, infer sprint-session results (the F1QL
+event source is race-only), normalize historic identity aliases, or certify
+lap-pace coverage.

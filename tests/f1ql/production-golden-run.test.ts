@@ -52,7 +52,7 @@ describe('production F1QL golden run', () => {
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases).toHaveLength(5);
+    expect(result.cases).toHaveLength(13);
     expect(result.corpus_audit).toHaveLength(100);
     expect(calls[0]).toEqual({ sql: 'BEGIN READ ONLY', params: undefined });
     expect(calls[1]).toEqual({ sql: "SELECT set_config('statement_timeout', $1, true)", params: ['5000ms'] });
@@ -63,35 +63,34 @@ describe('production F1QL golden run', () => {
 
   it('reports factual mismatches as JSON-safe failed results without writes', async () => {
     const rows = productionCorpusManifest.map((testCase) => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
-    rows[3] = [{ driver_id: 'max-verstappen', finishing_position: 2 }];
+    const bahrainIndex = productionCorpusManifest.findIndex(testCase => testCase.id === '2024-bahrain-race-winner');
+    rows[bahrainIndex] = [{ driver_id: 'max-verstappen', finishing_position: 2 }];
     const { pool } = mockPool(rows);
     const result = await runProductionGolden(pool);
     expect(result.status).toBe('failed');
-    expect(result.cases[3]).toMatchObject({ id: '2024-bahrain-race-winner', matched: false });
+    expect(result.cases[bahrainIndex]).toMatchObject({ id: '2024-bahrain-race-winner', matched: false });
   });
 
   it('matches PostgreSQL numeric output against numeric authoritative facts', async () => {
     const rows = productionCorpusManifest.map((testCase) => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
-    rows[3] = [{ ...rows[3][0], points: '26.00' }];
+    const bahrainIndex = productionCorpusManifest.findIndex(testCase => testCase.id === '2024-bahrain-race-winner');
+    rows[bahrainIndex] = [{ ...rows[bahrainIndex][0], points: '26.00' }];
     const { pool } = mockPool(rows);
     const result = await runProductionGolden(pool);
     expect(result.status).toBe('passed');
   });
 
   it('explicitly skips cases whose required production view is unavailable', async () => {
-    const rows = [
-      [{ driver_id: 'max-verstappen', points: '25' }],
-      [{ driver_id: 'max-verstappen', qualifying_position: 1 }],
-      productionCorpusManifest[4].expected_facts ?? []
-    ];
+    const rows = productionCorpusManifest
+      .filter(testCase => testCase.required_relation !== 'f1ql.event_classification')
+      .map(testCase => testCase.expected_facts ?? [{ driver_id: 'max-verstappen', points: '25' }]);
     const { pool, calls } = mockPool(rows, new Set(['f1ql.event_classification']));
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toEqual([
-      expect.objectContaining({ id: '2025-race-classification-structural', outcome: 'skipped' }),
-      expect.objectContaining({ id: '2024-bahrain-race-winner', outcome: 'skipped' })
-    ]);
+    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toHaveLength(6);
+    expect(result.cases).toContainEqual(expect.objectContaining({ id: '2025-race-classification-structural', outcome: 'skipped' }));
+    expect(result.cases).toContainEqual(expect.objectContaining({ id: '2024-bahrain-race-winner', outcome: 'skipped' }));
     expect(calls.filter(call => call.sql.includes('f1ql.event_classification') && !call.sql.includes('to_regclass'))).toHaveLength(0);
   });
 
@@ -100,5 +99,25 @@ describe('production F1QL golden run', () => {
     expect(productionCorpusAudit.filter(testCase => testCase.disposition === 'production_runnable_structural')).toHaveLength(59);
     expect(productionCorpusAudit.filter(testCase => testCase.runner_action === 'skipped_fixture_only')).toHaveLength(41);
     expect(productionCorpusAudit.some(testCase => testCase.reason.includes('Lap pace'))).toBe(true);
+  });
+
+  it('covers cited scoring transitions and every factual query source', () => {
+    const factual = productionCorpusManifest.filter(testCase => testCase.disposition === 'authoritative_factual');
+    expect(factual).toHaveLength(10);
+    expect(factual.every(testCase => testCase.authority?.url && testCase.expected_facts?.length)).toBe(true);
+    expect(factual.map(testCase => testCase.scoring_rule_id)).toEqual(expect.arrayContaining([
+      'historical-1950-1953',
+      'historical-2014-double-final',
+      'historical-2019-2020-fastest-lap',
+      'fia-2021-sprint-trial',
+      'fia-2022-2024-sprint-top-eight',
+      'fia-2025-no-fastest-lap-bonus'
+    ]));
+    expect(new Set(factual.map(testCase => testCase.required_relation))).toEqual(new Set([
+      'f1ql.driver_standings',
+      'f1ql.event_classification',
+      'f1ql.qualifying_classification',
+      'f1ql.event_metadata'
+    ]));
   });
 });
