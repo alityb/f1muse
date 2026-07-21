@@ -157,6 +157,33 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     expected_facts: [{ driver_id: 'lando-norris', points: 423, championship_position: 1 }]
   },
   {
+    id: '2025-driver-vice-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2025 Abu Dhabi Grand Prix Championship Points, Document 56', url: 'https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: finalDriverStandingProgram(2025, 'max-verstappen'),
+    expected_facts: [{ driver_id: 'max-verstappen', points: 421, championship_position: 2 }]
+  },
+  {
+    id: '2025-driver-third-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2025 Abu Dhabi Grand Prix Championship Points, Document 56', url: 'https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: finalDriverStandingProgram(2025, 'oscar-piastri'),
+    expected_facts: [{ driver_id: 'oscar-piastri', points: 410, championship_position: 3 }]
+  },
+  {
+    id: '2025-driver-zero-points-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2025 Abu Dhabi Grand Prix Championship Points, Document 56', url: 'https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: finalDriverStandingProgram(2025, 'franco-colapinto'),
+    expected_facts: [{ driver_id: 'franco-colapinto', points: 0, championship_position: 20 }]
+  },
+  {
     id: '2014-driver-champion-final-standing',
     disposition: 'authoritative_factual',
     required_relation: 'f1ql.driver_standings',
@@ -211,6 +238,69 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     expected_facts: [{ driver_id: 'lando-norris', qualifying_position: 1, classification_status: 'classified' }]
   },
   {
+    id: '2025-australia-race-second',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.event_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'max-verstappen' } } },
+    expected_facts: [{ driver_id: 'max-verstappen', finishing_position: 2, points: 18, classification_status: 'classified' }]
+  },
+  {
+    id: '2025-australia-race-third',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.event_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'george-russell' } } },
+    expected_facts: [{ driver_id: 'george-russell', finishing_position: 3, points: 15, classification_status: 'classified' }]
+  },
+  {
+    id: '2025-australia-race-dnf',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.event_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'fernando-alonso', classification_status: ['dnf'] } } },
+    expected_facts: [{ driver_id: 'fernando-alonso', finishing_position: null, points: 0, classification_status: 'dnf' }]
+  },
+  {
+    id: '2025-australia-race-dns',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.event_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'isack-hadjar', classification_status: ['dns'] } } },
+    expected_facts: [{ driver_id: 'isack-hadjar', finishing_position: null, points: 0, classification_status: 'dns' }]
+  },
+  {
+    id: '2025-las-vegas-race-dsq',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.event_classification',
+    authority: { publisher: 'FIA', document: '2025 Las Vegas Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_las_vegas_grand_prix_-_final_race_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 22, limit: 1, filters: { driver_id: 'lando-norris', classification_status: ['dsq'] } } },
+    expected_facts: [{ driver_id: 'lando-norris', finishing_position: null, points: 0, classification_status: 'dsq' }]
+  },
+  {
+    id: '2025-australia-qualifying-second',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.qualifying_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Qualifying Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'oscar-piastri' } } },
+    expected_facts: [{ driver_id: 'oscar-piastri', qualifying_position: 2, classification_status: 'classified' }]
+  },
+  {
+    id: '2025-australia-qualifying-third',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.qualifying_classification',
+    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Qualifying Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf' },
+    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
+    program: { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'max-verstappen' } } },
+    expected_facts: [{ driver_id: 'max-verstappen', qualifying_position: 3, classification_status: 'classified' }]
+  },
+  {
     id: '2025-australia-event-metadata',
     disposition: 'authoritative_factual',
     required_relation: 'f1ql.event_metadata',
@@ -237,6 +327,6 @@ for (const testCase of productionCorpusManifest) {
   }
 }
 
-if (productionCorpusManifest.length > 24) {
-  throw new Error('Production corpus manifest exceeds its twenty-four-program bound');
+if (productionCorpusManifest.length > 32) {
+  throw new Error('Production corpus manifest exceeds its thirty-two-program bound');
 }
