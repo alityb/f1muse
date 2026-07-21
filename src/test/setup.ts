@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 
-const DEFAULT_TEST_DATABASE_URL = 'postgres://localhost:5432/f1muse_test';
+const DEFAULT_TEST_DATABASE_URL = 'postgres://postgres:postgres@127.0.0.1:5433/f1muse_test';
 
 function assertLocalDatabaseUrl(databaseUrl: string): void {
   const parsed = new URL(databaseUrl);

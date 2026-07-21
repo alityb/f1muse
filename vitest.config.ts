@@ -11,7 +11,7 @@ export default defineConfig({
     testTimeout: 30000, // 30 seconds for ingestion tests
     fileParallelism: false,
     env: {
-      TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || 'postgresql://localhost:5432/f1muse_test'
+      TEST_DATABASE_URL: process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test'
     },
     coverage: {
       provider: 'v8',

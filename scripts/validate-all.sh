@@ -83,7 +83,9 @@ if [ "$WITH_DB" = true ]; then
     echo -e "${RED}Failed to start test database${NC}"
     exit 1
   }
-  export TEST_DATABASE_URL="postgres://f1muse_test:f1muse_test@localhost:5433/f1muse_integration_test"
+  export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test"
+  export DATABASE_URL_TEST="$DATABASE_URL"
+  export TEST_DATABASE_URL="$DATABASE_URL"
   echo -e "${GREEN}Test database started${NC}"
   echo ""
 fi
