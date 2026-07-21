@@ -33,7 +33,7 @@ export const productionGoldenManifest: readonly ProductionGoldenCase[] = [
     expected_facts: [{
       driver_id: 'max-verstappen',
       finishing_position: 1,
-      points: 25,
+      points: 26,
       classification_status: 'classified'
     }]
   },

@@ -62,4 +62,12 @@ describe('production F1QL golden run', () => {
     expect(result.status).toBe('failed');
     expect(result.cases[0]).toMatchObject({ id: '2024-bahrain-race-winner', matched: false });
   });
+
+  it('matches PostgreSQL numeric output against numeric authoritative facts', async () => {
+    const expected = productionGoldenManifest.map(testCase => testCase.expected_facts);
+    expected[0] = [{ ...expected[0][0], points: '26.00' }];
+    const { pool } = mockPool(expected);
+    const result = await runProductionGolden(pool);
+    expect(result.status).toBe('passed');
+  });
 });

@@ -49,8 +49,15 @@ export function requireProductionGoldenConfiguration(environment: NodeJS.Process
 
 function hasExpectedFacts(actual: Record<string, unknown>[], expected: Array<Record<string, unknown>>): boolean {
   return actual.length === expected.length && expected.every((fact, index) =>
-    Object.entries(fact).every(([field, value]) => actual[index]?.[field] === value)
+    Object.entries(fact).every(([field, value]) => valuesMatch(actual[index]?.[field], value))
   );
+}
+
+function valuesMatch(actual: unknown, expected: unknown): boolean {
+  if (typeof expected === 'number' && typeof actual === 'string') {
+    return Number(actual) === expected;
+  }
+  return actual === expected;
 }
 
 function assertReadOnlySelect(sql: string): void {
