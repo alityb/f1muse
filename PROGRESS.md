@@ -17,6 +17,7 @@
 - Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
 - Phase 4: PARTIAL. Areas 1-3 and retirement-reason normalization/sampling safeguards are complete locally; production sampling is intentionally unrun.
+- Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
 
 ### Phase 1 Metrics Fixture
