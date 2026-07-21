@@ -52,10 +52,13 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
     return {
       version: 1,
       root: {
-        op: 'sort_limit',
-        input: coreAggregate,
-        by: program.root.by,
-        direction: program.root.direction,
+        op: 'limit',
+        input: {
+          op: 'sort',
+          input: coreAggregate,
+          by: program.root.by,
+          direction: program.root.direction
+        },
         limit: program.root.limit
       }
     };

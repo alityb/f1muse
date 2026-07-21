@@ -165,7 +165,7 @@ describe('F1QL standings vertical slice', () => {
     }));
 
     expect(actual).toEqual(reference);
-    expect(executed.core_program.root.op).toBe('sort_limit');
+    expect(executed.core_program.root).toMatchObject({ op: 'limit', input: { op: 'sort' } });
   });
 
   it('renders the calculation from the AST', () => {

@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreEventClassificationNode, CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
+import { CoreAggregateNode, CoreEventClassificationNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -16,7 +16,7 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   if (program.root.op === 'event_classification') {
     return compileEventClassification(program.root);
   }
-  const aggregate = program.root.op === 'sort_limit' ? program.root.input : program.root;
+  const aggregate = getAggregateRoot(program);
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
   const measures = aggregate.measures.map((measure) => {
     if (measure.function === 'count') {
@@ -25,7 +25,7 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
     const field = measure.field === 'points' ? 'points' : 'championship_position';
     return `${measure.function.toUpperCase()}(${field}) AS ${measure.as}`;
   });
-  const rankSql = program.root.op === 'sort_limit' ? compileSortLimit(program.root) : '';
+  const rankSql = program.root.op === 'limit' ? compileLimit(program.root) : '';
 
   return {
     sql: `
@@ -37,6 +37,19 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
     `,
     params
   };
+}
+
+function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
+  if (program.root.op === 'limit') {
+    return program.root.input.input;
+  }
+  if (program.root.op === 'sort') {
+    return program.root.input;
+  }
+  if (program.root.op === 'aggregate') {
+    return program.root;
+  }
+  throw new Error('Expected a standings aggregate core program');
 }
 
 function compileEventClassification(node: CoreEventClassificationNode): CompiledF1QL {
@@ -183,7 +196,7 @@ function compileStandingsFilter(filter: StandingsFilter): { whereSql: string; pa
   };
 }
 
-function compileSortLimit(node: CoreSortLimitNode): string {
-  const direction = node.direction === 'asc' ? 'ASC' : 'DESC';
-  return `ORDER BY ${node.by} ${direction}, driver_id ASC LIMIT ${node.limit}`;
+function compileLimit(node: CoreLimitNode): string {
+  const direction = node.input.direction === 'asc' ? 'ASC' : 'DESC';
+  return `ORDER BY ${node.input.by} ${direction}, driver_id ASC LIMIT ${node.limit}`;
 }

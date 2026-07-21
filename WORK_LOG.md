@@ -22,3 +22,4 @@
 - Deployed audit hardening as `0e242331-c5e6-4163-823d-1f7419ff38b6`; the production shadow request and report verification both succeeded.
 - Began Phase 3 by adding a real-emitter lowering snapshot generator and exact golden test for every schema-valid shadow corpus program.
 - Generated the Phase 3 lowering fixture and verified 42 Docker-backed F1QL tests before the IR refactor.
+- Replaced the fused core `sort_limit` node with composable `sort` and `limit` nodes; regenerated the real-emitter lowering snapshot and verified typecheck, lint, F1QL, and in-process API suites.

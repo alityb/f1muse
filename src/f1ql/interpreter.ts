@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreEventClassificationNode, CorePaceAggregateNode, CoreProgram, CoreSortLimitNode, CoreSubtractNode } from './core';
+import { CoreAggregateNode, CoreEventClassificationNode, CoreLimitNode, CorePaceAggregateNode, CoreProgram, CoreSubtractNode } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -51,7 +51,7 @@ export function interpretStandingsProgram(
   if (program.root.op === 'subtract' || program.root.op === 'pace_aggregate' || program.root.op === 'event_classification') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
-  const aggregate = program.root.op === 'sort_limit' ? program.root.input : program.root;
+  const aggregate = getAggregateRoot(program);
   const filter = aggregate.input.op === 'filter' ? aggregate.input.where : {};
   const filtered = rows.filter((row) => matchesFilter(row, filter));
   const grouped = new Map<string, StandingsRow[]>();
@@ -71,10 +71,23 @@ export function interpretStandingsProgram(
     return output;
   });
 
-  if (program.root.op === 'sort_limit') {
-    return sortLimitRows(result, program.root);
+  if (program.root.op === 'limit') {
+    return limitRows(result, program.root);
   }
   return result;
+}
+
+function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
+  if (program.root.op === 'limit') {
+    return program.root.input.input;
+  }
+  if (program.root.op === 'sort') {
+    return program.root.input;
+  }
+  if (program.root.op === 'aggregate') {
+    return program.root;
+  }
+  throw new Error('Expected a standings aggregate core program');
 }
 
 export function interpretPaceSubtract(
@@ -145,12 +158,12 @@ function evaluateMeasure(measure: AggregateMeasure, rows: StandingsRow[]): numbe
   return Math.max(...values);
 }
 
-function sortLimitRows(rows: Array<Record<string, unknown>>, node: CoreSortLimitNode): Array<Record<string, unknown>> {
-  const direction = node.direction === 'asc' ? 1 : -1;
+function limitRows(rows: Array<Record<string, unknown>>, node: CoreLimitNode): Array<Record<string, unknown>> {
+  const direction = node.input.direction === 'asc' ? 1 : -1;
   return [...rows]
     .sort((a, b) => {
-      const aValue = Number(a[node.by]);
-      const bValue = Number(b[node.by]);
+      const aValue = Number(a[node.input.by]);
+      const bValue = Number(b[node.input.by]);
       if (aValue !== bValue) {
         return (aValue - bValue) * direction;
       }

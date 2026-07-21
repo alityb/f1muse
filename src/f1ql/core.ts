@@ -13,11 +13,16 @@ export interface CoreAggregateNode {
   measures: AggregateMeasure[];
 }
 
-export interface CoreSortLimitNode {
-  op: 'sort_limit';
+export interface CoreSortNode {
+  op: 'sort';
   input: CoreAggregateNode;
   by: string;
   direction: 'asc' | 'desc';
+}
+
+export interface CoreLimitNode {
+  op: 'limit';
+  input: CoreSortNode;
   limit: number;
 }
 
@@ -51,5 +56,5 @@ export interface CoreEventClassificationNode {
 
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreSortLimitNode | CorePaceAggregateNode | CoreSubtractNode | CoreEventClassificationNode;
+  root: CoreAggregateNode | CoreSortNode | CoreLimitNode | CorePaceAggregateNode | CoreSubtractNode | CoreEventClassificationNode;
 }
