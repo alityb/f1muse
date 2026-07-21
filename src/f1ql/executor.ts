@@ -5,7 +5,7 @@ import { parseF1QLProgram } from './schema';
 import { renderF1QL } from './render';
 import { lowerF1QL } from './lower';
 import { enforceF1QLCostLimits, F1QLCostLimitError, MAX_F1QL_RESPONSE_ROWS } from './limits';
-import { validateF1QLProgram, validateParticipation } from './validation';
+import { validateCoreProgram, validateF1QLProgram, validateParticipation } from './validation';
 
 export { F1QLCostLimitError } from './limits';
 
@@ -25,6 +25,7 @@ export async function executeF1QL(pool: Pool, input: unknown, options: F1QLExecu
   enforceF1QLCostLimits(program);
   await validateParticipation(pool, program);
   const coreProgram = lowerF1QL(program);
+  validateCoreProgram(coreProgram);
   const compiled = compileF1QL(coreProgram);
   const result = await executeF1QLReadOnly(pool, compiled.sql, compiled.params, options);
   if (result.rows.length > MAX_F1QL_RESPONSE_ROWS) {

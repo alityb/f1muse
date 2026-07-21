@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilterNode, CoreLapPaceFilter, CoreLimitNode, CoreProgram } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -34,23 +34,7 @@ export interface EventClassificationRow {
 }
 
 export function interpretEventClassification(program: CoreProgram, rows: EventClassificationRow[]): Array<Record<string, unknown>> {
-  if (!isEventClassificationProgram(program)) {
-    throw new Error('interpretEventClassification expects a classification core program');
-  }
-  const { where } = program.root.input.input;
-  const sort = program.root.input;
-  if (sort.by !== 'finishing_position') {
-    throw new Error(`Unsupported event classification sort field: ${sort.by}`);
-  }
-  const direction = sort.direction === 'asc' ? 1 : -1;
-  const nullValue = sort.nulls === 'first' ? -Infinity : Infinity;
-  return rows
-    .filter((row) => row.season === where.season && row.round === where.round)
-    .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
-    .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
-    .filter((row) => where.team_id === undefined || row.team_id === where.team_id)
-    .sort((a, b) => ((a.finishing_position ?? nullValue) - (b.finishing_position ?? nullValue)) * direction || a.driver_id.localeCompare(b.driver_id))
-    .slice(0, program.root.limit)
+  return interpretEventClassificationNode(program.root as CorePipelineNode, rows)
     .map(({ driver_id, finishing_position, points, classification_status, status_reason }) => ({ driver_id, finishing_position, points, classification_status, status_reason }));
 }
 
@@ -58,7 +42,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'delta' || isLapPaceAggregate(program.root) || isEventClassificationProgram(program)) {
+  if (program.root.op === 'delta' || isLapPaceAggregate(program.root) || getSourceName(program.root) === 'event_classification') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = getAggregateRoot(program);
@@ -87,10 +71,41 @@ export function interpretStandingsProgram(
   return result;
 }
 
-function isEventClassificationProgram(program: CoreProgram): program is CoreProgram & { root: CoreLimitNode & { input: { input: CoreEventClassificationFilterNode } } } {
-  return program.root.op === 'limit'
-    && program.root.input.input.op === 'filter'
-    && program.root.input.input.input.source === 'event_classification';
+function interpretEventClassificationNode(node: CorePipelineNode, rows: EventClassificationRow[]): EventClassificationRow[] {
+  if (node.op === 'source') {
+    if (node.source !== 'event_classification') {
+      throw new Error(`interpretEventClassification received ${node.source}`);
+    }
+    return rows;
+  }
+  if (node.op === 'filter') {
+    const where = node.where as CoreEventClassificationFilter;
+    return interpretEventClassificationNode(node.input, rows)
+      .filter((row) => row.season === where.season && row.round === where.round)
+      .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
+      .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
+      .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
+  }
+  if (node.op === 'sort') {
+    const direction = node.direction === 'asc' ? 1 : -1;
+    const nullValue = node.nulls === 'first' ? -Infinity : Infinity;
+    return [...interpretEventClassificationNode(node.input, rows)]
+      .sort((a, b) => (Number(a[node.by as keyof EventClassificationRow] ?? nullValue) - Number(b[node.by as keyof EventClassificationRow] ?? nullValue)) * direction || a.driver_id.localeCompare(b.driver_id));
+  }
+  if (node.op === 'limit') {
+    return interpretEventClassificationNode(node.input, rows).slice(0, node.limit);
+  }
+  throw new Error(`Unsupported event classification core operator ${node.op}`);
+}
+
+function getSourceName(node: CorePipelineNode | CoreDeltaNode): string {
+  if (node.op === 'source') {
+    return node.source;
+  }
+  if (node.op === 'delta') {
+    return getSourceName(node.input.input.left);
+  }
+  return getSourceName(node.input);
 }
 
 function getAggregateRoot(program: CoreProgram): CoreAggregateNode {

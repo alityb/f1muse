@@ -1,11 +1,12 @@
 import { Pool } from 'pg';
 import { F1QLProgram } from './ast';
+import { CoreDeltaNode, CoreFilterNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 
 export const F1QL_DEFINITIONS_VERSION = 'v1';
 export const F1QL_SIGNATURES = {
-  standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'rank'] },
-  lap_pace: { fields: ['driver_id', 'lap_time_seconds', 'compound', 'clean_air_flag'], operators: ['pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['event_classification'] }
+  standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
+  lap_pace: { fields: ['driver_id', 'lap_time_seconds', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
+  event_classification: { fields: ['driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] }
 } as const;
 
 export type F1QLValidationCode = 'definitions_version_mismatch' | 'complexity_exceeded' | 'coverage_unsupported' | 'participation_missing' | 'signature_invalid';
@@ -73,6 +74,81 @@ export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidatio
   if (program.root.op === 'event_classification' && program.root.round > 30) {
     throw new F1QLValidationError('coverage_unsupported', 'Round is outside supported event coverage');
   }
+}
+
+// Lowering is an internal boundary too: only the signature-approved generic IR reaches compilation.
+export function validateCoreProgram(program: CoreProgram): void {
+  if (program.root.op === 'delta') {
+    validateDelta(program.root);
+    return;
+  }
+  const source = validatePipeline(program.root);
+  if (source === 'event_classification' && program.root.op !== 'limit') {
+    throw new F1QLValidationError('signature_invalid', 'Event classification requires a limit');
+  }
+}
+
+function validatePipeline(node: CorePipelineNode): CoreSourceNode['source'] {
+  if (node.op === 'source') {
+    assertSignature(node.source, 'source', []);
+    return node.source;
+  }
+  if (node.op === 'filter') {
+    const source = validatePipeline(node.input);
+    assertSignature(source, 'filter', signatureFieldsForFilter(source, node));
+    return source;
+  }
+  if (node.op === 'aggregate') {
+    const source = validatePipeline(node.input);
+    assertSignature(source, 'aggregate', signatureFieldsForAggregate(source, node));
+    return source;
+  }
+  if (node.op === 'sort') {
+    const source = validatePipeline(node.input);
+    if (source === 'event_classification' && node.by !== 'finishing_position') {
+      throw new F1QLValidationError('signature_invalid', `${node.by} is not a supported event_classification field`);
+    }
+    assertSignature(source, 'sort', []);
+    return source;
+  }
+  if (node.op === 'limit') {
+    const source = validatePipeline(node.input);
+    assertSignature(source, 'limit', []);
+    return source;
+  }
+  throw new F1QLValidationError('signature_invalid', `Unsupported core operator ${(node as { op: string }).op}`);
+}
+
+function validateDelta(node: CoreDeltaNode): void {
+  const { left, right } = node.input.input;
+  const leftSource = validatePipeline(left);
+  const rightSource = validatePipeline(right);
+  if (leftSource !== 'lap_pace' || rightSource !== 'lap_pace' || node.input.input.on.join(',') !== 'round') {
+    throw new F1QLValidationError('signature_invalid', 'Delta requires lap pace inputs joined on round');
+  }
+  assertSignature('lap_pace', 'join', []);
+  assertSignature('lap_pace', 'compare', []);
+  assertSignature('lap_pace', 'delta', []);
+}
+
+function signatureFieldsForFilter(source: CoreSourceNode['source'], node: CoreFilterNode): string[] {
+  if (source === 'standings') {
+    return Object.keys(node.where);
+  }
+  if (source === 'event_classification') {
+    return ['finishing_position', ...Object.keys(node.where).filter((field) => field !== 'season' && field !== 'round')];
+  }
+  return ['driver_id', 'lap_time_seconds', ...Object.keys(node.where)
+    .filter((field) => field === 'compound' || field === 'clean_air_only')
+    .map((field) => field === 'clean_air_only' ? 'clean_air_flag' : field)];
+}
+
+function signatureFieldsForAggregate(source: CoreSourceNode['source'], node: { group_by: string[]; measures: Array<{ field?: string }> }): string[] {
+  const measures = node.measures.flatMap((measure) => measure.field ? [measure.field] : []);
+  if (source === 'standings') {
+    return [...node.group_by, ...measures];
+  }
+  return measures.filter((field) => field !== 'median_lap_time_seconds');
 }
 
 function validateSignature(program: F1QLProgram): void {

@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilterNode, CoreLapPaceFilter, CoreLimitNode, CoreProgram } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -13,8 +13,8 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   if (isLapPaceAggregate(program.root)) {
     return compileLapPaceAggregate(program.root);
   }
-  if (isEventClassificationProgram(program)) {
-    return compileEventClassification(program.root.input.input, program.root.input, program.root.limit);
+  if (getSource(program.root as CorePipelineNode).source === 'event_classification') {
+    return compileEventClassification(program.root as CorePipelineNode);
   }
   const aggregate = getAggregateRoot(program);
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
@@ -52,34 +52,64 @@ function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
   throw new Error('Expected a standings aggregate core program');
 }
 
-function isEventClassificationProgram(program: CoreProgram): program is CoreProgram & { root: CoreLimitNode & { input: { input: CoreEventClassificationFilterNode } } } {
-  return program.root.op === 'limit'
-    && program.root.input.input.op === 'filter'
-    && program.root.input.input.input.source === 'event_classification';
+function compileEventClassification(node: CorePipelineNode): CompiledF1QL {
+  const pipeline = compileEventClassificationPipeline(node);
+  return {
+    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification ${pipeline.where.length ? `WHERE ${pipeline.where.join(' AND ')}` : ''}${pipeline.orderBy ? ` ORDER BY ${pipeline.orderBy}, driver_id ASC` : ''}${pipeline.limit === undefined ? '' : ` LIMIT ${pipeline.limit}`}`,
+    params: pipeline.params
+  };
 }
 
-function compileEventClassification(node: CoreEventClassificationFilterNode, sort: CoreLimitNode['input'], limit: number): CompiledF1QL {
-  if (sort.by !== 'finishing_position') {
-    throw new Error(`Unsupported event classification sort field: ${sort.by}`);
+function compileEventClassificationPipeline(node: CorePipelineNode): { where: string[]; params: unknown[]; orderBy?: string; limit?: number } {
+  if (node.op === 'source') {
+    if (node.source !== 'event_classification') {
+      throw new Error(`Expected event classification source, received ${node.source}`);
+    }
+    return { where: [], params: [] };
   }
-  const params: unknown[] = [node.where.season, node.where.round];
-  const clauses = ['season = $1', 'round = $2'];
-  if (node.where.classification_status) {
-    params.push(node.where.classification_status);
-    clauses.push(`classification_status = ANY($${params.length}::text[])`);
+  if (node.op === 'filter') {
+    const pipeline = compileEventClassificationPipeline(node.input);
+    const where = node.where as CoreEventClassificationFilter;
+    pipeline.params.push(where.season, where.round);
+    pipeline.where.push(`season = $${pipeline.params.length - 1}`, `round = $${pipeline.params.length}`);
+    if (where.classification_status) {
+      pipeline.params.push(where.classification_status);
+      pipeline.where.push(`classification_status = ANY($${pipeline.params.length}::text[])`);
+    }
+    if (where.driver_id) {
+      pipeline.params.push(where.driver_id);
+      pipeline.where.push(`driver_id = $${pipeline.params.length}`);
+    }
+    if (where.team_id) {
+      pipeline.params.push(where.team_id);
+      pipeline.where.push(`team_id = $${pipeline.params.length}`);
+    }
+    return pipeline;
   }
-  if (node.where.driver_id) {
-    params.push(node.where.driver_id);
-    clauses.push(`driver_id = $${params.length}`);
+  if (node.op === 'sort') {
+    if (node.by !== 'finishing_position') {
+      throw new Error(`Unsupported event classification sort field: ${node.by}`);
+    }
+    const pipeline = compileEventClassificationPipeline(node.input);
+    pipeline.orderBy = `${node.by} ${node.direction.toUpperCase()} NULLS ${(node.nulls ?? 'last').toUpperCase()}`;
+    return pipeline;
   }
-  if (node.where.team_id) {
-    params.push(node.where.team_id);
-    clauses.push(`team_id = $${params.length}`);
+  if (node.op === 'limit') {
+    const pipeline = compileEventClassificationPipeline(node.input);
+    pipeline.limit = node.limit;
+    return pipeline;
   }
-  return {
-    sql: `SELECT driver_id, finishing_position, points, classification_status, status_reason FROM f1ql.event_classification WHERE ${clauses.join(' AND ')} ORDER BY finishing_position ${sort.direction.toUpperCase()} NULLS ${(sort.nulls ?? 'last').toUpperCase()}, driver_id ASC LIMIT ${limit}`,
-    params
-  };
+  throw new Error(`Unsupported event classification core operator ${node.op}`);
+}
+
+function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {
+  if (node.op === 'source') {
+    return node;
+  }
+  if (node.op === 'delta') {
+    return getSource(node.input.input.left);
+  }
+  return getSource(node.input);
 }
 
 function isLapPaceAggregate(node: CoreProgram['root']): node is CoreAggregateNode {

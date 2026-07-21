@@ -73,6 +73,8 @@ export interface CoreLimitNode {
   limit: number;
 }
 
+export type CorePipelineNode = CoreSourceNode | CoreFilterNode | CoreAggregateNode | CoreSortNode | CoreLimitNode;
+
 export interface CoreJoinNode {
   op: 'join';
   left: CoreAggregateNode;

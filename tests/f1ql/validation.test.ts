@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { F1QLValidationError, validateF1QLProgram } from '../../src/f1ql/validation';
+import { F1QLValidationError, validateCoreProgram, validateF1QLProgram } from '../../src/f1ql/validation';
+import { lowerF1QL } from '../../src/f1ql/lower';
 
 describe('F1QL validation gates', () => {
   const program = { version: 1 as const, root: { op: 'pace_summary' as const, driver_id: 'max-verstappen', scope: { season: 2025 } } };
@@ -22,5 +23,15 @@ describe('F1QL validation gates', () => {
     process.env.F1QL_DEFINITIONS_VERSION = 'stale';
     expect(() => validateF1QLProgram(program)).toThrow(expect.objectContaining({ code: 'definitions_version_mismatch' }));
     delete process.env.F1QL_DEFINITIONS_VERSION;
+  });
+  it('validates lowered generic classification nodes against the phase 2 signature', () => {
+    const core = lowerF1QL({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 3 } });
+    expect(() => validateCoreProgram(core)).not.toThrow();
+
+    if (core.root.op !== 'limit' || core.root.input.op !== 'sort') {
+      throw new Error('Expected classification sort and limit');
+    }
+    (core.root.input as { by: string }).by = 'status_reason';
+    expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
   });
 });
