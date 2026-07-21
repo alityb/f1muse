@@ -17,30 +17,49 @@ describe('championship scoring rules registry', () => {
   });
 
   it('covers every supported season exactly once and leaves both boundaries explicit', () => {
-    for (let season = 2021; season <= 2026; season += 1) {
+    for (let season = 1950; season <= 2026; season += 1) {
       const matches = championshipScoringRulesRegistry.filter((rule) => season >= rule.season_start && season <= rule.season_end);
       expect(matches).toHaveLength(1);
       expect(resolveChampionshipScoringRules(season)).toMatchObject({ status: 'supported', rules: matches[0] });
     }
 
-    expect(resolveChampionshipScoringRules(2020)).toEqual({ status: 'unsupported', season: 2020, reason: 'before_registry' });
+    expect(resolveChampionshipScoringRules(1949)).toEqual({ status: 'unsupported', season: 1949, reason: 'before_registry' });
     expect(resolveChampionshipScoringRules(2027)).toEqual({ status: 'unsupported', season: 2027, reason: 'after_registry' });
   });
 
   it('preserves every scoring transition', () => {
+    const rule1950 = resolveChampionshipScoringRules(1950);
+    const rule1960 = resolveChampionshipScoringRules(1960);
     const rule2021 = resolveChampionshipScoringRules(2021);
     const rule2022 = resolveChampionshipScoringRules(2022);
     const rule2024 = resolveChampionshipScoringRules(2024);
     const rule2025 = resolveChampionshipScoringRules(2025);
 
-    if (rule2021.status !== 'supported' || rule2022.status !== 'supported' || rule2024.status !== 'supported' || rule2025.status !== 'supported') {
+    if (rule1950.status !== 'supported' || rule1960.status !== 'supported' || rule2021.status !== 'supported' || rule2022.status !== 'supported' || rule2024.status !== 'supported' || rule2025.status !== 'supported') {
       throw new Error('Expected supported registry transition seasons');
     }
 
+    expect(rule1950.rules.shared_drive_points).toBe('split_equally');
+    expect(rule1950.rules.fastest_lap.shared_fastest_lap).toBe('split_equally');
+    expect(rule1960.rules.standard_race_points).toEqual([8, 6, 4, 3, 2, 1]);
     expect(rule2021.rules.sprint_points).toEqual([3, 2, 1]);
     expect(rule2022.rules.sprint_points).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
-    expect(rule2024.rules.fastest_lap).toEqual({ bonus_points: 1, eligible_finish_position_max: 10 });
-    expect(rule2025.rules.fastest_lap).toEqual({ bonus_points: 0, eligible_finish_position_max: null });
+    expect(rule2024.rules.fastest_lap).toMatchObject({ bonus_points: 1, eligible_finish_position_max: 10 });
+    expect(rule2025.rules.fastest_lap).toMatchObject({ bonus_points: 0, eligible_finish_position_max: null });
+  });
+
+  it('records dropped-score, shortened-race, and double-points boundaries without deriving standings', () => {
+    const rule1973 = resolveChampionshipScoringRules(1973);
+    const rule1975 = resolveChampionshipScoringRules(1975);
+    const rule2014 = resolveChampionshipScoringRules(2014);
+    const rule2022 = resolveChampionshipScoringRules(2022);
+    if (rule1973.status !== 'supported' || rule1975.status !== 'supported' || rule2014.status !== 'supported' || rule2022.status !== 'supported') throw new Error('Expected supported boundary seasons');
+    expect(rule1973.rules.dropped_scores?.kind).toBe('split_season_best_results');
+    expect(rule1975.rules.shortened_race.kind).toBe('half_points_thresholds');
+    expect(rule2014.rules.race_multiplier).toBe(2);
+    expect(rule2014.rules.race_multiplier_scope).toBe('season_final_only');
+    expect(rule2022.rules.shortened_race.kind).toBe('graduated_scale');
+    for (const rule of championshipScoringRulesRegistry) expect(rule.authority.length).toBeGreaterThan(0);
   });
 
   it('applies only standard session schedules, never championship totals', () => {

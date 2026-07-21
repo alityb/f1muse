@@ -1,5 +1,1034 @@
 [
   {
+    "id": "historical-1950-1953",
+    "season_start": 1950,
+    "season_end": 1953,
+    "standard_race_points": [
+      8,
+      6,
+      4,
+      3,
+      2
+    ],
+    "fastest_lap": {
+      "bonus_points": 1,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "split_equally"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "split_equally",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 4 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1954-1957",
+    "season_start": 1954,
+    "season_end": 1957,
+    "standard_race_points": [
+      8,
+      6,
+      4,
+      3,
+      2
+    ],
+    "fastest_lap": {
+      "bonus_points": 1,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "split_equally"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "split_equally",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 5 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1958",
+    "season_start": 1958,
+    "season_end": 1958,
+    "standard_race_points": [
+      8,
+      6,
+      4,
+      3,
+      2
+    ],
+    "fastest_lap": {
+      "bonus_points": 1,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "split_equally"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 6 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1959",
+    "season_start": 1959,
+    "season_end": 1959,
+    "standard_race_points": [
+      8,
+      6,
+      4,
+      3,
+      2
+    ],
+    "fastest_lap": {
+      "bonus_points": 1,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "split_equally"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 5 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1960",
+    "season_start": 1960,
+    "season_end": 1960,
+    "standard_race_points": [
+      8,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 6 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1961-1962",
+    "season_start": 1961,
+    "season_end": 1962,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 5 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1963-1965",
+    "season_start": 1963,
+    "season_end": 1965,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 6 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1966",
+    "season_start": 1966,
+    "season_end": 1966,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "best_results",
+      "description": "Only the best 5 race results counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1967",
+    "season_start": 1967,
+    "season_end": 1967,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 6 races and best 4 results from the final 5 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1968",
+    "season_start": 1968,
+    "season_end": 1968,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 6 races and best 5 results from the final 6 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1969",
+    "season_start": 1969,
+    "season_end": 1969,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 6 races and best 4 results from the final 5 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1970",
+    "season_start": 1970,
+    "season_end": 1970,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 6 results from the first 7 races and best 5 results from the final 6 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1971",
+    "season_start": 1971,
+    "season_end": 1971,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 6 races and best 4 results from the final 5 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1972",
+    "season_start": 1972,
+    "season_end": 1972,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 6 races and best 5 results from the final 6 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1973-1974",
+    "season_start": 1973,
+    "season_end": 1974,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 7 results from the first 8 races and best 6 results from the final 7 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1975",
+    "season_start": 1975,
+    "season_end": 1975,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 6 results from the first 7 races and best 6 results from the final 7 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1975-1976: no points below 30% distance, half points from 30% to below 60%, full points at 60% or more."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1976",
+    "season_start": 1976,
+    "season_end": 1976,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 7 results from the first 8 races and best 7 results from the final 8 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1975-1976: no points below 30% distance, half points from 30% to below 60%, full points at 60% or more."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1977",
+    "season_start": 1977,
+    "season_end": 1977,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 8 results from the first 9 races and best 7 results from the final 8 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1978",
+    "season_start": 1978,
+    "season_end": 1978,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 7 results from the first 8 races and best 7 results from the final 8 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1979",
+    "season_start": 1979,
+    "season_end": 1979,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 4 results from the first 7 races and best 4 results from the final 8 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "unknown",
+      "description": "No general reduced-distance schedule is represented for this interval; use the event final classification."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1980",
+    "season_start": 1980,
+    "season_end": 1980,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": {
+      "kind": "split_season_best_results",
+      "description": "Best 5 results from the first 7 races and best 5 results from the final 7 races counted toward the Drivers' Championship."
+    },
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1981-1990",
+    "season_start": 1981,
+    "season_end": 1990,
+    "standard_race_points": [
+      9,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-1991-2002",
+    "season_start": 1991,
+    "season_end": 2002,
+    "standard_race_points": [
+      10,
+      6,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-2003-2009",
+    "season_start": 2003,
+    "season_end": 2009,
+    "standard_race_points": [
+      10,
+      8,
+      6,
+      5,
+      4,
+      3,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-2010-2013",
+    "season_start": 2010,
+    "season_end": 2013,
+    "standard_race_points": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-2014-double-final",
+    "season_start": 2014,
+    "season_end": 2014,
+    "standard_race_points": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 2,
+    "race_multiplier_scope": "season_final_only",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-2015-2018",
+    "season_start": 2015,
+    "season_end": 2018,
+    "standard_race_points": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
+    "id": "historical-2019-2020-fastest-lap",
+    "season_start": 2019,
+    "season_end": 2020,
+    "standard_race_points": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 1,
+      "eligible_finish_position_max": 10,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "StatsF1",
+        "document": "Formula 1 points system history (driver championship schedules and counting rules)",
+        "url": "https://www.statsf1.com/en/statistiques/pilote/point/reglement.aspx"
+      }
+    ]
+  },
+  {
     "id": "fia-2021-sprint-trial",
     "season_start": 2021,
     "season_end": 2021,
@@ -17,18 +1046,29 @@
     ],
     "fastest_lap": {
       "bonus_points": 1,
-      "eligible_finish_position_max": 10
+      "eligible_finish_position_max": 10,
+      "shared_fastest_lap": "not_applicable"
     },
     "sprint_points": [
       3,
       2,
       1
     ],
-    "authority": {
-      "publisher": "FIA",
-      "document": "2021 Formula 1 Sporting Regulations, Issue 13, Articles 6.4 and 6.5",
-      "url": "https://www.fia.com/sites/default/files/2021_formula_1_sporting_regulations_-_iss_13_-_2021-12-08.pdf"
-    }
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "half_points_thresholds",
+      "description": "1980-2021: no points below two laps, half points from two laps to below 75%, full points at 75% or more. Event regulations and classifications control."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "FIA",
+        "document": "2021 Formula 1 Sporting Regulations, Issue 13, Articles 6.4-6.5",
+        "url": "https://www.fia.com/sites/default/files/2021_formula_1_sporting_regulations_-_iss_13_-_2021-12-08.pdf"
+      }
+    ]
   },
   {
     "id": "fia-2022-2024-sprint-top-eight",
@@ -48,7 +1088,8 @@
     ],
     "fastest_lap": {
       "bonus_points": 1,
-      "eligible_finish_position_max": 10
+      "eligible_finish_position_max": 10,
+      "shared_fastest_lap": "not_applicable"
     },
     "sprint_points": [
       8,
@@ -60,15 +1101,72 @@
       2,
       1
     ],
-    "authority": {
-      "publisher": "FIA",
-      "document": "2024 Formula 1 Sporting Regulations, Issue 7, Articles 6.4 and 6.5",
-      "url": "https://www.fia.com/sites/default/files/fia_2024_formula_1_sporting_regulations_-_issue_7_-_2024-07-31.pdf"
-    }
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "graduated_scale",
+      "description": "2022-2026: no points below two green-flag laps; 6-4-3-2-1 below 25%, 13-10-8-6-5-4-3-2-1 below 50%, 19-14-12-10-8-6-4-3-2-1 below 75%, then full scale. Full points may apply when the race ends under green."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "FIA",
+        "document": "2024 Formula 1 Sporting Regulations, Issue 7, Articles 6.4-6.5",
+        "url": "https://www.fia.com/sites/default/files/fia_2024_formula_1_sporting_regulations_-_issue_7_-_2024-07-31.pdf"
+      }
+    ]
   },
   {
-    "id": "fia-2025-2026-no-fastest-lap-bonus",
+    "id": "fia-2025-no-fastest-lap-bonus",
     "season_start": 2025,
+    "season_end": 2025,
+    "standard_race_points": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
+    "fastest_lap": {
+      "bonus_points": 0,
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
+    },
+    "sprint_points": [
+      8,
+      7,
+      6,
+      5,
+      4,
+      3,
+      2,
+      1
+    ],
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "graduated_scale",
+      "description": "2022-2026: no points below two green-flag laps; 6-4-3-2-1 below 25%, 13-10-8-6-5-4-3-2-1 below 50%, 19-14-12-10-8-6-4-3-2-1 below 75%, then full scale. Full points may apply when the race ends under green."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "FIA",
+        "document": "2025 Formula 1 Sporting Regulations, Issue 5, Articles 6.4-6.5",
+        "url": "https://www.fia.com/system/files/documents/fia_2025_formula_1_sporting_regulations_-_issue_5_-_2025-04-30.pdf"
+      }
+    ]
+  },
+  {
+    "id": "fia-2026-no-fastest-lap-bonus",
+    "season_start": 2026,
     "season_end": 2026,
     "standard_race_points": [
       25,
@@ -84,7 +1182,8 @@
     ],
     "fastest_lap": {
       "bonus_points": 0,
-      "eligible_finish_position_max": null
+      "eligible_finish_position_max": null,
+      "shared_fastest_lap": "not_applicable"
     },
     "sprint_points": [
       8,
@@ -96,10 +1195,20 @@
       2,
       1
     ],
-    "authority": {
-      "publisher": "FIA",
-      "document": "2025 Formula 1 Sporting Regulations, Issue 5, Articles 6.4 and 6.5",
-      "url": "https://www.fia.com/system/files/documents/fia_2025_formula_1_sporting_regulations_-_issue_5_-_2025-04-30.pdf"
-    }
+    "shared_drive_points": "not_awarded",
+    "dropped_scores": null,
+    "shortened_race": {
+      "kind": "graduated_scale",
+      "description": "2022-2026: no points below two green-flag laps; 6-4-3-2-1 below 25%, 13-10-8-6-5-4-3-2-1 below 50%, 19-14-12-10-8-6-4-3-2-1 below 75%, then full scale. Full points may apply when the race ends under green."
+    },
+    "race_multiplier": 1,
+    "race_multiplier_scope": "none",
+    "authority": [
+      {
+        "publisher": "FIA",
+        "document": "2026 F1 Regulations, Section B (Sporting), Issue 7, Articles 6.4-6.5",
+        "url": "https://www.fia.com/system/files/documents/fia_2026_f1_regulations_-_section_b_sporting_-_iss_07_-_2026-06-25.pdf"
+      }
+    ]
   }
 ]
