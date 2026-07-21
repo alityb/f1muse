@@ -13,9 +13,8 @@
 - Property testing: no library is installed. `fast-check` is the appropriate TypeScript dependency for Phase 5, but will be introduced only with bounded generators.
 
 ### Phase Status
-- Phase 1: IN PROGRESS. Shadow route exists; typed outcome metrics, report automation, nightly CI, and corpus smoke are not yet complete.
-- Phase 2: NOT STARTED. Existing schema and round/result budgets are partial validation only.
-- Phase 2: IN PROGRESS. Definitions, structural complexity, coverage foundation, participation, and transaction-scoped timeout gates are implemented. Docker is required for timeout/participation integration fixtures.
+- Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
+- Phase 2: PARTIAL. All six validation gates and local definition-of-done suites are complete; production deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320` remains `BUILDING` after image export/push, so the new release has not yet received its required production shadow round-trip. Resume by checking `railway status --json` until `SUCCESS`, send one `/program/translate` shadow request, fetch `railway logs --service main --environment production --since 5m --json`, run `npm run report:f1ql-shadow -- <file>`, then change this status to COMPLETE.
 - Phase 3: PARTIAL. Current core IR still has specialized pace and classification nodes. Preserve behavior before refactoring.
 - Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
@@ -37,6 +36,13 @@
 - Expected caveat: legacy pre-timestamp log lines would appear as `unknown` if returned by Railway; none were returned by the headless fetch.
 - PARTIAL: Railway CLI returned no structured retained events for `--since 30d`. Validate project log-retention/export configuration before relying on the automated 30-day report.
 - PARTIAL: `npm run test:f1ql` could not start because the local Docker daemon was unavailable. Start Docker and rerun `npm run test:f1ql`; database-backed Phase 1 tests were green before this environment outage.
+
+### Phase 2 Validation Pipeline (2026-07-21)
+- Delivered all gates: participation checks against `season_entrant_driver`; coverage/signature enforcement against `F1QL_SIGNATURES`; configurable AST node budget; active definitions-version refresh input; and a configurable transaction-local read-only statement timeout.
+- Rejections are typed through validation, shadow-route log reason, Prometheus/JSON metrics reason label, and report parser: `participation_missing`, `complexity_exceeded`, `coverage_unsupported`, `definitions_version_mismatch`, and `signature_invalid`.
+- Docker-backed proof: `npm run test:f1ql` passed 39 tests, including a `pg_sleep` query cancelled by a 10ms configured timeout. `npm run test:api:inprocess` passed 7 tests after adding phase-required 2030 entrant fixtures. `npm run typecheck` passed; lint passed with 0 errors and 117 pre-existing warnings.
+- Railway observability loop proven. `railway status --json` confirmed service `main`, environment `production`, Logs V2. `railway logs --service main --environment production --since 30d --json` returned historical runtime JSONL, not build/deploy-only output; each event has the documented top-level `timestamp`, `message`, and `level` envelope. A real production `POST /program/translate` returned a shadow `pace_summary`; fetching `--since 5m` contained `[F1QLTranslation]` in `message`; `npm run report:f1ql-shadow -- /var/folders/p9/gh5frnt56_l4t03p8dl_fq3m0000gn/T/opencode/railway-production-5m.jsonl` reported one attempt, 100.00% success, `validated_shadow_program: 1`, `pace_summary: 1`.
+- PARTIAL production release: `railway up --service main --environment production` created deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320`. Railway build logs show image export/push completed, but status still reports `BUILDING` and `deploymentStopped: true`; no Phase 2 production runtime round-trip is possible until Railway finishes it. Do not deploy again; poll the deployment, then run the exact resume procedure in Phase Status.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
