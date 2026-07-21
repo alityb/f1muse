@@ -26,14 +26,7 @@ export function refreshF1QLDefinitionsVersion(): string {
 }
 
 export async function validateParticipation(pool: Pool, program: F1QLProgram): Promise<void> {
-  const root = program.root;
-  const season = root.op === 'pace_delta' || root.op === 'pace_summary' ? root.scope.season : undefined;
-  let drivers: string[] = [];
-  if (root.op === 'pace_delta') {
-    drivers = [root.driver_a_id, root.driver_b_id];
-  } else if (root.op === 'pace_summary') {
-    drivers = [root.driver_id];
-  }
+  const { season, drivers } = getParticipationScope(program);
   if (season === undefined || drivers.length === 0) {
     return;
   }
@@ -44,6 +37,27 @@ export async function validateParticipation(pool: Pool, program: F1QLProgram): P
   if (result.rows.length !== drivers.length) {
     throw new F1QLValidationError('participation_missing', 'Driver did not participate in the requested season');
   }
+}
+
+function getParticipationScope(program: F1QLProgram): { season?: number; drivers: string[] } {
+  const root = program.root;
+  if (root.op === 'pace_delta') {
+    return { season: root.scope.season, drivers: [root.driver_a_id, root.driver_b_id] };
+  }
+  if (root.op === 'pace_summary') {
+    return { season: root.scope.season, drivers: [root.driver_id] };
+  }
+  if (root.op === 'event_classification') {
+    return { season: root.season, drivers: root.filters?.driver_id ? [root.filters.driver_id] : [] };
+  }
+  const aggregate = root.op === 'rank' ? root.input : root;
+  if (aggregate.input.op !== 'filter' || typeof aggregate.input.where.season !== 'number' || !aggregate.input.where.driver_id) {
+    return { drivers: [] };
+  }
+  const drivers = Array.isArray(aggregate.input.where.driver_id)
+    ? aggregate.input.where.driver_id
+    : [aggregate.input.where.driver_id];
+  return { season: aggregate.input.where.season, drivers };
 }
 
 export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidationOptions = {}): void {

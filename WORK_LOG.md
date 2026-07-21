@@ -16,3 +16,6 @@
 - Re-verified typecheck, lint (0 errors, 117 pre-existing warnings), 39 F1QL tests, and 7 in-process API tests; committed the one-hop Railway proxy fix as `568dccd`.
 - Superseded dead deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320` once with `43b9103e-d953-4e09-b946-bc9ddb7fec97`. It stayed `BUILDING` with `deploymentStopped: true` throughout the requested five-minute 30-second poll; bounded deploy logs were empty. Recorded as PARTIAL with a no-blind-retry instruction.
 - On resume, the existing replacement advanced from `DEPLOYING` to `SUCCESS` without another deploy. A known-driver production shadow request returned `pace_summary`; after 15 seconds, the Railway JSONL fetch and report recorded one successful attempt and no rejection reasons. Phase 2 is complete.
+- Began a Phase 0-2 confidence audit. It found and corrected participation coverage for driver-filtered standings and event classifications, typed `/program` validation rejections, and non-string Railway log envelope handling; added focused regression tests.
+- The expanded API suite caught the expected additional rejected `pace_summary` metric from the new participation test; updated the exact metric contract accordingly.
+- Confidence verification passed: 41 F1QL tests, 7 in-process API tests, lint with 0 errors, and 598 Docker-backed unit tests across 36 files.

@@ -187,13 +187,21 @@ describe('in-process API routes', () => {
     });
     expect(overBudget.status).toBe(400);
     await expect(overBudget.json()).resolves.toMatchObject({ error: 'cost_limit_exceeded' });
+
+    const nonParticipant = await fetch(`${baseUrl}/program`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: 1, root: { op: 'pace_summary', driver_id: 'max-verstappen', scope: { season: 2099 } } })
+    });
+    expect(nonParticipant.status).toBe(400);
+    await expect(nonParticipant.json()).resolves.toMatchObject({ error: 'participation_missing' });
   });
 
   it('records F1QL operation metrics without query values', () => {
     const snapshot = metrics.toJSON();
     expect(snapshot.f1ql).toMatchObject({
-      requests: expect.objectContaining({ aggregate: 1, pace_delta: 1, invalid: 1, pace_summary: 1 }),
-      failures: expect.objectContaining({ 'invalid:rejected': 1, 'pace_summary:rejected': 1 })
+      requests: expect.objectContaining({ aggregate: 1, pace_delta: 1, invalid: 1, pace_summary: 2 }),
+      failures: expect.objectContaining({ 'invalid:rejected': 1, 'pace_summary:rejected': 2 })
     });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_requests_total{operation="pace_delta"} 1');
   });

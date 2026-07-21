@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
 import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
+import { F1QLValidationError } from '../../src/f1ql/validation';
 import { EventClassificationRow, interpretEventClassification, interpretPaceAggregate, interpretPaceSubtract, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
@@ -104,6 +105,7 @@ beforeAll(async () => {
     `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
       (2025, 'red-bull', 'red-bull', 'max-verstappen', false),
       (2025, 'mclaren', 'mclaren', 'lando-norris', false),
+      (2025, 'test-team', 'test-team', 'driver-dns', false),
       (2027, 'team-a', 'team-a', 'driver-a', false),
       (2027, 'team-b', 'team-b', 'driver-b', false)`
   );
@@ -395,5 +397,23 @@ describe('F1QL standings vertical slice', () => {
   it('cancels slow statements under the configured read-only timeout', async () => {
     await expect(executeF1QLReadOnly(pool, 'SELECT pg_sleep(0.1)', [], { statementTimeoutMs: 10 }))
       .rejects.toBeInstanceOf(F1QLStatementTimeoutError);
+  });
+
+  it('enforces participation for driver-filtered standings and event classifications', async () => {
+    const standingsProgram: F1QLProgram = {
+      version: 1,
+      root: {
+        op: 'aggregate',
+        input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: 'missing-driver' } },
+        group_by: ['driver_id'],
+        measures: [{ as: 'total_points', function: 'sum', field: 'points' }]
+      }
+    };
+    const eventProgram: F1QLProgram = {
+      version: 1,
+      root: { op: 'event_classification', season: 2025, round: 9, limit: 1, filters: { driver_id: 'driver-dnf' } }
+    };
+    await expect(executeF1QL(pool, standingsProgram)).rejects.toMatchObject({ code: 'participation_missing' } satisfies Partial<F1QLValidationError>);
+    await expect(executeF1QL(pool, eventProgram)).rejects.toMatchObject({ code: 'participation_missing' } satisfies Partial<F1QLValidationError>);
   });
 });

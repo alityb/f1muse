@@ -11,8 +11,8 @@ for (const line of lines) {
   let message = line;
   let envelopeTimestamp: string | undefined;
   try {
-    const envelope = JSON.parse(line) as { message?: string; timestamp?: string };
-    message = envelope.message ?? line;
+    const envelope = JSON.parse(line) as { message?: unknown; timestamp?: string };
+    message = typeof envelope.message === 'string' ? envelope.message : line;
     envelopeTimestamp = envelope.timestamp;
   } catch { /* Raw console line. */ }
   if (!message.includes('[F1QLTranslation]')) continue;

@@ -18,4 +18,9 @@ describe('F1QL validation gates', () => {
     const invalid = { version: 1 as const, root: { op: 'event_classification' as const, season: 2025, round: 31, limit: 1 } };
     expect(() => validateF1QLProgram(invalid)).toThrow(expect.objectContaining({ code: 'coverage_unsupported' }));
   });
+  it('reads the active definitions version through the refresh path', () => {
+    process.env.F1QL_DEFINITIONS_VERSION = 'stale';
+    expect(() => validateF1QLProgram(program)).toThrow(expect.objectContaining({ code: 'definitions_version_mismatch' }));
+    delete process.env.F1QL_DEFINITIONS_VERSION;
+  });
 });
