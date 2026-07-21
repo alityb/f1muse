@@ -35,6 +35,9 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'event_classification') {
     return lowerEventClassification(program.root);
   }
+  if (program.root.op === 'qualifying_classification') {
+    return lowerQualifyingClassification(program.root);
+  }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const coreAggregate = lowerAggregate(aggregate);
 
@@ -91,6 +94,27 @@ function lowerEventClassification(node: Extract<F1QLProgram['root'], { op: 'even
           where: { season: node.season, round: node.round, ...node.filters }
         },
         by: 'finishing_position',
+        direction: 'asc',
+        nulls: 'last'
+      },
+      limit: node.limit
+    }
+  };
+}
+
+function lowerQualifyingClassification(node: Extract<F1QLProgram['root'], { op: 'qualifying_classification' }>): CoreProgram {
+  return {
+    version: 1,
+    root: {
+      op: 'limit',
+      input: {
+        op: 'sort',
+        input: {
+          op: 'filter',
+          input: { op: 'source', source: 'qualifying_classification' },
+          where: { season: node.season, round: node.round, ...node.filters }
+        },
+        by: 'qualifying_position',
         direction: 'asc',
         nulls: 'last'
       },

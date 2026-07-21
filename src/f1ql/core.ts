@@ -2,7 +2,7 @@ import { AggregateMeasure, StandingsFilter } from './ast';
 
 export interface CoreSourceNode {
   op: 'source';
-  source: 'standings' | 'event_classification' | 'lap_pace';
+  source: 'standings' | 'event_classification' | 'qualifying_classification' | 'lap_pace';
 }
 
 export interface CoreEventClassificationFilter {
@@ -26,6 +26,14 @@ export interface CoreLapPaceFilter {
   compound?: string;
 }
 
+export interface CoreQualifyingClassificationFilter {
+  season: number;
+  round: number;
+  classification_status?: string[];
+  driver_id?: string;
+  team_id?: string;
+}
+
 export interface CoreStandingsFilterNode {
   op: 'filter';
   input: CoreSourceNode & { source: 'standings' };
@@ -44,7 +52,13 @@ export interface CoreLapPaceFilterNode {
   where: CoreLapPaceFilter;
 }
 
-export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreLapPaceFilterNode;
+export interface CoreQualifyingClassificationFilterNode {
+  op: 'filter';
+  input: CoreSourceNode & { source: 'qualifying_classification' };
+  where: CoreQualifyingClassificationFilter;
+}
+
+export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreQualifyingClassificationFilterNode | CoreLapPaceFilterNode;
 
 export type CoreAggregateMeasure = AggregateMeasure | {
   as: string;

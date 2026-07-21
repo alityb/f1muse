@@ -6,7 +6,8 @@ export const F1QL_DEFINITIONS_VERSION = 'v1';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] }
+  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] },
+  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'qualifying_classification'] }
 } as const;
 
 export type F1QLValidationCode = 'definitions_version_mismatch' | 'complexity_exceeded' | 'coverage_unsupported' | 'participation_missing' | 'signature_invalid';
@@ -48,7 +49,7 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'pace_summary') {
     return { season: root.scope.season, drivers: [root.driver_id] };
   }
-  if (root.op === 'event_classification') {
+  if (root.op === 'event_classification' || root.op === 'qualifying_classification') {
     return { season: root.season, drivers: root.filters?.driver_id ? [root.filters.driver_id] : [] };
   }
   const aggregate = root.op === 'rank' ? root.input : root;
@@ -71,7 +72,7 @@ export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidatio
     throw new F1QLValidationError('complexity_exceeded', `Program exceeds the ${maxNodes}-node complexity budget`);
   }
   validateSignature(program);
-  if (program.root.op === 'event_classification' && program.root.round > 30) {
+  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification') && program.root.round > 30) {
     throw new F1QLValidationError('coverage_unsupported', 'Round is outside supported event coverage');
   }
 }
@@ -83,8 +84,8 @@ export function validateCoreProgram(program: CoreProgram): void {
     return;
   }
   const source = validatePipeline(program.root);
-  if (source === 'event_classification' && program.root.op !== 'limit') {
-    throw new F1QLValidationError('signature_invalid', 'Event classification requires a limit');
+  if ((source === 'event_classification' || source === 'qualifying_classification') && program.root.op !== 'limit') {
+    throw new F1QLValidationError('signature_invalid', 'Classification requires a limit');
   }
 }
 
@@ -105,8 +106,13 @@ function validatePipeline(node: CorePipelineNode): CoreSourceNode['source'] {
   }
   if (node.op === 'sort') {
     const source = validatePipeline(node.input);
-    if (source === 'event_classification' && node.by !== 'finishing_position') {
-      throw new F1QLValidationError('signature_invalid', `${node.by} is not a supported event_classification field`);
+    const sortFields: Partial<Record<CoreSourceNode['source'], string>> = {
+      event_classification: 'finishing_position',
+      qualifying_classification: 'qualifying_position'
+    };
+    const sortField = sortFields[source];
+    if (sortField && node.by !== sortField) {
+      throw new F1QLValidationError('signature_invalid', `${node.by} is not a supported ${source} field`);
     }
     assertSignature(source, 'sort', []);
     return source;
@@ -138,7 +144,7 @@ function signatureFieldsForFilter(source: CoreSourceNode['source'], node: CoreFi
   if (source === 'standings') {
     return Object.keys(node.where);
   }
-  if (source === 'event_classification') {
+  if (source === 'event_classification' || source === 'qualifying_classification') {
     return Object.keys(node.where);
   }
   return Object.keys(node.where)
@@ -165,8 +171,13 @@ function validateSignature(program: F1QLProgram): void {
     assertSignature('lap_pace', root.op, fields);
     return;
   }
-  if (root.op === 'event_classification') {
-    assertSignature('event_classification', root.op, ['finishing_position', ...Object.keys(root.filters ?? {})]);
+  if (isClassificationRoot(root)) {
+    const positionFields = {
+      event_classification: 'finishing_position',
+      qualifying_classification: 'qualifying_position'
+    } as const;
+    const positionField = positionFields[root.op];
+    assertSignature(root.op, root.op, [positionField, ...Object.keys(root.filters ?? {})]);
     return;
   }
   const aggregate = root.op === 'rank' ? root.input : root;
@@ -184,6 +195,10 @@ function validateSignature(program: F1QLProgram): void {
     assertSignature('standings', operator, []);
   }
   assertSignature('standings', 'aggregate', fields);
+}
+
+function isClassificationRoot(root: F1QLProgram['root']): root is Extract<F1QLProgram['root'], { op: 'event_classification' | 'qualifying_classification' }> {
+  return root.op === 'event_classification' || root.op === 'qualifying_classification';
 }
 
 function assertSignature(source: keyof typeof F1QL_SIGNATURES, operator: string, fields: string[]): void {

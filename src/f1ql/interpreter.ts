@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
 
 export interface StandingsRow {
   season: number;
@@ -33,9 +33,28 @@ export interface EventClassificationRow {
   status_reason: string | null;
 }
 
+export interface QualifyingClassificationRow {
+  season: number;
+  round: number;
+  driver_id: string;
+  team_id: string | null;
+  qualifying_position: number | null;
+  best_time_ms: number | null;
+  best_session: string | null;
+  eliminated_in_round: string | null;
+  classification_status: string;
+}
+
 export function interpretEventClassification(program: CoreProgram, rows: EventClassificationRow[]): Array<Record<string, unknown>> {
   return interpretEventClassificationNode(program.root as CorePipelineNode, rows)
     .map(({ driver_id, finishing_position, points, classification_status, status_reason }) => ({ driver_id, finishing_position, points, classification_status, status_reason }));
+}
+
+export function interpretQualifyingClassification(program: CoreProgram, rows: QualifyingClassificationRow[]): Array<Record<string, unknown>> {
+  return interpretQualifyingClassificationNode(program.root as CorePipelineNode, rows)
+    .map(({ driver_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, classification_status }) => ({
+      driver_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, classification_status
+    }));
 }
 
 export function interpretStandingsProgram(
@@ -96,6 +115,33 @@ function interpretEventClassificationNode(node: CorePipelineNode, rows: EventCla
     return interpretEventClassificationNode(node.input, rows).slice(0, node.limit);
   }
   throw new Error(`Unsupported event classification core operator ${node.op}`);
+}
+
+function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: QualifyingClassificationRow[]): QualifyingClassificationRow[] {
+  if (node.op === 'source') {
+    if (node.source !== 'qualifying_classification') {
+      throw new Error(`interpretQualifyingClassification received ${node.source}`);
+    }
+    return rows;
+  }
+  if (node.op === 'filter') {
+    const where = node.where as CoreQualifyingClassificationFilter;
+    return interpretQualifyingClassificationNode(node.input, rows)
+      .filter((row) => row.season === where.season && row.round === where.round)
+      .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
+      .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
+      .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
+  }
+  if (node.op === 'sort') {
+    const direction = node.direction === 'asc' ? 1 : -1;
+    const nullValue = node.nulls === 'first' ? -Infinity : Infinity;
+    return [...interpretQualifyingClassificationNode(node.input, rows)]
+      .sort((a, b) => (Number(a[node.by as keyof QualifyingClassificationRow] ?? nullValue) - Number(b[node.by as keyof QualifyingClassificationRow] ?? nullValue)) * direction || a.driver_id.localeCompare(b.driver_id));
+  }
+  if (node.op === 'limit') {
+    return interpretQualifyingClassificationNode(node.input, rows).slice(0, node.limit);
+  }
+  throw new Error(`Unsupported qualifying classification core operator ${node.op}`);
 }
 
 function getSourceName(node: CorePipelineNode | CoreDeltaNode): string {

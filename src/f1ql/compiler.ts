@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 
 export interface CompiledF1QL {
   sql: string;
@@ -12,6 +12,9 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   }
   if (getSource(program.root as CorePipelineNode).source === 'event_classification') {
     return compileEventClassification(program.root as CorePipelineNode);
+  }
+  if (getSource(program.root as CorePipelineNode).source === 'qualifying_classification') {
+    return compileQualifyingClassification(program.root as CorePipelineNode);
   }
   const aggregate = getAggregateRoot(program);
   const { whereSql, params } = compileStandingsFilter(aggregate.input.op === 'filter' ? aggregate.input.where : {});
@@ -97,6 +100,56 @@ function compileEventClassificationPipeline(node: CorePipelineNode): { where: st
     return pipeline;
   }
   throw new Error(`Unsupported event classification core operator ${node.op}`);
+}
+
+function compileQualifyingClassification(node: CorePipelineNode): CompiledF1QL {
+  const pipeline = compileQualifyingClassificationPipeline(node);
+  return {
+    sql: `SELECT driver_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, classification_status FROM f1ql.qualifying_classification ${pipeline.where.length ? `WHERE ${pipeline.where.join(' AND ')}` : ''}${pipeline.orderBy ? ` ORDER BY ${pipeline.orderBy}, driver_id ASC` : ''}${pipeline.limit === undefined ? '' : ` LIMIT ${pipeline.limit}`}`,
+    params: pipeline.params
+  };
+}
+
+function compileQualifyingClassificationPipeline(node: CorePipelineNode): { where: string[]; params: unknown[]; orderBy?: string; limit?: number } {
+  if (node.op === 'source') {
+    if (node.source !== 'qualifying_classification') {
+      throw new Error(`Expected qualifying classification source, received ${node.source}`);
+    }
+    return { where: [], params: [] };
+  }
+  if (node.op === 'filter') {
+    const pipeline = compileQualifyingClassificationPipeline(node.input);
+    const where = node.where as CoreQualifyingClassificationFilter;
+    pipeline.params.push(where.season, where.round);
+    pipeline.where.push(`season = $${pipeline.params.length - 1}`, `round = $${pipeline.params.length}`);
+    if (where.classification_status) {
+      pipeline.params.push(where.classification_status);
+      pipeline.where.push(`classification_status = ANY($${pipeline.params.length}::text[])`);
+    }
+    if (where.driver_id) {
+      pipeline.params.push(where.driver_id);
+      pipeline.where.push(`driver_id = $${pipeline.params.length}`);
+    }
+    if (where.team_id) {
+      pipeline.params.push(where.team_id);
+      pipeline.where.push(`team_id = $${pipeline.params.length}`);
+    }
+    return pipeline;
+  }
+  if (node.op === 'sort') {
+    if (node.by !== 'qualifying_position') {
+      throw new Error(`Unsupported qualifying classification sort field: ${node.by}`);
+    }
+    const pipeline = compileQualifyingClassificationPipeline(node.input);
+    pipeline.orderBy = `${node.by} ${node.direction.toUpperCase()} NULLS ${(node.nulls ?? 'last').toUpperCase()}`;
+    return pipeline;
+  }
+  if (node.op === 'limit') {
+    const pipeline = compileQualifyingClassificationPipeline(node.input);
+    pipeline.limit = node.limit;
+    return pipeline;
+  }
+  throw new Error(`Unsupported qualifying classification core operator ${node.op}`);
 }
 
 function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {

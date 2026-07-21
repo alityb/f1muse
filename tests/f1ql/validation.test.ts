@@ -33,6 +33,14 @@ describe('F1QL validation gates', () => {
     }
     (core.root.input as { by: string }).by = 'status_reason';
     expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+
+    const qualifyingCore = lowerF1QL({ version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 3 } });
+    expect(() => validateCoreProgram(qualifyingCore)).not.toThrow();
+    if (qualifyingCore.root.op !== 'limit' || qualifyingCore.root.input.op !== 'sort') {
+      throw new Error('Expected qualifying classification sort and limit');
+    }
+    (qualifyingCore.root.input as { by: string }).by = 'best_time_ms';
+    expect(() => validateCoreProgram(qualifyingCore)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
   });
   it('validates generic pace join and compare fields against the phase 2 signature', () => {
     const core = lowerF1QL({

@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
 import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { F1QLValidationError } from '../../src/f1ql/validation';
-import { EventClassificationRow, interpretEventClassification, interpretLapPaceProgram, interpretStandingsProgram, PaceLapRow, StandingsRow } from '../../src/f1ql/interpreter';
+import { EventClassificationRow, interpretEventClassification, interpretLapPaceProgram, interpretQualifyingClassification, interpretStandingsProgram, PaceLapRow, QualifyingClassificationRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
 import { F1QLProgram } from '../../src/f1ql/ast';
@@ -397,6 +397,52 @@ describe('F1QL standings vertical slice', () => {
       .toEqual(interpretEventClassification(filteredCore, referenceRows));
   });
 
+  it('compiles official qualifying classification from the canonical view', async () => {
+    await pool.query(`INSERT INTO qualifying_results
+      (season, round, driver_id, team_id, qualifying_position, best_time_ms, best_session, eliminated_in_round, is_dnf, is_dns) VALUES
+      (2025, 9, 'max_verstappen', 'red-bull', 1, 80000, 'Q3', NULL, false, false),
+      (2025, 9, 'lando_norris', 'mclaren', 2, 80100, 'Q3', NULL, false, false),
+      (2025, 9, 'driver_dnf', 'test-team', NULL, NULL, NULL, 'Q1', true, false),
+      (2025, 9, 'driver_dns', 'test-team', NULL, NULL, NULL, NULL, false, true)`);
+    const program: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 9, limit: 4 } };
+    const compiled = compileF1QL(lowerF1QL(program));
+    const executed = await executeF1QL(pool, program);
+
+    expect(lowerF1QL(program).root).toMatchObject({
+      op: 'limit',
+      input: { op: 'sort', by: 'qualifying_position', input: { op: 'filter', input: { op: 'source', source: 'qualifying_classification' } } }
+    });
+    expect(compiled.sql).toContain('f1ql.qualifying_classification');
+    expect(compiled.params).toEqual([2025, 9]);
+    expect(executed.rows).toEqual([
+      { driver_id: 'max-verstappen', qualifying_position: 1, best_time_ms: 80000, best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified' },
+      { driver_id: 'lando-norris', qualifying_position: 2, best_time_ms: 80100, best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified' },
+      { driver_id: 'driver-dnf', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: 'Q1', classification_status: 'dnf' },
+      { driver_id: 'driver-dns', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: null, classification_status: 'dns' }
+    ]);
+    expect(renderF1QL(program)).toBe('Official qualifying classification; season 2025; round 9; top 4.');
+
+    const filtered: F1QLProgram = {
+      version: 1,
+      root: {
+        op: 'qualifying_classification', season: 2025, round: 9, limit: 10,
+        filters: { classification_status: ['dns', 'dnf'], driver_id: 'driver-dns' }
+      }
+    };
+    const filteredCompiled = compileF1QL(lowerF1QL(filtered));
+    const filteredExecuted = await executeF1QL(pool, filtered);
+    expect(filteredCompiled.params).toEqual([2025, 9, ['dns', 'dnf'], 'driver-dns']);
+    expect(filteredExecuted.rows).toEqual([expect.objectContaining({ driver_id: 'driver-dns', classification_status: 'dns' })]);
+
+    const referenceRows: QualifyingClassificationRow[] = [
+      { season: 2025, round: 9, driver_id: 'max-verstappen', team_id: 'red-bull', qualifying_position: 1, best_time_ms: 80000, best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified' },
+      { season: 2025, round: 9, driver_id: 'lando-norris', team_id: 'mclaren', qualifying_position: 2, best_time_ms: 80100, best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified' },
+      { season: 2025, round: 9, driver_id: 'driver-dnf', team_id: 'test-team', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: 'Q1', classification_status: 'dnf' },
+      { season: 2025, round: 9, driver_id: 'driver-dns', team_id: 'test-team', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: null, classification_status: 'dns' }
+    ];
+    expect(filteredExecuted.rows).toEqual(interpretQualifyingClassification(lowerF1QL(filtered), referenceRows));
+  });
+
   it('cancels slow statements under the configured read-only timeout', async () => {
     await expect(executeF1QLReadOnly(pool, 'SELECT pg_sleep(0.1)', [], { statementTimeoutMs: 10 }))
       .rejects.toBeInstanceOf(F1QLStatementTimeoutError);
@@ -416,7 +462,12 @@ describe('F1QL standings vertical slice', () => {
       version: 1,
       root: { op: 'event_classification', season: 2025, round: 9, limit: 1, filters: { driver_id: 'driver-dnf' } }
     };
+    const qualifyingProgram: F1QLProgram = {
+      version: 1,
+      root: { op: 'qualifying_classification', season: 2025, round: 9, limit: 1, filters: { driver_id: 'driver-dnf' } }
+    };
     await expect(executeF1QL(pool, standingsProgram)).rejects.toMatchObject({ code: 'participation_missing' } satisfies Partial<F1QLValidationError>);
     await expect(executeF1QL(pool, eventProgram)).rejects.toMatchObject({ code: 'participation_missing' } satisfies Partial<F1QLValidationError>);
+    await expect(executeF1QL(pool, qualifyingProgram)).rejects.toMatchObject({ code: 'participation_missing' } satisfies Partial<F1QLValidationError>);
   });
 });

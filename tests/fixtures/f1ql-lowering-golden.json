@@ -196,6 +196,33 @@
     }
   },
   {
+    "question": "Round 1 qualifying classification 2025",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "qualifying_classification"
+            },
+            "where": {
+              "season": 2025,
+              "round": 1
+            }
+          },
+          "by": "qualifying_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 20
+      }
+    }
+  },
+  {
     "question": "Unknown identity",
     "core_program": {
       "version": 1,

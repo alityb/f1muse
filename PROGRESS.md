@@ -16,7 +16,7 @@
 - Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
 - Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
-- Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
+- Phase 4: PARTIAL. Standings, pace, race classification, and qualifying classification exist; event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
 
 ### Phase 1 Metrics Fixture
@@ -92,6 +92,12 @@
 - Generalized core node input types so aggregate, sort, limit, and join compose through `CorePipelineNode`. Core signature validation now validates pace source fields used by generic filters/grouping and rejects a non-median generic compare input; the new regression covers that rejection.
 - The lowering emitter and serialized core shape did not change in this execution-only milestone, so `tests/fixtures/f1ql-lowering-golden.json` was intentionally not regenerated. Its existing real-emitter exact comparison passed.
 - Definition of done verified locally: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 44 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
+
+### Phase 4 Area 1: Qualifying Classification (2026-07-21)
+- Added the `qualifying_classification` first-class F1QL source and thin surface macro. It lowers to generic `source(qualifying_classification) -> filter -> sort(qualifying_position asc, nulls last) -> limit` core IR.
+- Added the source signature and participation coverage for driver-filtered qualifying programs. The compiler and reference interpreter project canonical qualifying position, best time/session, elimination round, and normalized `classified`/`dnf`/`dns` status; all query values remain parameters and execution remains read-only with a statement timeout.
+- Added forward migration `migrations/20260721_add_f1ql_qualifying_classification.sql`; it exposes normalized IDs and classification status from `qualifying_results`. Docker fixtures cover canonical-view SQL execution, ordering, filters, participation rejection, signature rejection, reference interpretation, and the real-emitter lowering golden.
+- Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 46 tests; `npm run test:api:inprocess` passed 7 tests. Shadow translation remains non-executing; no deployment was performed.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.

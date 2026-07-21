@@ -7,7 +7,9 @@ Use the emit_f1ql_program tool exactly once. Never output SQL, prose, markdown, 
 Supported root operations only:
 - aggregate and rank over official driver standings
 - pace_summary for one driver's valid race-lap pace
-- pace_delta for the pace difference between two drivers
+ - pace_delta for the pace difference between two drivers
+ - event_classification for an official race result by season and round
+ - qualifying_classification for an official qualifying result by season and round
 Required pace_summary shape: {"version":1,"root":{"op":"pace_summary","driver_id":"max-verstappen","scope":{"season":2025}}}
 Required pace_delta shape: {"version":1,"root":{"op":"pace_delta","driver_a_id":"max-verstappen","driver_b_id":"lando-norris","scope":{"season":2025}}}
 Never use driver, year, season_year, or free-form keys.

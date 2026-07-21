@@ -78,9 +78,21 @@ export interface EventClassificationNode {
   };
 }
 
+export interface QualifyingClassificationNode {
+  op: 'qualifying_classification';
+  season: number;
+  round: number;
+  limit: number;
+  filters?: {
+    classification_status?: Array<'classified' | 'dnf' | 'dns'>;
+    driver_id?: string;
+    team_id?: string;
+  };
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode;
 }
 
 export interface F1QLResult {

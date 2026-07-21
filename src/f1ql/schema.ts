@@ -102,9 +102,21 @@ export const eventClassificationNodeSchema = z.object({
   }).strict().optional()
 }).strict();
 
+export const qualifyingClassificationNodeSchema = z.object({
+  op: z.literal('qualifying_classification'),
+  season,
+  round: z.number().int().min(1).max(30),
+  limit: z.number().int().min(1).max(30),
+  filters: z.object({
+    classification_status: z.array(z.enum(['classified', 'dnf', 'dns'])).min(1).optional(),
+    driver_id: z.string().min(1).optional(),
+    team_id: z.string().min(1).optional()
+  }).strict().optional()
+}).strict();
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {
