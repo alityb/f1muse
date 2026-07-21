@@ -72,6 +72,10 @@
 - Verification after the audit: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 existing warnings; `npm run test:f1ql` passed 41 tests; `npm run test:api:inprocess` passed 7 tests; `npm run test:unit:db:docker` passed 598 tests in 36 files.
 - Production confidence round-trip: deployment `0e242331-c5e6-4163-823d-1f7419ff38b6` reached `SUCCESS`. A known-driver shadow request returned `pace_summary`; after 15 seconds, the Railway JSONL report showed one attempt, 100.00% success, no rejection reasons, and operation `pace_summary`.
 
+### Phase 3 Core IR Refactor (2026-07-21)
+- Checkpoint complete: `scripts/snapshot-f1ql-lowering.ts` generates `tests/fixtures/f1ql-lowering-golden.json` from the real `parseF1QLProgram` and `lowerF1QL` emitter; `tests/f1ql/lowering-golden.test.ts` compares every schema-valid shadow-corpus program exactly. The generated snapshot covers standings aggregate, pace summary, pace delta, event classification, and the schema-valid unknown-identity program.
+- Next: replace bespoke core `pace_aggregate`, `subtract`, `event_classification`, and fused `sort_limit` nodes with generic Source, Filter, Aggregate, Sort, Limit, Join, Compare, and Delta nodes. Update compiler/interpreter and preserve snapshot output only where surface semantics remain intentionally unchanged; document any intentional snapshot diff before accepting it.
+
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.

@@ -20,3 +20,5 @@
 - The expanded API suite caught the expected additional rejected `pace_summary` metric from the new participation test; updated the exact metric contract accordingly.
 - Confidence verification passed: 41 F1QL tests, 7 in-process API tests, lint with 0 errors, and 598 Docker-backed unit tests across 36 files.
 - Deployed audit hardening as `0e242331-c5e6-4163-823d-1f7419ff38b6`; the production shadow request and report verification both succeeded.
+- Began Phase 3 by adding a real-emitter lowering snapshot generator and exact golden test for every schema-valid shadow corpus program.
+- Generated the Phase 3 lowering fixture and verified 42 Docker-backed F1QL tests before the IR refactor.
