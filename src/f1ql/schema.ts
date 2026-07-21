@@ -5,6 +5,11 @@ const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
 const stringOrArray = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
 const seasonOrArray = z.union([season, z.array(season).min(1)]);
+const classificationEntityFiltersSchema = z.object({
+  classification_status: z.array(z.enum(['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'])).min(1).optional(),
+  driver_id: z.string().min(1).optional(),
+  team_id: z.string().min(1).optional()
+}).strict();
 
 export const standingsFilterSchema = z.object({
   season: seasonOrArray.optional(),
@@ -95,11 +100,7 @@ export const eventClassificationNodeSchema = z.object({
   season,
   round: z.number().int().min(1).max(30),
   limit: z.number().int().min(1).max(30),
-  filters: z.object({
-    classification_status: z.array(z.enum(['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'])).min(1).optional(),
-    driver_id: z.string().min(1).optional(),
-    team_id: z.string().min(1).optional()
-  }).strict().optional()
+  filters: classificationEntityFiltersSchema.optional()
 }).strict();
 
 export const qualifyingClassificationNodeSchema = z.object({

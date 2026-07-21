@@ -105,6 +105,12 @@
 - The real-emitter corpus and lowering golden include default-race metadata. Docker-backed regressions prove canonical-view execution, default and explicit qualifying scope, parameterization, rendering, and invalid generic fields. Event metadata has no driver participation requirement; shadow translation remains non-executing.
 - Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 48 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
 
+### Phase 4 Area 3: Composable Entity Filters (2026-07-21)
+- Event and qualifying classification now lower their event scope, classification status, driver, and team predicates as ordered generic core `filter` nodes rather than a fused source-specific predicate. Event metadata likewise composes event scope and session scope through separate generic filters.
+- The core filter input is recursive for supported pipelines; compiler and reference interpreter recursively apply each source-signature-approved predicate with parameterized SQL. No source coverage was broadened, and participation validation continues to use the surface driver scope.
+- The real-emitter corpus and regenerated lowering golden cover a combined event/status/driver/team qualifying filter chain. Docker-backed execution tests cover composed race driver filtering and qualifying driver/team filtering, SQL parameter ordering, and interpreter parity. Shadow translation remains non-executing.
+- Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 49 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
+
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
 - Decision: the initial route is shadow-only and returns a validated program without calling `executeF1QL`.

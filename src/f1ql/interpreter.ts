@@ -67,13 +67,8 @@ export function interpretQualifyingClassification(program: CoreProgram, rows: Qu
 }
 
 export function interpretEventMetadata(program: CoreProgram, rows: EventMetadataRow[]): Array<Record<string, unknown>> {
-  if (program.root.op !== 'filter' || program.root.input.source !== 'event_metadata') {
-    throw new Error('interpretEventMetadata requires an event metadata filter');
-  }
-  const where = program.root.where as CoreEventMetadataFilter;
-  return rows
-    .filter((row) => row.season === where.season && row.round === where.round)
-    .map(({ event_id, event_name, circuit_id, date }) => ({ event_id, event_name, circuit_id, date, session_scope: where.session_scope }));
+  const { rows: filtered, sessionScope } = interpretEventMetadataNode(program.root as CorePipelineNode, rows);
+  return filtered.map(({ event_id, event_name, circuit_id, date }) => ({ event_id, event_name, circuit_id, date, session_scope: sessionScope }));
 }
 
 export function interpretStandingsProgram(
@@ -119,7 +114,8 @@ function interpretEventClassificationNode(node: CorePipelineNode, rows: EventCla
   if (node.op === 'filter') {
     const where = node.where as CoreEventClassificationFilter;
     return interpretEventClassificationNode(node.input, rows)
-      .filter((row) => row.season === where.season && row.round === where.round)
+      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
       .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
@@ -146,7 +142,8 @@ function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: Qua
   if (node.op === 'filter') {
     const where = node.where as CoreQualifyingClassificationFilter;
     return interpretQualifyingClassificationNode(node.input, rows)
-      .filter((row) => row.season === where.season && row.round === where.round)
+      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
       .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
@@ -161,6 +158,26 @@ function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: Qua
     return interpretQualifyingClassificationNode(node.input, rows).slice(0, node.limit);
   }
   throw new Error(`Unsupported qualifying classification core operator ${node.op}`);
+}
+
+function interpretEventMetadataNode(node: CorePipelineNode, rows: EventMetadataRow[], sessionScope: 'race' | 'qualifying' = 'race'): { rows: EventMetadataRow[]; sessionScope: 'race' | 'qualifying' } {
+  if (node.op === 'source') {
+    if (node.source !== 'event_metadata') {
+      throw new Error(`interpretEventMetadata received ${node.source}`);
+    }
+    return { rows, sessionScope };
+  }
+  if (node.op !== 'filter') {
+    throw new Error(`Unsupported event metadata core operator ${node.op}`);
+  }
+  const result = interpretEventMetadataNode(node.input, rows, sessionScope);
+  const where = node.where as CoreEventMetadataFilter;
+  return {
+    rows: result.rows
+      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.round === undefined || row.round === where.round),
+    sessionScope: where.session_scope ?? result.sessionScope
+  };
 }
 
 function getSourceName(node: CorePipelineNode | CoreDeltaNode): string {

@@ -73,8 +73,8 @@ function compileEventClassificationPipeline(node: CorePipelineNode): { where: st
   if (node.op === 'filter') {
     const pipeline = compileEventClassificationPipeline(node.input);
     const where = node.where as CoreEventClassificationFilter;
-    pipeline.params.push(where.season, where.round);
-    pipeline.where.push(`season = $${pipeline.params.length - 1}`, `round = $${pipeline.params.length}`);
+    appendEqualityFilter(pipeline, 'season', where.season);
+    appendEqualityFilter(pipeline, 'round', where.round);
     if (where.classification_status) {
       pipeline.params.push(where.classification_status);
       pipeline.where.push(`classification_status = ANY($${pipeline.params.length}::text[])`);
@@ -123,8 +123,8 @@ function compileQualifyingClassificationPipeline(node: CorePipelineNode): { wher
   if (node.op === 'filter') {
     const pipeline = compileQualifyingClassificationPipeline(node.input);
     const where = node.where as CoreQualifyingClassificationFilter;
-    pipeline.params.push(where.season, where.round);
-    pipeline.where.push(`season = $${pipeline.params.length - 1}`, `round = $${pipeline.params.length}`);
+    appendEqualityFilter(pipeline, 'season', where.season);
+    appendEqualityFilter(pipeline, 'round', where.round);
     if (where.classification_status) {
       pipeline.params.push(where.classification_status);
       pipeline.where.push(`classification_status = ANY($${pipeline.params.length}::text[])`);
@@ -156,14 +156,39 @@ function compileQualifyingClassificationPipeline(node: CorePipelineNode): { wher
 }
 
 function compileEventMetadata(node: CorePipelineNode): CompiledF1QL {
-  if (node.op !== 'filter' || node.input.source !== 'event_metadata') {
-    throw new Error('Expected an event metadata filter');
-  }
-  const where = node.where as CoreEventMetadataFilter;
+  const pipeline = compileEventMetadataPipeline(node);
   return {
-    sql: 'SELECT event_id, event_name, circuit_id, date::text AS date, $3::text AS session_scope FROM f1ql.event_metadata WHERE season = $1 AND round = $2',
-    params: [where.season, where.round, where.session_scope]
+    sql: `SELECT event_id, event_name, circuit_id, date::text AS date, $${pipeline.params.length + 1}::text AS session_scope FROM f1ql.event_metadata${pipeline.where.length ? ` WHERE ${pipeline.where.join(' AND ')}` : ''}`,
+    params: [...pipeline.params, pipeline.sessionScope]
   };
+}
+
+function compileEventMetadataPipeline(node: CorePipelineNode): { where: string[]; params: unknown[]; sessionScope: 'race' | 'qualifying' } {
+  if (node.op === 'source') {
+    if (node.source !== 'event_metadata') {
+      throw new Error(`Expected event metadata source, received ${node.source}`);
+    }
+    return { where: [], params: [], sessionScope: 'race' };
+  }
+  if (node.op !== 'filter') {
+    throw new Error(`Unsupported event metadata core operator ${node.op}`);
+  }
+  const pipeline = compileEventMetadataPipeline(node.input);
+  const where = node.where as CoreEventMetadataFilter;
+  appendEqualityFilter(pipeline, 'season', where.season);
+  appendEqualityFilter(pipeline, 'round', where.round);
+  if (where.session_scope !== undefined) {
+    pipeline.sessionScope = where.session_scope;
+  }
+  return pipeline;
+}
+
+function appendEqualityFilter(pipeline: { where: string[]; params: unknown[] }, field: 'season' | 'round', value: number | undefined): void {
+  if (value === undefined) {
+    return;
+  }
+  pipeline.params.push(value);
+  pipeline.where.push(`${field} = $${pipeline.params.length}`);
 }
 
 function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {

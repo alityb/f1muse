@@ -66,22 +66,25 @@ export interface PaceSummaryNode {
   };
 }
 
-export interface EventClassificationNode {
-  op: 'event_classification';
+export interface EventFilter {
   season: number;
   round: number;
-  limit: number;
-  filters?: {
-    classification_status?: Array<'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn'>;
-    driver_id?: string;
-    team_id?: string;
-  };
 }
 
-export interface QualifyingClassificationNode {
+export interface ClassificationEntityFilters {
+  classification_status?: Array<'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn'>;
+  driver_id?: string;
+  team_id?: string;
+}
+
+export interface EventClassificationNode extends EventFilter {
+  op: 'event_classification';
+  limit: number;
+  filters?: ClassificationEntityFilters;
+}
+
+export interface QualifyingClassificationNode extends EventFilter {
   op: 'qualifying_classification';
-  season: number;
-  round: number;
   limit: number;
   filters?: {
     classification_status?: Array<'classified' | 'dnf' | 'dns'>;
@@ -90,10 +93,8 @@ export interface QualifyingClassificationNode {
   };
 }
 
-export interface EventMetadataNode {
+export interface EventMetadataNode extends EventFilter {
   op: 'event_metadata';
-  season: number;
-  round: number;
   session_scope?: 'race' | 'qualifying';
 }
 

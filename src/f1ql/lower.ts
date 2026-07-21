@@ -1,5 +1,5 @@
 import { AggregateNode, F1QLProgram } from './ast';
-import { CoreAggregateNode, CoreLapPaceFilter, CoreProgram, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'pace_delta') {
@@ -41,15 +41,10 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'event_metadata') {
     return {
       version: 1,
-      root: {
-        op: 'filter',
-        input: { op: 'source', source: 'event_metadata' },
-        where: {
-          season: program.root.season,
-          round: program.root.round,
-          session_scope: program.root.session_scope ?? 'race'
-        }
-      }
+      root: applyFilters({ op: 'source', source: 'event_metadata' }, [
+        { season: program.root.season, round: program.root.round },
+        { session_scope: program.root.session_scope ?? 'race' }
+      ])
     };
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
@@ -78,14 +73,14 @@ function lowerPaceEventMedians(driverId: string, scope: { season: number; rounds
   const where: CoreLapPaceFilter = {
     season: scope.season,
     driver_id: driverId,
-    rounds: scope.rounds,
     lap_time_seconds: 'not_null',
     is_valid_lap: true,
     is_pit_lap: false,
     is_in_lap: false,
     is_out_lap: false,
     clean_air_only: filters.clean_air_only === true,
-    compound: filters.compound
+    ...(scope.rounds === undefined ? {} : { rounds: scope.rounds }),
+    ...(filters.compound === undefined ? {} : { compound: filters.compound })
   };
   return {
     op: 'aggregate',
@@ -102,11 +97,7 @@ function lowerEventClassification(node: Extract<F1QLProgram['root'], { op: 'even
       op: 'limit',
       input: {
         op: 'sort',
-        input: {
-          op: 'filter',
-          input: { op: 'source', source: 'event_classification' },
-          where: { season: node.season, round: node.round, ...node.filters }
-        },
+        input: applyFilters({ op: 'source', source: 'event_classification' }, classificationFilters(node)),
         by: 'finishing_position',
         direction: 'asc',
         nulls: 'last'
@@ -123,11 +114,7 @@ function lowerQualifyingClassification(node: Extract<F1QLProgram['root'], { op: 
       op: 'limit',
       input: {
         op: 'sort',
-        input: {
-          op: 'filter',
-          input: { op: 'source', source: 'qualifying_classification' },
-          where: { season: node.season, round: node.round, ...node.filters }
-        },
+        input: applyFilters({ op: 'source', source: 'qualifying_classification' }, classificationFilters(node)),
         by: 'qualifying_position',
         direction: 'asc',
         nulls: 'last'
@@ -135,6 +122,19 @@ function lowerQualifyingClassification(node: Extract<F1QLProgram['root'], { op: 
       limit: node.limit
     }
   };
+}
+
+function classificationFilters(node: Extract<F1QLProgram['root'], { op: 'event_classification' | 'qualifying_classification' }>): Array<CoreEventClassificationFilter | CoreQualifyingClassificationFilter> {
+  return [
+    { season: node.season, round: node.round },
+    ...(node.filters?.classification_status === undefined ? [] : [{ classification_status: node.filters.classification_status }]),
+    ...(node.filters?.driver_id === undefined ? [] : [{ driver_id: node.filters.driver_id }]),
+    ...(node.filters?.team_id === undefined ? [] : [{ team_id: node.filters.team_id }])
+  ];
+}
+
+function applyFilters(input: CorePipelineNode, filters: CoreFilterNode['where'][]): CoreFilterNode {
+  return filters.reduce<CorePipelineNode>((current, where) => ({ op: 'filter', input: current, where }), input) as CoreFilterNode;
 }
 
 function lowerRank(aggregate: CoreAggregateNode, node: Extract<F1QLProgram['root'], { op: 'rank' }>): CoreProgram {

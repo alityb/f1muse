@@ -381,6 +381,19 @@ describe('F1QL standings vertical slice', () => {
     };
     const filteredCompiled = compileF1QL(lowerF1QL(filtered));
     const filteredExecuted = await executeF1QL(pool, filtered);
+    expect(lowerF1QL(filtered).root).toMatchObject({
+      op: 'limit',
+      input: {
+        op: 'sort',
+        input: {
+          op: 'filter', where: { driver_id: 'driver-dns' },
+          input: {
+            op: 'filter', where: { classification_status: ['dns', 'dnf'] },
+            input: { op: 'filter', where: { season: 2025, round: 9 }, input: { op: 'source', source: 'event_classification' } }
+          }
+        }
+      }
+    });
     expect(filteredCompiled.params).toEqual([2025, 9, ['dns', 'dnf'], 'driver-dns']);
     expect(filteredExecuted.rows).toEqual([expect.objectContaining({
       driver_id: 'driver-dns', classification_status: 'dns'
@@ -426,12 +439,12 @@ describe('F1QL standings vertical slice', () => {
       version: 1,
       root: {
         op: 'qualifying_classification', season: 2025, round: 9, limit: 10,
-        filters: { classification_status: ['dns', 'dnf'], driver_id: 'driver-dns' }
+        filters: { classification_status: ['dns', 'dnf'], driver_id: 'driver-dns', team_id: 'test-team' }
       }
     };
     const filteredCompiled = compileF1QL(lowerF1QL(filtered));
     const filteredExecuted = await executeF1QL(pool, filtered);
-    expect(filteredCompiled.params).toEqual([2025, 9, ['dns', 'dnf'], 'driver-dns']);
+    expect(filteredCompiled.params).toEqual([2025, 9, ['dns', 'dnf'], 'driver-dns', 'test-team']);
     expect(filteredExecuted.rows).toEqual([expect.objectContaining({ driver_id: 'driver-dns', classification_status: 'dns' })]);
 
     const referenceRows: QualifyingClassificationRow[] = [
@@ -456,7 +469,7 @@ describe('F1QL standings vertical slice', () => {
     }];
 
     expect(lowerF1QL(program).root).toMatchObject({
-      op: 'filter', input: { op: 'source', source: 'event_metadata' }, where: { session_scope: 'race' }
+      op: 'filter', input: { op: 'filter', input: { op: 'source', source: 'event_metadata' }, where: { season: 2025, round: 10 } }, where: { session_scope: 'race' }
     });
     expect(compiled.sql).toContain('f1ql.event_metadata');
     expect(compiled.sql).not.toContain('2025');

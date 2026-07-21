@@ -6,8 +6,8 @@ export interface CoreSourceNode {
 }
 
 export interface CoreEventClassificationFilter {
-  season: number;
-  round: number;
+  season?: number;
+  round?: number;
   classification_status?: string[];
   driver_id?: string;
   team_id?: string;
@@ -27,46 +27,46 @@ export interface CoreLapPaceFilter {
 }
 
 export interface CoreQualifyingClassificationFilter {
-  season: number;
-  round: number;
+  season?: number;
+  round?: number;
   classification_status?: string[];
   driver_id?: string;
   team_id?: string;
 }
 
 export interface CoreEventMetadataFilter {
-  season: number;
-  round: number;
-  session_scope: 'race' | 'qualifying';
+  season?: number;
+  round?: number;
+  session_scope?: 'race' | 'qualifying';
 }
 
 export interface CoreStandingsFilterNode {
   op: 'filter';
-  input: CoreSourceNode & { source: 'standings' };
+  input: CorePipelineNode;
   where: StandingsFilter;
 }
 
 export interface CoreEventClassificationFilterNode {
   op: 'filter';
-  input: CoreSourceNode & { source: 'event_classification' };
+  input: CorePipelineNode;
   where: CoreEventClassificationFilter;
 }
 
 export interface CoreLapPaceFilterNode {
   op: 'filter';
-  input: CoreSourceNode & { source: 'lap_pace' };
+  input: CorePipelineNode;
   where: CoreLapPaceFilter;
 }
 
 export interface CoreQualifyingClassificationFilterNode {
   op: 'filter';
-  input: CoreSourceNode & { source: 'qualifying_classification' };
+  input: CorePipelineNode;
   where: CoreQualifyingClassificationFilter;
 }
 
 export interface CoreEventMetadataFilterNode {
   op: 'filter';
-  input: CoreSourceNode & { source: 'event_metadata' };
+  input: CorePipelineNode;
   where: CoreEventMetadataFilter;
 }
 

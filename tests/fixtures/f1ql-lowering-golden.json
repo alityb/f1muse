@@ -223,18 +223,70 @@
     }
   },
   {
+    "question": "Round 1 qualifying classification for a driver and team 2025",
+    "core_program": {
+      "version": 1,
+      "root": {
+        "op": "limit",
+        "input": {
+          "op": "sort",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "filter",
+                "input": {
+                  "op": "filter",
+                  "input": {
+                    "op": "source",
+                    "source": "qualifying_classification"
+                  },
+                  "where": {
+                    "season": 2025,
+                    "round": 1
+                  }
+                },
+                "where": {
+                  "classification_status": [
+                    "classified"
+                  ]
+                }
+              },
+              "where": {
+                "driver_id": "max-verstappen"
+              }
+            },
+            "where": {
+              "team_id": "red-bull"
+            }
+          },
+          "by": "qualifying_position",
+          "direction": "asc",
+          "nulls": "last"
+        },
+        "limit": 20
+      }
+    }
+  },
+  {
     "question": "Round 1 event metadata 2025",
     "core_program": {
       "version": 1,
       "root": {
         "op": "filter",
         "input": {
-          "op": "source",
-          "source": "event_metadata"
+          "op": "filter",
+          "input": {
+            "op": "source",
+            "source": "event_metadata"
+          },
+          "where": {
+            "season": 2025,
+            "round": 1
+          }
         },
         "where": {
-          "season": 2025,
-          "round": 1,
           "session_scope": "race"
         }
       }
