@@ -122,9 +122,8 @@ function interpretEventClassificationNode(node: CorePipelineNode, rows: EventCla
   }
   if (node.op === 'sort') {
     const direction = node.direction === 'asc' ? 1 : -1;
-    const nullValue = node.nulls === 'first' ? -Infinity : Infinity;
     return [...interpretEventClassificationNode(node.input, rows)]
-      .sort((a, b) => (Number(a[node.by as keyof EventClassificationRow] ?? nullValue) - Number(b[node.by as keyof EventClassificationRow] ?? nullValue)) * direction || a.driver_id.localeCompare(b.driver_id));
+      .sort((a, b) => compareClassificationRows(a, b, node.by, direction, node.nulls));
   }
   if (node.op === 'limit') {
     return interpretEventClassificationNode(node.input, rows).slice(0, node.limit);
@@ -150,9 +149,8 @@ function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: Qua
   }
   if (node.op === 'sort') {
     const direction = node.direction === 'asc' ? 1 : -1;
-    const nullValue = node.nulls === 'first' ? -Infinity : Infinity;
     return [...interpretQualifyingClassificationNode(node.input, rows)]
-      .sort((a, b) => (Number(a[node.by as keyof QualifyingClassificationRow] ?? nullValue) - Number(b[node.by as keyof QualifyingClassificationRow] ?? nullValue)) * direction || a.driver_id.localeCompare(b.driver_id));
+      .sort((a, b) => compareClassificationRows(a, b, node.by, direction, node.nulls));
   }
   if (node.op === 'limit') {
     return interpretQualifyingClassificationNode(node.input, rows).slice(0, node.limit);
@@ -244,6 +242,27 @@ function matchesValue<T>(value: T, filter: T | T[] | undefined): boolean {
     return true;
   }
   return Array.isArray(filter) ? filter.includes(value) : filter === value;
+}
+
+function compareClassificationRows(
+  left: EventClassificationRow | QualifyingClassificationRow,
+  right: EventClassificationRow | QualifyingClassificationRow,
+  field: string,
+  direction: 1 | -1,
+  nulls: 'first' | 'last' | undefined
+): number {
+  const leftValue = left[field as keyof typeof left] as number | null;
+  const rightValue = right[field as keyof typeof right] as number | null;
+  if (leftValue === null || rightValue === null) {
+    if (leftValue === rightValue) {
+      return left.driver_id.localeCompare(right.driver_id);
+    }
+    if (leftValue === null) {
+      return nulls === 'first' ? -1 : 1;
+    }
+    return nulls === 'first' ? 1 : -1;
+  }
+  return (leftValue - rightValue) * direction || left.driver_id.localeCompare(right.driver_id);
 }
 
 function evaluateMeasure(measure: AggregateMeasure, rows: StandingsRow[]): number | null {
