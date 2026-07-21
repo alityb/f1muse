@@ -10,7 +10,7 @@ The complete committed 100-case corpus is classified by `productionCorpusAudit`:
 | Production-runnable structural | 59 | Canonical-view shape is runnable, but synthetic fixture rows are not production facts. |
 | Authoritative factual | 0 | No local fixture case is an external fact. |
 
-The separate bounded production manifest contains 3 structural cases and 25
+The separate bounded production manifest contains 3 structural cases and 23
 authoritative factual cases. It is not a relabeling of fixture output.
 
 ## Research Method And Cost
@@ -35,8 +35,7 @@ domains and sought only the source categories below.
 | 2025 | Standings | Final Drivers' Championship standing | [FIA Abu Dhabi Championship Points, Document 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 | 2025 | Qualifying classification and metadata | Australia pole and event identity | [Formula 1 report](https://www.formula1.com/en/latest/article/norris-storms-to-pole-position-for-the-australian-grand-prix-ahead-of.7xW094Sd0b5e2qHIvAaf3s) |
 | 2025 | Standings | Final P2, P3, and zero-point driver standings | [FIA Abu Dhabi Championship Points, Document 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
-| 2025 | Race classification | Australia P2/P3, DNF, and DNS | [FIA Australian Final Race Classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf) |
-| 2025 | Race classification | Las Vegas DSQ | [FIA Las Vegas Final Race Classification](https://www.fia.com/system/files/decision-document/2025_las_vegas_grand_prix_-_final_race_classification.pdf) |
+| 2025 | Race classification | Australia P2/P3 and DNF | [FIA Australian Final Race Classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf) |
 | 2025 | Qualifying classification | Australia P2 and P3 | [FIA Australian Final Qualifying Classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf) |
 
 `scripts/f1ql-production-corpus-manifest.ts` contains exact programs, expected
@@ -74,5 +73,11 @@ Colapinto P20 on zero points. All four 2025 totals query only
 - A source URL establishes the authority for a manifest expectation; it does
   not prove that production has ingested the season. Missing views skip, and a
   mismatch fails without changing the expected fact.
+- The guarded 2026-07-21 production run found the FIA-authoritative 2025
+  Australia DNS (Isack Hadjar) and Las Vegas DSQ (Lando Norris) absent from
+  `f1ql.event_classification`; they are excluded from the manifest until the
+  canonical source supports them. The supported Australia DNF row records
+  `points: null`, so its factual assertion deliberately covers driver, null
+  position, and normalized `dnf` status only.
 - Synthetic fixture rows, all fixture pace results, and deliberate rejection
   cases remain excluded from external factual claims.

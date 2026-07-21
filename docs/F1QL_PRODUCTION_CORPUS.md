@@ -17,7 +17,7 @@ The committed `productionCorpusAudit` classifies all 100 local cases:
 The local corpus is synthetic 2025 data, so its result rows are not facts about
 production. All pace cases are fixture-only: FastF1 lap coverage is
 source-dependent. The 15 deliberate malformed/rejected programs are also
-fixture-only. The fixed manifest has three structural checks and 25
+fixture-only. The fixed manifest has three structural checks and 23
 official-source factual checks, within its thirty-two-program bound. Nine
 final-season championship-points checks read only the canonical season
 standings authority (`f1ql.driver_standings`, backed by
@@ -25,7 +25,7 @@ standings authority (`f1ql.driver_standings`, backed by
 the 1950, 2014, 2019, 2021, 2022, 2024, and 2025 scoring-rule
 intervals and exercise standings, race classification, qualifying
 classification, and event metadata. The 2025 projection includes final P2/P3
-and zero-point standings, Australia race P2/P3/DNF/DNS, Las Vegas DSQ,
+and zero-point standings, Australia race P2/P3/DNF,
 Australia qualifying P2/P3, and Australia metadata. Every factual check carries a FIA or
 Formula 1 URL in committed code; research and cost are in
 `F1QL_CORPUS_SOURCE_EVIDENCE.md`.
@@ -66,8 +66,10 @@ The production projection intentionally does not claim factual proof for:
 - Sprint-session facts: 2021's top-three trial and 2022 onward top-eight
   schedules are represented in the scoring registry, but no sprint source is
   available to F1QL's race-only event-classification query.
-- Status normalization outside the cited 2025 Australia DNF/DNS and Las Vegas
-  DSQ cases, including historical source variation.
+- DNS and DSQ: FIA-authoritative 2025 Australia DNS and Las Vegas DSQ rows
+  were absent from the canonical production view during the guarded run.
+- Status normalization outside the cited 2025 Australia DNF, including
+  historical source variation.
 - Driver identity aliases across F1DB, Jolpica, and FastF1 identifiers.
 - Historical qualifying and lap-pace data coverage.
 

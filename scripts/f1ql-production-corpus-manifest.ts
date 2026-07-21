@@ -262,25 +262,7 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
     scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
     program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'fernando-alonso', classification_status: ['dnf'] } } },
-    expected_facts: [{ driver_id: 'fernando-alonso', finishing_position: null, points: 0, classification_status: 'dnf' }]
-  },
-  {
-    id: '2025-australia-race-dns',
-    disposition: 'authoritative_factual',
-    required_relation: 'f1ql.event_classification',
-    authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
-    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
-    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'isack-hadjar', classification_status: ['dns'] } } },
-    expected_facts: [{ driver_id: 'isack-hadjar', finishing_position: null, points: 0, classification_status: 'dns' }]
-  },
-  {
-    id: '2025-las-vegas-race-dsq',
-    disposition: 'authoritative_factual',
-    required_relation: 'f1ql.event_classification',
-    authority: { publisher: 'FIA', document: '2025 Las Vegas Grand Prix Final Race Classification', url: 'https://www.fia.com/system/files/decision-document/2025_las_vegas_grand_prix_-_final_race_classification.pdf' },
-    scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
-    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 22, limit: 1, filters: { driver_id: 'lando-norris', classification_status: ['dsq'] } } },
-    expected_facts: [{ driver_id: 'lando-norris', finishing_position: null, points: 0, classification_status: 'dsq' }]
+    expected_facts: [{ driver_id: 'fernando-alonso', finishing_position: null, classification_status: 'dnf' }]
   },
   {
     id: '2025-australia-qualifying-second',

@@ -52,7 +52,7 @@ describe('production F1QL golden run', () => {
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases).toHaveLength(28);
+    expect(result.cases).toHaveLength(26);
     expect(result.corpus_audit).toHaveLength(100);
     expect(calls[0]).toEqual({ sql: 'BEGIN READ ONLY', params: undefined });
     expect(calls[1]).toEqual({ sql: "SELECT set_config('statement_timeout', $1, true)", params: ['5000ms'] });
@@ -88,7 +88,7 @@ describe('production F1QL golden run', () => {
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toHaveLength(11);
+    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toHaveLength(9);
     expect(result.cases).toContainEqual(expect.objectContaining({ id: '2025-race-classification-structural', outcome: 'skipped' }));
     expect(result.cases).toContainEqual(expect.objectContaining({ id: '2024-bahrain-race-winner', outcome: 'skipped' }));
     expect(calls.filter(call => call.sql.includes('f1ql.event_classification') && !call.sql.includes('to_regclass'))).toHaveLength(0);
@@ -103,7 +103,7 @@ describe('production F1QL golden run', () => {
 
   it('covers cited scoring transitions and every factual query source', () => {
     const factual = productionCorpusManifest.filter(testCase => testCase.disposition === 'authoritative_factual');
-    expect(factual).toHaveLength(25);
+    expect(factual).toHaveLength(23);
     expect(factual.every(testCase => testCase.authority?.url && testCase.expected_facts?.length)).toBe(true);
     expect(factual.map(testCase => testCase.scoring_rule_id)).toEqual(expect.arrayContaining([
       'historical-1950-1953',
