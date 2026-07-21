@@ -16,7 +16,7 @@
 - Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
 - Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
-- Phase 4: PARTIAL. Standings, pace, race classification, and qualifying classification exist; event metadata/retirement sampling remain incomplete.
+- Phase 4: PARTIAL. Areas 1-3 and retirement-reason normalization/sampling safeguards are complete locally; production sampling is intentionally unrun.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
 
 ### Phase 1 Metrics Fixture
@@ -110,6 +110,11 @@
 - The core filter input is recursive for supported pipelines; compiler and reference interpreter recursively apply each source-signature-approved predicate with parameterized SQL. No source coverage was broadened, and participation validation continues to use the surface driver scope.
 - The real-emitter corpus and regenerated lowering golden cover a combined event/status/driver/team qualifying filter chain. Docker-backed execution tests cover composed race driver filtering and qualifying driver/team filtering, SQL parameter ordering, and interpreter parity. Shadow translation remains non-executing.
 - Verification: `npm run typecheck` passed; `npm run lint` passed with 0 errors and 117 pre-existing warnings; `npm run test:f1ql` passed 49 tests; `npm run test:api:inprocess` passed 7 tests. No deployment was performed.
+
+### Phase 4 Area 4: Retirement-Reason Sampling (2026-07-21)
+- Added `src/f1ql/retirement-reasons.ts`: an intentionally conservative canonical normalization map with `unknown` as the explicit fallback bucket. Fixture coverage includes known labels and ambiguous/non-retirement labels that must remain `unknown`.
+- Added `npm run sample:retirement-reasons:production`. The sampler refuses to run unless both `RETIREMENT_REASON_SAMPLING_ENABLED=true` and `RETIREMENT_REASON_SAMPLING_TARGET=production` are set, refuses local hosts, uses one connection and one bounded aggregate query (`LIMIT 100`), runs inside `BEGIN READ ONLY` with a 5-second local statement timeout, emits JSON to stdout only, and performs no persistent writes.
+- PARTIAL: production sampling is intentionally unrun under this task's production-access constraint. To finish the evidence collection, run `RETIREMENT_REASON_SAMPLING_ENABLED=true RETIREMENT_REASON_SAMPLING_TARGET=production npm run sample:retirement-reasons:production` from an authorized production environment, retain the stdout artifact outside the database, and review any `unknown` labels before extending the map.
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.

@@ -1,0 +1,12 @@
+[
+  { "raw_reason": "Accident", "canonical_reason": "accident" },
+  { "raw_reason": "Engine failure", "canonical_reason": "engine" },
+  { "raw_reason": "Fuel pressure", "canonical_reason": "fuel_system" },
+  { "raw_reason": "Oil Leak", "canonical_reason": "oil_system" },
+  { "raw_reason": "Drive shaft", "canonical_reason": "drivetrain" },
+  { "raw_reason": "Wheel nut", "canonical_reason": "wheel" },
+  { "raw_reason": "Tyre", "canonical_reason": "tyre" },
+  { "raw_reason": "Did not start", "canonical_reason": "unknown" },
+  { "raw_reason": "Finished", "canonical_reason": "unknown" },
+  { "raw_reason": "", "canonical_reason": "unknown" }
+]
