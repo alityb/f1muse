@@ -10,7 +10,7 @@ The complete committed 100-case corpus is classified by `productionCorpusAudit`:
 | Production-runnable structural | 59 | Canonical-view shape is runnable, but synthetic fixture rows are not production facts. |
 | Authoritative factual | 0 | No local fixture case is an external fact. |
 
-The separate bounded production manifest contains 3 structural cases and 10
+The separate bounded production manifest contains 3 structural cases and 15
 authoritative factual cases. It is not a relabeling of fixture output.
 
 ## Research Method And Cost
@@ -32,13 +32,28 @@ domains and sought only the source categories below.
 | 2021 | Race classification | Belgium abbreviated-race classification | [FIA Document 43](https://www.fia.com/sites/default/files/doc_43_-_2021_belgian_grand_prix_-_final_race_classification.pdf) |
 | 2022 | Race classification | Austria winner under the 2022 scoring interval | [FIA Document 78](https://www.fia.com/sites/default/files/doc_78_-_2022_austrian_grand_prix_-_final_race_classification_0.pdf) |
 | 2024 | Race classification and metadata | Bahrain winner, points, date, event identity | [FIA 2024 championship documents](https://www.fia.com/documents/season/season-2024-2043/championships/formula-1-world-championship-14) |
-| 2025 | Standings | Final Drivers' Championship standing | [FIA F1 Archives](https://www.fia.com/f1-archives) |
+| 2025 | Standings | Final Drivers' Championship standing | [FIA Abu Dhabi Championship Points, Document 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 | 2025 | Qualifying classification and metadata | Australia pole and event identity | [Formula 1 report](https://www.formula1.com/en/latest/article/norris-storms-to-pole-position-for-the-australian-grand-prix-ahead-of.7xW094Sd0b5e2qHIvAaf3s) |
 
 `scripts/f1ql-production-corpus-manifest.ts` contains exact programs, expected
 field subsets, scoring-rule IDs, and source URLs. The runner validates each
 program, uses a read-only transaction with a five-second local timeout, and
 compares only these expected fields.
+
+## Final Season Standings Checks
+
+Each final-total check queries only `f1ql.driver_standings`, the F1QL projection
+of `season_driver_standing`. It uses the recorded season-standing value and
+does not derive a championship total from race classifications.
+
+| Season | Champion | Final points | FIA final-standing authority |
+| --- | --- | ---: | --- |
+| 2014 | Lewis Hamilton | 384 | [2014 Classifications](https://www.fia.com/events/fia-formula-one-world-championship/season-2014/2014-classifications) |
+| 2019 | Lewis Hamilton | 413 | [2019 Classifications](https://www.fia.com/events/fia-formula-one-world-championship/season-2019/2019-classifications) |
+| 2021 | Max Verstappen | 395.5 | [Abu Dhabi Championship Points, Doc. 60](https://www.fia.com/sites/default/files/decision-document/2021%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf) |
+| 2022 | Max Verstappen | 454 | [Abu Dhabi Championship Points, Doc. 38](https://www.fia.com/sites/default/files/decision-document/2022%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf) |
+| 2024 | Max Verstappen | 437 | [Abu Dhabi Championship Points, Doc. 58](https://www.fia.com/sites/default/files/decision-document/2024%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf) |
+| 2025 | Lando Norris | 423 | [Abu Dhabi Championship Points, Doc. 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 
 ## Limits
 

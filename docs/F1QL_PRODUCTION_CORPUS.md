@@ -18,8 +18,11 @@ The local corpus is synthetic 2025 data, so its result rows are not facts about
 production. All pace cases are fixture-only: FastF1 lap coverage is
 source-dependent. The 15 deliberate malformed/rejected programs are also
 fixture-only. The fixed manifest has three structural checks and ten
-official-source factual checks, within its sixteen-program bound. The factual
-checks cover the 1950, 2014, 2019, 2021, 2022, 2024, and 2025 scoring-rule
+official-source factual checks, within its twenty-four-program bound. Six
+final-season championship-points checks read only the canonical season
+standings authority (`f1ql.driver_standings`, backed by
+`season_driver_standing`), never a sum of race points. The factual checks cover
+the 1950, 2014, 2019, 2021, 2022, 2024, and 2025 scoring-rule
 intervals and exercise standings, race classification, qualifying
 classification, and event metadata. Every factual check carries a FIA or
 Formula 1 URL in committed code; research and cost are in
@@ -55,7 +58,9 @@ The production projection intentionally does not claim factual proof for:
 - Historical scoring eras beyond the one cited 1950 metadata case, including
   shared-drive points and dropped-score boundaries.
 - Per-event coverage beyond the cited 2014 double-points, 2019 fastest-lap,
-  2021 abbreviated-race, 2022 scoring-interval, 2024, and 2025 cases.
+  2021 abbreviated-race, 2022 scoring-interval, 2024, and 2025 cases. The
+  final-standing checks validate one champion total per selected season, not
+  every driver or event.
 - Sprint-session facts: 2021's top-three trial and 2022 onward top-eight
   schedules are represented in the scoring registry, but no sprint source is
   available to F1QL's race-only event-classification query.

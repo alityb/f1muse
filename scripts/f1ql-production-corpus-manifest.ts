@@ -25,6 +25,23 @@ export interface ProductionCorpusCase {
   expected_facts?: Array<Record<string, unknown>>;
 }
 
+// Championship totals are read only from the season standings authority, never
+// derived by adding race-classification points.
+function finalDriverStandingProgram(season: number, driverId: string): F1QLProgram {
+  return {
+    version: 1,
+    root: {
+      op: 'aggregate',
+      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season, driver_id: driverId } },
+      group_by: ['driver_id'],
+      measures: [
+        { as: 'points', function: 'max', field: 'points' },
+        { as: 'championship_position', function: 'max', field: 'championship_position' }
+      ]
+    }
+  };
+}
+
 const STRUCTURAL_REASONS: Record<string, string> = {
   standings: 'Canonical standings view; results are structural only because the fixture is synthetic.',
   event_classification: 'Canonical race-classification view; results are structural only because the fixture is synthetic.',
@@ -54,7 +71,7 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     id: '2025-standings-structural',
     disposition: 'production_runnable_structural',
     required_relation: 'f1ql.driver_standings',
-    program: { version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'sum', field: 'points' }] } }
+    program: { version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] } }
   },
   {
     id: '2025-race-classification-structural',
@@ -134,10 +151,55 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     id: '2025-driver-champion-standing',
     disposition: 'authoritative_factual',
     required_relation: 'f1ql.driver_standings',
-    authority: { publisher: 'FIA', document: 'F1 Archives, 2025 classifications', url: 'https://www.fia.com/f1-archives' },
+    authority: { publisher: 'FIA', document: '2025 Abu Dhabi Grand Prix Championship Points, Document 56', url: 'https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf' },
     scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
-    program: { version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: 'lando-norris' } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'sum', field: 'points' }] } },
-    expected_facts: [{ driver_id: 'lando-norris', points: 423 }]
+    program: finalDriverStandingProgram(2025, 'lando-norris'),
+    expected_facts: [{ driver_id: 'lando-norris', points: 423, championship_position: 1 }]
+  },
+  {
+    id: '2014-driver-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2014 Classifications, Drivers Championship', url: 'https://www.fia.com/events/fia-formula-one-world-championship/season-2014/2014-classifications' },
+    scoring_rule_id: 'historical-2014-double-final',
+    program: finalDriverStandingProgram(2014, 'lewis-hamilton'),
+    expected_facts: [{ driver_id: 'lewis-hamilton', points: 384, championship_position: 1 }]
+  },
+  {
+    id: '2019-driver-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2019 Classifications, Drivers Championship', url: 'https://www.fia.com/events/fia-formula-one-world-championship/season-2019/2019-classifications' },
+    scoring_rule_id: 'historical-2019-2020-fastest-lap',
+    program: finalDriverStandingProgram(2019, 'lewis-hamilton'),
+    expected_facts: [{ driver_id: 'lewis-hamilton', points: 413, championship_position: 1 }]
+  },
+  {
+    id: '2021-driver-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2021 Abu Dhabi Grand Prix Championship Points, Document 60', url: 'https://www.fia.com/sites/default/files/decision-document/2021%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf' },
+    scoring_rule_id: 'fia-2021-sprint-trial',
+    program: finalDriverStandingProgram(2021, 'max-verstappen'),
+    expected_facts: [{ driver_id: 'max-verstappen', points: 395.5, championship_position: 1 }]
+  },
+  {
+    id: '2022-driver-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2022 Abu Dhabi Grand Prix Championship Points, Document 38', url: 'https://www.fia.com/sites/default/files/decision-document/2022%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf' },
+    scoring_rule_id: 'fia-2022-2024-sprint-top-eight',
+    program: finalDriverStandingProgram(2022, 'max-verstappen'),
+    expected_facts: [{ driver_id: 'max-verstappen', points: 454, championship_position: 1 }]
+  },
+  {
+    id: '2024-driver-champion-final-standing',
+    disposition: 'authoritative_factual',
+    required_relation: 'f1ql.driver_standings',
+    authority: { publisher: 'FIA', document: '2024 Abu Dhabi Grand Prix Championship Points, Document 58', url: 'https://www.fia.com/sites/default/files/decision-document/2024%20Abu%20Dhabi%20Grand%20Prix%20-%20Championship%20Points.pdf' },
+    scoring_rule_id: 'fia-2022-2024-sprint-top-eight',
+    program: finalDriverStandingProgram(2024, 'max-verstappen'),
+    expected_facts: [{ driver_id: 'max-verstappen', points: 437, championship_position: 1 }]
   },
   {
     id: '2025-australia-qualifying-pole',
@@ -175,6 +237,6 @@ for (const testCase of productionCorpusManifest) {
   }
 }
 
-if (productionCorpusManifest.length > 16) {
-  throw new Error('Production corpus manifest exceeds its sixteen-program bound');
+if (productionCorpusManifest.length > 24) {
+  throw new Error('Production corpus manifest exceeds its twenty-four-program bound');
 }
