@@ -15,3 +15,4 @@
 - Set Express `trust proxy` to Railway's explicit one-hop count and excluded successful shadow reasons from the report's rejection ranking.
 - Re-verified typecheck, lint (0 errors, 117 pre-existing warnings), 39 F1QL tests, and 7 in-process API tests; committed the one-hop Railway proxy fix as `568dccd`.
 - Superseded dead deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320` once with `43b9103e-d953-4e09-b946-bc9ddb7fec97`. It stayed `BUILDING` with `deploymentStopped: true` throughout the requested five-minute 30-second poll; bounded deploy logs were empty. Recorded as PARTIAL with a no-blind-retry instruction.
+- On resume, the existing replacement advanced from `DEPLOYING` to `SUCCESS` without another deploy. A known-driver production shadow request returned `pace_summary`; after 15 seconds, the Railway JSONL fetch and report recorded one successful attempt and no rejection reasons. Phase 2 is complete.

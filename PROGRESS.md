@@ -14,7 +14,7 @@
 
 ### Phase Status
 - Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
-- Phase 2: PARTIAL. All six validation gates and local definition-of-done suites are complete; the production round-trip is blocked by Railway deployments. The superseding deploy `43b9103e-d953-4e09-b946-bc9ddb7fec97` remained `BUILDING` with `deploymentStopped: true` through a full five-minute poll at 30-second intervals; its bounded deployment log was empty. Resume by checking Railway dashboard/service health for the stopped deployment, then create exactly one fresh deploy only after it is resolved. On `SUCCESS`, send one `/program/translate` shadow request, wait 15 seconds, fetch `railway logs --service main --environment production --since 5m --json`, run `npm run report:f1ql-shadow -- <file>`, paste the populated output below, then change this status to COMPLETE.
+- Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
 - Phase 3: PARTIAL. Current core IR still has specialized pace and classification nodes. Preserve behavior before refactoring.
 - Phase 4: PARTIAL. Standings, pace, and race classification exist; qualifying/event metadata/retirement sampling remain incomplete.
 - Phase 5: PARTIAL. Targeted goldens and differential tests exist; 100-question corpus, property, metamorphic, and nightly suites do not.
@@ -45,6 +45,25 @@
 - Fix: set Express `trust proxy` to exactly `1` hop for Railway, restoring per-client rate-limit keys and eliminating `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`; successful translation reasons are excluded from report rejection ranking.
 - Decision: Railway logs are deployment-scoped. The automated 30-day review therefore covers only the window since the latest deployment, not a cross-deployment rolling period. The durable-sink decision remains deferred and must not be implemented without explicit instruction.
 - PARTIAL production release: dead deployment `ebc4a0e0-74cf-4ec9-8a53-76633334f320` was superseded once by `43b9103e-d953-4e09-b946-bc9ddb7fec97` after a committed green state. The replacement stayed `BUILDING` with `deploymentStopped: true` on every 30-second poll for five minutes. `railway logs 43b9103e-d953-4e09-b946-bc9ddb7fec97 --deployment --lines 100` returned no deploy logs. Investigate the stopped deployment in Railway before a single new deploy attempt; do not retry blindly.
+- Production completion: the existing replacement deployment later advanced to `DEPLOYING` and then `SUCCESS`; no additional deploy was created. A known-driver `POST /program/translate` returned a shadow `pace_summary`. After 15 seconds, `railway logs --service main --environment production --since 5m --json` was fetched and reported as follows:
+```text
+# F1QL Shadow Translation Review
+
+- Window: 2026-07-21T06:32:58.161Z to 2026-07-21T06:32:58.161Z
+- Attempts: 1
+- Success rate: 100.00%
+
+## Outcomes
+- succeeded: 1
+
+## Rejection reasons
+
+## Operations
+- pace_summary: 1
+
+## Readiness
+- Keep shadow-only; insufficient volume or success rate.
+```
 
 ## 2026-07-18: Shadow F1QL Translation
 - Decision: `/program/translate` is independently feature-gated by `F1QL_TRANSLATION_ENABLED`.
