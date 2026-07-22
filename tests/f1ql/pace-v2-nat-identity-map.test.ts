@@ -3,8 +3,8 @@ import { buildPaceV2NatIdentityMap, generatePaceV2NatIdentityMap, requirePaceV2N
 import { PACE_V2_NAT_REPLACEMENT_ROUNDS } from '../../src/etl/pace-v2-nat-replacement';
 
 const rows = PACE_V2_NAT_REPLACEMENT_ROUNDS.flatMap((round) => [
-  { round, race_track_id: `track_${round}`, driver_id: `driver_${round}_a`, driver_code: 'AAA' },
-  { round, race_track_id: `track_${round}`, driver_id: `driver_${round}_b`, driver_code: 'BBB' }
+  { round, race_track_id: `track_${round}`, driver_id: `driver_${round}_a`, driver_code: 'AAA', is_official_non_starter: false },
+  { round, race_track_id: `track_${round}`, driver_id: `driver_${round}_b`, driver_code: 'BBB', is_official_non_starter: false }
 ]);
 
 function session(season: number, round: number) {
@@ -21,7 +21,7 @@ describe('NaT FastF1 identity-map generator', () => {
     expect(() => requirePaceV2NatIdentityMapConfiguration({ PACE_V2_NAT_IDENTITY_MAP_ENABLED: 'true', PACE_V2_NAT_IDENTITY_MAP_TARGET: 'production', DATABASE_URL: 'postgres://localhost/f1' })).toThrow('refuses local');
   });
 
-  it('maps exact FastF1 codes only after read-only v2/race identity reconciliation', async () => {
+  it('maps exact FastF1 codes only after read-only canonical race-result reconciliation', async () => {
     const calls: Array<{ sql: string; params?: unknown[] }> = [];
     const pool = { async connect() { return { async query(sql: string, params?: unknown[]) { calls.push({ sql, params }); return /^SELECT/.test(sql.trim()) ? { rows } : { rows: [] }; }, release() {} }; }, async end() {} };
     const artifact = await generatePaceV2NatIdentityMap(pool, session);
@@ -32,6 +32,8 @@ describe('NaT FastF1 identity-map generator', () => {
     expect(calls[1].params).toEqual(['5000ms']);
     expect(calls[2].sql).toMatch(/^\s*SELECT\b/i);
     expect(calls[2].sql).not.toContain('rd.race_laps');
+    expect(calls[2].sql).not.toContain('laps_normalized_v2');
+    expect(calls[2].sql).toContain('is_official_non_starter');
     expect(calls.at(-1)?.sql).toBe('ROLLBACK');
   });
 
@@ -41,9 +43,20 @@ describe('NaT FastF1 identity-map generator', () => {
     expect(() => buildPaceV2NatIdentityMap([...rows, { ...rows[0] }], session)).toThrow('ambiguous');
   });
 
-  it('maps the four canonical-only drivers when persisted v2 coverage is incomplete', () => {
-    const full = PACE_V2_NAT_REPLACEMENT_ROUNDS.flatMap((round) => ['ALB', 'BOR', 'NOR', 'PIA'].map((code) => ({ round, race_track_id: `track_${round}`, driver_id: ({ ALB: 'alexander-albon', BOR: 'gabriel-bortoleto', NOR: 'lando-norris', PIA: 'oscar-piastri' } as Record<string, string>)[code], driver_code: code })));
-    const artifact = buildPaceV2NatIdentityMap(full, (season, round) => ({ ...session(season, round), laps: full.filter((row) => row.round === round).map((row, index) => ({ ...session(season, round).laps[0], driver_code: row.driver_code, position: index + 1 })) }));
-    expect(artifact.rounds[0].driver_ids).toEqual({ ALB: 'alexander-albon', BOR: 'gabriel-bortoleto', NOR: 'lando-norris', PIA: 'oscar-piastri' });
+  it('derives round-2 starters from canonical results and excludes official DNS/W FastF1 codes', () => {
+    const starters = Array.from({ length: 18 }, (_, index) => ({ round: 2, race_track_id: 'track_2', driver_id: `starter_${index}`, driver_code: `S${String(index).padStart(2, '0')}`, is_official_non_starter: false }));
+    const nonStarters = ['DNS', 'WTH', 'WD1', 'WD2'].map((driver_code, index) => ({ round: 2, race_track_id: 'track_2', driver_id: `non_starter_${index}`, driver_code, is_official_non_starter: true }));
+    const full = PACE_V2_NAT_REPLACEMENT_ROUNDS.flatMap((round) => round === 2 ? [...starters, ...nonStarters] : rows.filter((row) => row.round === round));
+    const artifact = buildPaceV2NatIdentityMap(full, (season, round) => ({ ...session(season, round), laps: (round === 2 ? [...starters, ...nonStarters] : rows.filter((row) => row.round === round)).map((row, index) => ({ ...session(season, round).laps[0], driver_code: row.driver_code, position: index + 1 })) }));
+    expect(Object.keys(artifact.rounds[0].driver_ids)).toHaveLength(18);
+    expect(artifact.rounds[0].driver_ids).not.toHaveProperty('DNS');
+    expect(artifact.rounds[0].driver_ids).not.toHaveProperty('WTH');
+  });
+
+  it('fails closed when a FastF1 code is not a canonical starter or official DNS/W exclusion', () => {
+    const starters = Array.from({ length: 18 }, (_, index) => ({ round: 2, race_track_id: 'track_2', driver_id: `starter_${index}`, driver_code: `S${String(index).padStart(2, '0')}`, is_official_non_starter: false }));
+    const nonStarter = { round: 2, race_track_id: 'track_2', driver_id: 'dns_driver', driver_code: 'DNS', is_official_non_starter: true };
+    const full = PACE_V2_NAT_REPLACEMENT_ROUNDS.flatMap((round) => round === 2 ? [...starters, nonStarter] : rows.filter((row) => row.round === round));
+    expect(() => buildPaceV2NatIdentityMap(full, (season, round) => ({ ...session(season, round), laps: (round === 2 ? [...starters, nonStarter, { ...nonStarter, driver_code: 'BAD' }] : rows.filter((row) => row.round === round)).map((row, index) => ({ ...session(season, round).laps[0], driver_code: row.driver_code, position: index + 1 })) }))).toThrow('missing_database_codes=["BAD"]');
   });
 });

@@ -20,6 +20,11 @@
 - Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
 - Phase 5: PARTIAL. A data-driven initial golden corpus and bounded core-IR property backbone cover all current Phase 4 sources; the 100-question expansion, metamorphic, differential, and nightly suites do not.
 
+### Phase 4 NaT Identity-Map Canonical Starter Alignment (2026-07-21)
+- The read-only NaT FastF1 identity-map generator now reads all canonical `race`/`race_data` result identities and derives its emitted expected code set exclusively from canonical starters. Explicit trimmed, case-insensitive `DNS`, `DID NOT START`, `W`, `WD`, and `WITHDRAWN` values in either authoritative status field are retained only as official FastF1-code exclusions; persisted v2 facts are not queried.
+- Round 2's 18 canonical starters now reconcile safely with FastF1's 22 codes when its four additional codes are official non-starters. The generated identity map contains only the 18 starter identities. Any missing starter or FastF1 code not backed by a canonical starter or explicit official exclusion remains a typed fail-closed refusal.
+- Regressions cover the 18-versus-22 DNS/W case, unrecognized FastF1-code refusal, canonical-only SQL, and existing ambiguity checks. Verification passed: `npm run typecheck`; `npm run lint` (0 errors, 123 pre-existing warnings); `npm run test:f1ql` (223 tests in 26 files). No production query or write was run.
+
 ### Phase 4 Explicit Non-Starter Pace Coverage (2026-07-21)
 - The canonical pace-rebuild starter predicate now excludes an explicit trimmed, case-insensitive `position_text` or `race_reason_retired` token of `DNS`, `DID NOT START`, `W`, `WD`, or `WITHDRAWN`, irrespective of `race_laps`, including `NULL`. This applies identically to the read-only incomplete manifest, read-only FastF1 identity map, and serializable rebuild provenance check.
 - The regenerated Round-2 fixture models both status fields for every token with `race_laps IS NULL`, retains a null-lap formation-lap DNF, and confirms exactly 18 canonical actual starters. No production query or write was run.
