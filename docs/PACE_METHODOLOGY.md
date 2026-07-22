@@ -17,7 +17,15 @@ The committed production-schema contract is refreshed only with `npm run schema:
 
 ## Production Coverage And Freshness Protocol
 
-Run this only from an authorized production environment, inside `BEGIN READ ONLY` with a transaction-local five-second statement timeout. It performs no writes:
+Run the guarded preflight only from an authorized production environment:
+
+```bash
+PACE_V2_PREFLIGHT_ENABLED=true PACE_V2_PREFLIGHT_TARGET=production npm run preflight:pace-v2:production
+```
+
+It refuses localhost and loopback targets, uses one `BEGIN READ ONLY` transaction with a transaction-local five-second timeout, always rolls back, and writes exactly one JSON object to stdout. It never invokes ingestion or writes. The report contains the v2 row total, session/methodology grouping, season/round coverage, active-methodology eligible-lap counts, explicit missing/partial conditions, and ETL audit freshness when `etl_runs_laps_normalized` exists. Save stdout outside the database as evidence; do not redirect stderr into the artifact.
+
+The preflight's coverage query is equivalent to:
 
 ```sql
 SELECT season, methodology_version, max(updated_at) AS newest_row,

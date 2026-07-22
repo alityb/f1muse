@@ -23,6 +23,7 @@
     "smoke:f1ql": "./scripts/smoke-f1ql.sh",
     "report:f1ql-shadow": "tsx scripts/report-f1ql-shadow.ts",
     "sample:retirement-reasons:production": "tsx scripts/sample-retirement-reasons.ts",
+    "preflight:pace-v2:production": "tsx scripts/preflight-pace-v2-production.ts",
     "golden:f1ql:production": "tsx scripts/run-f1ql-production-golden.ts",
     "test:contract": "vitest run tests/contract/**/*.test.ts",
     "test:cache": "vitest run tests/cache/**/*.test.ts",
