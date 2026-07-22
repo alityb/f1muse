@@ -151,6 +151,16 @@ npm run --silent fetch:pace-v2:round2-timing-artifact
 
 Retain the PDF and JSON report outside the database. An operator must separately obtain a FIA/F1 official lap-analysis or timing feed whose artifact shows a valid timed race lap for each driver, hash it, and independently review its driver/lap mapping before any updated identity map or incomplete-rebuild facts are generated. If that source is unavailable, keep the round incomplete; neither a final classification nor a source gap authorizes invented timing.
 
+The official Formula 1 historical `TimingData.jsonStream` archive is the reviewed candidate individual-lap comparison artifact for this event. Its collector is fixed to the exact HTTPS URL, rejects any other host/path or malformed stream, writes a new mode-0600 file below the OS temporary directory, and emits the raw-file SHA-256, byte count, retrieval UTC, and a SHA-256 fingerprint for each required driver's sorted `(lap_number, seconds)` list:
+
+```bash
+npm run --silent fetch:pace-v2:round2-lap-timing-artifact
+```
+
+The report is an independent raw timed-lap median recomputation only: it parses every final observed `LapTime`/`LapNumber` pair for racing numbers `1` (Norris), `5` (Bortoleto), `23` (Albon), and `81` (Piastri), deduplicates by lap number, sorts numerically, and takes the conventional middle value (or mean of the two middle values). It is deliberately not a clean-air or pit/in/out-filtered pace median: this archived stream does not provide a reviewed, durable mapping for all application eligibility inputs. Do not compare its medians to `f1ql.lap_pace` as pass/fail evidence. It can establish individual timed-lap presence and support later per-lap comparison after a separately retained, reviewed eligibility mapping is available. Retain the raw stream and JSON report outside the database; it has no fact-generation or database path.
+
+On 2026-07-22 this workspace's direct Node retrieval received an HTTP-success response that failed the required timing-stream signature, including after the documented Formula 1 origin/referer request headers. The same exact URL was readable through a mediated web retrieval, but that response cannot be retained as a local provenance artifact here. This is an acquisition-access limitation, not evidence about any driver's laps. Run the command from an environment that receives the stream signature, retain its raw output/report, and only then conduct individual-lap or raw-median review.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
