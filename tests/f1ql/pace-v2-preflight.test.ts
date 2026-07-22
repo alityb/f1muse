@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PACE_V2_IDENTITY_REPAIR_METHOD, createPaceV2IdentityRepairManifest, fingerprintPaceV2FactRows } from '../../src/etl/pace-v2-identity-repair';
 import { PACE_V2_AUDIT_RECONCILIATION_METHOD, createPaceV2AuditReconciliationManifest } from '../../src/etl/pace-v2-audit-reconciliation';
-import { assessPaceV2AuditReadiness, requirePaceV2PreflightConfiguration, runPaceV2Preflight } from '../../scripts/preflight-pace-v2-production';
+import { assessPaceV2AuditReadiness, requirePaceV2PreflightConfiguration, runPaceV2Preflight, runPaceV2PreflightCli } from '../../scripts/preflight-pace-v2-production';
 
 const fact = { season: 2025, round: 1, track_id: 'melbourne', driver_id: 'driver_one', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 91.234, is_valid_lap: true, is_pit_lap: false, is_out_lap: false, is_in_lap: false, clean_air_flag: true, compound: 'SOFT', tyre_age_laps: 1, methodology_version: 'clean_air_gap_2_0s_v1' };
 
@@ -73,6 +73,24 @@ describe('pace v2 production preflight', () => {
     const { pool } = mockPool({ auditStatuses: ['partial_failure', 'success'] });
     const result = await runPaceV2Preflight(pool);
     expect(result).toMatchObject({ status: 'ready', conditions: [expect.objectContaining({ code: 'etl_audit_partial_or_failed', severity: 'warning' })] });
+  });
+
+  it('preserves the ready report when the CLI pool wrapper closes after readiness', async () => {
+    const { pool } = mockPool();
+    pool.end = async () => { throw new Error('close failed'); };
+    const lines: string[] = [];
+    const result = await runPaceV2PreflightCli({
+      PACE_V2_PREFLIGHT_ENABLED: 'true',
+      PACE_V2_PREFLIGHT_TARGET: 'production',
+      DATABASE_URL: 'postgres://db.example/f1'
+    }, () => pool, (line) => lines.push(line));
+    expect(result).toMatchObject({ status: 'ready', pace_selection_relation: 'f1ql.lap_pace' });
+    expect(lines).toEqual([`${JSON.stringify(result)}\n`]);
+  });
+
+  it('returns typed CLI refusal reasons without exposing configuration details', async () => {
+    await expect(runPaceV2PreflightCli({ DATABASE_URL: 'postgres://db.example/f1' }, () => mockPool().pool, () => undefined))
+      .resolves.toEqual({ status: 'refused', error: 'pace_v2_preflight_failed', reason: 'preflight_not_enabled' });
   });
 
   it('accepts only an exact immutable identity-repair audit when a manifest audit is absent', () => {

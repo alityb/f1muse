@@ -16,6 +16,26 @@ interface QueryPool {
   end(): Promise<void>;
 }
 
+type PaceV2PreflightRefusalReason =
+  | 'preflight_not_enabled'
+  | 'preflight_target_not_production'
+  | 'database_url_missing'
+  | 'database_url_invalid'
+  | 'local_database_target'
+  | 'preflight_runtime_failure';
+
+interface PaceV2PreflightRefusal {
+  status: 'refused';
+  error: 'pace_v2_preflight_failed';
+  reason: PaceV2PreflightRefusalReason;
+}
+
+class PaceV2PreflightConfigurationError extends Error {
+  constructor(readonly reason: Exclude<PaceV2PreflightRefusalReason, 'preflight_runtime_failure'>, message: string) {
+    super(message);
+  }
+}
+
 interface Condition {
   code: string;
   severity: 'info' | 'warning' | 'error';
@@ -101,20 +121,33 @@ export interface PaceV2PreflightResult {
 
 export function requirePaceV2PreflightConfiguration(environment: NodeJS.ProcessEnv = process.env): string {
   if (environment.PACE_V2_PREFLIGHT_ENABLED !== 'true') {
-    throw new Error('Set PACE_V2_PREFLIGHT_ENABLED=true to enable the pace v2 production preflight.');
+    throw new PaceV2PreflightConfigurationError('preflight_not_enabled', 'Set PACE_V2_PREFLIGHT_ENABLED=true to enable the pace v2 production preflight.');
   }
   if (environment.PACE_V2_PREFLIGHT_TARGET !== 'production') {
-    throw new Error('Set PACE_V2_PREFLIGHT_TARGET=production to confirm the target.');
+    throw new PaceV2PreflightConfigurationError('preflight_target_not_production', 'Set PACE_V2_PREFLIGHT_TARGET=production to confirm the target.');
   }
   if (!environment.DATABASE_URL) {
-    throw new Error('DATABASE_URL is required for the pace v2 production preflight.');
+    throw new PaceV2PreflightConfigurationError('database_url_missing', 'DATABASE_URL is required for the pace v2 production preflight.');
   }
 
-  const hostname = new URL(environment.DATABASE_URL).hostname.toLowerCase();
+  let hostname: string;
+  try {
+    hostname = new URL(environment.DATABASE_URL).hostname.toLowerCase();
+  } catch {
+    throw new PaceV2PreflightConfigurationError('database_url_invalid', 'DATABASE_URL must be a valid connection URL.');
+  }
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
-    throw new Error('Pace v2 production preflight refuses local database targets.');
+    throw new PaceV2PreflightConfigurationError('local_database_target', 'Pace v2 production preflight refuses local database targets.');
   }
   return environment.DATABASE_URL;
+}
+
+function paceV2PreflightRefusal(error: unknown): PaceV2PreflightRefusal {
+  return {
+    status: 'refused',
+    error: 'pace_v2_preflight_failed',
+    reason: error instanceof PaceV2PreflightConfigurationError ? error.reason : 'preflight_runtime_failure'
+  };
 }
 
 function number(value: unknown): number {
@@ -385,19 +418,38 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
   }
 }
 
-async function main(): Promise<void> {
-  const connectionString = requirePaceV2PreflightConfiguration();
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 1 });
+export async function runPaceV2PreflightCli(
+  environment: NodeJS.ProcessEnv = process.env,
+  createPool: (connectionString: string) => QueryPool = (connectionString) => new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 1 }),
+  writeOutput: (output: string) => void = (output) => process.stdout.write(output)
+): Promise<PaceV2PreflightResult | PaceV2PreflightRefusal> {
+  let pool: QueryPool | undefined;
+  let result: PaceV2PreflightResult | PaceV2PreflightRefusal;
   try {
-    process.stdout.write(`${JSON.stringify(await runPaceV2Preflight(pool))}\n`);
+    pool = createPool(requirePaceV2PreflightConfiguration(environment));
+    result = await runPaceV2Preflight(pool);
+  } catch (error) {
+    result = paceV2PreflightRefusal(error);
   } finally {
-    await pool.end();
+    // A close failure cannot invalidate a completed read-only result or add a second stdout record.
+    if (pool) await pool.end().catch(() => undefined);
   }
+  writeOutput(formatPaceV2PreflightCliOutput(result));
+  return result;
+}
+
+export function formatPaceV2PreflightCliOutput(result: PaceV2PreflightResult | PaceV2PreflightRefusal): string {
+  return `${JSON.stringify(result)}\n`;
+}
+
+async function main(): Promise<void> {
+  const result = await runPaceV2PreflightCli();
+  if (result.status === 'refused') process.exitCode = 1;
 }
 
 if (require.main === module) {
-  main().catch(() => {
-    process.stdout.write('{"status":"refused","error":"pace_v2_preflight_failed"}\n');
+  main().catch((error: unknown) => {
+    process.stdout.write(`${JSON.stringify(paceV2PreflightRefusal(error))}\n`);
     process.exitCode = 1;
   });
 }
