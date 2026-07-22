@@ -10,8 +10,13 @@ export const OFFICIAL_2026_PACE_TIMING_CASES = [
   { round: 1, event: 'Australian Grand Prix', scenario_target: 'normal_dry', source_url: 'https://livetiming.formula1.com/static/2026/2026-03-08_Australian_Grand_Prix/2026-03-08_Race/TimingData.jsonStream' },
   { round: 2, event: 'Chinese Grand Prix', scenario_target: 'retirement_limited', source_url: ROUND_2_F1_TIMING_DATA_URL },
   { round: 3, event: 'Japanese Grand Prix', scenario_target: 'wet_or_disrupted', source_url: 'https://livetiming.formula1.com/static/2026/2026-03-29_Japanese_Grand_Prix/2026-03-29_Race/TimingData.jsonStream' },
+  { round: 4, event: 'Bahrain Grand Prix', scenario_target: 'unclassified', source_url: 'https://livetiming.formula1.com/static/2026/2026-04-12_Bahrain_Grand_Prix/2026-04-12_Race/TimingData.jsonStream' },
+  { round: 5, event: 'Saudi Arabian Grand Prix', scenario_target: 'unclassified', source_url: 'https://livetiming.formula1.com/static/2026/2026-04-19_Saudi_Arabian_Grand_Prix/2026-04-19_Race/TimingData.jsonStream' },
   { round: 6, event: 'Miami Grand Prix', scenario_target: 'pit_heavy', source_url: 'https://livetiming.formula1.com/static/2026/2026-05-03_Miami_Grand_Prix/2026-05-03_Race/TimingData.jsonStream' },
-  { round: 7, event: 'Canadian Grand Prix', scenario_target: 'current_season', source_url: 'https://livetiming.formula1.com/static/2026/2026-05-24_Canadian_Grand_Prix/2026-05-24_Race/TimingData.jsonStream' }
+  { round: 7, event: 'Canadian Grand Prix', scenario_target: 'current_season', source_url: 'https://livetiming.formula1.com/static/2026/2026-05-24_Canadian_Grand_Prix/2026-05-24_Race/TimingData.jsonStream' },
+  { round: 8, event: 'Monaco Grand Prix', scenario_target: 'unclassified', source_url: 'https://livetiming.formula1.com/static/2026/2026-06-07_Monaco_Grand_Prix/2026-06-07_Race/TimingData.jsonStream' },
+  { round: 9, event: 'Spanish Grand Prix', scenario_target: 'unclassified', source_url: 'https://livetiming.formula1.com/static/2026/2026-06-14_Spanish_Grand_Prix/2026-06-14_Race/TimingData.jsonStream' },
+  { round: 10, event: 'Austrian Grand Prix', scenario_target: 'unclassified', source_url: 'https://livetiming.formula1.com/static/2026/2026-06-28_Austrian_Grand_Prix/2026-06-28_Race/TimingData.jsonStream' }
 ] as const;
 
 const REQUIRED_RACING_NUMBERS = ['1', '5', '23', '81'];
@@ -189,8 +194,70 @@ function summarizeOfficialContext(weather: Buffer, raceControl: Buffer, timingAp
     rainfall_samples: rainfall.filter((value): value is string | number => typeof value === 'string' || typeof value === 'number').length,
     safety_car_deployed: messages.some((message) => message === 'SAFETY CAR DEPLOYED'),
     safety_car_messages: messages.filter((message) => message === 'SAFETY CAR DEPLOYED').length,
+    retirement_messages_observed: messages.filter((message) => /\bRETIRED\b/.test(message)).length,
     stint_record_updates: stints.reduce((count, stint) => count + Object.keys(stint).length, 0)
   };
+}
+
+type OfficialTimingReport = ReturnType<typeof writeOfficial2026PaceTimingArtifact>;
+type OfficialContextReport = Awaited<ReturnType<typeof fetchOfficial2026PaceContextArtifacts>>;
+
+export function createOfficial2026PaceCoverageMatrix(timingReports: OfficialTimingReport[], contextReports: OfficialContextReport[], unavailableRounds = new Map<number, string>()) {
+  return OFFICIAL_2026_PACE_TIMING_CASES.map((testCase) => {
+    const timing = timingReports.find((report) => report.round === testCase.round);
+    const context = contextReports.find((report) => report.round === testCase.round);
+    if (!timing) {
+      if (!unavailableRounds.has(testCase.round)) throw new Error(`FAIL_CLOSED: missing official artifact report for 2026 round ${testCase.round}`);
+      return {
+        round: testCase.round,
+        event: testCase.event,
+        official_timing: { source_url: testCase.source_url, availability: 'unavailable' as const },
+        official_context: ['WeatherData', 'RaceControlMessages', 'TimingAppData'].map((stream) => ({ stream, source_url: contextStreamUrl(testCase.source_url, stream), availability: 'not_fetched_after_timing_artifact_unavailable' as const })),
+        context_classification: { dry: 'unavailable' as const, disrupted: 'unavailable' as const, retirement: 'unavailable' as const, pit_heavy: 'unavailable' as const },
+        v2_eligible_driver_coverage: { status: 'not_assessed' as const, reason: unavailableRounds.get(testCase.round)! }
+      };
+    }
+    if (!context) {
+      if (!unavailableRounds.has(testCase.round)) throw new Error(`FAIL_CLOSED: missing official context report for 2026 round ${testCase.round}`);
+      return {
+        round: testCase.round,
+        event: testCase.event,
+        official_timing: { source_url: timing.source_url, sha256: timing.artifact_sha256, bytes: timing.bytes, availability: 'retained' as const },
+        official_context: ['WeatherData', 'RaceControlMessages', 'TimingAppData'].map((stream) => ({ stream, source_url: contextStreamUrl(testCase.source_url, stream), availability: 'unavailable' as const })),
+        context_classification: { dry: 'unavailable' as const, disrupted: 'unavailable' as const, retirement: 'unavailable' as const, pit_heavy: 'unavailable' as const },
+        v2_eligible_driver_coverage: { status: 'not_assessed' as const, reason: unavailableRounds.get(testCase.round)! }
+      };
+    }
+    const observedDrivers = timing.laps.length;
+    const timedDrivers = timing.laps.filter((lap) => lap.timed_laps > 0).length;
+    return {
+      round: testCase.round,
+      event: testCase.event,
+      official_timing: {
+        source_url: timing.source_url,
+        sha256: timing.artifact_sha256,
+        bytes: timing.bytes,
+        observed_drivers: observedDrivers,
+        timed_drivers: timedDrivers,
+        completeness: timedDrivers === observedDrivers ? 'complete' as const : 'partial' as const
+      },
+      official_context: Object.fromEntries(Object.entries(context.artifacts).map(([stream, artifact]) => [stream, {
+        source_url: artifact.source_url,
+        sha256: artifact.artifact_sha256,
+        bytes: artifact.bytes
+      }])),
+      context_classification: {
+        dry: context.context.rainfall_samples > 0 && !context.context.rainfall_observed ? 'no_rainfall_observed' as const : context.context.rainfall_observed ? 'rainfall_observed' as const : 'unavailable' as const,
+        disrupted: context.context.safety_car_deployed ? 'safety_car_deployed' as const : 'no_safety_car_deployment_observed' as const,
+        retirement: context.context.retirement_messages_observed > 0 ? 'retirement_messages_observed' as const : 'no_retirement_message_observed' as const,
+        pit_heavy: 'not_established_from_incremental_stint_updates' as const
+      },
+      v2_eligible_driver_coverage: {
+        status: 'not_assessed' as const,
+        reason: 'requires a separate read-only v2 observation and a reviewed racing-number-to-driver mapping; official artifacts do not provide the shared clean-air/pit/in-lap/out-lap eligibility fields'
+      }
+    };
+  });
 }
 
 export async function fetchOfficial2026PaceContextArtifacts(
@@ -312,6 +379,26 @@ async function main(): Promise<void> {
     const reports = [];
     for (const testCase of OFFICIAL_2026_PACE_TIMING_CASES) reports.push(await fetchOfficial2026PaceContextArtifacts(testCase));
     process.stdout.write(`${JSON.stringify({ status: 'collected', assertion_scope: 'official_event_context_fields_only', reports })}\n`);
+    return;
+  }
+  if (process.argv[2] === '--all-2026-inventory') {
+    const timingReports: OfficialTimingReport[] = [];
+    const contextReports: OfficialContextReport[] = [];
+    const unavailableRounds = new Map<number, string>();
+    for (const testCase of OFFICIAL_2026_PACE_TIMING_CASES) {
+      try {
+        timingReports.push(writeOfficial2026PaceTimingArtifact(testCase, await fetchOfficial2026PaceTimingArtifact(testCase.source_url)));
+      } catch {
+        unavailableRounds.set(testCase.round, 'official_timing_artifact_unavailable_from_reviewed_url');
+        continue;
+      }
+      try {
+        contextReports.push(await fetchOfficial2026PaceContextArtifacts(testCase));
+      } catch {
+        unavailableRounds.set(testCase.round, 'official_context_artifact_unavailable_from_reviewed_url');
+      }
+    }
+    process.stdout.write(`${JSON.stringify({ version: 1, status: 'collected', assertion_scope: 'official_artifact_availability_and_literal_context_fields_only', coverage_matrix: createOfficial2026PaceCoverageMatrix(timingReports, contextReports, unavailableRounds), f1ql_clean_air_pace_comparison: 'unsupported_without_shared_eligibility_fields' })}\n`);
     return;
   }
   const artifact = await fetchRound2LapTimingArtifact();

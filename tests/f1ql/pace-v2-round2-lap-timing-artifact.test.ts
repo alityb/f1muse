@@ -1,9 +1,9 @@
 import { createHash } from 'crypto';
-import { mkdtempSync, rmSync, statSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { OFFICIAL_2026_PACE_TIMING_CASES, ROUND_2_F1_TIMING_DATA_URL, fetchOfficial2026PaceContextArtifacts, fetchOfficial2026PaceTimingArtifact, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateOfficial2026PaceTimingArtifactUrl, validateRound2LapTimingArtifactUrl, writeOfficial2026PaceTimingArtifact, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
+import { OFFICIAL_2026_PACE_TIMING_CASES, ROUND_2_F1_TIMING_DATA_URL, createOfficial2026PaceCoverageMatrix, fetchOfficial2026PaceContextArtifacts, fetchOfficial2026PaceTimingArtifact, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateOfficial2026PaceTimingArtifactUrl, validateRound2LapTimingArtifactUrl, writeOfficial2026PaceTimingArtifact, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
 
 const stream = [
   '00:00:01.000{"Lines":{"1":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:30.000"}},"5":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:31.000"}},"23":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:32.000"}},"81":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:33.000"}}}}',
@@ -80,5 +80,30 @@ describe('round-2 official F1 lap timing artifact', () => {
       throw new Error('must not fetch');
     })).rejects.toThrow('allowlisted');
     expect(calls).toBe(0);
+  });
+
+  it('builds a complete round-1-to-10 matrix with literal context classifications only', async () => {
+    const timing = OFFICIAL_2026_PACE_TIMING_CASES.map((testCase) => writeOfficial2026PaceTimingArtifact(testCase, { content: Buffer.from(stream), content_type: 'application/json', retrieved_at: '2026-07-22T00:00:00.000Z' }));
+    const context = await Promise.all(OFFICIAL_2026_PACE_TIMING_CASES.map((testCase) => fetchOfficial2026PaceContextArtifacts(testCase, async (url) => {
+      const payload = url.includes('WeatherData') ? '{"WeatherData":{"Rainfall":"0"}}' : url.includes('RaceControlMessages') ? '{"Messages":{"0":{"Message":"CAR 1 RETIRED"}}}' : '{"Lines":{"1":{"Stints":{"0":{}}}}}';
+      const content = Buffer.from(`00:00:01.000${payload}`);
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) };
+    }, () => new Date('2026-07-22T00:00:00.000Z'))));
+    const matrix = createOfficial2026PaceCoverageMatrix(timing, context);
+    expect(matrix).toHaveLength(10);
+    expect(matrix[0]).toMatchObject({ round: 1, official_timing: { completeness: 'complete', timed_drivers: 4 }, context_classification: { dry: 'no_rainfall_observed', retirement: 'retirement_messages_observed', pit_heavy: 'not_established_from_incremental_stint_updates' }, v2_eligible_driver_coverage: { status: 'not_assessed' } });
+    expect(matrix[9].official_timing.source_url).toContain('2026-06-28_Austrian_Grand_Prix');
+  });
+
+  it('records an unavailable reviewed URL without inventing artifact completeness or context', () => {
+    const matrix = createOfficial2026PaceCoverageMatrix([], [], new Map([[4, 'official_timing_artifact_unavailable_from_reviewed_url'], [1, 'unavailable'], [2, 'unavailable'], [3, 'unavailable'], [5, 'unavailable'], [6, 'unavailable'], [7, 'unavailable'], [8, 'unavailable'], [9, 'unavailable'], [10, 'unavailable']]));
+    expect(matrix[3]).toMatchObject({ round: 4, official_timing: { availability: 'unavailable' }, context_classification: { dry: 'unavailable', pit_heavy: 'unavailable' } });
+  });
+
+  it('commits the emitted rounds-1-to-10 URL and hash coverage matrix', () => {
+    const matrix = JSON.parse(readFileSync(path.join(process.cwd(), 'data/pace-v2-official-2026-coverage-matrix.json'), 'utf8')) as { rounds: Array<{ round: number; timing: { sha256?: string; availability?: string; timed_drivers?: number; observed_drivers?: number } }> };
+    expect(matrix.rounds).toHaveLength(10);
+    expect(matrix.rounds.find((round) => round.round === 2)?.timing).toMatchObject({ sha256: '380259ce59c9e7b5b81aa4872106e2a3ba9e476fd7129d31f27fcc45aa2b747d', timed_drivers: 18, observed_drivers: 22 });
+    expect(matrix.rounds.filter((round) => round.timing.availability === 'unavailable').map((round) => round.round)).toEqual([4, 5, 9]);
   });
 });

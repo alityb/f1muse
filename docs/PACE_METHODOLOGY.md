@@ -187,6 +187,28 @@ Only final `NumberOfLaps` with `LastLapTime.Value`, and `Stints.LapNumber` with 
 
 The retained context evidence establishes no rainfall observation in r1/r2/r3/r7, a rainfall observation in r6, safety-car deployment in r2/r3/r6, and no safety-car deployment in r1/r7. It therefore validates dry and disrupted/wet event context where literal fields exist, but not the original retirement-limited or pit-heavy selection targets. `TimingAppData`'s repeated incremental stint records do not establish pit-stop count or pit eligibility without an additional reviewed interpretation contract.
 
+### Rounds 1-10 Artifact Inventory
+
+`data/pace-v2-official-2026-coverage-matrix.json` is the compact output-derived coverage matrix from the 2026-07-22 evidence run. It retains source URLs and SHA-256 values, not raw artifacts. Re-run it with:
+
+```bash
+npm run --silent fetch:pace-v2:official-inventory-2026
+```
+
+| Rounds | Timing artifact | Timed / observed drivers | Literal context result |
+| --- | --- | ---: | --- |
+| 1 | retained | 20 / 22 | no rainfall or safety-car deployment observed |
+| 2 | retained | 18 / 22 | no rainfall; safety-car deployment observed |
+| 3 | retained | 22 / 22 | no rainfall; safety-car deployment observed |
+| 4-5 | unavailable from reviewed URLs | - | unavailable |
+| 6 | retained | 22 / 22 | rainfall and safety-car deployment observed |
+| 7 | retained | 21 / 22 | no rainfall or safety-car deployment observed |
+| 8 | retained | 21 / 22 | no rainfall; safety-car deployment observed |
+| 9 | unavailable from reviewed URL | - | unavailable |
+| 10 | retained | 22 / 22 | no rainfall or safety-car deployment observed |
+
+The matrix's retirement classification is limited to literal `RETIRED` race-control messages; no such message was observed in retained streams. Its pit-heavy classification remains unestablished because incremental `TimingAppData.Stints` updates are not a reviewed pit-stop interpretation. V2 eligible-driver coverage is deliberately `not_assessed`: proving the overlap requires a separately retained read-only v2 observation and reviewed racing-number-to-driver mapping, and neither source shares F1QL's clean-air, pit, in-lap, and out-lap eligibility fields. This inventory makes no median claim or F1QL pace comparison.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
