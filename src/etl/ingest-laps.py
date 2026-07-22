@@ -96,7 +96,7 @@ def load_driver_identity_map(conn) -> Dict[str, str]:
 
 
 def validate_database_schema(conn) -> bool:
-    """Validate laps_normalized table exists with correct schema"""
+    """Validate the v2 lap-facts table exists with the required schema."""
     print("→ Validating database schema...")
 
     required_columns = {
@@ -104,6 +104,7 @@ def validate_database_schema(conn) -> bool:
         'round': 'integer',
         'track_id': 'text',
         'driver_id': 'text',
+        'session_type': 'text',
         'lap_number': 'integer',
         'stint_id': 'integer',
         'stint_lap_index': 'integer',
@@ -112,7 +113,8 @@ def validate_database_schema(conn) -> bool:
         'is_pit_lap': 'boolean',
         'is_out_lap': 'boolean',
         'is_in_lap': 'boolean',
-        'clean_air_flag': 'boolean'
+        'clean_air_flag': 'boolean',
+        'methodology_version': 'text'
     }
 
     try:
@@ -121,14 +123,14 @@ def validate_database_schema(conn) -> bool:
                 SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_schema = 'public'
-                  AND table_name = 'laps_normalized'
+                  AND table_name = 'laps_normalized_v2'
                 ORDER BY column_name
             """)
 
             actual_columns = {row[0]: row[1] for row in cur.fetchall()}
 
             if not actual_columns:
-                print("✗ FAIL_CLOSED: Table 'laps_normalized' not found")
+                print("✗ FAIL_CLOSED: Table 'laps_normalized_v2' not found")
                 return False
 
             for col_name, expected_type in required_columns.items():
@@ -145,11 +147,11 @@ def validate_database_schema(conn) -> bool:
 
 
 def check_race_already_loaded(conn, season: int, round_number: int, session_type: str = 'R') -> bool:
-    """Check if race/qualifying data already exists"""
+    """Check whether v2 facts already exist for this session, never legacy facts."""
     with conn.cursor() as cur:
         cur.execute("""
             SELECT COUNT(*)
-            FROM laps_normalized
+            FROM laps_normalized_v2
             WHERE season = %s AND round = %s AND session_type = %s
         """, (season, round_number, session_type))
 
