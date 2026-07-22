@@ -64,7 +64,7 @@ const REQUIRED_LAPS_COLUMNS = [
   'Position'
 ];
 
-interface RaceInfo {
+export interface RaceInfo {
   race_id: number;
   round: number;
   circuit_id: string;
@@ -73,7 +73,7 @@ interface RaceInfo {
   has_session_mapping: boolean;
 }
 
-interface FastF1LapRow {
+export interface FastF1LapRow {
   driver_code: string | null;
   lap_number: number | null;
   lap_time_seconds: number | null;
@@ -87,7 +87,7 @@ interface FastF1LapRow {
   gap_to_leader: number | null;
 }
 
-interface FastF1SessionPayload {
+export interface FastF1SessionPayload {
   season: number;
   round: number;
   session_name: string;
@@ -97,7 +97,7 @@ interface FastF1SessionPayload {
   laps: FastF1LapRow[];
 }
 
-interface NormalizedLapDraft {
+export interface NormalizedLapDraft {
   season: number;
   round: number;
   track_id: string;
@@ -118,7 +118,7 @@ interface NormalizedLapDraft {
   gap_to_leader?: number | null;
 }
 
-interface NormalizedLap extends NormalizedLapDraft {
+export interface NormalizedLap extends NormalizedLapDraft {
   stint_id: number;
   stint_lap_index: number;
   clean_air_flag: boolean;
@@ -781,7 +781,7 @@ async function validateSeasonEntrants(pool: Pool, season: number): Promise<Seaso
   };
 }
 
-function fetchFastF1Session(season: number, round: number): FastF1SessionPayload {
+export function fetchFastF1Session(season: number, round: number): FastF1SessionPayload {
   const pythonPath = resolvePythonPath();
   const result = spawnSync(
     pythonPath,
@@ -827,7 +827,7 @@ function validateFastF1Columns(session: FastF1SessionPayload): void {
   }
 }
 
-function normalizeLaps(
+export function normalizeLaps(
   session: FastF1SessionPayload,
   race: RaceInfo,
   abbreviationToDriverId: Map<string, string>,
@@ -955,7 +955,7 @@ function validateLapOrdering(laps: NormalizedLapDraft[]): void {
   }
 }
 
-function computeStints(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
+export function computeStints(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
   const lapsByDriver = new Map<string, NormalizedLapDraft[]>();
 
   for (const lap of laps) {
@@ -996,7 +996,7 @@ function computeStints(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
   return laps;
 }
 
-function computeCleanAir(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
+export function computeCleanAir(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
   const lapsByNumber = new Map<number, NormalizedLapDraft[]>();
 
   for (const lap of laps) {
@@ -1061,7 +1061,7 @@ function computeCleanAir(laps: NormalizedLapDraft[]): NormalizedLapDraft[] {
   return laps;
 }
 
-function finalizeLaps(laps: NormalizedLapDraft[]): NormalizedLap[] {
+export function finalizeLaps(laps: NormalizedLapDraft[]): NormalizedLap[] {
   return laps.map(lap => {
     if (lap.stint_id === undefined || lap.stint_id === null ||
         lap.stint_lap_index === undefined || lap.stint_lap_index === null ||
@@ -1534,7 +1534,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(err => {
-  console.error(`\nFAIL_CLOSED: ${err}`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error(`\nFAIL_CLOSED: ${err}`);
+    process.exitCode = 1;
+  });
+}

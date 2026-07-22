@@ -100,11 +100,21 @@ PACE_V2_NAT_REPLACEMENT_MANIFEST_ENABLED=true PACE_V2_NAT_REPLACEMENT_MANIFEST_T
   npm run --silent generate:pace-v2:nat-replacement:production > /approved/evidence/pace-v2-nat-replacement-manifest.json
 ```
 
-The generator uses one read-only transaction, a five-second local timeout, and rollback. It emits no manifest unless every fixed round is complete, active-methodology, and still has all three poisoned flags. Prepare the corrected FastF1 artifact with the fixed `pd.isna` extractor as JSON `{version: 1, replacement_version: "nat_pit_flags_v1", methodology_version: "clean_air_gap_2_0s_v1", facts: [...]}`; retain its generation command, extractor revision, SHA-256, and source evidence outside the database. An approved primary operator may then run:
+The generator uses one read-only transaction, a five-second local timeout, and rollback. It emits no manifest unless every fixed round is complete, active-methodology, and still has all three poisoned flags. The corrected artifact was not committed and cannot be recreated locally without approved FastF1 identity evidence. Generate it only from an independently reviewed identity map (`{version: 1, source: "approved_fastf1_identity_map", season: 2026, rounds: [...]}`) and the corrected `pd.isna` FastF1 extractor. The manifest is the only round selector; the generator accepts exactly rounds 2-10, writes only to a newly created OS-temporary path, and emits per-round corrected counts/fingerprints on stdout:
+
+```bash
+artifact="$(mktemp -t pace-v2-nat-corrected-facts).json"
+npm run --silent generate:pace-v2:nat-corrected-facts -- \
+  --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json \
+  --identity-map /approved/evidence/pace-v2-fastf1-identity-map.json \
+  --output "$artifact"
+```
+
+The generator rejects a source session outside the requested race, an identity map outside the fixed rounds, duplicate/missing facts, a row count different from the manifest, or an unchanged all-three-flags poison class. Its output is the writer artifact JSON `{version: 1, replacement_version: "nat_pit_flags_v1", methodology_version: "clean_air_gap_2_0s_v1", facts: [...]}`. Retain the source identity map, generated artifact, stdout count/fingerprint report, extractor revision, and SHA-256 outside the database. An approved primary operator may then run:
 
 ```bash
 PACE_V2_NAT_REPLACEMENT_ENABLED=true PACE_V2_NAT_REPLACEMENT_TARGET=primary \
-  npm run --silent replace:pace-v2:nat-pit-flags -- --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json --facts /approved/evidence/pace-v2-nat-corrected-facts.json
+  npm run --silent replace:pace-v2:nat-pit-flags -- --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json --facts "$artifact"
 ```
 
 The writer uses one serializable transaction and a five-second local timeout. It inserts all replacement facts then their immutable manifest/original/replacement fingerprint audit in the same transaction; any failed round rolls back the complete batch. `--silent` is required so npm lifecycle output does not contaminate JSON evidence. A refusal emits a non-sensitive `reason` code: contract and preflight failures are distinct from configuration, permission, timeout, serialization, duplicate-key, and unexpected runtime failures. Retain both input artifacts and stdout with UTC time, operator, deployed commit, and SHA-256.
