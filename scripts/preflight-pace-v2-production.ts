@@ -89,6 +89,7 @@ export interface PaceV2PreflightResult {
   status: 'ready' | 'attention' | 'missing';
   statement_timeout_ms: number;
   active_methodology_version: string;
+  pace_selection_relation: 'f1ql.lap_pace';
   v2_row_count: number;
   rows_by_session_type_and_methodology_version: Array<{ session_type: string; methodology_version: string; row_count: number }>;
   season_round_coverage: Array<{ season: number; round_count: number; rounds: number[] }>;
@@ -254,6 +255,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       await client.query('ROLLBACK');
       return {
         status: 'missing', statement_timeout_ms: STATEMENT_TIMEOUT_MS, active_methodology_version: ACTIVE_METHODOLOGY_VERSION,
+        pace_selection_relation: 'f1ql.lap_pace',
         v2_row_count: 0, rows_by_session_type_and_methodology_version: [], season_round_coverage: [], eligible_lap_counts: [],
         etl_audit: { available: false, freshness_by_season: [] },
         pace_audit: { manifest_available: false, audit_reconciliation_available: false, audit_reconciliation_immutable: false, identity_repair_available: false, identity_repair_immutable: false, rounds: [] },
@@ -261,7 +263,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       };
     }
 
-    const [total, grouped, coverage, auditRelation, manifestAuditRelation, reconciliationRelation, identityRepairAuditRelation] = await Promise.all([
+    const [total, grouped, coverage, lapPaceRelation, auditRelation, manifestAuditRelation, reconciliationRelation, identityRepairAuditRelation] = await Promise.all([
       client.query<{ row_count: string }>('SELECT COUNT(*)::text AS row_count FROM laps_normalized_v2'),
       client.query<{ session_type: string; methodology_version: string; row_count: string }>(`
         SELECT session_type, methodology_version, COUNT(*)::text AS row_count
@@ -274,10 +276,11 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
           COUNT(*) FILTER (WHERE session_type = 'R' AND methodology_version = $1
             AND lap_time_seconds IS NOT NULL AND is_valid_lap = true AND is_pit_lap = false
             AND is_in_lap = false AND is_out_lap = false)::int AS eligible_laps
-        FROM laps_normalized_v2
+        FROM f1ql.lap_pace
         GROUP BY season, round
         ORDER BY season, round
       `, [ACTIVE_METHODOLOGY_VERSION]),
+      client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['f1ql.lap_pace']),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['etl_runs_laps_normalized']),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['pace_v2_round_audit']),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['pace_v2_round_audit_reconciliation']),
@@ -285,6 +288,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
     ]);
 
     const auditAvailable = auditRelation.rows[0]?.relation === 'etl_runs_laps_normalized';
+    const lapPaceAvailable = lapPaceRelation.rows[0]?.relation === 'f1ql.lap_pace';
     const audit = auditAvailable
       ? await client.query<AuditRow>(`
         SELECT season, MAX(finished_at)::text AS newest_finished_at,
@@ -321,6 +325,9 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
     const conditions: Condition[] = [];
     if (number(total.rows[0]?.row_count) === 0) {
       conditions.push({ code: 'no_v2_rows', severity: 'error', detail: 'laps_normalized_v2 has no rows.' });
+    }
+    if (!lapPaceAvailable) {
+      conditions.push({ code: 'missing_lap_pace_relation', severity: 'error', detail: 'f1ql.lap_pace is unavailable; selected pace eligibility cannot be evaluated.' });
     }
     if (!grouped.rows.some((row) => row.session_type === 'R')) {
       conditions.push({ code: 'no_race_session_rows', severity: 'error', detail: 'No race-session rows are available.' });
@@ -361,6 +368,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       status: conditions.some((condition) => condition.severity === 'error') ? 'attention' : conditions.length ? 'attention' : 'ready',
       statement_timeout_ms: STATEMENT_TIMEOUT_MS,
       active_methodology_version: ACTIVE_METHODOLOGY_VERSION,
+      pace_selection_relation: 'f1ql.lap_pace',
       v2_row_count: number(total.rows[0]?.row_count),
       rows_by_session_type_and_methodology_version: grouped.rows.map((row) => ({ ...row, row_count: number(row.row_count) })),
       season_round_coverage: [...seasons.entries()].map(([season, rounds]) => ({ season, round_count: rounds.length, rounds })),

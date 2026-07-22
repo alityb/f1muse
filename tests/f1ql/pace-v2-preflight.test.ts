@@ -51,12 +51,13 @@ describe('pace v2 production preflight', () => {
   it('uses one read-only transaction and reports coverage, eligibility, and audit freshness', async () => {
     const { pool, calls } = mockPool();
     const result = await runPaceV2Preflight(pool);
-    expect(result).toMatchObject({ status: 'ready', v2_row_count: 4, season_round_coverage: [{ season: 2025, round_count: 1, rounds: [1] }], eligible_lap_counts: [{ season: 2025, round: 1, eligible_laps: 4 }], etl_audit: { available: true } });
+    expect(result).toMatchObject({ status: 'ready', pace_selection_relation: 'f1ql.lap_pace', v2_row_count: 4, season_round_coverage: [{ season: 2025, round_count: 1, rounds: [1] }], eligible_lap_counts: [{ season: 2025, round: 1, eligible_laps: 4 }], etl_audit: { available: true } });
     expect(calls[0]).toEqual({ sql: 'BEGIN READ ONLY', params: undefined });
     expect(calls[1]).toEqual({ sql: "SELECT set_config('statement_timeout', $1, true)", params: ['5000ms'] });
     expect(calls.at(-1)).toEqual({ sql: 'ROLLBACK', params: undefined });
     expect(calls.slice(2, -1).every((call) => /^(SELECT|WITH)\b/i.test(call.sql.trim()))).toBe(true);
     expect(calls.slice(2, -1).every((call) => !/\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|COPY)\b/i.test(call.sql))).toBe(true);
+    expect(calls.some((call) => call.sql.includes('FROM f1ql.lap_pace'))).toBe(true);
   });
 
   it('reports missing v2 data and unavailable audit without attempting ingestion', async () => {
