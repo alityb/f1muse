@@ -11,6 +11,10 @@ F1QL pace methodology version: `clean_air_gap_2_0s_v1`.
 
 Apply `20260721_pace_correctness_v2.sql` before running any updated lap ETL. It creates a new table and leaves `laps_normalized` unchanged. Historical migration into v2 is an explicit review task: copy only a season after verifying its session labels, source completeness, and clean-air method all match this document.
 
+## Schema Snapshot Contract
+
+The committed production-schema contract is refreshed only with `npm run schema:snapshot:production` from the Railway production environment. The guarded generator requires its explicit opt-in, opens `BEGIN READ ONLY`, sets a transaction-local 10-second statement timeout, reads only `information_schema`, and rolls back. The approved v2 migration is represented by the `laps_normalized_v2` table, its 18 columns, and its six-column session-inclusive primary key; snapshot capture never backfills or alters production data.
+
 ## Production Coverage And Freshness Protocol
 
 Run this only from an authorized production environment, inside `BEGIN READ ONLY` with a transaction-local five-second statement timeout. It performs no writes:
