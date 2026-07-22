@@ -21,6 +21,7 @@ interface Condition {
   season?: number;
   round?: number;
   detail?: string;
+  predicates?: AuditPredicate[];
 }
 
 interface CoverageRow {
@@ -57,10 +58,18 @@ interface IdentityRepairAuditRow {
   methodology_version: string;
 }
 
+interface AuditPredicate {
+  name: string;
+  passes: boolean;
+  expected: boolean | number | string | null;
+  actual: boolean | number | string | string[] | null;
+}
+
 interface AuditRoundResult {
   season: number;
   round: number;
   status: 'manifest_audit' | 'identity_repair_bridge' | 'missing_manifest_audit' | 'invalid_manifest_audit' | 'invalid_identity_repair_audit';
+  predicates: AuditPredicate[];
 }
 
 export interface PaceV2PreflightResult {
@@ -128,16 +137,23 @@ export function assessPaceV2AuditReadiness(
   for (const [key, rows] of factsByRound) {
     const [season, round] = key.split(':').map(Number);
     const fingerprint = fingerprintPaceV2FactRows(rows);
-    const methodologyMatches = rows.every((row) => row.methodology_version === ACTIVE_METHODOLOGY_VERSION);
+    const methodologyVersions = [...new Set(rows.map((row) => row.methodology_version))].sort();
+    const methodologyMatches = methodologyVersions.length === 1 && methodologyVersions[0] === ACTIVE_METHODOLOGY_VERSION;
     const manifest = manifests.get(key);
     if (manifest) {
-      const valid = manifest.session_type === 'R' && manifest.fact_fingerprint === fingerprint &&
-        number(manifest.fact_row_count) === rows.length && manifest.methodology_version === ACTIVE_METHODOLOGY_VERSION && methodologyMatches;
+      const predicates: AuditPredicate[] = [
+        { name: 'manifest_session_type', passes: manifest.session_type === 'R', expected: 'R', actual: manifest.session_type },
+        { name: 'manifest_fact_fingerprint', passes: manifest.fact_fingerprint === fingerprint, expected: fingerprint, actual: manifest.fact_fingerprint },
+        { name: 'manifest_fact_row_count', passes: number(manifest.fact_row_count) === rows.length, expected: rows.length, actual: number(manifest.fact_row_count) },
+        { name: 'manifest_methodology_version', passes: manifest.methodology_version === ACTIVE_METHODOLOGY_VERSION, expected: ACTIVE_METHODOLOGY_VERSION, actual: manifest.methodology_version },
+        { name: 'current_fact_methodology_version', passes: methodologyMatches, expected: ACTIVE_METHODOLOGY_VERSION, actual: methodologyVersions }
+      ];
+      const valid = predicates.every((predicate) => predicate.passes);
       if (valid) {
-        rounds.push({ season, round, status: 'manifest_audit' });
+        rounds.push({ season, round, status: 'manifest_audit', predicates });
       } else {
-        rounds.push({ season, round, status: 'invalid_manifest_audit' });
-        conditions.push({ code: 'invalid_manifest_audit', severity: 'error', season, round, detail: 'Persisted manifest audit does not match the complete current race fact contract.' });
+        rounds.push({ season, round, status: 'invalid_manifest_audit', predicates });
+        conditions.push({ code: 'invalid_manifest_audit', severity: 'error', season, round, detail: 'Persisted manifest audit does not match the complete current race fact contract.', predicates });
       }
       continue;
     }
@@ -149,19 +165,29 @@ export function assessPaceV2AuditReadiness(
       fact_row_count: number(repair.fact_row_count), source_fact_fingerprint: repair.source_fact_fingerprint,
       target_fact_fingerprint: repair.target_fact_fingerprint
     });
-    const validRepair = identityRepairImmutable && repair?.session_type === 'R' &&
-      repair.season === PACE_V2_IDENTITY_REPAIR_SEASON && repair.round === 1 && repair.repair_method === PACE_V2_IDENTITY_REPAIR_METHOD && repair.target_fact_fingerprint === fingerprint &&
-      number(repair.fact_row_count) === rows.length && repair.methodology_version === ACTIVE_METHODOLOGY_VERSION && methodologyMatches &&
-      /^[a-f0-9]{64}$/.test(repair.source_fact_fingerprint) && repair.source_fact_fingerprint !== repair.target_fact_fingerprint &&
-      repair.manifest_fingerprint === expectedRepairManifest?.manifest_fingerprint;
+    const predicates: AuditPredicate[] = repair ? [
+      { name: 'identity_repair_audit_immutable', passes: identityRepairImmutable, expected: true, actual: identityRepairImmutable },
+      { name: 'repair_session_type', passes: repair.session_type === 'R', expected: 'R', actual: repair.session_type },
+      { name: 'repair_season', passes: repair.season === PACE_V2_IDENTITY_REPAIR_SEASON, expected: PACE_V2_IDENTITY_REPAIR_SEASON, actual: repair.season },
+      { name: 'repair_round', passes: repair.round === 1, expected: 1, actual: repair.round },
+      { name: 'repair_method', passes: repair.repair_method === PACE_V2_IDENTITY_REPAIR_METHOD, expected: PACE_V2_IDENTITY_REPAIR_METHOD, actual: repair.repair_method },
+      { name: 'repair_target_fact_fingerprint', passes: repair.target_fact_fingerprint === fingerprint, expected: fingerprint, actual: repair.target_fact_fingerprint },
+      { name: 'repair_fact_row_count', passes: number(repair.fact_row_count) === rows.length, expected: rows.length, actual: number(repair.fact_row_count) },
+      { name: 'repair_methodology_version', passes: repair.methodology_version === ACTIVE_METHODOLOGY_VERSION, expected: ACTIVE_METHODOLOGY_VERSION, actual: repair.methodology_version },
+      { name: 'current_fact_methodology_version', passes: methodologyMatches, expected: ACTIVE_METHODOLOGY_VERSION, actual: methodologyVersions },
+      { name: 'repair_source_fact_fingerprint_format', passes: /^[a-f0-9]{64}$/.test(repair.source_fact_fingerprint), expected: 'sha256_hex', actual: repair.source_fact_fingerprint },
+      { name: 'repair_source_and_target_fingerprints_differ', passes: repair.source_fact_fingerprint !== repair.target_fact_fingerprint, expected: true, actual: repair.source_fact_fingerprint !== repair.target_fact_fingerprint },
+      { name: 'repair_manifest_fingerprint', passes: repair.manifest_fingerprint === expectedRepairManifest?.manifest_fingerprint, expected: expectedRepairManifest?.manifest_fingerprint ?? null, actual: repair.manifest_fingerprint }
+    ] : [{ name: 'manifest_audit_present', passes: false, expected: true, actual: false }];
+    const validRepair = repair !== undefined && predicates.every((predicate) => predicate.passes);
     if (validRepair) {
-      rounds.push({ season, round, status: 'identity_repair_bridge' });
+      rounds.push({ season, round, status: 'identity_repair_bridge', predicates });
     } else if (repair) {
-      rounds.push({ season, round, status: 'invalid_identity_repair_audit' });
-      conditions.push({ code: 'invalid_identity_repair_audit', severity: 'error', season, round, detail: 'Identity-repair audit cannot bridge the required manifest audit.' });
+      rounds.push({ season, round, status: 'invalid_identity_repair_audit', predicates });
+      conditions.push({ code: 'invalid_identity_repair_audit', severity: 'error', season, round, detail: 'Identity-repair audit cannot bridge the required manifest audit.', predicates });
     } else {
-      rounds.push({ season, round, status: 'missing_manifest_audit' });
-      conditions.push({ code: 'missing_manifest_audit', severity: 'error', season, round, detail: 'No immutable manifest audit covers this complete race fact set.' });
+      rounds.push({ season, round, status: 'missing_manifest_audit', predicates });
+      conditions.push({ code: 'missing_manifest_audit', severity: 'error', season, round, detail: 'No immutable manifest audit covers this complete race fact set.', predicates });
     }
   }
   return { rounds, conditions };
@@ -249,12 +275,12 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
     }
     for (const row of grouped.rows) {
       if (row.methodology_version !== ACTIVE_METHODOLOGY_VERSION) {
-        conditions.push({ code: 'inactive_methodology_version', severity: 'warning', detail: `${row.session_type} uses ${row.methodology_version}.` });
+        conditions.push({ code: 'inactive_methodology_version', severity: 'warning', detail: `${row.session_type} uses ${row.methodology_version}.`, predicates: [{ name: 'methodology_version', passes: false, expected: ACTIVE_METHODOLOGY_VERSION, actual: row.methodology_version }] });
       }
     }
     for (const row of eligibleLapCounts) {
       if (row.eligible_laps === 0) {
-        conditions.push({ code: 'round_without_eligible_laps', severity: 'warning', season: row.season, round: row.round });
+        conditions.push({ code: 'round_without_eligible_laps', severity: 'warning', season: row.season, round: row.round, predicates: [{ name: 'eligible_lap_count', passes: false, expected: '> 0', actual: row.eligible_laps }] });
       }
     }
     if (!auditAvailable) {
@@ -269,7 +295,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
     conditions.push(...paceAudit.conditions);
     for (const row of audit.rows) {
       if (row.statuses.some((status) => status !== 'success')) {
-        conditions.push({ code: 'etl_audit_partial_or_failed', severity: 'warning', season: number(row.season), detail: row.statuses.join(', ') });
+        conditions.push({ code: 'etl_audit_partial_or_failed', severity: 'warning', season: number(row.season), detail: row.statuses.join(', '), predicates: [{ name: 'etl_statuses', passes: false, expected: 'success_only', actual: row.statuses }] });
       }
     }
 

@@ -72,9 +72,24 @@ describe('pace v2 production preflight', () => {
     const targetFingerprint = fingerprintPaceV2FactRows([repairedFact]);
     const manifest = createPaceV2IdentityRepairManifest({ season: 2026, round: 1, session_type: 'R', methodology_version: 'clean_air_gap_2_0s_v1', from_track_id: 'australian_grand_prix', to_track_id: 'melbourne', fact_row_count: 1, source_fact_fingerprint: sourceFingerprint, target_fact_fingerprint: targetFingerprint });
     const repair = { season: 2026, round: 1, session_type: 'R', repair_method: PACE_V2_IDENTITY_REPAIR_METHOD, manifest_fingerprint: manifest.manifest_fingerprint, source_fact_fingerprint: sourceFingerprint, target_fact_fingerprint: targetFingerprint, fact_row_count: 1, methodology_version: 'clean_air_gap_2_0s_v1' };
-    expect(assessPaceV2AuditReadiness([repairedFact], [], [repair], true).rounds).toEqual([{ season: 2026, round: 1, status: 'identity_repair_bridge' }]);
+    expect(assessPaceV2AuditReadiness([repairedFact], [], [repair], true).rounds).toEqual([expect.objectContaining({ season: 2026, round: 1, status: 'identity_repair_bridge' })]);
     expect(assessPaceV2AuditReadiness([repairedFact], [], [{ ...repair, target_fact_fingerprint: 'c'.repeat(64) }], true).conditions).toContainEqual(expect.objectContaining({ code: 'invalid_identity_repair_audit' }));
     expect(assessPaceV2AuditReadiness([repairedFact], [{ season: 2026, round: 1, session_type: 'R', fact_fingerprint: 'c'.repeat(64), fact_row_count: 1, methodology_version: 'clean_air_gap_2_0s_v1' }], [repair], true).conditions).toContainEqual(expect.objectContaining({ code: 'invalid_manifest_audit' }));
     expect(assessPaceV2AuditReadiness([repairedFact], [], [repair], false).conditions).toContainEqual(expect.objectContaining({ code: 'invalid_identity_repair_audit' }));
+  });
+
+  it('reports every failed manifest predicate with current and persisted values', () => {
+    const currentFingerprint = fingerprintPaceV2FactRows([fact]);
+    const result = assessPaceV2AuditReadiness([fact], [{
+      season: 2025, round: 1, session_type: 'Q', fact_fingerprint: 'c'.repeat(64), fact_row_count: 2, methodology_version: 'legacy'
+    }], [], true);
+    const condition = result.conditions[0];
+    expect(condition).toMatchObject({ code: 'invalid_manifest_audit', predicates: expect.arrayContaining([
+      { name: 'manifest_session_type', passes: false, expected: 'R', actual: 'Q' },
+      { name: 'manifest_fact_fingerprint', passes: false, expected: currentFingerprint, actual: 'c'.repeat(64) },
+      { name: 'manifest_fact_row_count', passes: false, expected: 1, actual: 2 },
+      { name: 'manifest_methodology_version', passes: false, expected: 'clean_air_gap_2_0s_v1', actual: 'legacy' }
+    ]) });
+    expect(result.rounds[0]?.predicates.every((predicate) => typeof predicate.passes === 'boolean')).toBe(true);
   });
 });
