@@ -97,7 +97,7 @@ export function validateOfficial2026PaceTimingArtifactUrl(sourceUrl: string): vo
   }
 }
 
-export function summarizeOfficialTimingLaps(content: string, racingNumbers = REQUIRED_RACING_NUMBERS): OfficialTimingLapSummary[] {
+export function parseOfficialTimingLaps(content: string): Map<string, Map<number, number>> {
   const laps = new Map<string, Map<number, number>>();
   for (const rawLine of content.split('\n')) {
     const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
@@ -124,6 +124,11 @@ export function summarizeOfficialTimingLaps(content: string, racingNumbers = REQ
       }
     }
   }
+  return laps;
+}
+
+export function summarizeOfficialTimingLaps(content: string, racingNumbers = REQUIRED_RACING_NUMBERS): OfficialTimingLapSummary[] {
+  const laps = parseOfficialTimingLaps(content);
   return racingNumbers.map((racingNumber) => {
     const entries = [...(laps.get(racingNumber) ?? new Map<number, number>()).entries()].sort(([left], [right]) => left - right);
     const values = entries.map(([, seconds]) => seconds);
@@ -136,7 +141,7 @@ export function summarizeOfficialTimingLaps(content: string, racingNumbers = REQ
   });
 }
 
-function observedRacingNumbers(content: string): string[] {
+export function observedOfficialRacingNumbers(content: string): string[] {
   const numbers = new Set<string>();
   for (const rawLine of content.split('\n')) {
     const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
@@ -305,7 +310,7 @@ export function writeOfficial2026PaceTimingArtifact(
   const directory = fs.mkdtempSync(path.join(temporaryDirectory, `pace-v2-2026-r${testCase.round}-f1-timing-`), { encoding: 'utf8' });
   const output = path.join(directory, 'TimingData.jsonStream');
   fs.writeFileSync(output, artifact.content, { flag: 'wx', mode: 0o600 });
-  const observedNumbers = observedRacingNumbers(artifact.content.toString('utf8'));
+  const observedNumbers = observedOfficialRacingNumbers(artifact.content.toString('utf8'));
   const laps = summarizeOfficialTimingLaps(artifact.content.toString('utf8'), observedNumbers);
   return {
     version: 1 as const,

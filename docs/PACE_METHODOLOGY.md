@@ -209,6 +209,17 @@ npm run --silent fetch:pace-v2:official-inventory-2026
 
 The matrix's retirement classification is limited to literal `RETIRED` race-control messages; no such message was observed in retained streams. Its pit-heavy classification remains unestablished because incremental `TimingAppData.Stints` updates are not a reviewed pit-stop interpretation. V2 eligible-driver coverage is deliberately `not_assessed`: proving the overlap requires a separately retained read-only v2 observation and reviewed racing-number-to-driver mapping, and neither source shares F1QL's clean-air, pit, in-lap, and out-lap eligibility fields. This inventory makes no median claim or F1QL pace comparison.
 
+### Official Validation Layers 1-3
+
+`validate:pace-v2:official-layers:production` binds a retained `TimingData.jsonStream` file to the committed round URL/SHA-256 matrix, then performs one bounded `BEGIN READ ONLY` `laps_normalized_v2` observation with a five-second statement timeout. It requires `PACE_V2_OFFICIAL_LAYERS_ENABLED=true` and `PACE_V2_OFFICIAL_LAYERS_TARGET=production`, rejects loopback, and never writes. It reads the raw v2 facts, rather than the serving `f1ql.lap_pace` view, because the deployed view does not expose lap numbers required for per-lap evidence:
+
+```bash
+PACE_V2_OFFICIAL_LAYERS_ENABLED=true PACE_V2_OFFICIAL_LAYERS_TARGET=production \
+  npm run --silent validate:pace-v2:official-layers:production -- 2 /retained/TimingData.jsonStream
+```
+
+Layer 1 reports official racing-number coverage and v2 driver coverage. Layer 2 parses final completed raw timing laps and reports their count alongside v2 laps. Layer 3 emits one v2-lap evidence record with every v2 exclusion reason (`missing time`, `invalid`, `pit`, `in lap`, `out lap`). The retained official streams identify drivers only by racing number and do not carry the reviewed clean-air, pit, in-lap, or out-lap fields. Until a hashed, reviewed racing-number-to-v2-driver mapping and shared eligibility authority are retained, identity-dependent driver/lap comparisons are explicitly `unverified`, and official clean-air/pit metadata is `unavailable_not_inferred`.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
