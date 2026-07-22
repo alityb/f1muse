@@ -1,0 +1,45 @@
+# Production Evidence Ledger
+
+This is the authoritative index for material production operations. It records
+what was actually retained, including historical evidence gaps. It does not turn
+a database observation into external factual validation, and it does not replace
+the source-specific protocols linked below.
+
+All production database reads listed here used the guarded command's `BEGIN READ
+ONLY` transaction, transaction-local statement timeout, and rollback unless a
+row explicitly says otherwise. "Not retained" is deliberate: this ledger does
+not infer a command, timestamp, commit, or hash from prose alone.
+
+| UTC | Commit SHA | Command | Classification | Artifact hash/path | Outcome | Evidence scope |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-20, exact UTC not retained | `568dccd` | `railway logs --service main --environment production --since 5m --json` and production `POST /program/translate` | Read-only service/log observation | Raw JSONL was retained in the approved temporary directory; hash/path not retained | One known-driver shadow `pace_summary` succeeded; report had no rejection reasons | Shadow translation observability only. The translator did not execute a translated database query. |
+| 2026-07-21, exact UTC not retained | `2838fab` | `railway run --no-local --service main --environment production env F1QL_PRODUCTION_GOLDEN_ENABLED=true F1QL_PRODUCTION_GOLDEN_TARGET=production npm run --silent golden:f1ql:production` | Read-only database observation | Command stdout artifact hash/path not retained | 18 committed corpus checks passed in one read-only transaction | Bounded FIA/Formula 1 factual and structural corpus only; not a whole-database verification. See `docs/F1QL_PRODUCTION_CORPUS.md`. |
+| 2026-07-21, exact UTC not retained | not retained | Approved Supabase SQL Editor application of Phase 4 event/qualifying views and pace-v2 correctness migration | Write/DDL, authorized historical operation | Migration console artifacts/hash not retained | Production views and `laps_normalized_v2` were subsequently observed | Historical schema change, not re-executed by this reconciliation. See `WORK_LOG.md`. |
+| 2026-07-21, exact UTC not retained | not retained | `railway run --no-local --service main --environment production npm run schema:snapshot:production` | Read-only schema observation | `tests/schema/snapshots/production-schema.json`; committed artifact, no standalone run hash retained | Snapshot captured `laps_normalized_v2` with 18 columns and session-inclusive key | Schema at capture time only; it predates later replacement/rebuild relations and is not the current audit-state authority. |
+| 2026-07-22, exact UTC not retained | `384e8f3` | `railway run --no-local --service main --environment production env PACE_V2_PREFLIGHT_ENABLED=true PACE_V2_PREFLIGHT_TARGET=production npm run --silent preflight:pace-v2:production` | Read-only database observation | Stdout path/hash not retained | Serving `f1ql.lap_pace` selected the approved `nat_pit_flags_v1` replacement for rounds 2-10; all eligibility predicates and immutable audit checks passed | Serving-selection and immutable-audit evidence. The later fresh preflight below reconfirms readiness, not an independent external pace truth. |
+| 2026-07-22, exact UTC not retained | `a5d1134` | `railway run --no-local --service main --environment production env PACE_V2_OFFICIAL_LAYERS_ENABLED=true PACE_V2_OFFICIAL_LAYERS_TARGET=production npm run --silent validate:pace-v2:official-layers:production -- 2 <retained TimingData> <retained DriverList>` | Read-only database plus official-artifact observation | Timing `380259ce59c9e7b5b81aa4872106e2a3ba9e476fd7129d31f27fcc45aa2b747d`; DriverList `7849c324df1cfddf363dc65c0f90e06c0ae57c4df68430034fb814b1919f41e5`; raw paths not retained in repository | 22 official identities mapped; 815 of 816 comparable v2 raw laps exactly matched; one official-missing comparison and 85 official-only records remained coverage gaps | Raw timing and identity evidence only. It does not validate clean-air, pit, in-lap, out-lap, or F1QL pace eligibility. |
+| 2026-07-22, exact UTC not retained | `6f51038` | `railway run --no-local --service main --environment production env DATABASE_AUTHORITY_AUDIT_ENABLED=true DATABASE_AUTHORITY_AUDIT_TARGET=production npm run --silent audit:database-authority:production` | Read-only database observation | Stdout path/hash not retained | 23 fixed authoritative checks passed; observed calendar/classification/standings/qualifying coverage from 1950-2026 and 2026 pace coverage | Quantified authority sample and coverage inventory, not verification of every row. See `docs/PRODUCTION_DATABASE_AUTHORITY_AUDIT.md`. |
+| 2026-07-22T23:43:51Z capture start | `f4381a5` | `railway run --no-local --service main --environment production env PACE_V2_PREFLIGHT_ENABLED=true PACE_V2_PREFLIGHT_TARGET=production npm run --silent preflight:pace-v2:production` | Read-only database observation | SHA-256 `62b1423df7a3bc04591d6c64b0e88acd743db3ac464e4e798b304839f6eb1a6e`; `/var/folders/p9/gh5frnt56_l4t03p8dl_fq3m0000gn/T/opencode/pace-v2-preflight-20260722T235000Z.json` | `ready`: 9,577 v2 rows, 10 2026 rounds, serving relation `f1ql.lap_pace`; round 1 identity-repair bridge and rounds 2-10 immutable fingerprint-only reconciliations all passed | Current serving/audit state. Rounds 2-10 have 816, 923, 858, 1,045, 1,177, 1,035, 1,164, 856, and 703 eligible serving laps. Historical ETL partial-failure statuses remain warnings only. |
+| 2026-07-22T23:43:51Z capture start | `f4381a5` | `railway run --no-local --service main --environment production env PACE_V2_NAT_IDENTITY_MAP_ENABLED=true PACE_V2_NAT_IDENTITY_MAP_TARGET=production npm run --silent generate:pace-v2:nat-identity-map:production` | Read-only database plus FastF1 metadata observation | SHA-256 `e69d5784a939da8315a62eea1015cb7c20a275b4edd6e02390d7047a6d63a45e`; `/var/folders/p9/gh5frnt56_l4t03p8dl_fq3m0000gn/T/pace-v2-nat-identity-map-lZe01K/identity-map.json` | Generated canonical identity artifact | Exact contract is `version: 2`, `source: "canonical_race_results_fastf1_identity_map"`, season 2026, rounds 2-10, with canonical starter mappings and explicit official non-starter codes. This artifact is evidence-generation input; it is not itself an approval to write. |
+| 2026-07-22T23:43:51Z capture start | `f4381a5` | `railway run --no-local --service main --environment production env RETIREMENT_REASON_SAMPLING_ENABLED=true RETIREMENT_REASON_SAMPLING_TARGET=production npm run --silent sample:retirement-reasons:production` | Read-only database observation | SHA-256 `87b7a5e37f572a62886fcaf63b18757aeb557ef1b049d479dbe82ff89fb51b71`; `/var/folders/p9/gh5frnt56_l4t03p8dl_fq3m0000gn/T/opencode/retirement-reasons-20260722T235000Z.json` | 100 bounded aggregate labels sampled; known labels normalized and unrecognized labels remained `unknown` | Completes Phase 4's production sampling evidence. It is a bounded label inventory, not a basis for broadening the conservative normalization map without review. |
+
+## Reconciliation
+
+- NaT replacements serve: yes. The 2026-07-22 serving-selection observation and
+  the fresh preflight show rounds 2-10 have nonzero selected eligible laps while
+  the original NaT poison class remains protected by immutable reconciliation
+  evidence. No original v2 fact or prior audit was changed by this work.
+- Identity-map authority: only canonical v2 is current. The v1 shape
+  `approved_fastf1_identity_map` is superseded and rejected by the corrected-facts
+  parser. The fresh v2 artifact and hash above are the exact retained evidence.
+- Retirement sampling: completed. `WORK_LOG.md` was correct; the older
+  "intentionally unrun" statements in `PROGRESS.md` and `PACE_METHODOLOGY.md`
+  were stale and are superseded by this ledger.
+- Current schema/audit state: the committed schema snapshot is historical. The
+  fresh preflight is the current authority for serving/audit readiness; it found
+  the manifest, reconciliation, and identity-repair audit relations available
+  with their required immutable triggers enabled.
+
+For future material production operations, retain stdout or source artifacts
+outside the database, calculate SHA-256, and add a row here in the same change
+that records the result in `PROGRESS.md`.

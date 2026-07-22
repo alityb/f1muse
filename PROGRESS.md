@@ -16,9 +16,16 @@
 - Phase 1: COMPLETE. The Railway historical-log fetch was proven during Phase 2.
 - Phase 2: COMPLETE. All six validation gates, local definition-of-done suites, typed observability flow, and the production shadow round-trip are verified.
 - Phase 3: COMPLETE. Pace, classification, and standings execute through the generic core IR; no macro-shaped pace execution remains.
-- Phase 4: PARTIAL. Areas 1-3 and retirement-reason normalization/sampling safeguards are complete locally; production sampling is intentionally unrun.
-- Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
+- Phase 4: COMPLETE. Areas 1-3 and retirement-reason normalization are complete; the bounded guarded production retirement sample is recorded in `docs/PRODUCTION_EVIDENCE_LEDGER.md`.
+- Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling is complete; see `docs/PRODUCTION_EVIDENCE_LEDGER.md`.
 - Phase 5: PARTIAL. A data-driven initial golden corpus and bounded core-IR property backbone cover all current Phase 4 sources; the 100-question expansion, metamorphic, differential, and nightly suites do not.
+
+### Priority 1 Production Record Reconciliation (2026-07-22)
+- Added `docs/PRODUCTION_EVIDENCE_LEDGER.md` as the authoritative index for material production operations, including command, UTC capture point, commit, artifact hash/path, read/write classification, outcome, and bounded evidence scope. Historical gaps are explicitly marked `not retained`; no timestamp, command, or hash is inferred from prose.
+- Fresh guarded read-only preflight reported `ready`: `f1ql.lap_pace` serves all ten 2026 rounds with 9,577 v2 source rows; round 1's immutable identity-repair bridge and rounds 2-10's immutable fingerprint-only audit reconciliations pass. The retained stdout report is SHA-256 `62b1423df7a3bc04591d6c64b0e88acd743db3ac464e4e798b304839f6eb1a6e` at the ledger path. Historical ETL `partial_failure` statuses for 2022, 2023, 2025, and 2026 remain warnings, not readiness errors.
+- Fresh guarded identity evidence generated the only accepted contract: `version: 2`, `source: "canonical_race_results_fastf1_identity_map"`, season 2026 rounds 2-10, SHA-256 `e69d5784a939da8315a62eea1015cb7c20a275b4edd6e02390d7047a6d63a45e`. `docs/PACE_METHODOLOGY.md` no longer describes the rejected v1 contract.
+- Fresh guarded retirement sampling completed with 100 bounded aggregate labels; its retained stdout report is SHA-256 `87b7a5e37f572a62886fcaf63b18757aeb557ef1b049d479dbe82ff89fb51b71`. Known mappings normalize, and unreviewed labels remain `unknown`. This resolves the stale conflict: `WORK_LOG.md` was correct and earlier `PROGRESS.md` statements that sampling was intentionally unrun are superseded.
+- No production write, DDL, deploy, or shadow-translation execution occurred during this reconciliation.
 
 ### Phase 5 Production Database Authority Audit (2026-07-22)
 - Added `audit:database-authority:production`: a dual-confirmed, loopback-refusing, single-connection audit that uses `BEGIN READ ONLY`, a 5000 ms transaction-local timeout, fixed read-only statements, and rollback. It inventories calendar/races, classification, standings, qualifying, pace, F1QL-projected identities, and local scoring-rule intervals; it has no mutation, persistent log, or shadow-translation execution path.

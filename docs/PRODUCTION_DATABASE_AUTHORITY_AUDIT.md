@@ -2,6 +2,8 @@
 
 `npm run audit:database-authority:production` is a bounded, evidence-only audit.
 It is intentionally not an assertion that every production fact has been verified.
+Record each invocation and its retained artifact in
+`docs/PRODUCTION_EVIDENCE_LEDGER.md`.
 
 ## Safety
 

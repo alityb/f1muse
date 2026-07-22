@@ -93,7 +93,7 @@ The reconciler uses one serializable transaction and five-second local timeout, 
 
 F1QL's `f1ql.lap_pace` uses original v2 facts for every healthy round. It switches an affected round only when that round has an immutable `nat_pit_flags_v1` approval record, so an unapproved, partial, or unaudited replacement is never visible to F1QL. The writer verifies each retained original round is still wholly in the known poison class, has its exact reviewed fingerprint and row count, and has exactly the same lap identities as the corrected artifact. The corrected artifact must no longer retain the all-three-flags poison class.
 
-This is an explicit primary-only procedure, not ingestion and not a production command to run automatically. First apply the reviewed migration through the approved primary migration channel. From an authorized read-only production environment, generate and independently review the one complete nine-round manifest:
+This is an explicit primary-only procedure, not ingestion and not a production command to run automatically. First apply the reviewed migration through the approved primary migration channel. The production result and current audit state are indexed in `docs/PRODUCTION_EVIDENCE_LEDGER.md`. From an authorized read-only production environment, generate and independently review the one complete nine-round manifest:
 
 ```bash
 PACE_V2_NAT_REPLACEMENT_MANIFEST_ENABLED=true PACE_V2_NAT_REPLACEMENT_MANIFEST_TARGET=production \
@@ -107,7 +107,7 @@ PACE_V2_NAT_IDENTITY_MAP_ENABLED=true PACE_V2_NAT_IDENTITY_MAP_TARGET=production
   npm run --silent generate:pace-v2:nat-identity-map:production
 ```
 
-It queries only 2026 rounds 2-10 v2 facts joined to canonical race-result and driver identities in one `BEGIN READ ONLY` transaction with a five-second local timeout, then rolls back. It fetches each FastF1 Race session and accepts only an exact one-to-one match between its driver codes, canonical driver abbreviations, and v2 driver IDs. It rejects mixed/missing tracks, ambiguous codes, counts, or any FastF1/race/v2 identity mismatch. Its only artifact is a newly created mode-0600 JSON file below the OS temporary directory; stdout is one report containing that absolute `output` path and its SHA-256. Pass that path directly to the corrected-facts generator. The artifact shape is `{version: 1, source: "approved_fastf1_identity_map", season: 2026, rounds: [...]}`. The manifest remains the only corrected-facts round selector; the generator accepts exactly rounds 2-10, writes only to a newly created OS-temporary path, and emits per-round corrected counts/fingerprints on stdout:
+It queries only canonical 2026 rounds 2-10 race-result and driver identities in one `BEGIN READ ONLY` transaction with a five-second local timeout, then rolls back. It fetches each FastF1 Race session and accepts only canonical starters plus explicit canonical DNS/withdrawal exclusions; it does not use persisted v2 rows to define the map. It rejects mixed/missing tracks, ambiguous codes, counts, or any FastF1/canonical identity mismatch. Its only artifact is a newly created mode-0600 JSON file below the OS temporary directory; stdout is one report containing that absolute `output` path and its SHA-256. Pass that path directly to the corrected-facts generator. The only accepted artifact shape is `{version: 2, source: "canonical_race_results_fastf1_identity_map", season: 2026, rounds: [...]}`; legacy v1 `approved_fastf1_identity_map` artifacts are rejected. The manifest remains the only corrected-facts round selector; the generator accepts exactly rounds 2-10, writes only to a newly created OS-temporary path, and emits per-round corrected counts/fingerprints on stdout:
 
 ```bash
 artifact="$(mktemp -t pace-v2-nat-corrected-facts).json"
@@ -126,7 +126,9 @@ PACE_V2_NAT_REPLACEMENT_ENABLED=true PACE_V2_NAT_REPLACEMENT_TARGET=primary \
 
 The writer uses one serializable transaction and a five-second local timeout. It inserts all replacement facts then their immutable manifest/original/replacement fingerprint audit in the same transaction; any failed round rolls back the complete batch. `--silent` is required so npm lifecycle output does not contaminate JSON evidence. A refusal emits a non-sensitive `reason` code: contract and preflight failures are distinct from configuration, permission, timeout, serialization, duplicate-key, and unexpected runtime failures. Retain both input artifacts and stdout with UTC time, operator, deployed commit, and SHA-256.
 
-The preflight's coverage query is equivalent to:
+The current production preflight and its retained artifact are recorded in `docs/PRODUCTION_EVIDENCE_LEDGER.md`; the query below describes the original-v2 coverage component, while serving eligibility is read from `f1ql.lap_pace` so approved replacements are represented.
+
+The original-v2 coverage query is equivalent to:
 
 ```sql
 SELECT season, methodology_version, max(updated_at) AS newest_row,
