@@ -87,6 +87,28 @@ PACE_V2_AUDIT_RECONCILIATION_ENABLED=true PACE_V2_AUDIT_RECONCILIATION_TARGET=pr
 
 The reconciler uses one serializable transaction and five-second local timeout, verifies its evidence relation and immutable trigger, locks the original audit and facts, repeats the exact session/count/methodology and fingerprint-only checks, then inserts one evidence row. It never updates facts or `pace_v2_round_audit`. Retain reviewed manifest and stdout with UTC time, operator, deployed commit, and SHA-256. Preflight accepts this evidence only when its immutable trigger, method, manifest fingerprint, original fingerprint, current fingerprint, count, and methodology exactly match; it otherwise remains an error.
 
+### NaT Pit-Flag Replacement Facts
+
+2026 race rounds 2-10 were poisoned when absent FastF1 pit timestamps (`NaT`) were treated as present. Their original `laps_normalized_v2` rows and all prior immutable audits must not be updated, deleted, or repurposed. `20260725_pace_v2_nat_replacement.sql` adds a separate, deliberately narrow `nat_pit_flags_v1` replacement fact relation and immutable approval audit. It is constrained to exactly the reviewed 2026 race-round range and active methodology; the replacement facts cannot be updated or deleted, and no facts can be added after approval.
+
+F1QL's `f1ql.lap_pace` uses original v2 facts for every healthy round. It switches an affected round only when that round has an immutable `nat_pit_flags_v1` approval record, so an unapproved, partial, or unaudited replacement is never visible to F1QL. The writer verifies each retained original round is still wholly in the known poison class, has its exact reviewed fingerprint and row count, and has exactly the same lap identities as the corrected artifact. The corrected artifact must no longer retain the all-three-flags poison class.
+
+This is an explicit primary-only procedure, not ingestion and not a production command to run automatically. First apply the reviewed migration through the approved primary migration channel. From an authorized read-only production environment, generate and independently review the one complete nine-round manifest:
+
+```bash
+PACE_V2_NAT_REPLACEMENT_MANIFEST_ENABLED=true PACE_V2_NAT_REPLACEMENT_MANIFEST_TARGET=production \
+  npm run generate:pace-v2:nat-replacement:production > /approved/evidence/pace-v2-nat-replacement-manifest.json
+```
+
+The generator uses one read-only transaction, a five-second local timeout, and rollback. It emits no manifest unless every fixed round is complete, active-methodology, and still has all three poisoned flags. Prepare the corrected FastF1 artifact with the fixed `pd.isna` extractor as JSON `{version: 1, replacement_version: "nat_pit_flags_v1", methodology_version: "clean_air_gap_2_0s_v1", facts: [...]}`; retain its generation command, extractor revision, SHA-256, and source evidence outside the database. An approved primary operator may then run:
+
+```bash
+PACE_V2_NAT_REPLACEMENT_ENABLED=true PACE_V2_NAT_REPLACEMENT_TARGET=primary \
+  npm run replace:pace-v2:nat-pit-flags -- --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json --facts /approved/evidence/pace-v2-nat-corrected-facts.json
+```
+
+The writer uses one serializable transaction and a five-second local timeout. It inserts all replacement facts then their immutable manifest/original/replacement fingerprint audit in the same transaction; any failed round rolls back the complete batch. Retain both input artifacts and stdout with UTC time, operator, deployed commit, and SHA-256. This procedure has not been run against production.
+
 The preflight's coverage query is equivalent to:
 
 ```sql

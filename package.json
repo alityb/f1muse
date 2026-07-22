@@ -54,6 +54,8 @@
     "repair:pace-v2:identity": "tsx scripts/repair-pace-v2-identity.ts",
     "generate:pace-v2:audit-reconciliation:production": "tsx scripts/generate-pace-v2-audit-reconciliation-manifest.ts",
     "reconcile:pace-v2:audit": "tsx scripts/reconcile-pace-v2-audit.ts",
+    "generate:pace-v2:nat-replacement:production": "tsx scripts/generate-pace-v2-nat-replacement-manifest.ts",
+    "replace:pace-v2:nat-pit-flags": "tsx scripts/replace-pace-v2-nat-pit-flags.ts",
     "validate:pace-v2:event:production": "tsx scripts/validate-pace-v2-event-artifact.ts",
     "import:f1db:safe": "bash f1db-import/import-f1db-safe.sh",
     "etl:pace-metrics": "ts-node src/etl/populate-pace-metrics-2025.ts",

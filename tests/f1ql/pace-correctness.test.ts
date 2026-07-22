@@ -51,4 +51,25 @@ describe('pace and classification factual correctness', () => {
       avg_lap_time_seconds: 100.5
     }]);
   });
+
+  it('uses an approved replacement only for its audited poisoned round and retains healthy originals', async () => {
+    await pool.query(`INSERT INTO laps_normalized_v2
+      (season, round, track_id, driver_id, session_type, lap_number, stint_id, stint_lap_index, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version) VALUES
+      (2026, 2, 'poisoned', 'driver_a', 'R', 1, 1, 1, 100, true, true, true, true, false, 'clean_air_gap_2_0s_v1'),
+      (2026, 2, 'poisoned', 'driver_a', 'R', 2, 1, 2, 101, true, true, true, true, false, 'clean_air_gap_2_0s_v1'),
+      (2026, 11, 'healthy', 'driver_a', 'R', 1, 1, 1, 90, true, false, false, false, true, 'clean_air_gap_2_0s_v1'),
+      (2026, 11, 'healthy', 'driver_a', 'R', 2, 1, 2, 91, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
+    await pool.query(`INSERT INTO pace_v2_lap_replacement
+      (replacement_version, season, round, track_id, driver_id, session_type, lap_number, stint_id, stint_lap_index, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version) VALUES
+      ('nat_pit_flags_v1', 2026, 2, 'poisoned', 'driver_a', 'R', 1, 1, 1, 100, true, false, false, false, true, 'clean_air_gap_2_0s_v1'),
+      ('nat_pit_flags_v1', 2026, 2, 'poisoned', 'driver_a', 'R', 2, 1, 2, 101, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
+    await pool.query(`INSERT INTO pace_v2_replacement_audit
+      (replacement_version, season, round, session_type, replacement_manifest_fingerprint, original_fact_fingerprint, replacement_fact_fingerprint, fact_row_count, methodology_version)
+      VALUES ('nat_pit_flags_v1', 2026, 2, 'R', 'manifest', 'original', 'replacement', 2, 'clean_air_gap_2_0s_v1')`);
+    const rows = await pool.query(`SELECT round, is_pit_lap FROM f1ql.lap_pace WHERE season = 2026 AND driver_id = 'driver-a' ORDER BY round, lap_time_seconds`);
+    expect(rows.rows).toEqual([
+      { round: 2, is_pit_lap: false }, { round: 2, is_pit_lap: false },
+      { round: 11, is_pit_lap: false }, { round: 11, is_pit_lap: false }
+    ]);
+  });
 });

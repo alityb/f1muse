@@ -372,6 +372,21 @@ export async function setupTestDatabase(
       methodology_version TEXT NOT NULL,
       PRIMARY KEY (season, round, track_id, driver_id, session_type, lap_number)
     );
+    CREATE TABLE IF NOT EXISTS pace_v2_lap_replacement (
+      replacement_version TEXT NOT NULL, season INTEGER NOT NULL, round INTEGER NOT NULL,
+      track_id TEXT NOT NULL, driver_id TEXT NOT NULL, session_type TEXT NOT NULL, lap_number INTEGER NOT NULL,
+      stint_id INTEGER NOT NULL, stint_lap_index INTEGER NOT NULL, lap_time_seconds NUMERIC,
+      is_valid_lap BOOLEAN NOT NULL, is_pit_lap BOOLEAN NOT NULL, is_out_lap BOOLEAN NOT NULL,
+      is_in_lap BOOLEAN NOT NULL, clean_air_flag BOOLEAN NOT NULL, compound TEXT, tyre_age_laps INTEGER,
+      methodology_version TEXT NOT NULL,
+      PRIMARY KEY (replacement_version, season, round, track_id, driver_id, session_type, lap_number)
+    );
+    CREATE TABLE IF NOT EXISTS pace_v2_replacement_audit (
+      replacement_version TEXT NOT NULL, season INTEGER NOT NULL, round INTEGER NOT NULL, session_type TEXT NOT NULL,
+      replacement_manifest_fingerprint TEXT NOT NULL, original_fact_fingerprint TEXT NOT NULL,
+      replacement_fact_fingerprint TEXT NOT NULL, fact_row_count INTEGER NOT NULL, methodology_version TEXT NOT NULL,
+      PRIMARY KEY (replacement_version, season, round, session_type)
+    );
   `);
 
   console.log('Creating table: teammate gap compatibility tables');
@@ -458,6 +473,17 @@ export async function setupTestDatabase(
     FROM season_driver_standing s;
 
     CREATE OR REPLACE VIEW f1ql.lap_pace AS
+    WITH approved_replacements AS (
+      SELECT l.* FROM pace_v2_lap_replacement l
+      JOIN pace_v2_replacement_audit a ON a.replacement_version = l.replacement_version AND a.season = l.season AND a.round = l.round AND a.session_type = l.session_type
+      WHERE a.replacement_version = 'nat_pit_flags_v1'
+    ), selected_laps AS (
+      SELECT l.season, l.round, l.track_id, l.driver_id, l.session_type, l.lap_number, l.lap_time_seconds, l.is_valid_lap, l.is_pit_lap, l.is_in_lap, l.is_out_lap, l.clean_air_flag, l.compound, l.tyre_age_laps, l.methodology_version
+      FROM laps_normalized_v2 l
+      WHERE NOT EXISTS (SELECT 1 FROM pace_v2_replacement_audit a WHERE a.replacement_version = 'nat_pit_flags_v1' AND a.season = l.season AND a.round = l.round AND a.session_type = l.session_type)
+      UNION ALL
+      SELECT season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, compound, tyre_age_laps, methodology_version FROM approved_replacements
+    )
     SELECT
       l.season,
       l.round,
@@ -473,7 +499,7 @@ export async function setupTestDatabase(
       l.tyre_age_laps,
       l.session_type,
       l.methodology_version
-    FROM laps_normalized_v2 l;
+    FROM selected_laps l;
 
     CREATE OR REPLACE VIEW f1ql.event_classification AS
     SELECT r.year AS season, r.round, REPLACE(rd.driver_id, '_', '-') AS driver_id, rd.constructor_id AS team_id,
