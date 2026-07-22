@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-07-21 - Phase 4 Repair And Pace Artifact Protocol
+
+- Added a separately invoked, flag-gated primary repair path for the existing v2 round-1 exact identity alias only. It requires a checksum-validated repair manifest containing source and target full-row fingerprints, row count, session, and methodology contract before the one permitted update.
+- Added a forward-only immutable `pace_v2_identity_repair_audit` migration. The repair locks facts in a serializable transaction, validates source rows before mutation and target rows afterward, then records audit evidence atomically.
+- Added a bounded selected-event pace artifact protocol. It is read-only, dual-flagged, capped at 30 driver medians, and declares database-observation scope rather than independent external truth without a retained authority artifact.
+- No production query, migration, repair, ingestion, or deployment was run.
+
 ## 2026-07-21 - Phase 4 Manifest Safety Fixes
 
 - Added exact, reviewed pace-v2 track reconciliation for `australian_grand_prix` to canonical `melbourne`; unlisted identities are unchanged and fail existing exact checks rather than being guessed.

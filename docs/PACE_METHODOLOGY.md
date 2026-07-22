@@ -29,6 +29,19 @@ The writer rejects altered manifests, calendar drift, incomplete persisted state
 
 Track identities are reconciled only through the reviewed exact map in `src/etl/pace-v2-manifest.ts`. The current approved mapping is `australian_grand_prix` to canonical `melbourne`; unlisted values are never guessed, normalized, or replaced. Existing pilot facts with `track_id = australian_grand_prix` are intentionally not mutated or deleted. The writer fails closed before FastF1 for that round because its persisted identity differs from canonical `melbourne`. Remediation requires a separately reviewed reconciliation plan that inventories the affected round and fingerprints, specifies an explicit approved repair transaction and rollback/evidence procedure, and is authorized by a production primary operator. Do not run any repair automatically as part of manifest ingestion.
 
+### Explicit Identity Repair
+
+`repair:pace-v2:identity` is the only repair path. It is not called by manifest ingestion and is disabled unless both `PACE_V2_IDENTITY_REPAIR_ENABLED=true` and `PACE_V2_IDENTITY_REPAIR_TARGET=primary` are present. Its sole accepted manifest shape is version 1, season 2026 round 1 race session `R`, active methodology, the exact approved alias `australian_grand_prix -> melbourne`, a positive row count, source and target fact fingerprints, and a manifest fingerprint over that complete contract. Any other round, alias, session, methodology, changed manifest, existing repair audit, mixed track identity, row-count mismatch, or source/target fingerprint mismatch aborts and rolls back.
+
+An approved primary operator must generate the source-row and prospective canonical-row fingerprints from a read-only retained evidence extract, review the one-round manifest, and run:
+
+```bash
+PACE_V2_IDENTITY_REPAIR_ENABLED=true PACE_V2_IDENTITY_REPAIR_TARGET=primary \
+  npm run repair:pace-v2:identity -- --manifest /approved/pace-v2-round-1-identity-repair.json
+```
+
+Apply `20260723_pace_v2_identity_repair_audit.sql` first through the approved primary migration channel. The repair uses one serializable transaction and a five-second transaction-local timeout, locks the affected facts, validates the complete source contract before its only update, validates the target fingerprint after it, then inserts one row into immutable `pace_v2_identity_repair_audit` before commit. Retain the reviewed manifest and stdout result outside the database with UTC time, operator, deployed commit, and SHA-256. This repair has not been authorized or run against production.
+
 Before any writer use, an approved primary operator must review and apply `migrations/20260722_pace_v2_manifest_audit.sql` after `20260721_pace_correctness_v2.sql`. Do not run either through the application role or a read-only connection.
 
 ## Schema Snapshot Contract
@@ -57,3 +70,14 @@ ORDER BY season, methodology_version;
 ```
 
 Accept a season for F1QL pace only when it has exactly `clean_air_gap_2_0s_v1`, expected completed race rounds, and a plausible newest-row timestamp after the last intended ingestion. A missing v2 relation, a second methodology version, stale timestamp, or incomplete round count is a failed coverage/freshness check. Save the one read-only JSON/CSV artifact outside the database with UTC time, deployed commit, operator, and expected completed-round count. Do not backfill, alter, or repair production during this check.
+
+## Selected Event Pace Artifact
+
+For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
+
+```bash
+PACE_V2_EVENT_ARTIFACT_ENABLED=true PACE_V2_EVENT_ARTIFACT_TARGET=production \
+  npm run validate:pace-v2:event:production -- 2026 1 > /approved/evidence/pace-v2-event-2026-1.json
+```
+
+It rejects loopback targets, uses one read-only transaction with a five-second local timeout, and returns at most 30 driver medians from active-methodology eligible race laps. The output is explicitly scoped as `database_observation_only` and states `external_truth: unverified_without_authoritative_artifact`; it is not an independent factual claim. To promote an observation, retain a separate authoritative external artifact and record its source, retrieval UTC time, SHA-256, selected fields, and comparison result alongside this database observation. Do not treat an absent external artifact as validation.

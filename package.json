@@ -50,6 +50,8 @@
     "ingest:season": "ts-node src/etl/ingest-season-2025.ts",
     "pace:v2:manifest": "tsx scripts/generate-pace-v2-manifest.ts",
     "ingest:pace-v2:manifest": "tsx src/etl/season-ingestion.ts --manifest",
+    "repair:pace-v2:identity": "tsx scripts/repair-pace-v2-identity.ts",
+    "validate:pace-v2:event:production": "tsx scripts/validate-pace-v2-event-artifact.ts",
     "import:f1db:safe": "bash f1db-import/import-f1db-safe.sh",
     "etl:pace-metrics": "ts-node src/etl/populate-pace-metrics-2025.ts",
     "validate:teammate-gap": "tsx src/diagnostics/validate-teammate-gap-ingestion.ts",
