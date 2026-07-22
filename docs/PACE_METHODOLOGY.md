@@ -139,6 +139,18 @@ ORDER BY season, methodology_version;
 
 Accept a season for F1QL pace only when it has exactly `clean_air_gap_2_0s_v1`, expected completed race rounds, and a plausible newest-row timestamp after the last intended ingestion. A missing v2 relation, a second methodology version, stale timestamp, or incomplete round count is a failed coverage/freshness check. Save the one read-only JSON/CSV artifact outside the database with UTC time, deployed commit, operator, and expected completed-round count. Do not backfill, alter, or repair production during this check.
 
+### Round-2 Missing-Driver Timing Evidence
+
+The 2026 round-2 FastF1 Race payload currently has one positive lap-number row with a null lap time for `ALB`, `BOR`, `NOR`, and `PIA`. The normalizer correctly excludes those rows. The FIA final classification confirms all four participated in the Chinese Grand Prix, but it is a classification document, not a lap-by-lap timing source, so it must not be used to derive times.
+
+The only automated external acquisition is intentionally locked to the reviewed FIA final-classification URL. It performs no database operation, validates HTTPS/FIA host/PDF signature, writes a new mode-0600 PDF below the OS temporary directory, and reports its SHA-256. It never generates pace facts:
+
+```bash
+npm run --silent fetch:pace-v2:round2-timing-artifact
+```
+
+Retain the PDF and JSON report outside the database. An operator must separately obtain a FIA/F1 official lap-analysis or timing feed whose artifact shows a valid timed race lap for each driver, hash it, and independently review its driver/lap mapping before any updated identity map or incomplete-rebuild facts are generated. If that source is unavailable, keep the round incomplete; neither a final classification nor a source gap authorizes invented timing.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
