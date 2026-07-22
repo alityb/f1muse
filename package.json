@@ -26,6 +26,7 @@
     "sample:retirement-reasons:production": "tsx scripts/sample-retirement-reasons.ts",
     "preflight:pace-v2:production": "tsx scripts/preflight-pace-v2-production.ts",
     "golden:f1ql:production": "tsx scripts/run-f1ql-production-golden.ts",
+    "audit:database-authority:production": "tsx scripts/audit-production-database-authority.ts",
     "test:contract": "vitest run tests/contract/**/*.test.ts",
     "test:cache": "vitest run tests/cache/**/*.test.ts",
     "test:golden": "vitest run tests/golden",
