@@ -63,7 +63,9 @@ Run the guarded preflight only from an authorized production environment:
 PACE_V2_PREFLIGHT_ENABLED=true PACE_V2_PREFLIGHT_TARGET=production npm run preflight:pace-v2:production
 ```
 
-It refuses localhost and loopback targets, uses one `BEGIN READ ONLY` transaction with a transaction-local five-second timeout, always rolls back, and writes exactly one JSON object to stdout. It never invokes ingestion or writes. The report contains the v2 row total, session/methodology grouping, season/round coverage, active-methodology eligible-lap counts, explicit missing/partial conditions, and ETL audit freshness when `etl_runs_laps_normalized` exists. Save stdout outside the database as evidence; do not redirect stderr into the artifact.
+It refuses localhost and loopback targets, uses one `BEGIN READ ONLY` transaction with a transaction-local five-second timeout, always rolls back, and writes exactly one JSON object to stdout. It never invokes ingestion or writes. The report contains the v2 row total, session/methodology grouping, season/round coverage, active-methodology eligible-lap counts, explicit missing/partial conditions, ETL audit freshness when `etl_runs_laps_normalized` exists, and per-round pace audit readiness. Save stdout outside the database as evidence; do not redirect stderr into the artifact.
+
+Every complete race fact set normally requires an exact `pace_v2_round_audit` row: current fact fingerprint, row count, and active methodology must all match. A missing manifest audit can be bridged only for the fixed repaired round (2026 round 1) when `pace_v2_identity_repair_audit` has its enabled immutable trigger and its exact `track_identity_exact_alias_v1` repair-manifest fingerprint, target fingerprint, row count, and methodology match the complete current facts. A present-but-mismatched manifest audit, a disabled/missing immutable trigger, any fingerprint/count/method mismatch, or an unaudited round remains an error; repair evidence never overrides a failed manifest audit.
 
 The preflight's coverage query is equivalent to:
 
