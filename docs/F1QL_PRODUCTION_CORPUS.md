@@ -72,6 +72,10 @@ The production projection intentionally does not claim factual proof for:
   historical source variation.
 - Driver identity aliases across F1DB, Jolpica, and FastF1 identifiers.
 - Historical qualifying and lap-pace data coverage.
+- The five 2026 Formula 1 official raw timing artifacts in `PACE_METHODOLOGY.md`.
+  They establish only raw completed lap-time pairs. They lack a reviewed shared
+  driver mapping and the clean-air, pit, in-lap, and out-lap fields required to
+  compare an F1QL pace median, so no pace production golden is permitted.
 
 The factual projection does not prove source completeness: a missing view is a
 skip, and a successful case proves only the cited event fields. It does not

@@ -6,6 +6,14 @@ import path from 'path';
 
 export const ROUND_2_F1_TIMING_DATA_URL = 'https://livetiming.formula1.com/static/2026/2026-03-15_Chinese_Grand_Prix/2026-03-15_Race/TimingData.jsonStream';
 
+export const OFFICIAL_2026_PACE_TIMING_CASES = [
+  { round: 1, event: 'Australian Grand Prix', scenario_target: 'normal_dry', source_url: 'https://livetiming.formula1.com/static/2026/2026-03-08_Australian_Grand_Prix/2026-03-08_Race/TimingData.jsonStream' },
+  { round: 2, event: 'Chinese Grand Prix', scenario_target: 'retirement_limited', source_url: ROUND_2_F1_TIMING_DATA_URL },
+  { round: 3, event: 'Japanese Grand Prix', scenario_target: 'wet_or_disrupted', source_url: 'https://livetiming.formula1.com/static/2026/2026-03-29_Japanese_Grand_Prix/2026-03-29_Race/TimingData.jsonStream' },
+  { round: 6, event: 'Miami Grand Prix', scenario_target: 'pit_heavy', source_url: 'https://livetiming.formula1.com/static/2026/2026-05-03_Miami_Grand_Prix/2026-05-03_Race/TimingData.jsonStream' },
+  { round: 7, event: 'Canadian Grand Prix', scenario_target: 'current_season', source_url: 'https://livetiming.formula1.com/static/2026/2026-05-24_Canadian_Grand_Prix/2026-05-24_Race/TimingData.jsonStream' }
+] as const;
+
 const REQUIRED_RACING_NUMBERS = ['1', '5', '23', '81'];
 
 interface FetchResponse {
@@ -70,7 +78,15 @@ export function validateRound2LapTimingArtifactUrl(sourceUrl: string): void {
   }
 }
 
-export function summarizeOfficialTimingLaps(content: string): OfficialTimingLapSummary[] {
+export function validateOfficial2026PaceTimingArtifactUrl(sourceUrl: string): void {
+  const reviewed = OFFICIAL_2026_PACE_TIMING_CASES.some((testCase) => testCase.source_url === sourceUrl);
+  const url = new URL(sourceUrl);
+  if (!reviewed || url.protocol !== 'https:' || url.hostname !== 'livetiming.formula1.com') {
+    throw new Error('FAIL_CLOSED: only an allowlisted official F1 2026 TimingData archive URL may be fetched');
+  }
+}
+
+export function summarizeOfficialTimingLaps(content: string, racingNumbers = REQUIRED_RACING_NUMBERS): OfficialTimingLapSummary[] {
   const laps = new Map<string, Map<number, number>>();
   for (const rawLine of content.split('\n')) {
     const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
@@ -97,7 +113,7 @@ export function summarizeOfficialTimingLaps(content: string): OfficialTimingLapS
       }
     }
   }
-  return REQUIRED_RACING_NUMBERS.map((racingNumber) => {
+  return racingNumbers.map((racingNumber) => {
     const entries = [...(laps.get(racingNumber) ?? new Map<number, number>()).entries()].sort(([left], [right]) => left - right);
     const values = entries.map(([, seconds]) => seconds);
     return {
@@ -107,6 +123,65 @@ export function summarizeOfficialTimingLaps(content: string): OfficialTimingLapS
       individual_lap_fingerprint: sha256(JSON.stringify(entries))
     };
   });
+}
+
+function observedRacingNumbers(content: string): string[] {
+  const numbers = new Set<string>();
+  for (const rawLine of content.split('\n')) {
+    const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
+    const payload = /^\d{2}:\d{2}:\d{2}\.\d{3}(\{.*\})$/.exec(sourceLine)?.[1];
+    if (!payload) continue;
+    try {
+      const record = JSON.parse(payload) as { Lines?: Record<string, TimingLine> };
+      Object.keys(record.Lines ?? {}).forEach((racingNumber) => numbers.add(racingNumber));
+    } catch { continue; }
+  }
+  return [...numbers].sort((left, right) => Number(left) - Number(right));
+}
+
+export async function fetchOfficial2026PaceTimingArtifact(
+  sourceUrl: string,
+  fetcher: (url: string) => Promise<FetchResponse> = fetchOfficialTimingData,
+  now: () => Date = () => new Date()
+): Promise<{ content: Buffer; content_type: string | null; retrieved_at: string }> {
+  validateOfficial2026PaceTimingArtifactUrl(sourceUrl);
+  const response = await fetcher(sourceUrl);
+  if (!response.ok) throw new Error(`FAIL_CLOSED: official F1 timing artifact request failed with status ${response.status}`);
+  const content = Buffer.from(await response.arrayBuffer());
+  if (!content.length || !/^\uFEFF?\d{2}:\d{2}:\d{2}\.\d{3}\{/.test(content.toString('utf8', 0, 35))) {
+    throw new Error('FAIL_CLOSED: official F1 timing artifact is not a TimingData JSON stream');
+  }
+  return { content, content_type: response.headers.get('content-type'), retrieved_at: now().toISOString() };
+}
+
+export function writeOfficial2026PaceTimingArtifact(
+  testCase: typeof OFFICIAL_2026_PACE_TIMING_CASES[number],
+  artifact: { content: Buffer; content_type: string | null; retrieved_at: string },
+  temporaryDirectory = os.tmpdir()
+) {
+  const directory = fs.mkdtempSync(path.join(temporaryDirectory, `pace-v2-2026-r${testCase.round}-f1-timing-`), { encoding: 'utf8' });
+  const output = path.join(directory, 'TimingData.jsonStream');
+  fs.writeFileSync(output, artifact.content, { flag: 'wx', mode: 0o600 });
+  const observedNumbers = observedRacingNumbers(artifact.content.toString('utf8'));
+  const laps = summarizeOfficialTimingLaps(artifact.content.toString('utf8'), observedNumbers);
+  return {
+    version: 1 as const,
+    authority: 'Formula 1' as const,
+    round: testCase.round,
+    event: testCase.event,
+    scenario_target: testCase.scenario_target,
+    scenario_validation: 'not_established_by_timing_data_fields' as const,
+    source_url: testCase.source_url,
+    retrieved_at: artifact.retrieved_at,
+    output,
+    artifact_sha256: sha256(artifact.content),
+    bytes: artifact.content.length,
+    content_type: artifact.content_type,
+    comparison_scope: 'individual_laps_and_raw_timed_lap_medians_only' as const,
+    eligibility_limitation: 'not_a_clean_air_or_pit_filtered_pace_median' as const,
+    observed_driver_timing_coverage: laps.some((lap) => lap.timed_laps > 0) ? 'present' as const : 'absent' as const,
+    laps
+  };
 }
 
 export async function fetchRound2LapTimingArtifact(
@@ -149,6 +224,14 @@ export function writeRound2LapTimingArtifact(
 }
 
 async function main(): Promise<void> {
+  if (process.argv[2] === '--all-2026') {
+    const reports = [];
+    for (const testCase of OFFICIAL_2026_PACE_TIMING_CASES) {
+      reports.push(writeOfficial2026PaceTimingArtifact(testCase, await fetchOfficial2026PaceTimingArtifact(testCase.source_url)));
+    }
+    process.stdout.write(`${JSON.stringify({ status: 'collected', assertion_scope: 'official_raw_timing_only', f1ql_clean_air_comparison: 'unsupported_without_shared_eligibility_fields', reports })}\n`);
+    return;
+  }
   const artifact = await fetchRound2LapTimingArtifact();
   process.stdout.write(`${JSON.stringify(writeRound2LapTimingArtifact(artifact))}\n`);
 }

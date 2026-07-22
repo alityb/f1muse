@@ -163,6 +163,26 @@ On 2026-07-22 this workspace's direct Node retrieval received an HTTP-success re
 
 The retained 2026-07-22 artifact has SHA-256 `380259ce59c9e7b5b81aa4872106e2a3ba9e476fd7129d31f27fcc45aa2b747d` and 5,248,701 bytes. It reports `required_driver_timing_coverage: "incomplete"`: the archive contains no completed `NumberOfLaps`/`LastLapTime.Value` pair for any of the four required racing numbers. This is a source-coverage limitation, not evidence that a driver did not participate or that a lap time should be invented. No individual-lap comparison, raw median, or pace-validation claim is made from this artifact.
 
+### Multi-Round Official Timing Coverage
+
+The fixed 2026 collector covers rounds 1 (Australian), 2 (Chinese), 3 (Japanese), 6 (Miami), and 7 (Canadian):
+
+```bash
+npm run --silent fetch:pace-v2:official-timing-2026
+```
+
+It permits only five exact Formula 1 `TimingData.jsonStream` HTTPS URLs, writes each byte-preserved stream to a new mode-0600 OS-temporary file, and reports retrieval UTC, source URL, byte count, SHA-256, and a fingerprinted raw timed-lap summary. The selection targets normal/dry, retirement-limited, wet/disrupted, pit-heavy, and current-season coverage respectively. Those are coverage labels, not validated race-condition facts: `TimingData` alone does not establish weather, disruption cause, pit eligibility, retirement status, or the application's clean-air inputs. Every report explicitly says so.
+
+| Round | Event | Coverage target | SHA-256 | Timed drivers |
+| ---: | --- | --- | --- | ---: |
+| 1 | Australian Grand Prix | normal/dry | `a2521be4b468f9ec4c61211558521c993269eb34c24c600e1fa3c90ebb251c8d` | 20 |
+| 2 | Chinese Grand Prix | retirement-limited | `380259ce59c9e7b5b81aa4872106e2a3ba9e476fd7129d31f27fcc45aa2b747d` | 18 |
+| 3 | Japanese Grand Prix | wet/disrupted | `90581624eb501ce980bcfcaf6b0d9666dda7be82a5cf4a39f1bc75c90b536bab` | 22 |
+| 6 | Miami Grand Prix | pit-heavy | `8f095d21d41706a1c6ea7e69dd8f3dfd51eb7883e990579d974f6a93b0f536ee` | 22 |
+| 7 | Canadian Grand Prix | current season | `8b177bb8d267945985b40bfe14b7bcff0a68941ee2e5633a3c050e182825eb9b` | 21 |
+
+Only final `NumberOfLaps` with `LastLapTime.Value`, and `Stints.LapNumber` with `Stints.LapTime`, are recomputed. The resulting statistic is a raw per-driver timed-lap median, never an F1QL clean-air/pit/in/out-filtered result. No database is contacted and no facts are produced. Retain the raw streams and single JSON report outside the database; add an external production golden comparison only after an authority supplies the same mapped eligibility fields.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:

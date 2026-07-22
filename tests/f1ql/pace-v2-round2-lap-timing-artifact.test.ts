@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, statSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { ROUND_2_F1_TIMING_DATA_URL, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateRound2LapTimingArtifactUrl, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
+import { OFFICIAL_2026_PACE_TIMING_CASES, ROUND_2_F1_TIMING_DATA_URL, fetchOfficial2026PaceTimingArtifact, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateOfficial2026PaceTimingArtifactUrl, validateRound2LapTimingArtifactUrl, writeOfficial2026PaceTimingArtifact, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
 
 const stream = [
   '00:00:01.000{"Lines":{"1":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:30.000"}},"5":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:31.000"}},"23":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:32.000"}},"81":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:33.000"}}}}',
@@ -39,5 +39,20 @@ describe('round-2 official F1 lap timing artifact', () => {
       throw new Error('must not fetch');
     }, () => new Date(), 'https://livetiming.formula1.com/other')).rejects.toThrow('only the reviewed official F1');
     expect(calls).toBe(0);
+  });
+
+  it('collects only allowlisted multi-round timing artifacts and labels scenario targets as unvalidated', async () => {
+    const content = Buffer.from(stream);
+    const testCase = OFFICIAL_2026_PACE_TIMING_CASES[0];
+    const artifact = await fetchOfficial2026PaceTimingArtifact(testCase.source_url, async () => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) }), () => new Date('2026-07-22T00:00:00.000Z'));
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'pace-v2-official-timing-test-'));
+    try {
+      const report = writeOfficial2026PaceTimingArtifact(testCase, artifact, directory);
+      expect(report).toMatchObject({ round: 1, scenario_target: 'normal_dry', scenario_validation: 'not_established_by_timing_data_fields', comparison_scope: 'individual_laps_and_raw_timed_lap_medians_only', eligibility_limitation: 'not_a_clean_air_or_pit_filtered_pace_median', observed_driver_timing_coverage: 'present' });
+      expect(report.laps).toHaveLength(4);
+      expect(report.laps.map((lap) => lap.racing_number)).toEqual(['1', '5', '23', '81']);
+      expect(statSync(report.output).mode & 0o777).toBe(0o600);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+    expect(() => validateOfficial2026PaceTimingArtifactUrl('https://livetiming.formula1.com/static/2026/unreviewed/TimingData.jsonStream')).toThrow('allowlisted');
   });
 });
