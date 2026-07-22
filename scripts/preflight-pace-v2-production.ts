@@ -365,7 +365,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
 
     await client.query('ROLLBACK');
     return {
-      status: conditions.some((condition) => condition.severity === 'error') ? 'attention' : conditions.length ? 'attention' : 'ready',
+      status: conditions.some((condition) => condition.severity === 'error') ? 'attention' : 'ready',
       statement_timeout_ms: STATEMENT_TIMEOUT_MS,
       active_methodology_version: ACTIVE_METHODOLOGY_VERSION,
       pace_selection_relation: 'f1ql.lap_pace',

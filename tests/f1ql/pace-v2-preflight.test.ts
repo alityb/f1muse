@@ -5,7 +5,7 @@ import { assessPaceV2AuditReadiness, requirePaceV2PreflightConfiguration, runPac
 
 const fact = { season: 2025, round: 1, track_id: 'melbourne', driver_id: 'driver_one', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 91.234, is_valid_lap: true, is_pit_lap: false, is_out_lap: false, is_in_lap: false, clean_air_flag: true, compound: 'SOFT', tyre_age_laps: 1, methodology_version: 'clean_air_gap_2_0s_v1' };
 
-function mockPool(options: { v2?: boolean; audit?: boolean; rows?: number } = {}) {
+function mockPool(options: { v2?: boolean; audit?: boolean; rows?: number; auditStatuses?: string[] } = {}) {
   const calls: Array<{ sql: string; params?: unknown[] }> = [];
   const facts = [fact];
   const fingerprint = fingerprintPaceV2FactRows(facts);
@@ -26,7 +26,7 @@ function mockPool(options: { v2?: boolean; audit?: boolean; rows?: number } = {}
             if (sql.includes('COUNT(*)::text AS row_count') && !sql.includes('GROUP BY')) return { rows: [{ row_count: String(options.rows ?? 4) }] };
             if (sql.includes('GROUP BY session_type, methodology_version')) return { rows: [{ session_type: 'R', methodology_version: 'clean_air_gap_2_0s_v1', row_count: String(options.rows ?? 4) }] };
             if (sql.includes('GROUP BY season, round')) return { rows: [{ season: 2025, round: 1, total_rows: options.rows ?? 4, eligible_laps: options.rows ?? 4 }] };
-            if (sql.includes('GROUP BY season') && sql.includes('finished_at')) return { rows: [{ season: 2025, newest_finished_at: '2025-03-16 00:00:00+00', statuses: ['success'] }] };
+            if (sql.includes('GROUP BY season') && sql.includes('finished_at')) return { rows: [{ season: 2025, newest_finished_at: '2025-03-16 00:00:00+00', statuses: options.auditStatuses ?? ['success'] }] };
             if (sql.includes('FROM pace_v2_round_audit_reconciliation')) return { rows: [] };
             if (sql.includes('FROM pace_v2_round_audit')) return { rows: [{ season: 2025, round: 1, session_type: 'R', fact_fingerprint: fingerprint, fact_row_count: 1, methodology_version: 'clean_air_gap_2_0s_v1' }] };
             if (sql.includes('FROM pace_v2_identity_repair_audit')) return { rows: [] };
@@ -67,6 +67,12 @@ describe('pace v2 production preflight', () => {
     expect(result.conditions).toContainEqual(expect.objectContaining({ code: 'missing_v2_relation' }));
     expect(calls).toHaveLength(4);
     expect(calls.at(-1)).toEqual({ sql: 'ROLLBACK', params: undefined });
+  });
+
+  it('keeps readiness when only non-blocking ETL audit warnings remain', async () => {
+    const { pool } = mockPool({ auditStatuses: ['partial_failure', 'success'] });
+    const result = await runPaceV2Preflight(pool);
+    expect(result).toMatchObject({ status: 'ready', conditions: [expect.objectContaining({ code: 'etl_audit_partial_or_failed', severity: 'warning' })] });
   });
 
   it('accepts only an exact immutable identity-repair audit when a manifest audit is absent', () => {
