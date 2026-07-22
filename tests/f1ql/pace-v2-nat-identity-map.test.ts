@@ -31,7 +31,7 @@ describe('NaT FastF1 identity-map generator', () => {
     expect(calls[0].sql).toBe('BEGIN READ ONLY');
     expect(calls[1].params).toEqual(['5000ms']);
     expect(calls[2].sql).toMatch(/^\s*SELECT\b/i);
-    expect(calls[2].sql).toContain("COALESCE(rd.race_laps, 0) = 0");
+    expect(calls[2].sql).toContain('rd.race_laps IS NOT DISTINCT FROM 0');
     expect(calls.at(-1)?.sql).toBe('ROLLBACK');
   });
 

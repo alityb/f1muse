@@ -4,7 +4,7 @@ import { createPaceV2IncompleteRebuildManifest, fingerprintDriverIds, parsePaceV
 import { fingerprintPaceV2FactRows } from '../../src/etl/pace-v2-identity-repair';
 import { runPaceV2IncompleteRebuild } from '../../scripts/rebuild-pace-v2-incomplete-rounds';
 import { generatePaceV2IncompleteRebuildFacts, incompleteRebuildFactsRefusal, PaceV2IncompleteRebuildFactsError } from '../../scripts/generate-pace-v2-incomplete-rebuild-facts';
-import { generatePaceV2IncompleteRebuildManifest } from '../../scripts/generate-pace-v2-incomplete-rebuild-manifest';
+import { generatePaceV2IncompleteRebuildManifest, incompleteRebuildManifestRefusal, PaceV2IncompleteRebuildManifestError } from '../../scripts/generate-pace-v2-incomplete-rebuild-manifest';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 const original = PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => ({ season: 2026, round, track_id: `track_${round}`, driver_id: 'driver_a', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 90, is_valid_lap: true, is_pit_lap: true, is_out_lap: true, is_in_lap: true, clean_air_flag: false, compound: null, tyre_age_laps: null, methodology_version: 'clean_air_gap_2_0s_v1' }));
@@ -65,7 +65,8 @@ describe('incomplete pace rebuild', () => {
         (202602, 'race_result', 'withdrawn_w', NULL, 'W', NULL, 0),
         (202602, 'race_result', 'withdrawn_text', NULL, 'Withdrawn', NULL, 0),
         (202602, 'race_result', 'dns_code', NULL, 'DNS', NULL, 0),
-        (202602, 'race_result', 'dns_text', NULL, 'Did not start', NULL, 0);
+        (202602, 'race_result', 'dns_text', NULL, 'Did not start', NULL, 0),
+        (202602, 'race_result', 'unknown_laps_withdrawn', NULL, 'Withdrawn', NULL, NULL);
       INSERT INTO laps_normalized_v2
         (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version)
       VALUES (2026, 2, 'shanghai', 'starter_a', 'R', 1, 90, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
@@ -74,8 +75,29 @@ describe('incomplete pace rebuild', () => {
 
     expect(generated.rounds).toEqual([expect.objectContaining({
       round: 2,
-      canonical_driver_count: 2,
-      canonical_driver_fingerprint: fingerprintDriverIds(['starter_a', 'starter_b'])
+      canonical_driver_count: 3,
+      canonical_driver_fingerprint: fingerprintDriverIds(['starter_a', 'starter_b', 'unknown_laps_withdrawn'])
     })]);
+  });
+
+  it('reports the exact failed manifest candidate predicate', async () => {
+    const pool = { async connect() { return { async query(sql: string) {
+      if (sql.includes('FROM laps_normalized_v2')) return { rows: [original[0]] };
+      if (sql.includes('FROM race r JOIN race_data')) return { rows: [{ round: 2, driver_id: 'driver_a' }] };
+      return { rows: [] };
+    }, release() {} }; }, async end() {} };
+    try {
+      await generatePaceV2IncompleteRebuildManifest(pool, [2]);
+      throw new Error('expected incomplete candidate refusal');
+    } catch (error) {
+      expect(error).toBeInstanceOf(PaceV2IncompleteRebuildManifestError);
+      expect(incompleteRebuildManifestRefusal(error)).toEqual({ status: 'refused', error: 'incomplete_rebuild_candidate_invalid', round: 2, predicates: {
+        original_fact_rows_nonempty: true,
+        canonical_driver_rows_nonempty: true,
+        canonical_coverage_incomplete: false,
+        persisted_drivers_are_canonical: true,
+        methodology_version_active: true
+      } });
+    }
   });
 });

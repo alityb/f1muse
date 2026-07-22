@@ -110,7 +110,7 @@ export async function generatePaceV2NatIdentityMap(pool: QueryPool, fetchSession
       JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
       JOIN driver d ON d.id = rd.driver_id
       WHERE r.year = $1 AND r.round = ANY($2::int[])
-        AND NOT (COALESCE(rd.race_laps, 0) = 0 AND (
+        AND NOT (rd.race_laps IS NOT DISTINCT FROM 0 AND (
           UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
           OR UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
         ))

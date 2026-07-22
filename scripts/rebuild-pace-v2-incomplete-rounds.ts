@@ -14,7 +14,7 @@ export async function runPaceV2IncompleteRebuild(pool: QueryPool, manifest: Pace
    for (const entry of approvedManifest.rounds) { const original = (await client.query('SELECT season, round, track_id, driver_id, session_type, lap_number, stint_id, stint_lap_index, lap_time_seconds, is_valid_lap, is_pit_lap, is_out_lap, is_in_lap, clean_air_flag, compound, tyre_age_laps, methodology_version FROM laps_normalized_v2 WHERE season=2026 AND round=$1 AND session_type=\'R\' FOR SHARE', [entry.round])).rows.map(asFact); const canonical = await client.query(`SELECT DISTINCT rd.driver_id
       FROM race r JOIN race_data rd ON rd.race_id=r.id AND LOWER(rd.type) IN ('race', 'race_result')
       WHERE r.year=2026 AND r.round=$1
-        AND NOT (COALESCE(rd.race_laps, 0) = 0 AND (
+        AND NOT (rd.race_laps IS NOT DISTINCT FROM 0 AND (
           UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
           OR UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
         ))`, [entry.round]); const replacement = rebuildFactsByRound(approvedArtifact.facts).get(entry.round) ?? [];
