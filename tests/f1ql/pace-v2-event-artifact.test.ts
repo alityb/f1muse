@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requirePaceV2EventArtifactConfiguration, runPaceV2EventArtifact } from '../../scripts/validate-pace-v2-event-artifact';
+import { requirePaceV2EventArtifactConfiguration, runPaceV2EventArtifact, runPaceV2EventArtifactCli } from '../../scripts/validate-pace-v2-event-artifact';
 
 describe('pace v2 event artifact', () => {
   it('requires explicit production flags and rejects loopback', () => {
@@ -14,5 +14,15 @@ describe('pace v2 event artifact', () => {
     expect(artifact).toMatchObject({ status: 'observed', assertion_scope: 'database_observation_only', external_truth: 'unverified_without_authoritative_artifact', observations: [{ track_id: 'melbourne', eligible_laps: 3 }] });
     expect(calls[0]).toBe('BEGIN READ ONLY');
     expect(calls.at(-1)).toBe('ROLLBACK');
+    expect(calls.some((sql) => sql.includes('FROM f1ql.lap_pace'))).toBe(true);
+    expect(calls.some((sql) => sql.includes('ORDER BY median_lap_time_seconds::numeric'))).toBe(true);
+  });
+
+  it('reports the median-query predicate and safe PostgreSQL code instead of a generic refusal', async () => {
+    const pool = { async connect() { return { async query(sql: string) { if (sql.includes('percentile_cont')) { const error = Object.assign(new Error('column does not exist'), { code: '42703' }); throw error; } return { rows: [] }; }, release() {} }; }, async end() {} };
+    const lines: string[] = [];
+    await expect(runPaceV2EventArtifactCli({ PACE_V2_EVENT_ARTIFACT_ENABLED: 'true', PACE_V2_EVENT_ARTIFACT_TARGET: 'production', DATABASE_URL: 'postgres://db.example/f1' }, '2026', '2', () => pool, (line) => lines.push(line)))
+      .resolves.toEqual({ status: 'refused', error: 'pace_v2_event_artifact_failed', reason: 'event_median_query_failed', predicate: 'eligible_lap_driver_median', database_code: '42703' });
+    expect(lines).toEqual(['{"status":"refused","error":"pace_v2_event_artifact_failed","reason":"event_median_query_failed","predicate":"eligible_lap_driver_median","database_code":"42703"}\n']);
   });
 });

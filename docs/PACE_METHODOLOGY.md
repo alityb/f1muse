@@ -157,7 +157,7 @@ For a bounded factual observation of one selected event, use the separately dual
 
 ```bash
 PACE_V2_EVENT_ARTIFACT_ENABLED=true PACE_V2_EVENT_ARTIFACT_TARGET=production \
-  npm run validate:pace-v2:event:production -- 2026 1 > /approved/evidence/pace-v2-event-2026-1.json
+  npm run --silent validate:pace-v2:event:production -- 2026 1 > /approved/evidence/pace-v2-event-2026-1.json
 ```
 
-It rejects loopback targets, uses one read-only transaction with a five-second local timeout, and returns at most 30 driver medians from active-methodology eligible race laps. The output is explicitly scoped as `database_observation_only` and states `external_truth: unverified_without_authoritative_artifact`; it is not an independent factual claim. To promote an observation, retain a separate authoritative external artifact and record its source, retrieval UTC time, SHA-256, selected fields, and comparison result alongside this database observation. Do not treat an absent external artifact as validation.
+It rejects loopback targets, uses one read-only transaction with a five-second local timeout, and returns at most 30 driver medians from the serving `f1ql.lap_pace` selection of active-methodology eligible race laps. A refusal identifies its safe reason; median-query failures additionally name the `eligible_lap_driver_median` predicate and PostgreSQL SQLSTATE. The output is explicitly scoped as `database_observation_only` and states `external_truth: unverified_without_authoritative_artifact`; it is not an independent factual claim. To promote an observation, retain a separate authoritative external artifact and record its source, retrieval UTC time, SHA-256, selected fields, and comparison result alongside this database observation. Do not treat an absent external artifact as validation.
