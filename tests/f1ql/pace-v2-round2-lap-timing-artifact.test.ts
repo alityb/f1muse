@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, statSync } from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { OFFICIAL_2026_PACE_TIMING_CASES, ROUND_2_F1_TIMING_DATA_URL, fetchOfficial2026PaceTimingArtifact, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateOfficial2026PaceTimingArtifactUrl, validateRound2LapTimingArtifactUrl, writeOfficial2026PaceTimingArtifact, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
+import { OFFICIAL_2026_PACE_TIMING_CASES, ROUND_2_F1_TIMING_DATA_URL, fetchOfficial2026PaceContextArtifacts, fetchOfficial2026PaceTimingArtifact, fetchRound2LapTimingArtifact, summarizeOfficialTimingLaps, validateOfficial2026PaceTimingArtifactUrl, validateRound2LapTimingArtifactUrl, writeOfficial2026PaceTimingArtifact, writeRound2LapTimingArtifact } from '../../scripts/fetch-pace-v2-round2-lap-timing-artifact';
 
 const stream = [
   '00:00:01.000{"Lines":{"1":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:30.000"}},"5":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:31.000"}},"23":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:32.000"}},"81":{"NumberOfLaps":2,"LastLapTime":{"Value":"1:33.000"}}}}',
@@ -54,5 +54,31 @@ describe('round-2 official F1 lap timing artifact', () => {
       expect(statSync(report.output).mode & 0o777).toBe(0o600);
     } finally { rmSync(directory, { recursive: true, force: true }); }
     expect(() => validateOfficial2026PaceTimingArtifactUrl('https://livetiming.formula1.com/static/2026/unreviewed/TimingData.jsonStream')).toThrow('allowlisted');
+  });
+
+  it('retains independent official context streams without treating them as F1QL eligibility evidence', async () => {
+    const contextStream = (payload: string) => Buffer.from(`00:00:01.000${payload}`);
+    const weather = contextStream('{"WeatherData":{"Rainfall":"1"}}');
+    const raceControl = contextStream('{"Messages":{"0":{"Message":"SAFETY CAR DEPLOYED"}}}');
+    const timingApp = contextStream('{"Lines":{"1":{"Stints":{"0":{},"1":{}}}}}');
+    const responses = [weather, raceControl, timingApp];
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'pace-v2-official-context-test-'));
+    try {
+      const report = await fetchOfficial2026PaceContextArtifacts(OFFICIAL_2026_PACE_TIMING_CASES[0], async () => {
+        const content = responses.shift()!;
+        return { ok: true, status: 200, headers: { get: () => 'application/json' }, arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength) };
+      }, () => new Date('2026-07-22T00:00:00.000Z'), directory);
+      expect(report).toMatchObject({ assertion_scope: 'official_event_context_fields_only', context: { rainfall_observed: true, safety_car_deployed: true, stint_record_updates: 2 }, f1ql_pace_comparison: 'unsupported_without_shared_clean_air_and_pit_eligibility_fields' });
+      expect(statSync(report.artifacts.WeatherData.output).mode & 0o777).toBe(0o600);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it('fails closed before fetching context streams for an unallowlisted case', async () => {
+    let calls = 0;
+    await expect(fetchOfficial2026PaceContextArtifacts({ ...OFFICIAL_2026_PACE_TIMING_CASES[0], source_url: 'https://livetiming.formula1.com/static/2026/unreviewed/TimingData.jsonStream' }, async () => {
+      calls += 1;
+      throw new Error('must not fetch');
+    })).rejects.toThrow('allowlisted');
+    expect(calls).toBe(0);
   });
 });

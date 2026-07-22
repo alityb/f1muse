@@ -29,6 +29,8 @@ interface TimingLine {
   Stints?: Record<string, { LapTime?: string; LapNumber?: number }>;
 }
 
+type OfficialContextStream = 'WeatherData' | 'RaceControlMessages' | 'TimingAppData';
+
 function fetchOfficialTimingData(url: string): Promise<FetchResponse> {
   const content = execFileSync('curl', [
     '--fail', '--silent', '--show-error', '--location',
@@ -55,6 +57,10 @@ export interface OfficialTimingLapSummary {
 
 function sha256(content: Buffer | string): string {
   return createHash('sha256').update(content).digest('hex');
+}
+
+function contextStreamUrl(sourceUrl: string, stream: OfficialContextStream): string {
+  return sourceUrl.replace('TimingData.jsonStream', `${stream}.jsonStream`);
 }
 
 function lapTimeSeconds(value: string): number | null {
@@ -154,6 +160,76 @@ export async function fetchOfficial2026PaceTimingArtifact(
   return { content, content_type: response.headers.get('content-type'), retrieved_at: now().toISOString() };
 }
 
+function parseJsonStream(content: string): unknown[] {
+  const records: unknown[] = [];
+  for (const rawLine of content.split('\n')) {
+    const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
+    const payload = /^\d{2}:\d{2}:\d{2}\.\d{3}(\{.*\})$/.exec(sourceLine)?.[1];
+    if (!payload) continue;
+    try { records.push(JSON.parse(payload)); } catch { continue; }
+  }
+  return records;
+}
+
+function valuesForKey(value: unknown, key: string): unknown[] {
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value as Record<string, unknown>).flatMap(([entryKey, entryValue]) => [
+    ...(entryKey === key ? [entryValue] : []),
+    ...valuesForKey(entryValue, key)
+  ]);
+}
+
+function summarizeOfficialContext(weather: Buffer, raceControl: Buffer, timingApp: Buffer) {
+  const rainfall = valuesForKey(parseJsonStream(weather.toString('utf8')), 'Rainfall');
+  const messages = valuesForKey(parseJsonStream(raceControl.toString('utf8')), 'Message').filter((value): value is string => typeof value === 'string');
+  const stints = valuesForKey(parseJsonStream(timingApp.toString('utf8')), 'Stints')
+    .filter((value): value is Record<string, unknown> => !!value && typeof value === 'object');
+  return {
+    rainfall_observed: rainfall.some((value) => value === '1' || value === 1),
+    rainfall_samples: rainfall.filter((value): value is string | number => typeof value === 'string' || typeof value === 'number').length,
+    safety_car_deployed: messages.some((message) => message === 'SAFETY CAR DEPLOYED'),
+    safety_car_messages: messages.filter((message) => message === 'SAFETY CAR DEPLOYED').length,
+    stint_record_updates: stints.reduce((count, stint) => count + Object.keys(stint).length, 0)
+  };
+}
+
+export async function fetchOfficial2026PaceContextArtifacts(
+  testCase: typeof OFFICIAL_2026_PACE_TIMING_CASES[number],
+  fetcher: (url: string) => Promise<FetchResponse> = fetchOfficialTimingData,
+  now: () => Date = () => new Date(),
+  temporaryDirectory = os.tmpdir()
+) {
+  validateOfficial2026PaceTimingArtifactUrl(testCase.source_url);
+  const streams = {} as Record<OfficialContextStream, { content: Buffer; content_type: string | null; retrieved_at: string }>;
+  for (const stream of ['WeatherData', 'RaceControlMessages', 'TimingAppData'] as const) {
+    const sourceUrl = contextStreamUrl(testCase.source_url, stream);
+    const response = await fetcher(sourceUrl);
+    if (!response.ok) throw new Error(`FAIL_CLOSED: official F1 ${stream} artifact request failed with status ${response.status}`);
+    const content = Buffer.from(await response.arrayBuffer());
+    if (!content.length || !/^\uFEFF?\d{2}:\d{2}:\d{2}\.\d{3}\{/.test(content.toString('utf8', 0, 35))) {
+      throw new Error(`FAIL_CLOSED: official F1 ${stream} artifact is not a JSON stream`);
+    }
+    streams[stream] = { content, content_type: response.headers.get('content-type'), retrieved_at: now().toISOString() };
+  }
+  const directory = fs.mkdtempSync(path.join(temporaryDirectory, `pace-v2-2026-r${testCase.round}-f1-context-`), { encoding: 'utf8' });
+  const artifacts = Object.fromEntries((['WeatherData', 'RaceControlMessages', 'TimingAppData'] as const).map((stream) => {
+    const artifact = streams[stream];
+    const output = path.join(directory, `${stream}.jsonStream`);
+    fs.writeFileSync(output, artifact.content, { flag: 'wx', mode: 0o600 });
+    return [stream, { source_url: contextStreamUrl(testCase.source_url, stream), output, artifact_sha256: sha256(artifact.content), bytes: artifact.content.length, retrieved_at: artifact.retrieved_at, content_type: artifact.content_type }];
+  }));
+  return {
+    version: 1 as const,
+    authority: 'Formula 1' as const,
+    round: testCase.round,
+    event: testCase.event,
+    assertion_scope: 'official_event_context_fields_only' as const,
+    context: summarizeOfficialContext(streams.WeatherData.content, streams.RaceControlMessages.content, streams.TimingAppData.content),
+    artifacts,
+    f1ql_pace_comparison: 'unsupported_without_shared_clean_air_and_pit_eligibility_fields' as const
+  };
+}
+
 export function writeOfficial2026PaceTimingArtifact(
   testCase: typeof OFFICIAL_2026_PACE_TIMING_CASES[number],
   artifact: { content: Buffer; content_type: string | null; retrieved_at: string },
@@ -230,6 +306,12 @@ async function main(): Promise<void> {
       reports.push(writeOfficial2026PaceTimingArtifact(testCase, await fetchOfficial2026PaceTimingArtifact(testCase.source_url)));
     }
     process.stdout.write(`${JSON.stringify({ status: 'collected', assertion_scope: 'official_raw_timing_only', f1ql_clean_air_comparison: 'unsupported_without_shared_eligibility_fields', reports })}\n`);
+    return;
+  }
+  if (process.argv[2] === '--all-2026-context') {
+    const reports = [];
+    for (const testCase of OFFICIAL_2026_PACE_TIMING_CASES) reports.push(await fetchOfficial2026PaceContextArtifacts(testCase));
+    process.stdout.write(`${JSON.stringify({ status: 'collected', assertion_scope: 'official_event_context_fields_only', reports })}\n`);
     return;
   }
   const artifact = await fetchRound2LapTimingArtifact();

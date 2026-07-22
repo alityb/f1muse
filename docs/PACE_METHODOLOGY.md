@@ -183,6 +183,10 @@ It permits only five exact Formula 1 `TimingData.jsonStream` HTTPS URLs, writes 
 
 Only final `NumberOfLaps` with `LastLapTime.Value`, and `Stints.LapNumber` with `Stints.LapTime`, are recomputed. The resulting statistic is a raw per-driver timed-lap median, never an F1QL clean-air/pit/in/out-filtered result. No database is contacted and no facts are produced. Retain the raw streams and single JSON report outside the database; add an external production golden comparison only after an authority supplies the same mapped eligibility fields.
 
+`fetch:pace-v2:official-context-2026` retains independent official `WeatherData`, `RaceControlMessages`, and `TimingAppData` streams for the same fixed events. Its only derived context facts are an observed `Rainfall: "1"`, exact `SAFETY CAR DEPLOYED` messages, and the number of raw stint-record updates. It does not convert stint records to pit stops, nor use any context stream to infer a clean-air, pit, in-lap, out-lap, or retirement flag.
+
+The retained context evidence establishes no rainfall observation in r1/r2/r3/r7, a rainfall observation in r6, safety-car deployment in r2/r3/r6, and no safety-car deployment in r1/r7. It therefore validates dry and disrupted/wet event context where literal fields exist, but not the original retirement-limited or pit-heavy selection targets. `TimingAppData`'s repeated incremental stint records do not establish pit-stop count or pit eligibility without an additional reviewed interpretation contract.
+
 ## Selected Event Pace Artifact
 
 For a bounded factual observation of one selected event, use the separately dual-flagged read-only command:
