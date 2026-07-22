@@ -12,6 +12,8 @@ interface Client { query<Row extends Record<string, unknown> = Record<string, un
 interface QueryPool { connect(): Promise<Client>; end(): Promise<void> }
 
 type V2Lap = { driver_id: string; lap_number: number; lap_time_seconds: number | null; is_valid_lap: boolean; is_pit_lap: boolean; is_in_lap: boolean; is_out_lap: boolean; clean_air_flag: boolean };
+type CanonicalDriver = { driver_id: string; driver_code: string; racing_number: string };
+type OfficialDriver = { racing_number: string; tla: string };
 
 function sha256(content: Buffer): string { return createHash('sha256').update(content).digest('hex'); }
 
@@ -25,11 +27,30 @@ export function requireOfficialLayersConfiguration(environment: NodeJS.ProcessEn
   return environment.DATABASE_URL;
 }
 
-function retainedTimingArtifact(round: number): { url: string; sha256: string } {
-  const matrix = JSON.parse(fs.readFileSync(COVERAGE_MATRIX_PATH, 'utf8')) as { rounds: Array<{ round: number; timing: { url: string; sha256?: string } }> };
-  const timing = matrix.rounds.find((entry) => entry.round === round)?.timing;
-  if (!timing?.sha256) throw new Error(`no retained official timing provenance is available for 2026 round ${round}`);
-  return { url: timing.url, sha256: timing.sha256 };
+function retainedOfficialArtifacts(round: number): { timing: { url: string; sha256: string }; driverList: { url: string; sha256: string } } {
+  const matrix = JSON.parse(fs.readFileSync(COVERAGE_MATRIX_PATH, 'utf8')) as { rounds: Array<{ round: number; timing: { url: string; sha256?: string }; driver_list?: { url: string; sha256?: string } }> };
+  const entry = matrix.rounds.find((candidate) => candidate.round === round);
+  if (!entry?.timing.sha256) throw new Error(`no retained official timing provenance is available for 2026 round ${round}`);
+  if (!entry.driver_list?.sha256) throw new Error(`no retained official DriverList provenance is available for 2026 round ${round}`);
+  return { timing: { url: entry.timing.url, sha256: entry.timing.sha256 }, driverList: { url: entry.driver_list.url, sha256: entry.driver_list.sha256 } };
+}
+
+export function parseOfficialDriverList(content: string): OfficialDriver[] {
+  const drivers = new Map<string, OfficialDriver>();
+  for (const rawLine of content.split('\n')) {
+    const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
+    const payload = /^\d{2}:\d{2}:\d{2}\.\d{3}(\{.*\})$/.exec(sourceLine)?.[1];
+    if (!payload) continue;
+    try {
+      const record = JSON.parse(payload) as Record<string, { RacingNumber?: string; Tla?: string }>;
+      for (const [key, driver] of Object.entries(record)) {
+        const racingNumber = driver.RacingNumber?.trim() || key.trim();
+        const tla = driver.Tla?.trim().toUpperCase();
+        if (racingNumber && tla) drivers.set(racingNumber, { racing_number: racingNumber, tla });
+      }
+    } catch { continue; }
+  }
+  return [...drivers.values()].sort((left, right) => Number(left.racing_number) - Number(right.racing_number));
 }
 
 export function exclusionReasons(lap: V2Lap): string[] {
@@ -42,55 +63,89 @@ export function exclusionReasons(lap: V2Lap): string[] {
   return reasons;
 }
 
-export async function validateOfficialPaceLayers(pool: QueryPool, round: number, artifact: Buffer, retained = retainedTimingArtifact(round)) {
-  const artifactSha256 = sha256(artifact);
-  if (artifactSha256 !== retained.sha256) throw new Error('official timing artifact SHA-256 does not match the retained provenance matrix');
-  const officialLaps = parseOfficialTimingLaps(artifact.toString('utf8'));
-  const officialObservedDrivers = observedOfficialRacingNumbers(artifact.toString('utf8')).length;
+export async function validateOfficialPaceLayers(pool: QueryPool, round: number, timingArtifact: Buffer, driverListArtifact: Buffer, retained = retainedOfficialArtifacts(round)) {
+  if (sha256(timingArtifact) !== retained.timing.sha256) throw new Error('official timing artifact SHA-256 does not match the retained provenance matrix');
+  if (sha256(driverListArtifact) !== retained.driverList.sha256) throw new Error('official DriverList artifact SHA-256 does not match the retained provenance matrix');
+  const officialLaps = parseOfficialTimingLaps(timingArtifact.toString('utf8'));
+  const officialDrivers = parseOfficialDriverList(driverListArtifact.toString('utf8'));
+  if (!officialDrivers.length) throw new Error('official DriverList artifact contains no racing-number/TLA mappings');
+  const officialObservedDrivers = observedOfficialRacingNumbers(timingArtifact.toString('utf8')).length;
   const officialTimedDrivers = [...officialLaps.values()].filter((laps) => laps.size > 0).length;
   const client = await pool.connect();
   try {
     await client.query('BEGIN READ ONLY');
     await client.query("SELECT set_config('statement_timeout', $1, true)", ['5000ms']);
-    const result = await client.query<V2Lap>(`
+    const [lapsResult, canonicalDriversResult] = await Promise.all([
+      client.query<V2Lap>(`
       SELECT driver_id, lap_number, lap_time_seconds::text::numeric AS lap_time_seconds,
              is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag
       FROM laps_normalized_v2
       WHERE season = 2026 AND round = $1 AND session_type = 'R' AND methodology_version = $2
       ORDER BY driver_id, lap_number
       LIMIT 5000
-    `, [round, ACTIVE_METHODOLOGY_VERSION]);
+    `, [round, ACTIVE_METHODOLOGY_VERSION]),
+      client.query<CanonicalDriver>(`
+        SELECT DISTINCT rd.driver_id, d.abbreviation AS driver_code, BTRIM(rd.driver_number) AS racing_number
+        FROM race r
+        JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
+        JOIN driver d ON d.id = rd.driver_id
+        WHERE r.year = 2026 AND r.round = $1 AND BTRIM(COALESCE(rd.driver_number, '')) <> ''
+        ORDER BY rd.driver_id
+      `, [round])
+    ]);
     await client.query('ROLLBACK');
-    const v2Laps = result.rows.map((lap) => ({ ...lap, lap_number: Number(lap.lap_number), lap_time_seconds: lap.lap_time_seconds === null ? null : Number(lap.lap_time_seconds) }));
+    const v2Laps = lapsResult.rows.map((lap) => ({ ...lap, lap_number: Number(lap.lap_number), lap_time_seconds: lap.lap_time_seconds === null ? null : Number(lap.lap_time_seconds) }));
     const v2Drivers = new Set(v2Laps.map((lap) => lap.driver_id));
+    const officialByNumber = new Map(officialDrivers.map((driver) => [driver.racing_number, driver]));
+    const canonicalByNumber = new Map<string, CanonicalDriver>();
+    for (const driver of canonicalDriversResult.rows) {
+      if (canonicalByNumber.has(driver.racing_number)) throw new Error(`canonical racing number is ambiguous: ${driver.racing_number}`);
+      const official = officialByNumber.get(driver.racing_number);
+      if (!official || official.tla !== driver.driver_code.trim().toUpperCase()) throw new Error(`canonical racing-number mapping is not an exact official DriverList match: ${driver.racing_number}`);
+      canonicalByNumber.set(driver.racing_number, driver);
+    }
+    if (canonicalByNumber.size !== officialByNumber.size || [...officialByNumber.keys()].some((number) => !canonicalByNumber.has(number))) throw new Error('canonical racing-number mapping does not cover the official DriverList exactly');
+    const canonicalByDriverId = new Map([...canonicalByNumber.values()].map((driver) => [driver.driver_id, driver]));
+    if ([...v2Drivers].some((driverId) => !canonicalByDriverId.has(driverId))) throw new Error('v2 driver is missing from the exact official racing-number mapping');
+    const officialLapKeys = new Set([...officialLaps.entries()].flatMap(([racingNumber, laps]) => [...laps.keys()].map((lapNumber) => `${racingNumber}:${lapNumber}`)));
+    const comparedOfficialLapKeys = new Set<string>();
     const evidence = v2Laps.map((lap) => {
       const exclusions = exclusionReasons(lap);
+      const racingNumber = canonicalByDriverId.get(lap.driver_id)!.racing_number;
+      const officialLapTimeSeconds = officialLaps.get(racingNumber)?.get(lap.lap_number);
+      const comparison = lap.lap_time_seconds === null ? 'not_comparable_v2_lap_time_missing' : officialLapTimeSeconds === undefined ? 'official_lap_unavailable' : lap.lap_time_seconds === officialLapTimeSeconds ? 'equal' : 'not_equal';
+      if (officialLapTimeSeconds !== undefined) comparedOfficialLapKeys.add(`${racingNumber}:${lap.lap_number}`);
       return {
         driver_id: lap.driver_id,
+        racing_number: racingNumber,
         lap_number: lap.lap_number,
+        v2_raw_lap_time_seconds: lap.lap_time_seconds,
+        official_raw_lap_time_seconds: officialLapTimeSeconds ?? null,
+        official_raw_lap_comparison: comparison,
         v2_eligibility: exclusions.length ? 'excluded' as const : 'eligible' as const,
         exclusion_reasons: exclusions,
-        official_raw_lap_comparison: 'unverified' as const,
-        official_raw_lap_comparison_reason: 'official_timing_uses_racing_numbers_and_no_reviewed_racing_number_to_v2_driver_mapping_is_retained',
         official_clean_air_pit_metadata: 'unavailable_not_inferred' as const
       };
     });
+    const equal = evidence.filter((entry) => entry.official_raw_lap_comparison === 'equal').length;
+    const notEqual = evidence.filter((entry) => entry.official_raw_lap_comparison === 'not_equal').length;
+    const unavailable = evidence.length - equal - notEqual;
     return {
       status: 'completed', assertion_scope: 'official_raw_timing_provenance_and_read_only_v2_observation', statement_timeout_ms: 5000,
-      official_artifact: { source_url: retained.url, sha256: retained.sha256, bytes: artifact.length, observed_racing_numbers: officialObservedDrivers, timed_racing_numbers: officialTimedDrivers },
-      layer_1_driver_coverage: { status: 'unverified', official_racing_number_count: officialObservedDrivers, v2_driver_count: v2Drivers.size, reason: 'no_reviewed_racing_number_to_v2_driver_mapping_is_retained' },
-      layer_2_raw_lap_times: { status: 'unverified', official_completed_laps: [...officialLaps.values()].reduce((count, laps) => count + laps.size, 0), v2_laps: v2Laps.length, reason: 'no_reviewed_racing_number_to_v2_driver_mapping_is_retained' },
+      official_artifacts: { timing: { source_url: retained.timing.url, sha256: retained.timing.sha256, bytes: timingArtifact.length, observed_racing_numbers: officialObservedDrivers, timed_racing_numbers: officialTimedDrivers }, driver_list: { source_url: retained.driverList.url, sha256: retained.driverList.sha256, bytes: driverListArtifact.length, racing_number_mappings: officialDrivers.length } },
+      layer_1_driver_coverage: { status: 'mapped_exactly', official_racing_number_count: officialObservedDrivers, official_driver_list_count: officialDrivers.length, canonical_driver_count: canonicalByNumber.size, v2_driver_count: v2Drivers.size, v2_drivers_without_raw_timing: officialDrivers.length - v2Drivers.size },
+      layer_2_raw_lap_times: { status: notEqual === 0 && unavailable === 0 ? 'equal_for_all_v2_laps' : 'completed_with_coverage_or_equality_gaps', official_completed_laps: officialLapKeys.size, v2_laps: v2Laps.length, equal_v2_laps: equal, non_equal_v2_laps: notEqual, v2_laps_without_official_time: unavailable, official_laps_without_v2: officialLapKeys.size - comparedOfficialLapKeys.size, comparison: 'exact_numeric_seconds_no_tolerance' },
       layer_3_eligibility_evidence: { status: 'unverified_against_official_source', evidence, reason: 'official_timing_artifact_lacks_reviewed_clean_air_pit_in_lap_and_out_lap_fields' }
     };
   } catch (error) { await client.query('ROLLBACK').catch(() => undefined); throw error; } finally { client.release(); }
 }
 
 async function main(): Promise<void> {
-  const [roundRaw, artifactPath] = process.argv.slice(2);
+  const [roundRaw, timingArtifactPath, driverListArtifactPath] = process.argv.slice(2);
   const round = Number(roundRaw);
-  if (!Number.isInteger(round) || round < 1 || !artifactPath) throw new Error('usage: validate:pace-v2:official-layers:production -- <round> <retained TimingData.jsonStream path>');
+  if (!Number.isInteger(round) || round < 1 || !timingArtifactPath || !driverListArtifactPath) throw new Error('usage: validate:pace-v2:official-layers:production -- <round> <retained TimingData.jsonStream path> <retained DriverList.jsonStream path>');
   const connectionString = requireOfficialLayersConfiguration();
-  const result = await validateOfficialPaceLayers(new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 1 }), round, fs.readFileSync(artifactPath));
+  const result = await validateOfficialPaceLayers(new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 1 }), round, fs.readFileSync(timingArtifactPath), fs.readFileSync(driverListArtifactPath));
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 

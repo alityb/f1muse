@@ -211,14 +211,14 @@ The matrix's retirement classification is limited to literal `RETIRED` race-cont
 
 ### Official Validation Layers 1-3
 
-`validate:pace-v2:official-layers:production` binds a retained `TimingData.jsonStream` file to the committed round URL/SHA-256 matrix, then performs one bounded `BEGIN READ ONLY` `laps_normalized_v2` observation with a five-second statement timeout. It requires `PACE_V2_OFFICIAL_LAYERS_ENABLED=true` and `PACE_V2_OFFICIAL_LAYERS_TARGET=production`, rejects loopback, and never writes. It reads the raw v2 facts, rather than the serving `f1ql.lap_pace` view, because the deployed view does not expose lap numbers required for per-lap evidence:
+`validate:pace-v2:official-layers:production` binds retained `TimingData.jsonStream` and `DriverList.jsonStream` files to the committed round URL/SHA-256 matrix, then performs one bounded `BEGIN READ ONLY` `laps_normalized_v2` observation with a five-second statement timeout. It requires `PACE_V2_OFFICIAL_LAYERS_ENABLED=true` and `PACE_V2_OFFICIAL_LAYERS_TARGET=production`, rejects loopback, and never writes. It reads the raw v2 facts, rather than the serving `f1ql.lap_pace` view, because the deployed view does not expose lap numbers required for per-lap evidence:
 
 ```bash
 PACE_V2_OFFICIAL_LAYERS_ENABLED=true PACE_V2_OFFICIAL_LAYERS_TARGET=production \
-  npm run --silent validate:pace-v2:official-layers:production -- 2 /retained/TimingData.jsonStream
+  npm run --silent validate:pace-v2:official-layers:production -- 2 /retained/TimingData.jsonStream /retained/DriverList.jsonStream
 ```
 
-Layer 1 reports official racing-number coverage and v2 driver coverage. Layer 2 parses final completed raw timing laps and reports their count alongside v2 laps. Layer 3 emits one v2-lap evidence record with every v2 exclusion reason (`missing time`, `invalid`, `pit`, `in lap`, `out lap`). The retained official streams identify drivers only by racing number and do not carry the reviewed clean-air, pit, in-lap, or out-lap fields. Until a hashed, reviewed racing-number-to-v2-driver mapping and shared eligibility authority are retained, identity-dependent driver/lap comparisons are explicitly `unverified`, and official clean-air/pit metadata is `unavailable_not_inferred`.
+For round 2, the hashed official DriverList supplies each racing number and TLA. The validator accepts an identity only when that number exactly matches canonical `race_data.driver_number` and its TLA exactly matches canonical `driver.abbreviation`; it fails closed for ambiguity, omissions, or any mismatch. Layer 1 reports that mapping and the v2 subset. Layer 2 emits an exact numeric, zero-tolerance raw lap-time comparison for every v2 driver/lap, plus both directions of coverage gap. Layer 3 emits one v2-lap evidence record with every v2 exclusion reason (`missing time`, `invalid`, `pit`, `in lap`, `out lap`). The retained official streams do not carry reviewed clean-air, pit, in-lap, or out-lap fields, so official clean-air/pit metadata remains `unavailable_not_inferred`; neither eligibility nor pace-filtering facts are inferred from timing equality.
 
 ## Selected Event Pace Artifact
 
