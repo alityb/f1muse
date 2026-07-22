@@ -19,7 +19,14 @@ export async function generatePaceV2IncompleteRebuildManifest(pool: QueryPool, s
     await client.query("SELECT set_config('statement_timeout', $1, true)", ['5000ms']);
     const [persisted, canonical] = await Promise.all([
       client.query('SELECT season, round, track_id, driver_id, session_type, lap_number, stint_id, stint_lap_index, lap_time_seconds, is_valid_lap, is_pit_lap, is_out_lap, is_in_lap, clean_air_flag, compound, tyre_age_laps, methodology_version FROM laps_normalized_v2 WHERE season = 2026 AND round = ANY($1::int[]) AND session_type = \'R\' ORDER BY round, driver_id, lap_number', [approvedRounds]),
-      client.query('SELECT DISTINCT r.round, rd.driver_id FROM race r JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN (\'race\', \'race_result\') WHERE r.year = 2026 AND r.round = ANY($1::int[]) ORDER BY r.round, rd.driver_id', [approvedRounds])
+      client.query(`SELECT DISTINCT r.round, rd.driver_id
+        FROM race r JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
+        WHERE r.year = 2026 AND r.round = ANY($1::int[])
+          AND NOT (COALESCE(rd.race_laps, 0) = 0 AND (
+            UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
+            OR UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
+          ))
+        ORDER BY r.round, rd.driver_id`, [approvedRounds])
     ]);
     const rows = persisted.rows.map(fact);
     const rounds = approvedRounds.map((round) => {

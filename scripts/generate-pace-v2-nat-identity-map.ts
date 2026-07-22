@@ -110,6 +110,10 @@ export async function generatePaceV2NatIdentityMap(pool: QueryPool, fetchSession
       JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
       JOIN driver d ON d.id = rd.driver_id
       WHERE r.year = $1 AND r.round = ANY($2::int[])
+        AND NOT (COALESCE(rd.race_laps, 0) = 0 AND (
+          UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
+          OR UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
+        ))
       ORDER BY r.round, rd.driver_id
     `, [SEASON, PACE_V2_NAT_REPLACEMENT_ROUNDS]);
     const rows = result.rows.map((row) => ({ ...row, round: Number(row.round), race_track_id: String(row.race_track_id), driver_id: String(row.driver_id), driver_code: row.driver_code === null ? null : String(row.driver_code) }));

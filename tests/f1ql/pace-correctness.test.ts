@@ -15,6 +15,8 @@ beforeAll(async () => {
     (race_id, type, driver_id, position_number, position_text, race_reason_retired, race_points) VALUES
     (1, 'race_result', 'explicit_dsq', NULL, ' DSQ ', 'Engine', 0),
     (1, 'race_result', 'explicit_dns', NULL, 'DNS', 'DNF', 0),
+    (1, 'race_result', 'explicit_withdrawn', NULL, ' W ', 'DNF', 0),
+    (1, 'race_result', 'reason_withdrawn', NULL, NULL, 'Withdrawn', 0),
     (1, 'race_result', 'formation_lap_dnf', NULL, 'DNF', NULL, 0)`);
   await pool.query(`INSERT INTO laps_normalized_v2
     (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version) VALUES
@@ -30,12 +32,14 @@ afterAll(async () => {
 });
 
 describe('pace and classification factual correctness', () => {
-  it('uses explicit DSQ/DNS tokens before generic reasons and keeps formation-lap DNF', async () => {
+  it('uses explicit DSQ/DNS/withdrawn tokens before generic reasons and keeps formation-lap DNF', async () => {
     const rows = await pool.query(`SELECT driver_id, classification_status FROM f1ql.event_classification WHERE season = 2025 AND round = 1 ORDER BY driver_id`);
     expect(rows.rows).toEqual([
       { driver_id: 'explicit-dns', classification_status: 'dns' },
       { driver_id: 'explicit-dsq', classification_status: 'dsq' },
-      { driver_id: 'formation-lap-dnf', classification_status: 'dnf' }
+      { driver_id: 'explicit-withdrawn', classification_status: 'withdrawn' },
+      { driver_id: 'formation-lap-dnf', classification_status: 'dnf' },
+      { driver_id: 'reason-withdrawn', classification_status: 'withdrawn' }
     ]);
   });
 

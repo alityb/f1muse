@@ -529,11 +529,12 @@ export async function setupTestDatabase(
       CASE
         WHEN UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('DSQ', 'DISQUALIFIED') THEN 'dsq'
         WHEN UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('DNS', 'DID NOT START') THEN 'dns'
+        WHEN UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN') THEN 'withdrawn'
         WHEN rd.position_number IS NOT NULL AND rd.race_reason_retired IS NULL THEN 'classified'
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('DNS', 'DID NOT START') THEN 'dns'
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('DSQ', 'DISQUALIFIED') THEN 'dsq'
         WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('NC', 'NOT CLASSIFIED') THEN 'not_classified'
-        WHEN UPPER(COALESCE(rd.race_reason_retired, '')) IN ('WD', 'WITHDRAWN') THEN 'withdrawn'
+        WHEN UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN') THEN 'withdrawn'
         ELSE 'dnf'
       END AS classification_status,
       COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired) AS status_reason

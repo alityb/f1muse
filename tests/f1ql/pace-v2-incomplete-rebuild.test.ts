@@ -1,14 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Pool } from 'pg';
 import { createPaceV2IncompleteRebuildManifest, fingerprintDriverIds, parsePaceV2IncompleteRebuildArtifact, PACE_V2_INCOMPLETE_REBUILD_ROUNDS } from '../../src/etl/pace-v2-incomplete-rebuild';
 import { fingerprintPaceV2FactRows } from '../../src/etl/pace-v2-identity-repair';
 import { runPaceV2IncompleteRebuild } from '../../scripts/rebuild-pace-v2-incomplete-rounds';
 import { generatePaceV2IncompleteRebuildFacts, incompleteRebuildFactsRefusal, PaceV2IncompleteRebuildFactsError } from '../../scripts/generate-pace-v2-incomplete-rebuild-facts';
+import { generatePaceV2IncompleteRebuildManifest } from '../../scripts/generate-pace-v2-incomplete-rebuild-manifest';
+import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 const original = PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => ({ season: 2026, round, track_id: `track_${round}`, driver_id: 'driver_a', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 90, is_valid_lap: true, is_pit_lap: true, is_out_lap: true, is_in_lap: true, clean_air_flag: false, compound: null, tyre_age_laps: null, methodology_version: 'clean_air_gap_2_0s_v1' }));
 const driverIds = ['driver_a', 'alexander-albon', 'gabriel-bortoleto', 'lando-norris', 'oscar-piastri'];
 const manifest = createPaceV2IncompleteRebuildManifest(PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => ({ round, original_fact_row_count: 1, original_fact_fingerprint: fingerprintPaceV2FactRows(original.filter((row) => row.round === round)), canonical_driver_count: 5, canonical_driver_fingerprint: fingerprintDriverIds(driverIds) })));
 const facts = PACE_V2_INCOMPLETE_REBUILD_ROUNDS.flatMap((round) => driverIds.map((driver_id, index) => ({ ...original.find((row) => row.round === round)!, driver_id, lap_number: index + 1, is_pit_lap: false, is_in_lap: false, is_out_lap: false })));
 const artifactFor = (approvedManifest = manifest, approvedFacts = facts) => parsePaceV2IncompleteRebuildArtifact({ version: 1, rebuild_version: 'fastf1_complete_race_v1', manifest_fingerprint: approvedManifest.manifest_fingerprint, identity_map_fingerprint: 'a'.repeat(64), methodology_version: 'clean_air_gap_2_0s_v1', facts: approvedFacts }, approvedManifest);
+let database: Pool;
+
+beforeAll(async () => {
+  database = new Pool({ connectionString: getTestDatabaseUrl() });
+  await setupTestDatabase(database, { seed: false });
+});
+
+afterAll(async () => { await database.end(); });
 
 describe('incomplete pace rebuild', () => {
   it('writes only immutable replacement facts and audits for full canonical FastF1 coverage', async () => {
@@ -17,6 +28,7 @@ describe('incomplete pace rebuild', () => {
     const artifact = artifactFor();
     await expect(runPaceV2IncompleteRebuild(pool, manifest, artifact)).resolves.toMatchObject({ rebuilt_rounds: 9, rebuild_fact_rows: 45 });
     expect(calls.some((sql) => sql.startsWith('INSERT INTO pace_v2_lap_rebuild'))).toBe(true);
+    expect(calls.find((sql) => sql.includes('FROM race r JOIN race_data'))).toContain("UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')");
     expect(calls.some((sql) => /(?:UPDATE|DELETE)\s+.*laps_normalized_v2/i.test(sql))).toBe(false);
   });
 
@@ -43,5 +55,27 @@ describe('incomplete pace rebuild', () => {
       expect(error).toBeInstanceOf(PaceV2IncompleteRebuildFactsError);
       expect(incompleteRebuildFactsRefusal(error)).toEqual({ status: 'refused', error: 'incomplete_canonical_driver_coverage', round: 2, expected_canonical_driver_count: 11, observed_fact_driver_count: 10, missing_canonical_driver_ids: ['driver_0'] });
     }
+  });
+
+  it('excludes four zero-lap official non-starters while requiring every actual race starter', async () => {
+    await database.query(`INSERT INTO race (id, year, round) VALUES (202602, 2026, 2);
+      INSERT INTO race_data (race_id, type, driver_id, position_number, position_text, race_reason_retired, race_laps) VALUES
+        (202602, 'race_result', 'starter_a', 1, '1', NULL, 56),
+        (202602, 'race_result', 'starter_b', 2, '2', NULL, 55),
+        (202602, 'race_result', 'withdrawn_w', NULL, 'W', NULL, 0),
+        (202602, 'race_result', 'withdrawn_text', NULL, 'Withdrawn', NULL, 0),
+        (202602, 'race_result', 'dns_code', NULL, 'DNS', NULL, 0),
+        (202602, 'race_result', 'dns_text', NULL, 'Did not start', NULL, 0);
+      INSERT INTO laps_normalized_v2
+        (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version)
+      VALUES (2026, 2, 'shanghai', 'starter_a', 'R', 1, 90, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
+
+    const generated = await generatePaceV2IncompleteRebuildManifest(database, [2]);
+
+    expect(generated.rounds).toEqual([expect.objectContaining({
+      round: 2,
+      canonical_driver_count: 2,
+      canonical_driver_fingerprint: fingerprintDriverIds(['starter_a', 'starter_b'])
+    })]);
   });
 });
