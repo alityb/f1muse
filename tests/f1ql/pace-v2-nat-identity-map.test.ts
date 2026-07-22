@@ -27,7 +27,7 @@ describe('NaT FastF1 identity-map generator', () => {
     const artifact = await generatePaceV2NatIdentityMap(pool, session);
     expect(artifact).toMatchObject({ version: 2, source: 'canonical_race_results_fastf1_identity_map', season: 2026 });
     expect(artifact.rounds).toHaveLength(9);
-    expect(artifact.rounds[0]).toEqual({ round: 2, track_id: 'track_2', driver_ids: { AAA: 'driver_2_a', BBB: 'driver_2_b' } });
+    expect(artifact.rounds[0]).toEqual({ round: 2, track_id: 'track_2', driver_ids: { AAA: 'driver_2_a', BBB: 'driver_2_b' }, official_non_starter_codes: [] });
     expect(calls[0].sql).toBe('BEGIN READ ONLY');
     expect(calls[1].params).toEqual(['5000ms']);
     expect(calls[2].sql).toMatch(/^\s*SELECT\b/i);
@@ -51,6 +51,7 @@ describe('NaT FastF1 identity-map generator', () => {
     expect(Object.keys(artifact.rounds[0].driver_ids)).toHaveLength(18);
     expect(artifact.rounds[0].driver_ids).not.toHaveProperty('DNS');
     expect(artifact.rounds[0].driver_ids).not.toHaveProperty('WTH');
+    expect(artifact.rounds[0].official_non_starter_codes).toEqual(['DNS', 'WD1', 'WD2', 'WTH']);
   });
 
   it('fails closed when a FastF1 code is not a canonical starter or official DNS/W exclusion', () => {

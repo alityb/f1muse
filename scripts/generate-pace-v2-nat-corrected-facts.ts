@@ -15,7 +15,7 @@ export function parsePaceV2NatSourceMap(input: unknown): PaceV2NatIdentityMap {
   const source = input as Partial<PaceV2NatIdentityMap>;
   if (source.version !== 2 || source.source !== 'canonical_race_results_fastf1_identity_map' || source.season !== 2026 || !Array.isArray(source.rounds) || source.rounds.length !== PACE_V2_NAT_REPLACEMENT_ROUNDS.length) throw new Error('FAIL_CLOSED: canonical FastF1 identity map has an unsupported shape');
   const rounds = source.rounds;
-  if (rounds.some((entry, index) => entry.round !== PACE_V2_NAT_REPLACEMENT_ROUNDS[index] || typeof entry.track_id !== 'string' || !entry.track_id || !entry.driver_ids || typeof entry.driver_ids !== 'object' || Object.entries(entry.driver_ids).some(([code, id]) => !/^[A-Z0-9]{3}$/.test(code) || typeof id !== 'string' || !id))) throw new Error('FAIL_CLOSED: approved FastF1 identity map must cover exactly the reviewed rounds');
+  if (rounds.some((entry, index) => entry.round !== PACE_V2_NAT_REPLACEMENT_ROUNDS[index] || typeof entry.track_id !== 'string' || !entry.track_id || !entry.driver_ids || typeof entry.driver_ids !== 'object' || !Array.isArray(entry.official_non_starter_codes) || Object.entries(entry.driver_ids).some(([code, id]) => !/^[A-Z0-9]{3}$/.test(code) || typeof id !== 'string' || !id) || entry.official_non_starter_codes.some((code) => !/^[A-Z0-9]{3}$/.test(code)) || new Set(entry.official_non_starter_codes).size !== entry.official_non_starter_codes.length || entry.official_non_starter_codes.some((code) => code in entry.driver_ids))) throw new Error('FAIL_CLOSED: approved FastF1 identity map must cover exactly the reviewed rounds');
   return { version: 2, source: 'canonical_race_results_fastf1_identity_map', season: 2026, rounds };
 }
 
@@ -36,7 +36,9 @@ export function generatePaceV2NatCorrectedFacts(manifest: PaceV2NatReplacementMa
     if (session.season !== manifest.season || session.round !== entry.round || session.session_name !== 'Race') throw new Error(`FAIL_CLOSED: FastF1 source is not the requested race session for round ${entry.round}`);
     const race: RaceInfo = { race_id: entry.round, round: entry.round, circuit_id: identity.track_id, grand_prix_id: `round_${entry.round}`, official_name: session.event_name, has_session_mapping: true };
     const driverIds = new Map(Object.entries(identity.driver_ids));
-    const normalized = finalizeLaps(computeCleanAir(computeStints(normalizeLaps(session, race, driverIds, new Set(driverIds.values())))));
+    // Only canonical explicit non-starters may bypass FastF1 driver-code resolution.
+    const nonStarterCodes = new Set(identity.official_non_starter_codes);
+    const normalized = finalizeLaps(computeCleanAir(computeStints(normalizeLaps({ ...session, laps: session.laps.filter((lap) => !nonStarterCodes.has(lap.driver_code?.trim().toUpperCase() ?? '')) }, race, driverIds, new Set(driverIds.values())))));
     facts.push(...normalized.map((lap) => ({ ...lap, session_type: 'R', methodology_version: PACE_V2_NAT_REPLACEMENT_METHODOLOGY })));
   }
   const artifact = parsePaceV2NatReplacementArtifact({ version: 1, replacement_version: PACE_V2_NAT_REPLACEMENT_ID, methodology_version: PACE_V2_NAT_REPLACEMENT_METHODOLOGY, facts });

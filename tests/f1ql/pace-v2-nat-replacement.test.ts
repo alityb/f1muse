@@ -28,17 +28,18 @@ describe('NaT pace replacement contract', () => {
     expect(replacementRefusalReason(new Error('unexpected failure'))).toBe('replacement_runtime_failure');
   });
 
-  it('accepts the canonical identity-map generator contract and generates only manifest rounds from fixed FastF1 pit flags', () => {
+  it('excludes canonical round-2 NOR/ALB/BOR/PIA DNS codes before resolution and fails closed for an actual starter', () => {
     const manifest = createPaceV2NatReplacementManifest(PACE_V2_NAT_REPLACEMENT_ROUNDS.map((round) => ({ round, fact_row_count: 10, original_fact_fingerprint: `${round}`.padStart(64, 'a') })));
-    const source = parsePaceV2NatSourceMap({ version: 2, source: 'canonical_race_results_fastf1_identity_map', season: 2026, rounds: PACE_V2_NAT_REPLACEMENT_ROUNDS.map((round) => ({ round, track_id: `track_${round}`, driver_ids: Object.fromEntries(Array.from({ length: 10 }, (_, index) => [`D${`${index}`.padStart(2, '0')}`, `driver_${index}`])) })) });
+    const source = parsePaceV2NatSourceMap({ version: 2, source: 'canonical_race_results_fastf1_identity_map', season: 2026, rounds: PACE_V2_NAT_REPLACEMENT_ROUNDS.map((round) => ({ round, track_id: `track_${round}`, driver_ids: Object.fromEntries(Array.from({ length: 10 }, (_, index) => [`D${`${index}`.padStart(2, '0')}`, `driver_${index}`])), official_non_starter_codes: round === 2 ? ['ALB', 'BOR', 'NOR', 'PIA'] : [] })) });
     const artifact = generatePaceV2NatCorrectedFacts(manifest, source, (season, round) => ({
       season, round, session_name: 'Race', event_name: `Round ${round}`, session_uid: `${round}`, columns_present: { Driver: true, LapNumber: true, LapTime: true, Time: true, IsAccurate: true, PitInTime: true, PitOutTime: true, Compound: true, TyreLife: true, Position: true, GapToLeader: true },
-      laps: Array.from({ length: 10 }, (_, index) => ({ driver_code: `D${`${index}`.padStart(2, '0')}`, lap_number: 1, lap_time_seconds: 90 + index, lap_end_time_seconds: 90 + index, is_accurate: true, pit_in: false, pit_out: false, compound: 'MEDIUM', tyre_life: 1, position: index + 1, gap_to_leader: index * 2 }))
+       laps: [...Array.from({ length: 10 }, (_, index) => ({ driver_code: `D${`${index}`.padStart(2, '0')}`, lap_number: 1, lap_time_seconds: 90 + index, lap_end_time_seconds: 90 + index, is_accurate: true, pit_in: false, pit_out: false, compound: 'MEDIUM', tyre_life: 1, position: index + 1, gap_to_leader: index * 2 })), ...(round === 2 ? ['NOR', 'ALB', 'BOR', 'PIA'].map((driver_code, index) => ({ driver_code, lap_number: 1, lap_time_seconds: null, lap_end_time_seconds: null, is_accurate: true, pit_in: false, pit_out: false, compound: null, tyre_life: null, position: index + 11, gap_to_leader: null })) : [])]
     }));
     expect(artifact.facts).toHaveLength(90);
     expect(artifact.facts.every((fact) => !fact.is_pit_lap && !fact.is_in_lap && !fact.is_out_lap)).toBe(true);
     expect(() => assertPaceV2NatTemporaryOutput('facts.json')).toThrow('absolute temporary path');
     expect(() => parsePaceV2NatSourceMap({ ...source, version: 1 })).toThrow('unsupported shape');
+    expect(() => generatePaceV2NatCorrectedFacts(manifest, { ...source, rounds: source.rounds.map((entry) => entry.round === 2 ? { ...entry, official_non_starter_codes: [] } : entry) }, (season, round) => ({ season, round, session_name: 'Race', event_name: `Round ${round}`, session_uid: `${round}`, columns_present: { Driver: true, LapNumber: true, LapTime: true, Time: true, IsAccurate: true, PitInTime: true, PitOutTime: true, Compound: true, TyreLife: true, Position: true, GapToLeader: true }, laps: round === 2 ? [{ driver_code: 'NOR', lap_number: 1, lap_time_seconds: 90, lap_end_time_seconds: 90, is_accurate: true, pit_in: false, pit_out: false, compound: 'MEDIUM', tyre_life: 1, position: 1, gap_to_leader: 0 }] : Array.from({ length: 10 }, (_, index) => ({ driver_code: `D${`${index}`.padStart(2, '0')}`, lap_number: 1, lap_time_seconds: 90 + index, lap_end_time_seconds: 90 + index, is_accurate: true, pit_in: false, pit_out: false, compound: 'MEDIUM', tyre_life: 1, position: index + 1, gap_to_leader: index })) }))).toThrow('Unknown driver codes in FastF1 data: NOR');
   });
 
   it('inserts replacement facts and immutable approval without updating originals', async () => {

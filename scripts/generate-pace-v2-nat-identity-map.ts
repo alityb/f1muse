@@ -15,6 +15,7 @@ export interface PaceV2NatIdentityMapRound {
   round: number;
   track_id: string;
   driver_ids: Record<string, string>;
+  official_non_starter_codes: string[];
 }
 
 export interface PaceV2NatIdentityMap {
@@ -96,7 +97,7 @@ export function buildPaceV2NatIdentityMap(rows: DatabaseIdentityRow[], fetchSess
     if (missingDatabaseCodes.length || extraDatabaseIdentities.length) {
       throw new Error(`FAIL_CLOSED: FastF1 driver-code identity mismatch for round ${round}; fastf1_code_count=${fastF1Codes.length}; canonical_starter_code_count=${starterByCode.size}; official_non_starter_code_count=${officialNonStarterCodes.size}; missing_database_codes=${JSON.stringify(missingDatabaseCodes)}; extra_database_identities=${JSON.stringify(extraDatabaseIdentities)}`);
     }
-    rounds.push({ round, track_id: [...trackIds][0], driver_ids: Object.fromEntries([...starterByCode.entries()].sort(([left], [right]) => left.localeCompare(right))) });
+    rounds.push({ round, track_id: [...trackIds][0], driver_ids: Object.fromEntries([...starterByCode.entries()].sort(([left], [right]) => left.localeCompare(right))), official_non_starter_codes: [...officialNonStarterCodes].sort() });
   }
   if (rows.some((row) => !PACE_V2_NAT_REPLACEMENT_ROUNDS.includes(row.round as never))) {
     throw new Error('FAIL_CLOSED: database identity query returned an unreviewed round');
