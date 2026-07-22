@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { PaceV2Manifest, parsePaceV2Manifest } from './pace-v2-manifest';
 
 const TARGET_SEASON = 2026;
 const CLEAN_AIR_GAP_THRESHOLD = 2.0; // seconds
@@ -290,22 +291,25 @@ function resolvePythonPath(): string {
   return 'python3';
 }
 
-function ensureSeasonArgument(): number {
-  const seasonArg = process.argv.slice(2)[0];
-  if (!seasonArg) {
-    throw new Error('FAIL_CLOSED: Season argument required. Usage: npm run ingest:season 2026');
+function requireApprovedManifest(): PaceV2Manifest {
+  const args = process.argv.slice(2);
+  if (args[0] !== '--manifest' || !args[1] || args.length !== 2) {
+    throw new Error('FAIL_CLOSED: explicit approved manifest required. Usage: npm run ingest:pace-v2:manifest -- <manifest.json>');
   }
-
-  const season = parseInt(seasonArg, 10);
-  if (!Number.isInteger(season)) {
-    throw new Error(`FAIL_CLOSED: Invalid season "${seasonArg}"`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(args[1], 'utf8'));
+  } catch (error) {
+    throw new Error(`FAIL_CLOSED: cannot read manifest: ${error}`);
   }
+  const manifest = parsePaceV2Manifest(parsed);
+  const season = manifest.season;
 
   if (season !== TARGET_SEASON) {
     throw new Error(`FAIL_CLOSED: This ingestion script only supports season ${TARGET_SEASON}`);
   }
 
-  return season;
+  return manifest;
 }
 
 async function fingerprintTable(pool: Pool, tableName: string): Promise<TableFingerprint> {
@@ -576,6 +580,13 @@ async function validateLapsSchema(pool: Pool): Promise<void> {
     throw new Error(
       `FAIL_CLOSED: laps_normalized_v2 missing required columns: ${missing.join(', ')}`
     );
+  }
+}
+
+async function validatePaceAuditSchema(pool: Pool): Promise<void> {
+  const result = await pool.query(`SELECT to_regclass('pace_v2_round_audit')::text AS relation`);
+  if (result.rows[0]?.relation !== 'pace_v2_round_audit') {
+    throw new Error('FAIL_CLOSED: pace_v2_round_audit is missing; apply the reviewed manifest audit migration before ingestion');
   }
 }
 
@@ -1143,8 +1154,7 @@ async function loadExistingLapHash(
     `
     SELECT DISTINCT track_id
     FROM laps_normalized_v2
-    WHERE season = $1
-      AND round = $2
+    WHERE season = $1 AND round = $2 AND session_type = 'R'
     `,
     [season, round]
   );
@@ -1179,12 +1189,11 @@ async function loadExistingLapHash(
       compound,
       tyre_age_laps
     FROM laps_normalized_v2
-    WHERE season = $1
-      AND round = $2
-      AND track_id = $3
+    WHERE season = $1 AND round = $2 AND track_id = $3
+      AND session_type = 'R' AND methodology_version = $4
     ORDER BY driver_id, lap_number
     `,
-    [season, round, trackId]
+    [season, round, trackId, CLEAN_AIR_METHODOLOGY_VERSION]
   );
 
   const normalized = rows.rows.map(row => ({
@@ -1292,57 +1301,45 @@ async function insertRoundLaps(
   return { status: 'success', lapsInserted: laps.length };
 }
 
-async function recordEtlRun(
-  pool: Pool,
-  season: number,
-  metrics: EtlMetrics,
-  startedAt: Date,
-  finishedAt: Date
+async function recordRoundAudit(
+  client: PoolClient,
+  race: RaceInfo,
+  manifestFingerprint: string,
+  sourceFingerprint: string,
+  factRowCount: number
 ): Promise<void> {
-  await pool.query(
-    `
-    CREATE TABLE IF NOT EXISTS etl_runs_laps_normalized (
-      run_id uuid NOT NULL DEFAULT gen_random_uuid(),
-      season integer NOT NULL,
-      status text NOT NULL,
-      races_processed integer NOT NULL,
-      races_skipped integer NOT NULL,
-      races_failed integer NOT NULL,
-      total_laps_inserted integer NOT NULL,
-      execution_hash text NOT NULL,
-      started_at timestamp with time zone NOT NULL,
-      finished_at timestamp with time zone NOT NULL,
-      CONSTRAINT etl_runs_laps_normalized_pkey PRIMARY KEY (run_id)
-    )
-    `
-  );
+  const existing = await client.query(`
+    SELECT manifest_fingerprint, source_fingerprint, fact_fingerprint, fact_row_count, methodology_version
+    FROM pace_v2_round_audit
+    WHERE season = $1 AND round = $2 AND session_type = 'R'
+  `, [TARGET_SEASON, race.round]);
+  const expected = [manifestFingerprint, sourceFingerprint, sourceFingerprint, factRowCount, CLEAN_AIR_METHODOLOGY_VERSION];
+  if (existing.rows.length === 1) {
+    const row = existing.rows[0];
+    if (String(row.manifest_fingerprint) !== expected[0] || String(row.source_fingerprint) !== expected[1] ||
+        String(row.fact_fingerprint) !== expected[2] || Number(row.fact_row_count) !== expected[3] ||
+        String(row.methodology_version) !== expected[4]) {
+      throw new HashMismatchError(`FAIL_CLOSED: immutable audit mismatch for round ${race.round}`);
+    }
+    return;
+  }
+  await client.query(`
+    INSERT INTO pace_v2_round_audit (
+      season, round, session_type, manifest_fingerprint, source_fingerprint, fact_fingerprint, fact_row_count, methodology_version
+    ) VALUES ($1, $2, 'R', $3, $4, $5, $6, $7)
+  `, [TARGET_SEASON, race.round, ...expected]);
+}
 
-  await pool.query(
-    `
-    INSERT INTO etl_runs_laps_normalized (
-      season,
-      status,
-      races_processed,
-      races_skipped,
-      races_failed,
-      total_laps_inserted,
-      execution_hash,
-      started_at,
-      finished_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `,
-    [
-      season,
-      metrics.races_failed === 0 ? 'success' : 'partial_failure',
-      metrics.races_processed,
-      metrics.races_skipped,
-      metrics.races_failed,
-      metrics.total_laps_inserted,
-      metrics.execution_hash,
-      startedAt.toISOString(),
-      finishedAt.toISOString()
-    ]
-  );
+async function assertPreFastF1RoundState(pool: Pool, race: RaceInfo): Promise<void> {
+  const state = await pool.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM laps_normalized_v2 WHERE season = $1 AND round = $2 AND session_type = 'R') AS fact_count,
+      (SELECT COUNT(*)::int FROM pace_v2_round_audit WHERE season = $1 AND round = $2 AND session_type = 'R') AS audit_count
+  `, [TARGET_SEASON, race.round]);
+  const row = state.rows[0];
+  if (Number(row.audit_count) > 1 || (Number(row.audit_count) === 1 && Number(row.fact_count) === 0)) {
+    throw new Error(`FAIL_CLOSED: invalid persisted v2 round state for round ${race.round}`);
+  }
 }
 
 async function processRace(
@@ -1350,11 +1347,14 @@ async function processRace(
   race: RaceInfo,
   allowedDriverIds: Set<string>,
   abbreviationToDriverId: Map<string, string>,
-  tableSnapshotVersion: string
+  tableSnapshotVersion: string,
+  manifestFingerprint: string
 ): Promise<RaceOutcome> {
   console.log(`\n-> Processing round ${race.round}: ${race.official_name}`);
 
   try {
+    // This state validation intentionally happens before any FastF1 request.
+    await assertPreFastF1RoundState(pool, race);
     const session = fetchFastF1Session(TARGET_SEASON, race.round);
     const executionHash = computeRaceExecutionHash(
       TARGET_SEASON,
@@ -1372,11 +1372,13 @@ async function processRace(
     const withCleanAir = computeCleanAir(withStints);
     const finalLaps = finalizeLaps(withCleanAir);
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const insertResult = await insertRoundLaps(client, race, finalLaps, executionHash);
-      await client.query('COMMIT');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const insertResult = await insertRoundLaps(client, race, finalLaps, executionHash);
+        // The audit write shares the fact transaction. Any audit failure rolls facts back.
+        await recordRoundAudit(client, race, manifestFingerprint, computeLapRowsHash(finalLaps), insertResult.status === 'success' ? insertResult.lapsInserted : finalLaps.length);
+        await client.query('COMMIT');
 
       return {
         round: race.round,
@@ -1407,7 +1409,8 @@ async function processRace(
 }
 
 async function main(): Promise<void> {
-  const season = ensureSeasonArgument();
+  const manifest = requireApprovedManifest();
+  const season = manifest.season;
 
   console.log('\n=== LAPS NORMALIZED SEASON INGESTION (2026) ===\n');
   console.log(`Season: ${season}`);
@@ -1418,15 +1421,29 @@ async function main(): Promise<void> {
   }
 
   const pool = new Pool({ connectionString: dbUrl });
-  const startedAt = new Date();
 
   try {
-    const races = await loadSeasonRaces(pool, season);
+    const allRaces = await loadSeasonRaces(pool, season);
+    const approvedByRound = new Map(manifest.approved_rounds.map((round) => [round.round, round]));
+    const races = allRaces.filter((race) => {
+      const approved = approvedByRound.get(race.round);
+      if (!approved) {
+        return false;
+      }
+      if (approved.race_id !== race.race_id || approved.track_id !== race.circuit_id) {
+        throw new Error(`FAIL_CLOSED: calendar changed after manifest generation for round ${race.round}`);
+      }
+      return true;
+    });
+    if (races.length !== manifest.approved_rounds.length) {
+      throw new Error('FAIL_CLOSED: one or more manifest rounds are absent from the current calendar');
+    }
     await validateLapsSchema(pool);
+    await validatePaceAuditSchema(pool);
     const validation = await validateSeasonEntrants(pool, season);
     const tableSnapshotVersion = await computeTableSnapshotVersion(pool);
 
-    console.log(`OK Preflight validation passed (${races.length} races)`);
+    console.log(`OK Manifest preflight passed (${races.length} approved races; ${manifest.manifest_fingerprint})`);
     console.log(`OK Table snapshot version: ${tableSnapshotVersion}`);
 
     const metrics: EtlMetrics = {
@@ -1449,9 +1466,10 @@ async function main(): Promise<void> {
         outcome = await processRace(
           pool,
           race,
-          validation.allowed_driver_ids,
-          validation.abbreviation_to_driver_id,
-          tableSnapshotVersion
+            validation.allowed_driver_ids,
+            validation.abbreviation_to_driver_id,
+            tableSnapshotVersion,
+            manifest.manifest_fingerprint
         );
       } catch (err) {
         if (err instanceof HashMismatchError) {
@@ -1497,9 +1515,6 @@ async function main(): Promise<void> {
     }
 
     metrics.execution_hash = sha256(`season:${season}|` + raceHashes.sort().join('|'));
-
-    const finishedAt = new Date();
-    await recordEtlRun(pool, season, metrics, startedAt, finishedAt);
 
     console.log('\n=== INGESTION SUMMARY ===\n');
     console.log(`Execution hash: ${metrics.execution_hash}`);

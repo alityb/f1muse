@@ -626,6 +626,8 @@ def write_audit_log(conn, season: int, metrics: ETLMetrics, started_at: datetime
 
 
 def main():
+    print('FAIL_CLOSED: legacy FastF1 lap ingestion is disabled; use the reviewed pace-v2 manifest writer.')
+    sys.exit(1)
     parser = argparse.ArgumentParser(description='ETL for laps_normalized table')
     parser.add_argument('--season', type=int, required=True, help='Season year (e.g., 2022, 2023, 2024, 2025)')
     parser.add_argument('--round', type=int, help='Specific round to load')

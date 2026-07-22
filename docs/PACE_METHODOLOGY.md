@@ -11,6 +11,24 @@ F1QL pace methodology version: `clean_air_gap_2_0s_v1`.
 
 Apply `20260721_pace_correctness_v2.sql` before running any updated lap ETL. It creates a new table and leaves `laps_normalized` unchanged. Historical migration into v2 is an explicit review task: copy only a season after verifying its session labels, source completeness, and clean-air method all match this document.
 
+## Manifest-Controlled Ingestion
+
+FastF1 pace ingestion is never part of automatic sync. Generate an approved, read-only manifest only after the calendar date is at least 24 hours old and `race_data` has at least ten race-result rows:
+
+```bash
+npm run pace:v2:manifest -- 2026 > /approved/pace-v2-2026.json
+```
+
+Review the emitted JSON outside the database, then use that exact file as the only writer input:
+
+```bash
+npm run ingest:pace-v2:manifest -- /approved/pace-v2-2026.json
+```
+
+The writer rejects altered manifests, calendar drift, incomplete persisted state, and any full-round fingerprint/count mismatch. It checks persisted state before FastF1 is contacted, inserts only absent facts (never upserts), and records the manifest/source/fact fingerprint in `pace_v2_round_audit` in the same transaction. Audit failure rolls back the round. Existing pilot v2 facts are not changed; a matching approved rerun may attach their first immutable audit record, while a mismatch fails closed.
+
+Before any writer use, an approved primary operator must review and apply `migrations/20260722_pace_v2_manifest_audit.sql` after `20260721_pace_correctness_v2.sql`. Do not run either through the application role or a read-only connection.
+
 ## Schema Snapshot Contract
 
 The committed production-schema contract is refreshed only with `npm run schema:snapshot:production` from the Railway production environment. The guarded generator requires its explicit opt-in, opens `BEGIN READ ONLY`, sets a transaction-local 10-second statement timeout, reads only `information_schema`, and rolls back. The approved v2 migration is represented by the `laps_normalized_v2` table, its 18 columns, and its six-column session-inclusive primary key; snapshot capture never backfills or alters production data.

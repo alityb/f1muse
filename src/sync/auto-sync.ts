@@ -12,7 +12,7 @@
  * What auto-syncs:
  *   - Jolpica: race results, standings (TypeScript HTTP, fast)
  *   - Teammate gap + matchup matrix (TypeScript SQL, fast)
- *   - FastF1 laps + qualifying (Python ETL, spawned per round)
+ *   - FastF1 ingestion is intentionally excluded until a reviewed pace-v2 manifest is supplied.
  *
  * Python requirements: `pip install -r requirements.txt` must have run.
  *   On Railway: Nixpacks installs Python + Node together via nixpacks.toml.
@@ -22,9 +22,6 @@
  */
 
 import { Pool } from 'pg';
-import { spawn } from 'child_process';
-import { accessSync, constants } from 'fs';
-import path from 'path';
 import { runJolpicaSync } from './jolpica-sync';
 import { runIngestion as runTeammateGapRace } from '../etl/teammate-gap/race';
 import { runIngestion as runTeammateGapQual } from '../etl/teammate-gap/qualifying';
@@ -42,74 +39,6 @@ let retryCount = 0;
 let retryTimer: NodeJS.Timeout | null = null;
 let primaryTimer: NodeJS.Timeout | null = null;
 let startupTimer: NodeJS.Timeout | null = null;
-
-// ---------------------------------------------------------------------------
-// Python ETL runner
-// ---------------------------------------------------------------------------
-function resolvePython(): string {
-  const railwayVenv = path.join(process.cwd(), '.venv', 'bin', 'python');
-  try {
-    accessSync(railwayVenv, constants.X_OK);
-    return railwayVenv;
-  } catch {
-    // Fall through to local venv / system python.
-  }
-
-  const venv = path.join(process.cwd(), 'venv', 'bin', 'python');
-  try {
-    accessSync(venv, constants.X_OK);
-    return venv;
-  } catch {
-    return 'python3';
-  }
-}
-
-function spawnPython(script: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const python = resolvePython();
-    const scriptPath = path.join(process.cwd(), script);
-    console.log(`[auto-sync] Spawning: ${python} ${scriptPath} ${args.join(' ')}`);
-
-    const proc = spawn(python, [scriptPath, ...args], {
-      env: { ...process.env },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    proc.stdout.on('data', (d: Buffer) => process.stdout.write(`[etl] ${d}`));
-    proc.stderr.on('data', (d: Buffer) => process.stderr.write(`[etl] ${d}`));
-
-    const timeout = setTimeout(() => {
-      proc.kill();
-      reject(new Error(`ETL timed out after 30 minutes: ${script}`));
-    }, 30 * 60 * 1000);
-
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timeout);
-      if (code === 0) {resolve();}
-      else {reject(new Error(`ETL exited ${code}: ${script}`));}
-    });
-  });
-}
-
-async function runFastF1ETL(roundNumbers: number[]): Promise<void> {
-  for (const rnd of roundNumbers) {
-    console.log(`[auto-sync] Running FastF1 laps ETL for round ${rnd}...`);
-    try {
-      await spawnPython('src/etl/ingest-laps-2026.py', ['--round', String(rnd)]);
-      console.log(`[auto-sync] Laps ETL done for round ${rnd}`);
-    } catch (e) {
-      console.error(`[auto-sync] Laps ETL failed for round ${rnd}:`, e);
-    }
-
-    console.log(`[auto-sync] Running FastF1 qualifying ETL for round ${rnd}...`);
-    try {
-      await spawnPython('src/etl/ingest-qualifying.py', ['--season', String(SEASON), '--round', String(rnd)]);
-      console.log(`[auto-sync] Qualifying ETL done for round ${rnd}`);
-    } catch (e) {
-      console.error(`[auto-sync] Qualifying ETL failed for round ${rnd}:`, e);
-    }
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Core sync logic
@@ -142,8 +71,7 @@ export async function runSync(pool: Pool): Promise<SyncResult> {
     if (newRounds > 0) {
       retryCount = 0; // found data — stop retrying
 
-      console.log('[auto-sync] Running FastF1 Python ETL...');
-      await runFastF1ETL(newRoundNumbers);
+      console.log('[auto-sync] FastF1 pace ingestion is disabled pending reviewed manifest approval.');
 
       console.log('[auto-sync] Running teammate gap + matchup matrix...');
       await runTeammateGapRace(pool, DEFAULT_ETL_CONFIG);
