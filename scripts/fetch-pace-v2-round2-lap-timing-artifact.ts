@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -15,7 +16,26 @@ interface FetchResponse {
 }
 
 interface TimingLine {
+  NumberOfLaps?: number;
+  LastLapTime?: { Value?: string };
   Stints?: Record<string, { LapTime?: string; LapNumber?: number }>;
+}
+
+function fetchOfficialTimingData(url: string): Promise<FetchResponse> {
+  const content = execFileSync('curl', [
+    '--fail', '--silent', '--show-error', '--location',
+    '--header', 'Accept: application/json, text/plain, */*',
+    '--header', 'Origin: https://www.formula1.com',
+    '--header', 'Referer: https://www.formula1.com/',
+    '--header', 'User-Agent: f1muse-pace-evidence/1.0 (+https://www.formula1.com/)',
+    url
+  ], { encoding: 'buffer', maxBuffer: 8 * 1024 * 1024 });
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    arrayBuffer: async () => content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength)
+  });
 }
 
 export interface OfficialTimingLapSummary {
@@ -52,12 +72,21 @@ export function validateRound2LapTimingArtifactUrl(sourceUrl: string): void {
 
 export function summarizeOfficialTimingLaps(content: string): OfficialTimingLapSummary[] {
   const laps = new Map<string, Map<number, number>>();
-  for (const sourceLine of content.split('\n')) {
+  for (const rawLine of content.split('\n')) {
+    const sourceLine = rawLine.replace(/^\uFEFF/, '').replace(/\r$/, '');
     const payload = /^\d{2}:\d{2}:\d{2}\.\d{3}(\{.*\})$/.exec(sourceLine)?.[1];
     if (!payload) continue;
     let record: { Lines?: Record<string, TimingLine> };
     try { record = JSON.parse(payload) as { Lines?: Record<string, TimingLine> }; } catch { continue; }
     for (const [racingNumber, line] of Object.entries(record.Lines ?? {})) {
+      if (typeof line.NumberOfLaps === 'number' && typeof line.LastLapTime?.Value === 'string') {
+        const seconds = lapTimeSeconds(line.LastLapTime.Value);
+        if (seconds !== null) {
+          const driverLaps = laps.get(racingNumber) ?? new Map<number, number>();
+          driverLaps.set(line.NumberOfLaps, seconds);
+          laps.set(racingNumber, driverLaps);
+        }
+      }
       for (const stint of Object.values(line.Stints ?? {})) {
         if (typeof stint.LapNumber !== 'number' || typeof stint.LapTime !== 'string') continue;
         const seconds = lapTimeSeconds(stint.LapTime);
@@ -81,14 +110,7 @@ export function summarizeOfficialTimingLaps(content: string): OfficialTimingLapS
 }
 
 export async function fetchRound2LapTimingArtifact(
-  fetcher: (url: string) => Promise<FetchResponse> = (url) => fetch(url, {
-    headers: {
-      Accept: 'application/json, text/plain, */*',
-      Origin: 'https://www.formula1.com',
-      Referer: 'https://www.formula1.com/',
-      'User-Agent': 'f1muse-pace-evidence/1.0 (+https://www.formula1.com/)'
-    }
-  }) as Promise<FetchResponse>,
+  fetcher: (url: string) => Promise<FetchResponse> = fetchOfficialTimingData,
   now: () => Date = () => new Date(),
   sourceUrl = ROUND_2_F1_TIMING_DATA_URL
 ): Promise<{ content: Buffer; content_type: string | null; retrieved_at: string }> {
@@ -96,7 +118,7 @@ export async function fetchRound2LapTimingArtifact(
   const response = await fetcher(sourceUrl);
   if (!response.ok) throw new Error(`FAIL_CLOSED: official F1 timing artifact request failed with status ${response.status}`);
   const content = Buffer.from(await response.arrayBuffer());
-  if (!content.length || !/^\d{2}:\d{2}:\d{2}\.\d{3}\{/.test(content.toString('utf8', 0, 32))) {
+  if (!content.length || !/^\uFEFF?\d{2}:\d{2}:\d{2}\.\d{3}\{/.test(content.toString('utf8', 0, 35))) {
     throw new Error('FAIL_CLOSED: official F1 timing artifact is not a TimingData JSON stream');
   }
   return { content, content_type: response.headers.get('content-type'), retrieved_at: now().toISOString() };
@@ -105,10 +127,11 @@ export async function fetchRound2LapTimingArtifact(
 export function writeRound2LapTimingArtifact(
   artifact: { content: Buffer; content_type: string | null; retrieved_at: string },
   temporaryDirectory = os.tmpdir()
-): { version: 1; authority: 'Formula 1'; source_url: string; retrieved_at: string; output: string; artifact_sha256: string; bytes: number; content_type: string | null; comparison_scope: 'individual_laps_and_raw_timed_lap_medians_only'; eligibility_limitation: 'not_a_clean_air_or_pit_filtered_pace_median'; laps: OfficialTimingLapSummary[] } {
+): { version: 1; authority: 'Formula 1'; source_url: string; retrieved_at: string; output: string; artifact_sha256: string; bytes: number; content_type: string | null; comparison_scope: 'individual_laps_and_raw_timed_lap_medians_only'; required_driver_timing_coverage: 'complete' | 'incomplete'; eligibility_limitation: 'not_a_clean_air_or_pit_filtered_pace_median'; laps: OfficialTimingLapSummary[] } {
   const directory = fs.mkdtempSync(path.join(temporaryDirectory, 'pace-v2-round2-f1-timing-'), { encoding: 'utf8' });
   const output = path.join(directory, 'TimingData.jsonStream');
   fs.writeFileSync(output, artifact.content, { flag: 'wx', mode: 0o600 });
+  const laps = summarizeOfficialTimingLaps(artifact.content.toString('utf8'));
   return {
     version: 1,
     authority: 'Formula 1',
@@ -119,8 +142,9 @@ export function writeRound2LapTimingArtifact(
     bytes: artifact.content.length,
     content_type: artifact.content_type,
     comparison_scope: 'individual_laps_and_raw_timed_lap_medians_only',
+    required_driver_timing_coverage: laps.every((lap) => lap.timed_laps > 0) ? 'complete' : 'incomplete',
     eligibility_limitation: 'not_a_clean_air_or_pit_filtered_pace_median',
-    laps: summarizeOfficialTimingLaps(artifact.content.toString('utf8'))
+    laps
   };
 }
 
