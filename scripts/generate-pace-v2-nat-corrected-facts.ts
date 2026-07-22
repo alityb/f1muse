@@ -6,19 +6,17 @@ import path from 'path';
 import { PaceV2FactRow } from '../src/etl/pace-v2-identity-repair';
 import { fingerprintPaceV2FactRows, PACE_V2_NAT_REPLACEMENT_ID, PACE_V2_NAT_REPLACEMENT_METHODOLOGY, PaceV2NatReplacementArtifact, PaceV2NatReplacementManifest, parsePaceV2NatReplacementArtifact, parsePaceV2NatReplacementManifest, PACE_V2_NAT_REPLACEMENT_ROUNDS, replacementFactsByRound } from '../src/etl/pace-v2-nat-replacement';
 import { computeCleanAir, computeStints, FastF1SessionPayload, fetchFastF1Session, finalizeLaps, normalizeLaps, RaceInfo } from '../src/etl/season-ingestion';
-
-interface SourceRound { round: number; track_id: string; driver_ids: Record<string, string>; }
-interface SourceMap { version: 1; source: 'approved_fastf1_identity_map'; season: 2026; rounds: SourceRound[]; }
+import { PaceV2NatIdentityMap } from './generate-pace-v2-nat-identity-map';
 
 function sha256(value: string): string { return createHash('sha256').update(value).digest('hex'); }
 
-export function parsePaceV2NatSourceMap(input: unknown): SourceMap {
+export function parsePaceV2NatSourceMap(input: unknown): PaceV2NatIdentityMap {
   if (!input || typeof input !== 'object') throw new Error('FAIL_CLOSED: approved FastF1 identity map must be an object');
-  const source = input as Partial<SourceMap>;
-  if (source.version !== 1 || source.source !== 'approved_fastf1_identity_map' || source.season !== 2026 || !Array.isArray(source.rounds) || source.rounds.length !== PACE_V2_NAT_REPLACEMENT_ROUNDS.length) throw new Error('FAIL_CLOSED: approved FastF1 identity map has an unsupported shape');
-  const rounds = source.rounds as SourceRound[];
+  const source = input as Partial<PaceV2NatIdentityMap>;
+  if (source.version !== 2 || source.source !== 'canonical_race_results_fastf1_identity_map' || source.season !== 2026 || !Array.isArray(source.rounds) || source.rounds.length !== PACE_V2_NAT_REPLACEMENT_ROUNDS.length) throw new Error('FAIL_CLOSED: canonical FastF1 identity map has an unsupported shape');
+  const rounds = source.rounds;
   if (rounds.some((entry, index) => entry.round !== PACE_V2_NAT_REPLACEMENT_ROUNDS[index] || typeof entry.track_id !== 'string' || !entry.track_id || !entry.driver_ids || typeof entry.driver_ids !== 'object' || Object.entries(entry.driver_ids).some(([code, id]) => !/^[A-Z0-9]{3}$/.test(code) || typeof id !== 'string' || !id))) throw new Error('FAIL_CLOSED: approved FastF1 identity map must cover exactly the reviewed rounds');
-  return { version: 1, source: 'approved_fastf1_identity_map', season: 2026, rounds };
+  return { version: 2, source: 'canonical_race_results_fastf1_identity_map', season: 2026, rounds };
 }
 
 export function assertPaceV2NatTemporaryOutput(outputPath: string): string {
@@ -29,7 +27,7 @@ export function assertPaceV2NatTemporaryOutput(outputPath: string): string {
   return outputPath;
 }
 
-export function generatePaceV2NatCorrectedFacts(manifest: PaceV2NatReplacementManifest, source: SourceMap, fetchSession: (season: number, round: number) => FastF1SessionPayload = fetchFastF1Session): PaceV2NatReplacementArtifact {
+export function generatePaceV2NatCorrectedFacts(manifest: PaceV2NatReplacementManifest, source: PaceV2NatIdentityMap, fetchSession: (season: number, round: number) => FastF1SessionPayload = fetchFastF1Session): PaceV2NatReplacementArtifact {
   const facts: PaceV2FactRow[] = [];
   for (const entry of manifest.rounds) {
     const identity = source.rounds.find((round) => round.round === entry.round);
