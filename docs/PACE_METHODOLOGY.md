@@ -33,7 +33,14 @@ Track identities are reconciled only through the reviewed exact map in `src/etl/
 
 `repair:pace-v2:identity` is the only repair path. It is not called by manifest ingestion and is disabled unless both `PACE_V2_IDENTITY_REPAIR_ENABLED=true` and `PACE_V2_IDENTITY_REPAIR_TARGET=primary` are present. Its sole accepted manifest shape is version 1, season 2026 round 1 race session `R`, active methodology, the exact approved alias `australian_grand_prix -> melbourne`, a positive row count, source and target fact fingerprints, and a manifest fingerprint over that complete contract. Any other round, alias, session, methodology, changed manifest, existing repair audit, mixed track identity, row-count mismatch, or source/target fingerprint mismatch aborts and rolls back.
 
-An approved primary operator must generate the source-row and prospective canonical-row fingerprints from a read-only retained evidence extract, review the one-round manifest, and run:
+Generate the one-round manifest only from an authorized production environment with a read-only role:
+
+```bash
+PACE_V2_IDENTITY_REPAIR_MANIFEST_ENABLED=true PACE_V2_IDENTITY_REPAIR_MANIFEST_TARGET=production \
+  npm run generate:pace-v2:identity-repair:production > /approved/evidence/pace-v2-round-1-identity-repair.json
+```
+
+The generator refuses localhost/loopback targets, opens one `BEGIN READ ONLY` transaction with a five-second transaction-local timeout, reads only the complete fixed round, and always rolls back. It fails unless every persisted row is the active-methodology exact source alias, then uses the canonical fact-row and manifest fingerprint functions to emit exactly one manifest JSON object. Review that retained manifest before a separate approved primary operator runs:
 
 ```bash
 PACE_V2_IDENTITY_REPAIR_ENABLED=true PACE_V2_IDENTITY_REPAIR_TARGET=primary \
