@@ -18,8 +18,8 @@ export interface PaceV2NatIdentityMapRound {
 }
 
 export interface PaceV2NatIdentityMap {
-  version: 1;
-  source: 'approved_fastf1_identity_map';
+  version: 2;
+  source: 'canonical_race_results_fastf1_identity_map';
   season: 2026;
   rounds: PaceV2NatIdentityMapRound[];
 }
@@ -34,9 +34,7 @@ interface QueryPool { connect(): Promise<Client>; end(): Promise<void>; }
 interface DatabaseIdentityRow {
   round: number;
   race_track_id: string;
-  v2_track_id: string;
   driver_id: string;
-  race_driver_id: string | null;
   driver_code: string | null;
 }
 
@@ -71,17 +69,14 @@ export function buildPaceV2NatIdentityMap(rows: DatabaseIdentityRow[], fetchSess
   const rounds: PaceV2NatIdentityMapRound[] = [];
   for (const round of PACE_V2_NAT_REPLACEMENT_ROUNDS) {
     const identities = rows.filter((row) => row.round === round);
-    if (!identities.length) throw new Error(`FAIL_CLOSED: missing v2/race identity data for round ${round}`);
+    if (!identities.length) throw new Error(`FAIL_CLOSED: missing canonical race-result identity data for round ${round}`);
     const trackIds = new Set(identities.map((row) => row.race_track_id));
-    const v2TrackIds = new Set(identities.map((row) => row.v2_track_id));
-    if (trackIds.size !== 1 || v2TrackIds.size !== 1 || [...trackIds][0] !== [...v2TrackIds][0]) {
-      throw new Error(`FAIL_CLOSED: canonical race track and v2 track disagree for round ${round}`);
-    }
+    if (trackIds.size !== 1) throw new Error(`FAIL_CLOSED: canonical race results have ambiguous track identity for round ${round}`);
     const driverIds = new Set<string>();
     const byCode = new Map<string, string>();
     for (const identity of identities) {
       const code = identity.driver_code?.trim().toUpperCase() ?? '';
-      if (identity.race_driver_id !== identity.driver_id || !identity.driver_id || !DRIVER_CODE.test(code)) throw new Error(`FAIL_CLOSED: canonical driver identity is invalid for round ${round}`);
+      if (!identity.driver_id || !DRIVER_CODE.test(code)) throw new Error(`FAIL_CLOSED: canonical driver identity is invalid for round ${round}`);
       if (driverIds.has(identity.driver_id) || (byCode.has(code) && byCode.get(code) !== identity.driver_id)) {
         throw new Error(`FAIL_CLOSED: ambiguous canonical driver identity for round ${round}`);
       }
@@ -101,7 +96,7 @@ export function buildPaceV2NatIdentityMap(rows: DatabaseIdentityRow[], fetchSess
   if (rows.some((row) => !PACE_V2_NAT_REPLACEMENT_ROUNDS.includes(row.round as never))) {
     throw new Error('FAIL_CLOSED: database identity query returned an unreviewed round');
   }
-  return { version: 1, source: 'approved_fastf1_identity_map', season: SEASON, rounds };
+  return { version: 2, source: 'canonical_race_results_fastf1_identity_map', season: SEASON, rounds };
 }
 
 export async function generatePaceV2NatIdentityMap(pool: QueryPool, fetchSession: (season: number, round: number) => FastF1SessionPayload = fetchFastF1Session): Promise<PaceV2NatIdentityMap> {
@@ -110,17 +105,14 @@ export async function generatePaceV2NatIdentityMap(pool: QueryPool, fetchSession
     await client.query('BEGIN READ ONLY');
     await client.query("SELECT set_config('statement_timeout', $1, true)", [`${STATEMENT_TIMEOUT_MS}ms`]);
     const result = await client.query<DatabaseIdentityRow>(`
-      SELECT DISTINCT r.round, r.circuit_id AS race_track_id, v2.track_id AS v2_track_id,
-             v2.driver_id, rd.driver_id AS race_driver_id, d.abbreviation AS driver_code
-      FROM laps_normalized_v2 v2
-      JOIN race r ON r.year = v2.season AND r.round = v2.round
-      LEFT JOIN race_data rd ON rd.race_id = r.id AND rd.driver_id = v2.driver_id
-        AND LOWER(rd.type) IN ('race', 'race_result')
-      LEFT JOIN driver d ON d.id = v2.driver_id
-      WHERE v2.season = $1 AND v2.round = ANY($2::int[]) AND v2.session_type = 'R'
-      ORDER BY r.round, v2.driver_id
+      SELECT DISTINCT r.round, r.circuit_id AS race_track_id, rd.driver_id, d.abbreviation AS driver_code
+      FROM race r
+      JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
+      JOIN driver d ON d.id = rd.driver_id
+      WHERE r.year = $1 AND r.round = ANY($2::int[])
+      ORDER BY r.round, rd.driver_id
     `, [SEASON, PACE_V2_NAT_REPLACEMENT_ROUNDS]);
-    const rows = result.rows.map((row) => ({ ...row, round: Number(row.round), race_track_id: String(row.race_track_id), v2_track_id: String(row.v2_track_id), driver_id: String(row.driver_id), race_driver_id: row.race_driver_id === null ? null : String(row.race_driver_id), driver_code: row.driver_code === null ? null : String(row.driver_code) }));
+    const rows = result.rows.map((row) => ({ ...row, round: Number(row.round), race_track_id: String(row.race_track_id), driver_id: String(row.driver_id), driver_code: row.driver_code === null ? null : String(row.driver_code) }));
     const artifact = buildPaceV2NatIdentityMap(rows, fetchSession);
     await client.query('ROLLBACK');
     return artifact;
