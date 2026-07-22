@@ -35,7 +35,8 @@ describe('NaT FastF1 identity-map generator', () => {
   });
 
   it('fails closed for FastF1 count, ambiguity, and persisted-track mismatches', () => {
-    expect(() => buildPaceV2NatIdentityMap(rows, (season, round) => ({ ...session(season, round), laps: session(season, round).laps.slice(0, 1) }))).toThrow('driver-code count');
+    expect(() => buildPaceV2NatIdentityMap(rows, (season, round) => ({ ...session(season, round), laps: session(season, round).laps.slice(0, 1) }))).toThrow('extra_database_identities=[{"code":"BBB","driver_id":"driver_2_b"}]');
+    expect(() => buildPaceV2NatIdentityMap(rows, (season, round) => ({ ...session(season, round), laps: [...session(season, round).laps, { ...session(season, round).laps[0], driver_code: 'CCC' }] }))).toThrow('missing_database_codes=["CCC"]');
     expect(() => buildPaceV2NatIdentityMap([...rows, { ...rows[0] }], session)).toThrow('ambiguous');
     expect(() => buildPaceV2NatIdentityMap(rows.map((row) => row.round === 2 ? { ...row, v2_track_id: 'wrong_track' } : row), session)).toThrow('track disagree');
   });

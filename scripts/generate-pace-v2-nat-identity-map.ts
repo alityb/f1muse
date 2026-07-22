@@ -90,7 +90,11 @@ export function buildPaceV2NatIdentityMap(rows: DatabaseIdentityRow[], fetchSess
     }
     const fastF1Codes = exactFastF1Codes(fetchSession(SEASON, round), round);
     if (fastF1Codes.length !== byCode.size || fastF1Codes.some((code) => !byCode.has(code))) {
-      throw new Error(`FAIL_CLOSED: FastF1 driver-code count or identity mismatch for round ${round}`);
+      const missingDatabaseCodes = fastF1Codes.filter((code) => !byCode.has(code));
+      const extraDatabaseIdentities = [...byCode.entries()]
+        .filter(([code]) => !fastF1Codes.includes(code))
+        .map(([code, driver_id]) => ({ code, driver_id }));
+      throw new Error(`FAIL_CLOSED: FastF1 driver-code count or identity mismatch for round ${round}; fastf1_code_count=${fastF1Codes.length}; database_code_count=${byCode.size}; missing_database_codes=${JSON.stringify(missingDatabaseCodes)}; extra_database_identities=${JSON.stringify(extraDatabaseIdentities)}`);
     }
     rounds.push({ round, track_id: [...trackIds][0], driver_ids: Object.fromEntries([...byCode.entries()].sort(([left], [right]) => left.localeCompare(right))) });
   }
