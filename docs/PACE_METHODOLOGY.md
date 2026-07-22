@@ -107,7 +107,7 @@ PACE_V2_NAT_REPLACEMENT_ENABLED=true PACE_V2_NAT_REPLACEMENT_TARGET=primary \
   npm run --silent replace:pace-v2:nat-pit-flags -- --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json --facts /approved/evidence/pace-v2-nat-corrected-facts.json
 ```
 
-The writer uses one serializable transaction and a five-second local timeout. It inserts all replacement facts then their immutable manifest/original/replacement fingerprint audit in the same transaction; any failed round rolls back the complete batch. `--silent` is required so npm lifecycle output does not contaminate JSON evidence. A refusal emits a non-sensitive `reason` code. Retain both input artifacts and stdout with UTC time, operator, deployed commit, and SHA-256.
+The writer uses one serializable transaction and a five-second local timeout. It inserts all replacement facts then their immutable manifest/original/replacement fingerprint audit in the same transaction; any failed round rolls back the complete batch. `--silent` is required so npm lifecycle output does not contaminate JSON evidence. A refusal emits a non-sensitive `reason` code: contract and preflight failures are distinct from configuration, permission, timeout, serialization, duplicate-key, and unexpected runtime failures. Retain both input artifacts and stdout with UTC time, operator, deployed commit, and SHA-256.
 
 The preflight's coverage query is equivalent to:
 

@@ -21,6 +21,12 @@ describe('NaT pace replacement contract', () => {
     }
   });
 
+  it('does not mislabel configuration or database failures as preflight refusals', () => {
+    expect(replacementRefusalReason(new Error('Set PACE_V2_NAT_REPLACEMENT_ENABLED=true to write replacement facts.'))).toBe('replacement_not_explicitly_enabled');
+    expect(replacementRefusalReason(Object.assign(new Error('permission denied'), { code: '42501' }))).toBe('replacement_permission_denied');
+    expect(replacementRefusalReason(new Error('unexpected failure'))).toBe('replacement_runtime_failure');
+  });
+
   it('inserts replacement facts and immutable approval without updating originals', async () => {
     const calls: Array<{ sql: string; params?: unknown[] }> = [];
     const poisoned = facts.map((row) => ({ ...row, is_pit_lap: true, is_in_lap: true, is_out_lap: true }));

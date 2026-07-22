@@ -20,6 +20,11 @@ export function requirePaceV2NatReplacementConfiguration(environment: NodeJS.Pro
 
 export function replacementRefusalReason(error: unknown): string {
   const message = error instanceof Error ? error.message : '';
+  const databaseCode = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : '';
+  if (message.startsWith('Set PACE_V2_NAT_REPLACEMENT_ENABLED=')) return 'replacement_not_explicitly_enabled';
+  if (message.startsWith('Set PACE_V2_NAT_REPLACEMENT_TARGET=')) return 'replacement_target_not_primary';
+  if (message === 'DATABASE_URL is required for pace replacement.') return 'replacement_database_url_missing';
+  if (message.startsWith('Usage: npm run replace:pace-v2:nat-pit-flags')) return 'replacement_arguments_invalid';
   if (message === 'FAIL_CLOSED: replacement manifest JSON is invalid') return 'manifest_json_invalid';
   if (message === 'FAIL_CLOSED: replacement facts JSON is invalid') return 'replacement_facts_json_invalid';
   if (message.startsWith('FAIL_CLOSED: replacement manifest')) return 'manifest_contract_invalid';
@@ -30,7 +35,11 @@ export function replacementRefusalReason(error: unknown): string {
   if (message.includes('do not exactly cover original lap identities')) return 'lap_identity_mismatch';
   if (message.includes('retain the known NaT poison class')) return 'replacement_retains_poison_class';
   if (message.includes('replacement audit already exists')) return 'replacement_already_approved';
-  return 'replacement_preflight_refused';
+  if (databaseCode === '42501') return 'replacement_permission_denied';
+  if (databaseCode === '40001') return 'replacement_serialization_failure';
+  if (databaseCode === '57014') return 'replacement_statement_timeout';
+  if (databaseCode === '23505') return 'replacement_duplicate_key';
+  return 'replacement_runtime_failure';
 }
 
 export function parseReplacementJson(content: string, label: 'manifest' | 'facts'): unknown {
