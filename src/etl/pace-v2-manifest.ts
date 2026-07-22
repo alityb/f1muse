@@ -3,6 +3,15 @@ import { createHash } from 'crypto';
 export const PACE_V2_MANIFEST_VERSION = 1;
 export const PACE_V2_STABILIZATION_HOURS = 24;
 
+// Exact, reviewed source identities only. Do not add normalized or fuzzy matching here.
+export const PACE_V2_APPROVED_TRACK_ID_RECONCILIATION: Readonly<Record<string, string>> = {
+  australian_grand_prix: 'melbourne'
+};
+
+export function reconcilePaceV2TrackId(trackId: string): string {
+  return PACE_V2_APPROVED_TRACK_ID_RECONCILIATION[trackId] ?? trackId;
+}
+
 export interface PaceV2ApprovedRound {
   season: number;
   round: number;
@@ -55,7 +64,7 @@ export async function generatePaceV2Manifest(client: QueryClient, season: number
     if (!row.track_id) {
       throw new Error(`FAIL_CLOSED: completed round ${row.round} has no circuit mapping`);
     }
-    return { season: Number(row.season), round: Number(row.round), race_id: Number(row.race_id), track_id: row.track_id, race_date: row.race_date, result_count: Number(row.result_count) };
+    return { season: Number(row.season), round: Number(row.round), race_id: Number(row.race_id), track_id: reconcilePaceV2TrackId(row.track_id), race_date: row.race_date, result_count: Number(row.result_count) };
   });
   return createPaceV2Manifest(season, rounds, now);
 }

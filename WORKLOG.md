@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-07-21 - Phase 4 Manifest Safety Fixes
+
+- Added exact, reviewed pace-v2 track reconciliation for `australian_grand_prix` to canonical `melbourne`; unlisted identities are unchanged and fail existing exact checks rather than being guessed.
+- The manifest writer now stops immediately after every failed round, including ordinary ingestion failures, and reports unprocessed approved rounds.
+- Existing production pilot facts with the non-canonical Australian identity remain untouched. Any repair requires a reviewed reconciliation plan and an explicit, separately authorized production repair path; this change contains no production writes.
+
 ## 2026-07-21 - Phase 5 Non-Winner Factual Checks
 
 - Added FIA-cited, bounded production manifest cases for 2025 final driver

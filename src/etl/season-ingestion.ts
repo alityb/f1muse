@@ -15,7 +15,8 @@ import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { PaceV2Manifest, parsePaceV2Manifest } from './pace-v2-manifest';
+import { PaceV2Manifest, parsePaceV2Manifest, reconcilePaceV2TrackId } from './pace-v2-manifest';
+import { processPaceV2RoundsFailFast } from './pace-v2-writer-safety';
 
 const TARGET_SEASON = 2026;
 const CLEAN_AIR_GAP_THRESHOLD = 2.0; // seconds
@@ -1425,15 +1426,16 @@ async function main(): Promise<void> {
   try {
     const allRaces = await loadSeasonRaces(pool, season);
     const approvedByRound = new Map(manifest.approved_rounds.map((round) => [round.round, round]));
-    const races = allRaces.filter((race) => {
+    const races = allRaces.flatMap((race) => {
       const approved = approvedByRound.get(race.round);
       if (!approved) {
-        return false;
+        return [];
       }
-      if (approved.race_id !== race.race_id || approved.track_id !== race.circuit_id) {
+      const canonicalTrackId = reconcilePaceV2TrackId(race.circuit_id);
+      if (approved.race_id !== race.race_id || approved.track_id !== canonicalTrackId) {
         throw new Error(`FAIL_CLOSED: calendar changed after manifest generation for round ${race.round}`);
       }
-      return true;
+      return [{ ...race, circuit_id: canonicalTrackId }];
     });
     if (races.length !== manifest.approved_rounds.length) {
       throw new Error('FAIL_CLOSED: one or more manifest rounds are absent from the current calendar');
@@ -1457,35 +1459,16 @@ async function main(): Promise<void> {
     const raceHashes: string[] = [];
     const failures: Array<{ round: number; reason: string }> = [];
 
-    let aborted = false;
+    const run = await processPaceV2RoundsFailFast(races, (race) => processRace(
+      pool,
+      race,
+      validation.allowed_driver_ids,
+      validation.abbreviation_to_driver_id,
+      tableSnapshotVersion,
+      manifest.manifest_fingerprint
+    ));
 
-    for (const race of races) {
-      let outcome: RaceOutcome | null = null;
-
-      try {
-        outcome = await processRace(
-          pool,
-          race,
-            validation.allowed_driver_ids,
-            validation.abbreviation_to_driver_id,
-            tableSnapshotVersion,
-            manifest.manifest_fingerprint
-        );
-      } catch (err) {
-        if (err instanceof HashMismatchError) {
-          aborted = true;
-          metrics.races_failed += 1;
-          failures.push({ round: race.round, reason: String(err) });
-          console.log(`  -> Round ${race.round} status: failed`);
-          console.log(`  -> Failure reason: ${err}`);
-          break;
-        }
-        throw err;
-      }
-
-      if (!outcome) {
-        continue;
-      }
+    for (const { outcome } of run.processed) {
 
       if (outcome.status === 'success') {
         metrics.races_processed += 1;
@@ -1510,8 +1493,16 @@ async function main(): Promise<void> {
       }
     }
 
-    if (aborted) {
-      console.log('\nFAIL_CLOSED: Aborting remaining races due to hash mismatch.');
+    if (run.failure?.error) {
+      metrics.races_failed += 1;
+      failures.push({ round: run.failure.round.round, reason: String(run.failure.error) });
+      console.log(`  -> Round ${run.failure.round.round} status: failed`);
+      console.log(`  -> Failure reason: ${run.failure.error}`);
+    }
+
+    if (run.failure) {
+      console.log('\nFAIL_CLOSED: Aborting remaining races after the first failed round.');
+      console.log(`Unprocessed approved rounds: ${run.unprocessed.map((race) => race.round).join(', ') || 'none'}`);
     }
 
     metrics.execution_hash = sha256(`season:${season}|` + raceHashes.sort().join('|'));
