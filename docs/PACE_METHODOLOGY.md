@@ -67,6 +67,26 @@ It refuses localhost and loopback targets, uses one `BEGIN READ ONLY` transactio
 
 Every complete race fact set normally requires an exact `pace_v2_round_audit` row: current fact fingerprint, row count, and active methodology must all match. A missing manifest audit can be bridged only for the fixed repaired round (2026 round 1) when `pace_v2_identity_repair_audit` has its enabled immutable trigger and its exact `track_identity_exact_alias_v1` repair-manifest fingerprint, target fingerprint, row count, and methodology match the complete current facts. A present-but-mismatched manifest audit, a disabled/missing immutable trigger, any fingerprint/count/method mismatch, or an unaudited round remains an error; repair evidence never overrides a failed manifest audit.
 
+### Immutable Manifest-Audit Reconciliation
+
+`pace_v2_round_audit` is never rewritten. When an existing audit differs from current complete facts only in `fact_fingerprint`, an approved operator may record separate immutable evidence in `pace_v2_round_audit_reconciliation`. This path does not repair facts, update the original audit, or accept changes to session `R`, row count, active methodology, or any other audit field.
+
+Apply `20260724_pace_v2_audit_reconciliation.sql` through the approved primary migration channel first. Generate one reviewed manifest per affected round from an authorized production read-only environment:
+
+```bash
+PACE_V2_AUDIT_RECONCILIATION_MANIFEST_ENABLED=true PACE_V2_AUDIT_RECONCILIATION_MANIFEST_TARGET=production \
+  npm run generate:pace-v2:audit-reconciliation:production -- 2026 2 > /approved/evidence/pace-v2-audit-reconciliation-2026-2.json
+```
+
+The generator rejects loopback, uses one `BEGIN READ ONLY` transaction with a five-second local timeout, reads only the original audit and complete selected race fact set, and rolls back. It emits evidence only if the original audit session, count, and methodology exactly match the current facts and its stored fingerprint differs. Independently review each manifest, then an approved primary operator may insert evidence:
+
+```bash
+PACE_V2_AUDIT_RECONCILIATION_ENABLED=true PACE_V2_AUDIT_RECONCILIATION_TARGET=primary \
+  npm run reconcile:pace-v2:audit -- --manifest /approved/evidence/pace-v2-audit-reconciliation-2026-2.json
+```
+
+The reconciler uses one serializable transaction and five-second local timeout, verifies its evidence relation and immutable trigger, locks the original audit and facts, repeats the exact session/count/methodology and fingerprint-only checks, then inserts one evidence row. It never updates facts or `pace_v2_round_audit`. Retain reviewed manifest and stdout with UTC time, operator, deployed commit, and SHA-256. Preflight accepts this evidence only when its immutable trigger, method, manifest fingerprint, original fingerprint, current fingerprint, count, and methodology exactly match; it otherwise remains an error.
+
 The preflight's coverage query is equivalent to:
 
 ```sql

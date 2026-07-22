@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { PACE_V2_IDENTITY_REPAIR_METHOD, PACE_V2_IDENTITY_REPAIR_SEASON, PaceV2FactRow, createPaceV2IdentityRepairManifest, fingerprintPaceV2FactRows } from '../src/etl/pace-v2-identity-repair';
 import { PACE_V2_APPROVED_TRACK_ID_RECONCILIATION } from '../src/etl/pace-v2-manifest';
+import { PACE_V2_AUDIT_RECONCILIATION_METHOD, createPaceV2AuditReconciliationManifest } from '../src/etl/pace-v2-audit-reconciliation';
 
 const ACTIVE_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 const STATEMENT_TIMEOUT_MS = 5_000;
@@ -58,6 +59,18 @@ interface IdentityRepairAuditRow {
   methodology_version: string;
 }
 
+interface AuditReconciliationRow {
+  season: number;
+  round: number;
+  session_type: string;
+  reconciliation_method: string;
+  reconciliation_manifest_fingerprint: string;
+  original_manifest_fact_fingerprint: string;
+  reconciled_fact_fingerprint: string;
+  fact_row_count: number;
+  methodology_version: string;
+}
+
 interface AuditPredicate {
   name: string;
   passes: boolean;
@@ -68,7 +81,7 @@ interface AuditPredicate {
 interface AuditRoundResult {
   season: number;
   round: number;
-  status: 'manifest_audit' | 'identity_repair_bridge' | 'missing_manifest_audit' | 'invalid_manifest_audit' | 'invalid_identity_repair_audit';
+  status: 'manifest_audit' | 'audit_reconciliation' | 'identity_repair_bridge' | 'missing_manifest_audit' | 'missing_audit_reconciliation' | 'invalid_manifest_audit' | 'invalid_audit_reconciliation' | 'invalid_identity_repair_audit';
   predicates: AuditPredicate[];
 }
 
@@ -81,7 +94,7 @@ export interface PaceV2PreflightResult {
   season_round_coverage: Array<{ season: number; round_count: number; rounds: number[] }>;
   eligible_lap_counts: Array<{ season: number; round: number; eligible_laps: number; total_rows: number }>;
   etl_audit: { available: boolean; freshness_by_season: AuditRow[] };
-  pace_audit: { manifest_available: boolean; identity_repair_available: boolean; identity_repair_immutable: boolean; rounds: AuditRoundResult[] };
+  pace_audit: { manifest_available: boolean; audit_reconciliation_available: boolean; audit_reconciliation_immutable: boolean; identity_repair_available: boolean; identity_repair_immutable: boolean; rounds: AuditRoundResult[] };
   conditions: Condition[];
 }
 
@@ -121,7 +134,9 @@ function asFactRows(rows: Record<string, unknown>[]): PaceV2FactRow[] {
 export function assessPaceV2AuditReadiness(
   factRows: PaceV2FactRow[],
   manifestAudits: ManifestAuditRow[],
+  reconciliations: AuditReconciliationRow[],
   repairAudits: IdentityRepairAuditRow[],
+  auditReconciliationImmutable: boolean,
   identityRepairImmutable: boolean
 ): { rounds: AuditRoundResult[]; conditions: Condition[] } {
   const factsByRound = new Map<string, PaceV2FactRow[]>();
@@ -130,6 +145,7 @@ export function assessPaceV2AuditReadiness(
     factsByRound.set(key, [...(factsByRound.get(key) ?? []), row]);
   }
   const manifests = new Map(manifestAudits.map((audit) => [`${audit.season}:${audit.round}`, audit]));
+  const reconciliationByRound = new Map(reconciliations.map((audit) => [`${audit.season}:${audit.round}`, audit]));
   const repairs = new Map(repairAudits.map((audit) => [`${audit.season}:${audit.round}`, audit]));
   const rounds: AuditRoundResult[] = [];
   const conditions: Condition[] = [];
@@ -151,9 +167,40 @@ export function assessPaceV2AuditReadiness(
       const valid = predicates.every((predicate) => predicate.passes);
       if (valid) {
         rounds.push({ season, round, status: 'manifest_audit', predicates });
-      } else {
+        continue;
+      }
+      const mismatchIsFingerprintOnly = predicates.filter((predicate) => predicate.name !== 'manifest_fact_fingerprint').every((predicate) => predicate.passes) && !predicates[1].passes;
+      if (!mismatchIsFingerprintOnly) {
         rounds.push({ season, round, status: 'invalid_manifest_audit', predicates });
         conditions.push({ code: 'invalid_manifest_audit', severity: 'error', season, round, detail: 'Persisted manifest audit does not match the complete current race fact contract.', predicates });
+        continue;
+      }
+      const reconciliation = reconciliationByRound.get(key);
+      const expectedReconciliationManifest = reconciliation && createPaceV2AuditReconciliationManifest({
+        season, round, session_type: 'R', methodology_version: ACTIVE_METHODOLOGY_VERSION,
+        fact_row_count: rows.length, original_manifest_fact_fingerprint: manifest.fact_fingerprint,
+        current_fact_fingerprint: fingerprint
+      });
+      const reconciliationPredicates: AuditPredicate[] = reconciliation ? [
+        ...predicates,
+        { name: 'audit_reconciliation_immutable', passes: auditReconciliationImmutable, expected: true, actual: auditReconciliationImmutable },
+        { name: 'reconciliation_session_type', passes: reconciliation.session_type === 'R', expected: 'R', actual: reconciliation.session_type },
+        { name: 'reconciliation_method', passes: reconciliation.reconciliation_method === PACE_V2_AUDIT_RECONCILIATION_METHOD, expected: PACE_V2_AUDIT_RECONCILIATION_METHOD, actual: reconciliation.reconciliation_method },
+        { name: 'reconciliation_original_manifest_fact_fingerprint', passes: reconciliation.original_manifest_fact_fingerprint === manifest.fact_fingerprint, expected: manifest.fact_fingerprint, actual: reconciliation.original_manifest_fact_fingerprint },
+        { name: 'reconciliation_current_fact_fingerprint', passes: reconciliation.reconciled_fact_fingerprint === fingerprint, expected: fingerprint, actual: reconciliation.reconciled_fact_fingerprint },
+        { name: 'reconciliation_fact_row_count', passes: number(reconciliation.fact_row_count) === rows.length, expected: rows.length, actual: number(reconciliation.fact_row_count) },
+        { name: 'reconciliation_methodology_version', passes: reconciliation.methodology_version === ACTIVE_METHODOLOGY_VERSION, expected: ACTIVE_METHODOLOGY_VERSION, actual: reconciliation.methodology_version },
+        { name: 'reconciliation_manifest_fingerprint', passes: reconciliation.reconciliation_manifest_fingerprint === expectedReconciliationManifest?.manifest_fingerprint, expected: expectedReconciliationManifest?.manifest_fingerprint ?? null, actual: reconciliation.reconciliation_manifest_fingerprint }
+      ] : [...predicates, { name: 'audit_reconciliation_present', passes: false, expected: true, actual: false }];
+      const validReconciliation = reconciliation !== undefined && reconciliationPredicates.filter((predicate) => predicate.name !== 'manifest_fact_fingerprint').every((predicate) => predicate.passes) && !reconciliationPredicates.find((predicate) => predicate.name === 'manifest_fact_fingerprint')?.passes;
+      if (validReconciliation) {
+        rounds.push({ season, round, status: 'audit_reconciliation', predicates: reconciliationPredicates });
+      } else if (reconciliation) {
+        rounds.push({ season, round, status: 'invalid_audit_reconciliation', predicates: reconciliationPredicates });
+        conditions.push({ code: 'invalid_audit_reconciliation', severity: 'error', season, round, detail: 'Reconciliation evidence does not exactly cover the original fingerprint-only mismatch.', predicates: reconciliationPredicates });
+      } else {
+        rounds.push({ season, round, status: 'missing_audit_reconciliation', predicates: reconciliationPredicates });
+        conditions.push({ code: 'missing_audit_reconciliation', severity: 'error', season, round, detail: 'Original manifest audit has an approved fingerprint-only mismatch but no immutable reconciliation evidence.', predicates: reconciliationPredicates });
       }
       continue;
     }
@@ -209,12 +256,12 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
         status: 'missing', statement_timeout_ms: STATEMENT_TIMEOUT_MS, active_methodology_version: ACTIVE_METHODOLOGY_VERSION,
         v2_row_count: 0, rows_by_session_type_and_methodology_version: [], season_round_coverage: [], eligible_lap_counts: [],
         etl_audit: { available: false, freshness_by_season: [] },
-        pace_audit: { manifest_available: false, identity_repair_available: false, identity_repair_immutable: false, rounds: [] },
+        pace_audit: { manifest_available: false, audit_reconciliation_available: false, audit_reconciliation_immutable: false, identity_repair_available: false, identity_repair_immutable: false, rounds: [] },
         conditions: [{ code: 'missing_v2_relation', severity: 'error', detail: 'laps_normalized_v2 is unavailable.' }]
       };
     }
 
-    const [total, grouped, coverage, auditRelation, manifestAuditRelation, identityRepairAuditRelation] = await Promise.all([
+    const [total, grouped, coverage, auditRelation, manifestAuditRelation, reconciliationRelation, identityRepairAuditRelation] = await Promise.all([
       client.query<{ row_count: string }>('SELECT COUNT(*)::text AS row_count FROM laps_normalized_v2'),
       client.query<{ session_type: string; methodology_version: string; row_count: string }>(`
         SELECT session_type, methodology_version, COUNT(*)::text AS row_count
@@ -233,6 +280,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       `, [ACTIVE_METHODOLOGY_VERSION]),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['etl_runs_laps_normalized']),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['pace_v2_round_audit']),
+      client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['pace_v2_round_audit_reconciliation']),
       client.query<{ relation: string | null }>('SELECT to_regclass($1)::text AS relation', ['pace_v2_identity_repair_audit'])
     ]);
 
@@ -247,15 +295,19 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       `)
       : { rows: [] as AuditRow[] };
     const manifestAuditAvailable = manifestAuditRelation.rows[0]?.relation === 'pace_v2_round_audit';
+    const reconciliationAvailable = reconciliationRelation.rows[0]?.relation === 'pace_v2_round_audit_reconciliation';
     const identityRepairAuditAvailable = identityRepairAuditRelation.rows[0]?.relation === 'pace_v2_identity_repair_audit';
-    const [factResult, manifestAuditResult, identityRepairAuditResult, identityRepairTrigger] = await Promise.all([
+    const [factResult, manifestAuditResult, reconciliationResult, reconciliationTrigger, identityRepairAuditResult, identityRepairTrigger] = await Promise.all([
       client.query(`SELECT season, round, track_id, driver_id, session_type, lap_number, stint_id, stint_lap_index, lap_time_seconds, is_valid_lap, is_pit_lap, is_out_lap, is_in_lap, clean_air_flag, compound, tyre_age_laps, methodology_version FROM laps_normalized_v2 WHERE session_type = 'R' ORDER BY season, round, driver_id, lap_number`),
       manifestAuditAvailable ? client.query<ManifestAuditRow>('SELECT season, round, session_type, fact_fingerprint, fact_row_count, methodology_version FROM pace_v2_round_audit WHERE session_type = $1', ['R']) : Promise.resolve({ rows: [] as ManifestAuditRow[] }),
+      reconciliationAvailable ? client.query<AuditReconciliationRow>('SELECT season, round, session_type, reconciliation_method, reconciliation_manifest_fingerprint, original_manifest_fact_fingerprint, reconciled_fact_fingerprint, fact_row_count, methodology_version FROM pace_v2_round_audit_reconciliation WHERE session_type = $1', ['R']) : Promise.resolve({ rows: [] as AuditReconciliationRow[] }),
+      reconciliationAvailable ? client.query<{ immutable: boolean }>("SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'pace_v2_round_audit_reconciliation'::regclass AND tgname = 'pace_v2_round_audit_reconciliation_immutable' AND tgenabled <> 'D') AS immutable") : Promise.resolve({ rows: [{ immutable: false }] }),
       identityRepairAuditAvailable ? client.query<IdentityRepairAuditRow>('SELECT season, round, session_type, repair_method, manifest_fingerprint, source_fact_fingerprint, target_fact_fingerprint, fact_row_count, methodology_version FROM pace_v2_identity_repair_audit WHERE session_type = $1', ['R']) : Promise.resolve({ rows: [] as IdentityRepairAuditRow[] }),
       identityRepairAuditAvailable ? client.query<{ immutable: boolean }>("SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'pace_v2_identity_repair_audit'::regclass AND tgname = 'pace_v2_identity_repair_audit_immutable' AND tgenabled <> 'D') AS immutable") : Promise.resolve({ rows: [{ immutable: false }] })
     ]);
+    const auditReconciliationImmutable = Boolean(reconciliationTrigger.rows[0]?.immutable);
     const identityRepairImmutable = Boolean(identityRepairTrigger.rows[0]?.immutable);
-    const paceAudit = assessPaceV2AuditReadiness(asFactRows(factResult.rows), manifestAuditResult.rows, identityRepairAuditResult.rows, identityRepairImmutable);
+    const paceAudit = assessPaceV2AuditReadiness(asFactRows(factResult.rows), manifestAuditResult.rows, reconciliationResult.rows, identityRepairAuditResult.rows, auditReconciliationImmutable, identityRepairImmutable);
 
     const eligibleLapCounts = coverage.rows.map((row) => ({
       season: number(row.season), round: number(row.round), total_rows: number(row.total_rows), eligible_laps: number(row.eligible_laps)
@@ -289,6 +341,11 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
     if (!manifestAuditAvailable) {
       conditions.push({ code: 'manifest_audit_unavailable', severity: 'error', detail: 'pace_v2_round_audit is unavailable.' });
     }
+    if (!reconciliationAvailable) {
+      conditions.push({ code: 'audit_reconciliation_unavailable', severity: 'error', detail: 'pace_v2_round_audit_reconciliation is unavailable.' });
+    } else if (!auditReconciliationImmutable) {
+      conditions.push({ code: 'audit_reconciliation_not_immutable', severity: 'error', detail: 'pace_v2_round_audit_reconciliation lacks its enabled immutable-audit trigger.' });
+    }
     if (identityRepairAuditAvailable && !identityRepairImmutable) {
       conditions.push({ code: 'identity_repair_audit_not_immutable', severity: 'error', detail: 'pace_v2_identity_repair_audit lacks its enabled immutable-audit trigger.' });
     }
@@ -309,7 +366,7 @@ export async function runPaceV2Preflight(pool: QueryPool): Promise<PaceV2Preflig
       season_round_coverage: [...seasons.entries()].map(([season, rounds]) => ({ season, round_count: rounds.length, rounds })),
       eligible_lap_counts: eligibleLapCounts,
       etl_audit: { available: auditAvailable, freshness_by_season: audit.rows.map((row) => ({ ...row, season: number(row.season) })) },
-      pace_audit: { manifest_available: manifestAuditAvailable, identity_repair_available: identityRepairAuditAvailable, identity_repair_immutable: identityRepairImmutable, rounds: paceAudit.rounds },
+      pace_audit: { manifest_available: manifestAuditAvailable, audit_reconciliation_available: reconciliationAvailable, audit_reconciliation_immutable: auditReconciliationImmutable, identity_repair_available: identityRepairAuditAvailable, identity_repair_immutable: identityRepairImmutable, rounds: paceAudit.rounds },
       conditions
     };
   } catch (error) {
