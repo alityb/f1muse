@@ -29,6 +29,7 @@ describe('incomplete pace rebuild', () => {
     await expect(runPaceV2IncompleteRebuild(pool, manifest, artifact)).resolves.toMatchObject({ rebuilt_rounds: 9, rebuild_fact_rows: 45 });
     expect(calls.some((sql) => sql.startsWith('INSERT INTO pace_v2_lap_rebuild'))).toBe(true);
     expect(calls.find((sql) => sql.includes('FROM race r JOIN race_data'))).toContain("UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')");
+    expect(calls.find((sql) => sql.includes('FROM race r JOIN race_data'))).not.toContain('rd.race_laps');
     expect(calls.some((sql) => /(?:UPDATE|DELETE)\s+.*laps_normalized_v2/i.test(sql))).toBe(false);
   });
 
@@ -57,26 +58,30 @@ describe('incomplete pace rebuild', () => {
     }
   });
 
-  it('excludes four zero-lap official non-starters while requiring every actual race starter', async () => {
+  it('excludes explicit null-lap DNS and withdrawals while retaining all 18 round-2 starters including DNF', async () => {
+    const starters = Array.from({ length: 17 }, (_, index) => `starter_${index + 1}`);
+    const actualStarters = [...starters, 'formation_lap_dnf'];
+    const nonStarters = ['DNS', 'Did not start', 'W', 'WD', 'Withdrawn'];
+    const raceDataValues = [
+      ...starters.map((driverId, index) => `(202602, 'race_result', '${driverId}', ${index + 1}, '${index + 1}', NULL, ${56 - index})`),
+      "(202602, 'race_result', 'formation_lap_dnf', NULL, 'DNF', 'Collision', NULL)",
+      ...nonStarters.flatMap((status) => [
+        `(202602, 'race_result', 'position_${status.replaceAll(' ', '_').toLowerCase()}', NULL, '${status}', NULL, NULL)`,
+        `(202602, 'race_result', 'reason_${status.replaceAll(' ', '_').toLowerCase()}', NULL, NULL, '${status}', NULL)`
+      ])
+    ];
     await database.query(`INSERT INTO race (id, year, round) VALUES (202602, 2026, 2);
-      INSERT INTO race_data (race_id, type, driver_id, position_number, position_text, race_reason_retired, race_laps) VALUES
-        (202602, 'race_result', 'starter_a', 1, '1', NULL, 56),
-        (202602, 'race_result', 'starter_b', 2, '2', NULL, 55),
-        (202602, 'race_result', 'withdrawn_w', NULL, 'W', NULL, 0),
-        (202602, 'race_result', 'withdrawn_text', NULL, 'Withdrawn', NULL, 0),
-        (202602, 'race_result', 'dns_code', NULL, 'DNS', NULL, 0),
-        (202602, 'race_result', 'dns_text', NULL, 'Did not start', NULL, 0),
-        (202602, 'race_result', 'unknown_laps_withdrawn', NULL, 'Withdrawn', NULL, NULL);
+      INSERT INTO race_data (race_id, type, driver_id, position_number, position_text, race_reason_retired, race_laps) VALUES ${raceDataValues.join(',')};
       INSERT INTO laps_normalized_v2
         (season, round, track_id, driver_id, session_type, lap_number, lap_time_seconds, is_valid_lap, is_pit_lap, is_in_lap, is_out_lap, clean_air_flag, methodology_version)
-      VALUES (2026, 2, 'shanghai', 'starter_a', 'R', 1, 90, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
+      VALUES (2026, 2, 'shanghai', 'starter_1', 'R', 1, 90, true, false, false, false, true, 'clean_air_gap_2_0s_v1')`);
 
     const generated = await generatePaceV2IncompleteRebuildManifest(database, [2]);
 
     expect(generated.rounds).toEqual([expect.objectContaining({
       round: 2,
-      canonical_driver_count: 3,
-      canonical_driver_fingerprint: fingerprintDriverIds(['starter_a', 'starter_b', 'unknown_laps_withdrawn'])
+      canonical_driver_count: 18,
+      canonical_driver_fingerprint: fingerprintDriverIds(actualStarters)
     })]);
   });
 

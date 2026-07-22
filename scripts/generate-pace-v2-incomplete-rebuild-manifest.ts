@@ -27,10 +27,10 @@ export async function generatePaceV2IncompleteRebuildManifest(pool: QueryPool, s
       client.query(`SELECT DISTINCT r.round, rd.driver_id
         FROM race r JOIN race_data rd ON rd.race_id = r.id AND LOWER(rd.type) IN ('race', 'race_result')
         WHERE r.year = 2026 AND r.round = ANY($1::int[])
-          AND NOT (rd.race_laps IS NOT DISTINCT FROM 0 AND (
+          AND NOT (
             UPPER(BTRIM(COALESCE(rd.position_text, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
             OR UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN', 'DNS', 'DID NOT START')
-          ))
+          )
         ORDER BY r.round, rd.driver_id`, [approvedRounds])
     ]);
     const rows = persisted.rows.map(fact);

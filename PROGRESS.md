@@ -20,9 +20,13 @@
 - Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
 - Phase 5: PARTIAL. A data-driven initial golden corpus and bounded core-IR property backbone cover all current Phase 4 sources; the 100-question expansion, metamorphic, differential, and nightly suites do not.
 
-### Phase 4 Pace Rebuild Non-Starter Coverage Contract (2026-07-21)
-- The incomplete-rebuild canonical driver set now excludes only an official zero-race-lap non-starter/withdrawal: `race_laps = 0` and either trimmed, case-insensitive `position_text` or retirement reason is `W`, `WD`, `WITHDRAWN`, `DNS`, or `DID NOT START`. Every other race-result identity, including a formation-lap DNF or a withdrawal/status row with positive race laps, remains canonical and must have rebuilt FastF1 facts.
-- The same predicate is enforced by the read-only incomplete-rebuild manifest generator, the read-only FastF1 identity-map generator, and the serializable primary rebuild provenance check. Four local round-2 fixtures (`W`, `Withdrawn`, `DNS`, and `Did not start`) with zero laps are excluded while both actual starters remain in the manifest's required canonical set.
+### Phase 4 Explicit Non-Starter Pace Coverage (2026-07-21)
+- The canonical pace-rebuild starter predicate now excludes an explicit trimmed, case-insensitive `position_text` or `race_reason_retired` token of `DNS`, `DID NOT START`, `W`, `WD`, or `WITHDRAWN`, irrespective of `race_laps`, including `NULL`. This applies identically to the read-only incomplete manifest, read-only FastF1 identity map, and serializable rebuild provenance check.
+- The regenerated Round-2 fixture models both status fields for every token with `race_laps IS NULL`, retains a null-lap formation-lap DNF, and confirms exactly 18 canonical actual starters. No production query or write was run.
+
+### Phase 4 Superseded Zero-Lap Non-Starter Contract (2026-07-21)
+- The prior zero-race-lap condition was superseded by the explicit-status contract above: authoritative `position_text` or retirement-reason non-starter tokens exclude a driver regardless of `race_laps`. Actual starters, including formation-lap DNFs, remain canonical.
+- The earlier local zero-lap fixtures remain historical coverage; the current Round-2 fixture covers every explicit status token in both fields with null lap counts.
 - Added forward-only `20260727_normalize_f1ql_nonstarter_statuses.sql`: explicit `W`/`WD`/`WITHDRAWN` position or reason tokens normalize to `withdrawn`; explicit `DNS`/`DID NOT START` normalize to `dns`. No production migration, query, deployment, or write was run.
 - Verification passed: `npm run typecheck`; `npm run lint` (0 errors, 123 pre-existing warnings); `npm run test:f1ql` (221 tests in 26 files).
 
