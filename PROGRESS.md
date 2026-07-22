@@ -20,6 +20,10 @@
 - Phase 4 production verification: deployment `b5dd7e4d-da25-444a-ac05-67a0481d3a40` reached `SUCCESS`; a known-driver shadow request produced one logged `pace_summary` attempt with 100.00% success and no rejection reasons. Retirement sampling remains intentionally unrun pending explicit authorization.
 - Phase 5: PARTIAL. A data-driven initial golden corpus and bounded core-IR property backbone cover all current Phase 4 sources; the 100-question expansion, metamorphic, differential, and nightly suites do not.
 
+### Phase 5 Local Compiler Benchmark (2026-07-22)
+- Added `benchmark:f1ql:compiler`, a bounded local-only benchmark over the committed 100-case corpus. It reports p50/p95 for parse, surface validation, lowering, core validation, and compilation together, plus independent reference-interpreter execution against non-empty in-memory fixture rows for every supported source. It has no Pool, database URL, network, or production path, makes no latency assertions, and is excluded from tests/CI.
+- Local result: 25 warmup and 200 measured corpus passes accepted 89 programs and emitted 90 fixture rows per pass. Compile/lower/validate p50/p95 was 4.18/13.62 ms per corpus pass; fixture execution p50/p95 was 0.10/0.46 ms per corpus pass. These are local observational measurements, not release thresholds.
+
 ### Phase 5 Official Pace Validation Layers 1-3 (2026-07-22)
 - Added `validate:pace-v2:official-layers:production`, a dual-flagged loopback-refusing read-only validator. It accepts a retained official timing file only when its SHA-256 matches the committed 2026 coverage matrix, then uses one `BEGIN READ ONLY` transaction with a five-second local statement timeout to observe the selected v2 event. It has no writer, migration, or production mutation path.
 - Layer 1 reports official observed racing-number and v2 driver counts. Layer 2 parses completed raw official timing laps and reports their count with v2 raw-lap coverage. Layer 3 emits per-v2-lap eligibility evidence and precise v2 exclusion reasons for missing time, invalid, pit, in-lap, and out-lap flags.
