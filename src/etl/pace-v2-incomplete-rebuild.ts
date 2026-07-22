@@ -27,6 +27,7 @@ export interface PaceV2IncompleteRebuildManifest {
 export interface PaceV2IncompleteRebuildArtifact {
   version: 1;
   rebuild_version: typeof PACE_V2_INCOMPLETE_REBUILD_ID;
+  manifest_fingerprint: string;
   identity_map_fingerprint: string;
   methodology_version: typeof PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY;
   facts: PaceV2FactRow[];
@@ -35,14 +36,23 @@ export interface PaceV2IncompleteRebuildArtifact {
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const fingerprint = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
+export function approvedIncompleteRebuildRounds(rounds: readonly number[]): number[] {
+  const stable = [...rounds].sort((left, right) => left - right);
+  if (!stable.length || stable.length !== new Set(stable).size || stable.some((round) => !PACE_V2_INCOMPLETE_REBUILD_ROUNDS.includes(round as never))) {
+    throw new Error('FAIL_CLOSED: incomplete rebuild rounds must be a non-empty unique approved subset of rounds 2-10');
+  }
+  return stable;
+}
+
 export function fingerprintDriverIds(ids: string[]): string {
   return hash(JSON.stringify([...new Set(ids)].sort()));
 }
 
 export function createPaceV2IncompleteRebuildManifest(rounds: PaceV2IncompleteRebuildRound[]): PaceV2IncompleteRebuildManifest {
+  const approvedRounds = approvedIncompleteRebuildRounds(rounds.map((row) => row.round));
   const stable = { version: 1 as const, rebuild: 'pace_v2_incomplete_coverage' as const, rebuild_version: PACE_V2_INCOMPLETE_REBUILD_ID,
     season: 2026 as const, session_type: 'R' as const, methodology_version: PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY,
-    rounds: [...rounds].sort((a, b) => a.round - b.round) };
+    rounds: approvedRounds.map((round) => rounds.find((row) => row.round === round)!) };
   return { ...stable, manifest_fingerprint: hash(JSON.stringify(stable)) };
 }
 
@@ -51,23 +61,25 @@ export function parsePaceV2IncompleteRebuildManifest(input: unknown): PaceV2Inco
   if (!value || value.version !== 1 || value.rebuild !== 'pace_v2_incomplete_coverage' || value.rebuild_version !== PACE_V2_INCOMPLETE_REBUILD_ID ||
       value.season !== 2026 || value.session_type !== 'R' || value.methodology_version !== PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY || !Array.isArray(value.rounds) || !fingerprint(value.manifest_fingerprint)) { throw new Error('FAIL_CLOSED: incomplete rebuild manifest has an unsupported shape'); }
   const rounds = value.rounds as PaceV2IncompleteRebuildRound[];
-  if (rounds.length !== PACE_V2_INCOMPLETE_REBUILD_ROUNDS.length || rounds.some((row, index) => row.round !== PACE_V2_INCOMPLETE_REBUILD_ROUNDS[index] || !Number.isInteger(row.original_fact_row_count) || row.original_fact_row_count < 1 || !Number.isInteger(row.canonical_driver_count) || row.canonical_driver_count < 1 || !fingerprint(row.original_fact_fingerprint) || !fingerprint(row.canonical_driver_fingerprint))) { throw new Error('FAIL_CLOSED: incomplete rebuild manifest must cover exactly the approved incomplete rounds'); }
+  try { approvedIncompleteRebuildRounds(rounds.map((row) => row.round)); } catch { throw new Error('FAIL_CLOSED: incomplete rebuild manifest must cover an approved subset of incomplete rounds'); }
+  if (rounds.some((row, index) => row.round !== [...rounds].sort((left, right) => left.round - right.round)[index].round || !Number.isInteger(row.original_fact_row_count) || row.original_fact_row_count < 1 || !Number.isInteger(row.canonical_driver_count) || row.canonical_driver_count < 1 || !fingerprint(row.original_fact_fingerprint) || !fingerprint(row.canonical_driver_fingerprint))) { throw new Error('FAIL_CLOSED: incomplete rebuild manifest has invalid approved-round evidence'); }
   if (rounds.some((row) => row.canonical_driver_count <= 1)) { throw new Error('FAIL_CLOSED: incomplete rebuild manifest has invalid canonical coverage'); }
   const expected = createPaceV2IncompleteRebuildManifest(rounds);
   if (expected.manifest_fingerprint !== value.manifest_fingerprint) { throw new Error('FAIL_CLOSED: incomplete rebuild manifest fingerprint does not match its contract'); }
   return expected;
 }
 
-export function parsePaceV2IncompleteRebuildArtifact(input: unknown): PaceV2IncompleteRebuildArtifact {
+export function parsePaceV2IncompleteRebuildArtifact(input: unknown, manifest: PaceV2IncompleteRebuildManifest): PaceV2IncompleteRebuildArtifact {
   const value = input as Partial<PaceV2IncompleteRebuildArtifact>;
-  if (!value || value.version !== 1 || value.rebuild_version !== PACE_V2_INCOMPLETE_REBUILD_ID || !fingerprint(value.identity_map_fingerprint) || value.methodology_version !== PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY || !Array.isArray(value.facts)) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact has an unsupported shape'); }
+  if (!value || value.version !== 1 || value.rebuild_version !== PACE_V2_INCOMPLETE_REBUILD_ID || value.manifest_fingerprint !== manifest.manifest_fingerprint || !fingerprint(value.identity_map_fingerprint) || value.methodology_version !== PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY || !Array.isArray(value.facts)) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact has an unsupported shape or manifest binding'); }
   const facts = value.facts as PaceV2FactRow[];
   const keys = new Set(facts.map((row) => `${row.season}/${row.round}/${row.track_id}/${row.driver_id}/${row.session_type}/${row.lap_number}`));
-  if (!facts.length || facts.length !== keys.size || facts.some((row) => row.season !== 2026 || !PACE_V2_INCOMPLETE_REBUILD_ROUNDS.includes(row.round as never) || row.session_type !== 'R' || row.methodology_version !== PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY || !Number.isInteger(row.lap_number) || !Number.isInteger(row.stint_id) || !Number.isInteger(row.stint_lap_index))) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact facts are outside the approved contract'); }
-  if (PACE_V2_INCOMPLETE_REBUILD_ROUNDS.some((round) => !facts.some((row) => row.round === round))) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact is missing an approved round'); }
-  return { version: 1, rebuild_version: PACE_V2_INCOMPLETE_REBUILD_ID, identity_map_fingerprint: value.identity_map_fingerprint as string, methodology_version: PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY, facts };
+  const selectedRounds = manifest.rounds.map((entry) => entry.round);
+  if (!facts.length || facts.length !== keys.size || facts.some((row) => row.season !== 2026 || !selectedRounds.includes(row.round) || row.session_type !== 'R' || row.methodology_version !== PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY || !Number.isInteger(row.lap_number) || !Number.isInteger(row.stint_id) || !Number.isInteger(row.stint_lap_index))) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact facts are outside the approved contract'); }
+  if (selectedRounds.some((round) => !facts.some((row) => row.round === round))) { throw new Error('FAIL_CLOSED: incomplete rebuild artifact is missing an approved round'); }
+  return { version: 1, rebuild_version: PACE_V2_INCOMPLETE_REBUILD_ID, manifest_fingerprint: manifest.manifest_fingerprint, identity_map_fingerprint: value.identity_map_fingerprint as string, methodology_version: PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY, facts };
 }
 
 export function rebuildFactsByRound(facts: PaceV2FactRow[]): Map<number, PaceV2FactRow[]> {
-  return new Map(PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => [round, facts.filter((fact) => fact.round === round)]));
+  return new Map([...new Set(facts.map((fact) => fact.round))].sort((left, right) => left - right).map((round) => [round, facts.filter((fact) => fact.round === round)]));
 }
