@@ -18,6 +18,29 @@ export function requirePaceV2NatReplacementConfiguration(environment: NodeJS.Pro
   return environment.DATABASE_URL;
 }
 
+export function replacementRefusalReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  if (message === 'FAIL_CLOSED: replacement manifest JSON is invalid') return 'manifest_json_invalid';
+  if (message === 'FAIL_CLOSED: replacement facts JSON is invalid') return 'replacement_facts_json_invalid';
+  if (message.startsWith('FAIL_CLOSED: replacement manifest')) return 'manifest_contract_invalid';
+  if (message.startsWith('FAIL_CLOSED: replacement artifact')) return 'replacement_artifact_contract_invalid';
+  if (message.includes('reviewed replacement migration is missing')) return 'replacement_migration_missing';
+  if (message.includes('replacement immutability triggers are unavailable')) return 'replacement_immutability_unavailable';
+  if (message.includes('no longer matches the reviewed poisoned facts')) return 'original_fact_contract_mismatch';
+  if (message.includes('do not exactly cover original lap identities')) return 'lap_identity_mismatch';
+  if (message.includes('retain the known NaT poison class')) return 'replacement_retains_poison_class';
+  if (message.includes('replacement audit already exists')) return 'replacement_already_approved';
+  return 'replacement_preflight_refused';
+}
+
+export function parseReplacementJson(content: string, label: 'manifest' | 'facts'): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    throw new Error(`FAIL_CLOSED: replacement ${label} JSON is invalid`);
+  }
+}
+
 function assertSameFactKeys(original: PaceV2FactRow[], replacement: PaceV2FactRow[]): void {
   const key = (row: PaceV2FactRow) => `${row.track_id}/${row.driver_id}/${row.lap_number}`;
   if (original.length !== replacement.length || new Set(original.map(key)).size !== replacement.length || original.some((row) => !new Set(replacement.map(key)).has(key(row)))) throw new Error('FAIL_CLOSED: replacement facts do not exactly cover original lap identities');
@@ -57,9 +80,9 @@ async function main() {
   const connectionString = requirePaceV2NatReplacementConfiguration();
   const args = process.argv.slice(2);
   if (args.length !== 4 || args[0] !== '--manifest' || args[2] !== '--facts') throw new Error('Usage: npm run replace:pace-v2:nat-pit-flags -- --manifest <approved.json> --facts <corrected-facts.json>');
-  const manifest = parsePaceV2NatReplacementManifest(JSON.parse(fs.readFileSync(args[1], 'utf8')));
-  const artifact = parsePaceV2NatReplacementArtifact(JSON.parse(fs.readFileSync(args[3], 'utf8')));
+  const manifest = parsePaceV2NatReplacementManifest(parseReplacementJson(fs.readFileSync(args[1], 'utf8'), 'manifest'));
+  const artifact = parsePaceV2NatReplacementArtifact(parseReplacementJson(fs.readFileSync(args[3], 'utf8'), 'facts'));
   const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false }, max: 1 });
   try { process.stdout.write(`${JSON.stringify(await runPaceV2NatReplacement(pool, manifest, artifact))}\n`); } finally { await pool.end(); }
 }
-if (require.main === module) main().catch(() => { process.stdout.write('{"status":"refused","error":"pace_v2_nat_replacement_failed"}\n'); process.exitCode = 1; });
+if (require.main === module) main().catch((error) => { process.stdout.write(`${JSON.stringify({ status: 'refused', error: 'pace_v2_nat_replacement_failed', reason: replacementRefusalReason(error) })}\n`); process.exitCode = 1; });

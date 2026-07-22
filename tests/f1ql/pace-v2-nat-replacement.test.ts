@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPaceV2NatReplacementManifest, fingerprintPaceV2FactRows, parsePaceV2NatReplacementArtifact, parsePaceV2NatReplacementManifest, PACE_V2_NAT_REPLACEMENT_ROUNDS } from '../../src/etl/pace-v2-nat-replacement';
-import { requirePaceV2NatReplacementConfiguration, runPaceV2NatReplacement } from '../../scripts/replace-pace-v2-nat-pit-flags';
+import { parseReplacementJson, replacementRefusalReason, requirePaceV2NatReplacementConfiguration, runPaceV2NatReplacement } from '../../scripts/replace-pace-v2-nat-pit-flags';
 
 const facts = PACE_V2_NAT_REPLACEMENT_ROUNDS.map((round) => ({ season: 2026, round, track_id: `track_${round}`, driver_id: 'driver_one', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 90, is_valid_lap: true, is_pit_lap: false, is_out_lap: false, is_in_lap: false, clean_air_flag: true, compound: null, tyre_age_laps: null, methodology_version: 'clean_air_gap_2_0s_v1' }));
 const manifest = createPaceV2NatReplacementManifest(PACE_V2_NAT_REPLACEMENT_ROUNDS.map((round) => ({ round, fact_row_count: 1, original_fact_fingerprint: `${round}`.padStart(64, 'a') })));
@@ -10,6 +10,15 @@ describe('NaT pace replacement contract', () => {
     expect(() => requirePaceV2NatReplacementConfiguration({ DATABASE_URL: 'postgres://db.example/f1' })).toThrow('PACE_V2_NAT_REPLACEMENT_ENABLED');
     expect(() => parsePaceV2NatReplacementManifest({ ...manifest, rounds: manifest.rounds.slice(0, -1) })).toThrow('reviewed poisoned rounds');
     expect(() => parsePaceV2NatReplacementArtifact({ version: 1, replacement_version: 'nat_pit_flags_v1', methodology_version: 'clean_air_gap_2_0s_v1', facts: facts.slice(0, -1) })).toThrow('missing reviewed-round facts');
+  });
+
+  it('rejects npm-polluted evidence with a diagnosable JSON reason', () => {
+    expect(() => parseReplacementJson('> f1muse-api@1.0.0 generate\n{"version":1}', 'manifest')).toThrow('replacement manifest JSON is invalid');
+    try {
+      parseReplacementJson('not-json', 'facts');
+    } catch (error) {
+      expect(replacementRefusalReason(error)).toBe('replacement_facts_json_invalid');
+    }
   });
 
   it('inserts replacement facts and immutable approval without updating originals', async () => {
