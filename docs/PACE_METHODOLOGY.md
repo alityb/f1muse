@@ -100,13 +100,20 @@ PACE_V2_NAT_REPLACEMENT_MANIFEST_ENABLED=true PACE_V2_NAT_REPLACEMENT_MANIFEST_T
   npm run --silent generate:pace-v2:nat-replacement:production > /approved/evidence/pace-v2-nat-replacement-manifest.json
 ```
 
-The generator uses one read-only transaction, a five-second local timeout, and rollback. It emits no manifest unless every fixed round is complete, active-methodology, and still has all three poisoned flags. The corrected artifact was not committed and cannot be recreated locally without approved FastF1 identity evidence. Generate it only from an independently reviewed identity map (`{version: 1, source: "approved_fastf1_identity_map", season: 2026, rounds: [...]}`) and the corrected `pd.isna` FastF1 extractor. The manifest is the only round selector; the generator accepts exactly rounds 2-10, writes only to a newly created OS-temporary path, and emits per-round corrected counts/fingerprints on stdout:
+The generator uses one read-only transaction, a five-second local timeout, and rollback. It emits no manifest unless every fixed round is complete, active-methodology, and still has all three poisoned flags. The corrected artifact was not committed and cannot be recreated locally without approved FastF1 identity evidence. Generate the identity evidence only from an authorized production environment:
+
+```bash
+PACE_V2_NAT_IDENTITY_MAP_ENABLED=true PACE_V2_NAT_IDENTITY_MAP_TARGET=production \
+  npm run --silent generate:pace-v2:nat-identity-map:production
+```
+
+It queries only 2026 rounds 2-10 v2 facts joined to canonical race-result and driver identities in one `BEGIN READ ONLY` transaction with a five-second local timeout, then rolls back. It fetches each FastF1 Race session and accepts only an exact one-to-one match between its driver codes, canonical driver abbreviations, and v2 driver IDs. It rejects mixed/missing tracks, ambiguous codes, counts, or any FastF1/race/v2 identity mismatch. Its only artifact is a newly created mode-0600 JSON file below the OS temporary directory; stdout is one report containing that absolute `output` path and its SHA-256. Pass that path directly to the corrected-facts generator. The artifact shape is `{version: 1, source: "approved_fastf1_identity_map", season: 2026, rounds: [...]}`. The manifest remains the only corrected-facts round selector; the generator accepts exactly rounds 2-10, writes only to a newly created OS-temporary path, and emits per-round corrected counts/fingerprints on stdout:
 
 ```bash
 artifact="$(mktemp -t pace-v2-nat-corrected-facts).json"
 npm run --silent generate:pace-v2:nat-corrected-facts -- \
   --manifest /approved/evidence/pace-v2-nat-replacement-manifest.json \
-  --identity-map /approved/evidence/pace-v2-fastf1-identity-map.json \
+  --identity-map /absolute/OS-temporary/pace-v2-nat-identity-map-*/identity-map.json \
   --output "$artifact"
 ```
 
