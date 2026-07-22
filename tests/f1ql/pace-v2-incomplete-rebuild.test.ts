@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createPaceV2IncompleteRebuildManifest, fingerprintDriverIds, parsePaceV2IncompleteRebuildArtifact, PACE_V2_INCOMPLETE_REBUILD_ROUNDS } from '../../src/etl/pace-v2-incomplete-rebuild';
 import { fingerprintPaceV2FactRows } from '../../src/etl/pace-v2-identity-repair';
 import { runPaceV2IncompleteRebuild } from '../../scripts/rebuild-pace-v2-incomplete-rounds';
+import { generatePaceV2IncompleteRebuildFacts, incompleteRebuildFactsRefusal, PaceV2IncompleteRebuildFactsError } from '../../scripts/generate-pace-v2-incomplete-rebuild-facts';
 
 const original = PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => ({ season: 2026, round, track_id: `track_${round}`, driver_id: 'driver_a', session_type: 'R', lap_number: 1, stint_id: 1, stint_lap_index: 1, lap_time_seconds: 90, is_valid_lap: true, is_pit_lap: true, is_out_lap: true, is_in_lap: true, clean_air_flag: false, compound: null, tyre_age_laps: null, methodology_version: 'clean_air_gap_2_0s_v1' }));
 const driverIds = ['driver_a', 'alexander-albon', 'gabriel-bortoleto', 'lando-norris', 'oscar-piastri'];
@@ -28,5 +29,19 @@ describe('incomplete pace rebuild', () => {
     await expect(runPaceV2IncompleteRebuild(pool, round2Manifest, artifactFor(round2Manifest, facts.filter((row) => row.round === round2)))).resolves.toMatchObject({ rebuilt_rounds: 1, rebuild_fact_rows: 5 });
     expect(calls.filter((call) => call.sql.includes('FROM laps_normalized_v2')).map((call) => call.params?.[0])).toEqual([2]);
     expect(calls.some((call) => call.sql.includes('round=$1') && call.params?.[0] === 3)).toBe(false);
+  });
+
+  it('reports missing canonical drivers without emitting a partial facts artifact', () => {
+    const canonicalDriverIds = Array.from({ length: 11 }, (_, index) => `driver_${index}`);
+    const round2Manifest = createPaceV2IncompleteRebuildManifest([{ round: 2, original_fact_row_count: 1, original_fact_fingerprint: fingerprintPaceV2FactRows(original.filter((row) => row.round === 2)), canonical_driver_count: canonicalDriverIds.length, canonical_driver_fingerprint: fingerprintDriverIds(canonicalDriverIds) }]);
+    const map = { version: 2 as const, source: 'canonical_race_results_fastf1_identity_map' as const, season: 2026 as const, rounds: PACE_V2_INCOMPLETE_REBUILD_ROUNDS.map((round) => ({ round, track_id: `track_${round}`, driver_ids: Object.fromEntries(canonicalDriverIds.map((driverId, index) => [`D${String(index).padStart(2, '0')}`, driverId])) })) };
+    const fetchSession = (_season: number, round: number) => ({ season: 2026, round, session_name: 'Race', event_name: `Round ${round}`, session_uid: `2026-${round}`, columns_present: { Driver: true, LapNumber: true, LapTime: true, IsAccurate: true, PitInTime: true, PitOutTime: true, Compound: true, TyreLife: true, Position: true, GapToLeader: true, Time: true }, laps: canonicalDriverIds.slice(1).map((driver_code, index) => ({ driver_code: `D${String(index + 1).padStart(2, '0')}`, lap_number: 1, lap_time_seconds: 90 + index, lap_end_time_seconds: 90 + index, is_accurate: true, pit_in: false, pit_out: false, compound: 'MEDIUM', tyre_life: 1, position: index + 1, gap_to_leader: index })) });
+    try {
+      generatePaceV2IncompleteRebuildFacts(round2Manifest, map, fetchSession);
+      throw new Error('expected incomplete canonical driver coverage refusal');
+    } catch (error) {
+      expect(error).toBeInstanceOf(PaceV2IncompleteRebuildFactsError);
+      expect(incompleteRebuildFactsRefusal(error)).toEqual({ status: 'refused', error: 'incomplete_canonical_driver_coverage', round: 2, expected_canonical_driver_count: 11, observed_fact_driver_count: 10, missing_canonical_driver_ids: ['driver_0'] });
+    }
   });
 });

@@ -5,6 +5,12 @@ import { PaceV2NatIdentityMap } from './generate-pace-v2-nat-identity-map';
 import { computeCleanAir, computeStints, FastF1SessionPayload, finalizeLaps, normalizeLaps, RaceInfo } from '../src/etl/season-ingestion';
 import { PaceV2IncompleteRebuildArtifact, PaceV2IncompleteRebuildManifest, PACE_V2_INCOMPLETE_REBUILD_ID, PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY, parsePaceV2IncompleteRebuildArtifact, parsePaceV2IncompleteRebuildManifest, rebuildFactsByRound } from '../src/etl/pace-v2-incomplete-rebuild';
 
+export class PaceV2IncompleteRebuildFactsError extends Error {
+  constructor(public readonly code: 'incomplete_canonical_driver_coverage', public readonly round: number, public readonly expected_canonical_driver_count: number, public readonly observed_fact_driver_count: number, public readonly missing_canonical_driver_ids: string[]) {
+    super(`FAIL_CLOSED: rebuilt FastF1 coverage is incomplete for round ${round}`);
+  }
+}
+
 export const fingerprintIdentityMap = (map: PaceV2NatIdentityMap) => createHash('sha256').update(JSON.stringify(map)).digest('hex');
 export function parsePaceV2IncompleteRebuildIdentityMap(input: unknown): PaceV2NatIdentityMap {
   const map = input as Partial<PaceV2NatIdentityMap>;
@@ -25,8 +31,15 @@ export function generatePaceV2IncompleteRebuildFacts(manifest: PaceV2IncompleteR
   const artifact = parsePaceV2IncompleteRebuildArtifact({ version: 1, rebuild_version: PACE_V2_INCOMPLETE_REBUILD_ID, manifest_fingerprint: approvedManifest.manifest_fingerprint, identity_map_fingerprint: fingerprintIdentityMap(map), methodology_version: PACE_V2_INCOMPLETE_REBUILD_METHODOLOGY, facts }, approvedManifest);
   for (const entry of approvedManifest.rounds) {
     const rows = rebuildFactsByRound(artifact.facts).get(entry.round) ?? [];
-    if (new Set(rows.map((row) => row.driver_id)).size !== entry.canonical_driver_count || rows.every((row) => row.is_pit_lap && row.is_in_lap && row.is_out_lap)) throw new Error(`FAIL_CLOSED: rebuilt FastF1 coverage is incomplete or poisoned for round ${entry.round}`);
+    const driverIds = new Set(rows.map((row) => row.driver_id));
+    const missingDriverIds = Object.values(map.rounds.find((round) => round.round === entry.round)!.driver_ids).filter((driverId) => !driverIds.has(driverId)).sort();
+    if (driverIds.size !== entry.canonical_driver_count) throw new PaceV2IncompleteRebuildFactsError('incomplete_canonical_driver_coverage', entry.round, entry.canonical_driver_count, driverIds.size, missingDriverIds);
+    if (rows.every((row) => row.is_pit_lap && row.is_in_lap && row.is_out_lap)) throw new Error(`FAIL_CLOSED: rebuilt FastF1 facts are poisoned for round ${entry.round}`);
   }
   return artifact;
 }
-if (require.main === module) { const args = process.argv.slice(2); try { if (args.length !== 4 || args[0] !== '--manifest' || args[2] !== '--identity-map') throw new Error('Usage: --manifest <approved.json> --identity-map <approved.json>'); const artifact = generatePaceV2IncompleteRebuildFacts(parsePaceV2IncompleteRebuildManifest(JSON.parse(fs.readFileSync(args[1], 'utf8'))), parsePaceV2IncompleteRebuildIdentityMap(JSON.parse(fs.readFileSync(args[3], 'utf8'))), require('../src/etl/season-ingestion').fetchFastF1Session); process.stdout.write(`${JSON.stringify(artifact)}\n`); } catch { process.stdout.write('{"status":"refused","error":"pace_v2_incomplete_rebuild_facts_failed"}\n'); process.exitCode = 1; } }
+export function incompleteRebuildFactsRefusal(error: unknown): Record<string, unknown> {
+  if (error instanceof PaceV2IncompleteRebuildFactsError) return { status: 'refused', error: error.code, round: error.round, expected_canonical_driver_count: error.expected_canonical_driver_count, observed_fact_driver_count: error.observed_fact_driver_count, missing_canonical_driver_ids: error.missing_canonical_driver_ids };
+  return { status: 'refused', error: 'pace_v2_incomplete_rebuild_facts_failed' };
+}
+if (require.main === module) { const args = process.argv.slice(2); try { if (args.length !== 4 || args[0] !== '--manifest' || args[2] !== '--identity-map') throw new Error('Usage: --manifest <approved.json> --identity-map <approved.json>'); const artifact = generatePaceV2IncompleteRebuildFacts(parsePaceV2IncompleteRebuildManifest(JSON.parse(fs.readFileSync(args[1], 'utf8'))), parsePaceV2IncompleteRebuildIdentityMap(JSON.parse(fs.readFileSync(args[3], 'utf8'))), require('../src/etl/season-ingestion').fetchFastF1Session); process.stdout.write(`${JSON.stringify(artifact)}\n`); } catch (error) { process.stdout.write(`${JSON.stringify(incompleteRebuildFactsRefusal(error))}\n`); process.exitCode = 1; } }
