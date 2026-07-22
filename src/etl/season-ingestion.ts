@@ -167,6 +167,7 @@ import sys
 import os
 import fastf1
 import math
+import pandas as pd
 
 season = int(sys.argv[1])
 round_num = int(sys.argv[2])
@@ -246,6 +247,10 @@ def to_int(value):
     except Exception:
         return None
 
+def is_present_timestamp(value):
+    # FastF1 uses pandas NaT, not None, for absent pit timestamps.
+    return value is not None and not pd.isna(value)
+
 rows = []
 for _, row in laps.iterrows():
     rows.append({
@@ -254,8 +259,8 @@ for _, row in laps.iterrows():
         'lap_time_seconds': to_seconds(row.get('LapTime')),
         'lap_end_time_seconds': to_seconds(row.get('Time')),
         'is_accurate': bool(row.get('IsAccurate')) if row.get('IsAccurate') is not None else None,
-        'pit_in': row.get('PitInTime') is not None,
-        'pit_out': row.get('PitOutTime') is not None,
+        'pit_in': is_present_timestamp(row.get('PitInTime')),
+        'pit_out': is_present_timestamp(row.get('PitOutTime')),
         'compound': row.get('Compound'),
         'tyre_life': to_int(row.get('TyreLife')),
         'position': to_int(row.get('Position')),
