@@ -33,7 +33,7 @@ jobs:
           npx tsx scripts/prepare-nightly-verification-artifacts.ts --commit "$GITHUB_SHA" --output nightly-verification-artifacts --golden production-golden.json --authority database-authority-audit.json --pace pace-v2-preflight.json --performance f1ql-performance-evidence.json --shadow F1QL_SHADOW_REVIEW.md || status=1
           exit "$status"
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
