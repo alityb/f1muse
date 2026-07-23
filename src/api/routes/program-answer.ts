@@ -8,6 +8,7 @@ import { F1QLProgram } from '../../f1ql/ast';
 import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
 import { F1QLProgramCandidate } from '../../f1ql/translation-schema';
 import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../../f1ql/translator';
+import { metrics } from '../../observability/metrics';
 
 export interface ProgramAnswerDependencies {
   modelFactory?: () => F1QLTextModel;
@@ -62,6 +63,7 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
         return respondToAbort(timedOut, res);
       }
       if (translation.type !== 'program_candidate') {
+        metrics.recordF1QLAnswer('translation', translation.type, translation.reason);
         return respondToTranslationOutcome(translation, res);
       }
 
@@ -73,6 +75,7 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
           return respondToAbort(timedOut, res);
         }
         if (error instanceof F1QLLinkingError) {
+          metrics.recordF1QLAnswer('linking', 'rejected', error.code);
           return respondToLinkingError(error, res);
         }
         return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
@@ -88,18 +91,21 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
         return res.status(500).json({ error: 'answer_failed', reason: 'authorization_failed' });
       }
       if (decision.type === 'rejected') {
+        metrics.recordF1QLAnswer('policy', 'rejected', decision.reason);
         return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
       }
       try {
         enforceAnswerWorkBudget(program, decision.capability, config.maxWorkUnits, config.maxRows);
       } catch (error) {
         if (error instanceof AnswerBoundError) {
+          metrics.recordF1QLAnswer('bounds', 'rejected', error.bound);
           return res.status(422).json({ error: 'answer_bound_exceeded', reason: error.bound });
         }
         return res.status(500).json({ error: 'answer_failed', reason: 'budget_estimation_failed' });
       }
 
       // Execution remains structurally unavailable until budget enforcement and least-privilege proof land.
+      metrics.recordF1QLAnswer('execution', 'blocked', 'execution_bounds_not_enforced');
       return res.status(503).json({
         error: 'answer_unavailable',
         reason: 'execution_bounds_not_enforced',
@@ -187,9 +193,11 @@ function acquireClient(pool: Pool, signal: AbortSignal): Promise<PoolClient> {
 
 function answerAvailabilityGuard(_req: Request, res: Response, next: NextFunction): Response | void {
   if (process.env.F1QL_ANSWER_KILL_SWITCH === 'true') {
+    metrics.recordF1QLAnswer('gate', 'blocked', 'kill_switch_active');
     return res.status(503).json({ error: 'answer_unavailable', reason: 'kill_switch_active' });
   }
   if (process.env.F1QL_ANSWER_ENABLED !== 'true') {
+    metrics.recordF1QLAnswer('gate', 'blocked', 'answer_disabled');
     return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_disabled' });
   }
   next();
@@ -198,6 +206,7 @@ function answerAvailabilityGuard(_req: Request, res: Response, next: NextFunctio
 function answerQuestionGuard(req: Request, res: Response, next: NextFunction): Response | void {
   const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
   if (!question || question.length > 1000) {
+    metrics.recordF1QLAnswer('input', 'rejected', 'question_invalid');
     return res.status(400).json({ error: 'answer_invalid', reason: 'question must be 1-1000 characters' });
   }
   next();

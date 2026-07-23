@@ -9,6 +9,7 @@ import { F1QLProgram } from '../../src/f1ql/ast';
 import { F1QLLinkingError } from '../../src/f1ql/translation-linking';
 import { F1QLProgramCandidate } from '../../src/f1ql/translation-schema';
 import { F1QLTextModel } from '../../src/f1ql/translator';
+import { metrics } from '../../src/observability/metrics';
 
 class StubModel implements F1QLTextModel {
   output = '';
@@ -73,6 +74,7 @@ beforeEach(() => {
   linkFailure = undefined;
   model.waitForAbort = false;
   runtimeConfig.maxWorkUnits = 200;
+  metrics.reset();
 });
 
 afterAll(async () => {
@@ -174,6 +176,7 @@ describe('gated answer route skeleton', () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'answer_bound_exceeded', reason: 'work_units' });
     expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 1 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'bounds:rejected:work_units': 1 });
   });
 
   it('keeps an approved candidate non-executing until runtime budgets are enforced', async () => {

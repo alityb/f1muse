@@ -66,6 +66,7 @@ class MetricsCollector {
   private f1qlLatency: HistogramData;
   private f1qlTranslationOutcomes: Map<string, number> = new Map();
   private f1qlTranslationReasons: Map<string, number> = new Map();
+  private f1qlAnswerOutcomes: Map<string, number> = new Map();
 
   constructor() {
     this.nlParseLatency = this.createHistogram();
@@ -201,6 +202,11 @@ class MetricsCollector {
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
+  recordF1QLAnswer(stage: 'gate' | 'input' | 'translation' | 'linking' | 'policy' | 'bounds' | 'execution' | 'formatting', outcome: string, reason: string): void {
+    const key = `${stage}:${outcome}:${reason}`;
+    this.f1qlAnswerOutcomes.set(key, (this.f1qlAnswerOutcomes.get(key) || 0) + 1);
+  }
+
   // Get cache hit rate
   getCacheHitRate(): number {
     const total = this.cacheHits + this.cacheMisses;
@@ -261,6 +267,12 @@ class MetricsCollector {
     sections.push(`# TYPE f1muse_f1ql_translation_reasons_total counter`);
     for (const [reason, count] of this.f1qlTranslationReasons) {
       sections.push(`f1muse_f1ql_translation_reasons_total{reason="${reason}"} ${count}`);
+    }
+    sections.push(`# HELP f1muse_f1ql_answer_outcomes_total Answer pipeline outcomes by low-cardinality stage and reason`);
+    sections.push(`# TYPE f1muse_f1ql_answer_outcomes_total counter`);
+    for (const [key, count] of this.f1qlAnswerOutcomes) {
+      const [stage, outcome, reason] = key.split(':');
+      sections.push(`f1muse_f1ql_answer_outcomes_total{stage="${stage}",outcome="${outcome}",reason="${reason}"} ${count}`);
     }
 
     // SQL execution latency
@@ -441,6 +453,7 @@ class MetricsCollector {
         latency: { count: this.f1qlLatency.count, sum_ms: this.f1qlLatency.sum },
         translation_outcomes: Object.fromEntries(this.f1qlTranslationOutcomes),
         translation_reasons: Object.fromEntries(this.f1qlTranslationReasons),
+        answer_outcomes: Object.fromEntries(this.f1qlAnswerOutcomes),
       },
     };
   }
@@ -470,6 +483,7 @@ class MetricsCollector {
     this.f1qlFailures.clear();
     this.f1qlTranslationOutcomes.clear();
     this.f1qlTranslationReasons.clear();
+    this.f1qlAnswerOutcomes.clear();
   }
 }
 
