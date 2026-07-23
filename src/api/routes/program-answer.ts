@@ -1,0 +1,101 @@
+import { NextFunction, Request, Response, Router } from 'express';
+import { Pool } from 'pg';
+import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-policy';
+import { F1QLProgram } from '../../f1ql/ast';
+import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
+import { F1QLProgramCandidate } from '../../f1ql/translation-schema';
+import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../../f1ql/translator';
+
+export interface ProgramAnswerDependencies {
+  modelFactory?: () => F1QLTextModel;
+  translate?: (question: string, model: F1QLTextModel) => Promise<F1QLTranslationResult>;
+  link?: (candidate: F1QLProgramCandidate) => Promise<F1QLProgram>;
+  authorize?: (program: F1QLProgram) => AnswerPolicyDecision;
+}
+
+export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswerDependencies = {}): Router {
+  const router = Router();
+
+  router.post('/program/answer', answerAvailabilityGuard, answerQuestionGuard, async (req: Request, res: Response) => {
+    const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+
+    let model: F1QLTextModel;
+    try {
+      model = (dependencies.modelFactory ?? createF1QLTextModel)();
+    } catch {
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'provider_error' });
+    }
+    const translation = await (dependencies.translate ?? translateF1QLQuestion)(question, model)
+      .catch((): F1QLTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
+    if (translation.type !== 'program_candidate') {
+      return respondToTranslationOutcome(translation, res);
+    }
+
+    let program: F1QLProgram;
+    try {
+      program = await (dependencies.link ?? (candidate => linkF1QLCandidate(pool, candidate)))(translation.program);
+    } catch (error) {
+      if (error instanceof F1QLLinkingError) {
+        return respondToLinkingError(error, res);
+      }
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
+    }
+
+    let decision: AnswerPolicyDecision;
+    try {
+      decision = (dependencies.authorize ?? authorizeAnswerProgram)(program);
+    } catch {
+      return res.status(500).json({ error: 'answer_failed', reason: 'authorization_failed' });
+    }
+    if (decision.type === 'rejected') {
+      return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
+    }
+
+    // Execution remains structurally unavailable until answer-specific runtime bounds land.
+    return res.status(503).json({
+      error: 'answer_unavailable',
+      reason: 'execution_bounds_not_configured',
+      mode: 'gated_non_execution',
+      program,
+      capability: decision.capability
+    });
+  });
+
+  return router;
+}
+
+function answerAvailabilityGuard(_req: Request, res: Response, next: NextFunction): Response | void {
+  if (process.env.F1QL_ANSWER_KILL_SWITCH === 'true') {
+    return res.status(503).json({ error: 'answer_unavailable', reason: 'kill_switch_active' });
+  }
+  if (process.env.F1QL_ANSWER_ENABLED !== 'true') {
+    return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_disabled' });
+  }
+  next();
+}
+
+function answerQuestionGuard(req: Request, res: Response, next: NextFunction): Response | void {
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  if (!question || question.length > 1000) {
+    return res.status(400).json({ error: 'answer_invalid', reason: 'question must be 1-1000 characters' });
+  }
+  next();
+}
+
+function respondToTranslationOutcome(translation: Exclude<F1QLTranslationResult, { type: 'program_candidate' }>, res: Response): Response {
+  if (translation.type === 'provider_unavailable') {
+    return res.status(503).json({ error: 'answer_unavailable', reason: translation.reason });
+  }
+  if (translation.type === 'clarification_required') {
+    return res.status(422).json({ error: 'clarification_required', reason: translation.reason, question: translation.question, options: translation.options });
+  }
+  return res.status(422).json({ error: 'capability_unsupported', reason: translation.reason });
+}
+
+function respondToLinkingError(error: F1QLLinkingError, res: Response): Response {
+  if (error.code === 'event_ambiguous' || error.code === 'entity_ambiguous') {
+    const question = error.code === 'event_ambiguous' ? 'Which event did you mean?' : 'Which driver did you mean?';
+    return res.status(422).json({ error: 'clarification_required', reason: error.code, question, options: error.options });
+  }
+  return res.status(422).json({ error: 'capability_unsupported', reason: error.code });
+}

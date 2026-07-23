@@ -12,6 +12,8 @@ let baseUrl: string;
 
 beforeAll(async () => {
   process.env.F1QL_ENABLED = 'true';
+  delete process.env.F1QL_ANSWER_ENABLED;
+  delete process.env.F1QL_ANSWER_KILL_SWITCH;
   metrics.reset();
   pool = new Pool({ connectionString: getTestDatabaseUrl() });
   await pool.query('SELECT 1');
@@ -36,6 +38,16 @@ afterAll(async () => {
 });
 
 describe('in-process API routes', () => {
+  it('registers the independently disabled answer route without constructing a provider', async () => {
+    const response = await fetch(`${baseUrl}/program/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: 'Who won in 2025?' })
+    });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ reason: 'answer_disabled' });
+  });
+
   it('serves the health endpoint from the initialized application', async () => {
     const response = await fetch(`${baseUrl}/health`);
 

@@ -11,6 +11,7 @@ import { createDebugRoutes } from './debug';
 import { createShareRoutes } from './share';
 import { createProgramRoutes } from './program';
 import { createProgramTranslateRoutes } from './program-translate';
+import { createProgramAnswerRoutes } from './program-answer';
 import { isLLMConfigured } from '../../llm/claude-client';
 
 export function createRoutes(pool: Pool, cachePool?: Pool): Router {
@@ -36,6 +37,7 @@ export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   if (process.env.F1QL_TRANSLATION_ENABLED === 'true') {
     router.use('/', createProgramTranslateRoutes(pool));
   }
+  router.use('/', createProgramAnswerRoutes(pool));
 
   // Debug routes only in development
   if (process.env.NODE_ENV !== 'production') {
@@ -75,6 +77,9 @@ function buildEndpointList(): Record<string, string> {
     endpoints['POST /program'] = 'Execute a validated F1QL program';
     endpoints['GET /program/verified'] = 'List curated verified F1QL programs';
     endpoints['POST /program/verified/:id'] = 'Execute a curated verified F1QL program';
+  }
+  if (process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true') {
+    endpoints['POST /program/answer'] = 'Gated natural-language F1QL answer pipeline';
   }
 
   // Debug endpoints only in development
