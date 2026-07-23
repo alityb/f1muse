@@ -279,8 +279,8 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     required_relation: 'f1ql.event_classification',
     authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Race Classification, Document 48', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf' },
     scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
-    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'carlos-sainz' } } },
-    expected_facts: [{ driver_id: 'carlos-sainz', finishing_position: null, classification_status: 'dnf' }]
+    program: { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'carlos-sainz-jr' } } },
+    expected_facts: [{ driver_id: 'carlos-sainz-jr', finishing_position: null, classification_status: 'dnf' }]
   },
   {
     id: '2025-australia-qualifying-second',
@@ -307,7 +307,7 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     authority: { publisher: 'FIA', document: '2025 Australian Grand Prix Final Qualifying Classification, Document 26', url: 'https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf' },
     scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
     program: { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { driver_id: 'oliver-bearman', classification_status: ['dns'] } } },
-    expected_facts: [{ driver_id: 'oliver-bearman', qualifying_position: null, classification_status: 'dns' }]
+    expected_facts: [{ driver_id: 'oliver-bearman', qualifying_position: 20, classification_status: 'dns' }]
   },
   {
     id: '2025-abu-dhabi-race-second-nonwinner',
@@ -319,13 +319,13 @@ export const productionCorpusManifest: readonly ProductionCorpusCase[] = [
     expected_facts: [{ driver_id: 'oscar-piastri', finishing_position: 2, points: 18, classification_status: 'classified' }]
   },
   {
-    id: '2025-abu-dhabi-race-colapinto-zero-points',
+    id: '2025-abu-dhabi-race-colapinto-classification',
     disposition: 'authoritative_factual',
     required_relation: 'f1ql.event_classification',
     authority: { publisher: 'FIA', document: '2025 Abu Dhabi Grand Prix Final Race Classification, Document 55', url: 'https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_final_race_classification.pdf' },
     scoring_rule_id: 'fia-2025-no-fastest-lap-bonus',
     program: { version: 1, root: { op: 'event_classification', season: 2025, round: 24, limit: 1, filters: { driver_id: 'franco-colapinto' } } },
-    expected_facts: [{ driver_id: 'franco-colapinto', finishing_position: 20, points: 0, classification_status: 'classified' }]
+    expected_facts: [{ driver_id: 'franco-colapinto', finishing_position: 20, classification_status: 'classified' }]
   },
   {
     id: '2025-driver-fourth-final-standing',

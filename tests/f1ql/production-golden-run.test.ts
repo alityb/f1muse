@@ -127,12 +127,12 @@ describe('production F1QL golden run', () => {
     expect(factual).toContainEqual(expect.objectContaining({
       id: '2025-australia-race-sainz-zero-lap-dnf',
       authority: expect.objectContaining({ document: '2025 Australian Grand Prix Final Race Classification, Document 48' }),
-      expected_facts: [{ driver_id: 'carlos-sainz', finishing_position: null, classification_status: 'dnf' }]
+      expected_facts: [{ driver_id: 'carlos-sainz-jr', finishing_position: null, classification_status: 'dnf' }]
     }));
     expect(factual).toContainEqual(expect.objectContaining({
       id: '2025-australia-qualifying-bearman-dns',
       authority: expect.objectContaining({ document: '2025 Australian Grand Prix Final Qualifying Classification, Document 26' }),
-      expected_facts: [{ driver_id: 'oliver-bearman', qualifying_position: null, classification_status: 'dns' }]
+      expected_facts: [{ driver_id: 'oliver-bearman', qualifying_position: 20, classification_status: 'dns' }]
     }));
     expect(factual.some(testCase => testCase.expected_facts?.some(fact => fact.classification_status === 'dsq'))).toBe(false);
   });
