@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { Pool } from 'pg';
 import { DriverResolver } from '../../identity/driver-resolver';
-import { createF1QLTextModel, F1QLTextModel, translateF1QLQuestion } from '../../f1ql/translator';
+import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../../f1ql/translator';
 import { F1QLProgram } from '../../f1ql/ast';
 import { F1QLValidationError, validateF1QLProgram, validateParticipation } from '../../f1ql/validation';
 import { metrics } from '../../observability/metrics';
@@ -24,7 +24,11 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, 
     }
 
     try {
-      const program = await translateF1QLQuestion(question, translator);
+      const translation = await translateF1QLQuestion(question, translator);
+      if (translation.type !== 'program_candidate') {
+        return respondToTranslationOutcome(translation, res, startedAt);
+      }
+      const program = translation.program;
       const resolved = await resolveDriverIds(program, drivers);
       validateF1QLProgram(resolved);
       await validateParticipation(pool, resolved);
@@ -40,6 +44,18 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, 
   });
 
   return router;
+}
+
+function respondToTranslationOutcome(translation: Exclude<F1QLTranslationResult, { type: 'program_candidate' }>, res: Response, startedAt: number): Response {
+  if (translation.type === 'provider_unavailable') {
+    recordOutcome('unavailable', translation.reason, Date.now() - startedAt);
+    return res.status(503).json({ error: 'translation_unavailable', reason: translation.reason });
+  }
+  recordOutcome('unsupported', translation.reason, Date.now() - startedAt);
+  if (translation.type === 'clarification_required') {
+    return res.status(422).json({ error: 'clarification_required', reason: translation.reason, question: translation.question, options: translation.options });
+  }
+  return res.status(422).json({ error: 'program_unsupported', reason: translation.reason });
 }
 
 function validationReason(error: unknown): string {

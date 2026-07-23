@@ -8,9 +8,16 @@ const corpus = JSON.parse(readFileSync('tests/fixtures/f1ql-shadow-corpus.json',
 describe('shadow translation corpus', () => {
   for (const item of corpus) {
     it(item.question, async () => {
-      const promise = translateF1QLQuestion(item.question, new StubModel(item.output));
-      if (typeof item.output === 'string' || (item.output as { root?: { op?: string } }).root?.op === 'unsupported') await expect(promise).rejects.toThrow();
-      else await expect(promise).resolves.toMatchObject({ version: 1 });
+      const unsupported = (item.output as { root?: { op?: string } }).root?.op === 'unsupported';
+      const output = typeof item.output === 'string'
+        ? item.output
+        : unsupported
+          ? { type: 'unsupported', reason: 'capability_unsupported' }
+          : { type: 'program_candidate', program: item.output };
+      const result = await translateF1QLQuestion(item.question, new StubModel(output));
+      if (typeof item.output === 'string') expect(result).toEqual({ type: 'provider_unavailable', reason: 'invalid_response' });
+      else if (unsupported) expect(result).toEqual({ type: 'unsupported', reason: 'capability_unsupported' });
+      else expect(result).toMatchObject({ type: 'program_candidate', program: { version: 1 } });
     });
   }
 });
