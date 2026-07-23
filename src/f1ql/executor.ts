@@ -6,6 +6,7 @@ import { renderF1QL } from './render';
 import { lowerF1QL } from './lower';
 import { enforceF1QLCostLimits, F1QLCostLimitError, MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { validateCoreProgram, validateF1QLProgram, validateParticipation } from './validation';
+import { getVerifiedProgram } from './verified-programs';
 
 export { F1QLCostLimitError } from './limits';
 
@@ -38,6 +39,10 @@ export async function executeF1QL(pool: Pool, input: unknown, options: F1QLExecu
     rendering: renderF1QL(program),
     rows: result.rows
   };
+}
+
+export async function executeVerifiedF1QL(pool: Pool, id: string, options: F1QLExecutionOptions = {}): Promise<F1QLResult> {
+  return executeF1QL(pool, getVerifiedProgram(id), options);
 }
 
 export async function executeF1QLReadOnly(pool: Pool, sql: string, params: unknown[], options: F1QLExecutionOptions = {}) {
