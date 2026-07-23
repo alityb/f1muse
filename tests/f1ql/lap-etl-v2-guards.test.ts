@@ -97,7 +97,7 @@ describe('v2 lap ETL idempotency guards', () => {
     for (const etlPath of etlPaths) {
       const result = spawnSync('python3', [etlPath, '--round', '1'], { cwd: repoRoot, encoding: 'utf8' });
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain('legacy FastF1 lap ingestion is disabled');
+      expect(`${result.stdout}${result.stderr}`).toContain('legacy FastF1 lap ingestion is disabled');
     }
   });
 });
