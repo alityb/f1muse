@@ -93,6 +93,14 @@ The production projection intentionally does not claim factual proof for:
   inclusion/exclusion cannot complete and no pace production golden is
   permitted.
 
+The FIA Race History Chart may support evidence-only raw-lap provenance through
+`npm run fetch:pace-v2:fia-r1-history-artifact`: its explicit `GAP`, `TIME`,
+and `PIT` fields are not a clean-air, validity, or in/out-lap contract. The
+production corpus has no unfiltered timing metric, so it must not add a factual
+pace golden. A filtered golden requires an authority with all F1QL eligibility
+fields on the same completed-lap identity; an unfiltered golden requires a
+separately exposed, explicitly defined unfiltered F1QL metric.
+
 The factual projection does not prove source completeness: a missing view is a
 skip, and a successful case proves only the cited event fields. It does not
 derive season totals from race points, infer sprint-session results (the F1QL

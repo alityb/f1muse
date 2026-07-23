@@ -192,6 +192,15 @@ completeness remain unsupported. See
 [`PACE_METHODOLOGY.md`](PACE_METHODOLOGY.md#official-validation-layers-1-3)
 and the ledger rows 19, 20, and 22.
 
+**Promotion policy.** `clean_air_gap_2_0s_v1` remains coverage-only until one
+authority maps every compared completed lap to driver identity and supplies its
+validity, pit, in-lap, out-lap, and numeric car-ahead-gap semantics. FIA's 2026
+Australian Race History Chart is retained only for its printed raw lap times,
+leader-relative gaps, and `PIT` marker; it does not define the missing fields.
+No filtered pace golden may be promoted from a partial overlap or a derived
+car-ahead gap. F1QL currently exposes no unfiltered raw-timing metric, so no
+factual pace golden is eligible under the current product contract.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain
