@@ -73,7 +73,7 @@ at capture, 860 distinct driver IDs and 186 team IDs.
 | `driver_id` | Canonicalized `race_data.driver_id`. |
 | `team_id` | Raw `race_data.constructor_id`; no underscore-to-hyphen rewrite is applied. |
 | `finishing_position` | `race_data.position_number`; `NULL` is not a finish position. |
-| `points` | `race_data.race_points`; `NULL` is not zero. |
+| `points` | `race_data.race_points`; `NULL` is not zero. FIA may record an explicit zero while this source field is null; F1QL preserves that null and does not infer zero. |
 | `classification_status` | Closed enum: `classified`, `dnf`, `dns`, `dsq`, `not_classified`, `withdrawn`. |
 | `status_reason` | First nonblank `position_text`, otherwise `race_reason_retired`; it is explanatory source text, not a second normalized enum. |
 
@@ -85,11 +85,12 @@ that order. A non-null numeric position with no retirement reason is
 other case is `dnf`. Thus `classified` includes a recorded numeric classified
 position, while no status mapping infers a missing position or points value.
 
-**Production factual evidence.** The authority audit's 23 executed checks include 2014
+**Production factual evidence.** The authority audit's executed checks include 2014
 Abu Dhabi double points, 2019 Australia fastest-lap point, 2021 Belgium's
 abbreviated classification, 2022 Austria scoring, and 2024/2025 race facts
 (ledger row 21). The unrun 29-check manifest adds FIA final-classification
-checks for 2025 Australia winner/zero-lap DNF and Abu Dhabi P2/zero points.
+checks for 2025 Australia winner/zero-lap DNF and Abu Dhabi P2. Colapinto's
+FIA-recorded zero is not asserted against the nullable per-race points field.
 Sources and narrowed assertions are in
 [`F1QL_CORPUS_SOURCE_EVIDENCE.md`](F1QL_CORPUS_SOURCE_EVIDENCE.md#cited-factual-manifest).
 

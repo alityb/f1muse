@@ -92,7 +92,7 @@ export async function runDatabaseLifecycleAudit(pool: QueryPool, migrationFiles 
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE (n.nspname || '.' || c.relname) = ANY($1::text[])
          OR (n.nspname = 'public' AND c.relname = ANY($2::text[]))
-      ORDER BY total_bytes::bigint DESC, relation
+      ORDER BY pg_total_relation_size(c.oid) DESC, relation
     `, [RELATIONS, RELATIONS.filter(name => !name.includes('.'))]);
 
     const legacyConsumers = await client.query<{ dependent: string; dependent_kind: string; dependency_type: string }>(`

@@ -18,6 +18,7 @@ describe('database lifecycle audit', () => {
     expect(calls[0]).toBe('BEGIN READ ONLY');
     expect(calls[1]).toContain('statement_timeout');
     expect(calls.at(-1)).toBe('ROLLBACK');
+    expect(calls.some(sql => sql.includes('ORDER BY pg_total_relation_size(c.oid) DESC, relation'))).toBe(true);
     expect(calls.every(sql => !/\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|COPY|CALL|DO)\b/i.test(sql))).toBe(true);
   });
 });
