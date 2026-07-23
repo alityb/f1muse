@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { F1QLProgram } from './ast';
-import { parseF1QLProgram } from './schema';
+import { F1QLProgramCandidate, parseF1QLProgramCandidate } from './translation-schema';
 
 const SYSTEM_PROMPT = `Classify the user's F1 statistics question and emit one typed F1QL translation result.
 Use the emit_f1ql_translation tool exactly once. Never output SQL, prose, markdown, or a legacy query intent.
@@ -9,6 +8,7 @@ Return exactly one of:
 - {"type":"program_candidate","program":<F1QL program>}
 - {"type":"clarification_required","reason":<reason code>,"question":<focused question>,"options":[<supported choices>]}
 - {"type":"unsupported","reason":<reason code>}
+For a named event, use event_name plus season instead of round; deterministic code resolves it to one round.
 Supported root operations only:
 - aggregate and rank over official driver standings
 - pace_summary for one driver's valid race-lap pace
@@ -50,7 +50,7 @@ const translationEnvelopeSchema = z.discriminatedUnion('type', [
 ]);
 
 export type F1QLTranslationResult =
-  | { type: 'program_candidate'; program: F1QLProgram }
+  | { type: 'program_candidate'; program: F1QLProgramCandidate }
   | { type: 'clarification_required'; reason: z.infer<typeof clarificationReasonSchema>; question: string; options?: string[] }
   | { type: 'unsupported'; reason: z.infer<typeof unsupportedReasonSchema> | 'program_invalid' }
   | { type: 'provider_unavailable'; reason: 'provider_error' | 'invalid_response' };
@@ -146,7 +146,7 @@ export async function translateF1QLQuestion(question: string, model: F1QLTextMod
     return envelope.data;
   }
   try {
-    return { type: 'program_candidate', program: parseF1QLProgram(envelope.data.program) };
+    return { type: 'program_candidate', program: parseF1QLProgramCandidate(envelope.data.program) };
   } catch {
     return { type: 'unsupported', reason: 'program_invalid' };
   }

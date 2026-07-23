@@ -23,6 +23,17 @@ describe('constrained F1QL translation', () => {
     })))).resolves.toMatchObject({ type: 'program_candidate', program: { root: { op: 'pace_summary' } } });
   });
 
+  it('accepts a strict translation-only named event candidate', async () => {
+    await expect(translateF1QLQuestion('Belgian GP in 2021', new StubModel(JSON.stringify({
+      type: 'program_candidate',
+      program: { version: 1, root: { op: 'event_classification', season: 2021, event_name: 'Belgian Grand Prix', limit: 30 } }
+    })))).resolves.toMatchObject({ type: 'program_candidate', program: { root: { event_name: 'Belgian Grand Prix' } } });
+    await expect(translateF1QLQuestion('Conflicting event', new StubModel(JSON.stringify({
+      type: 'program_candidate',
+      program: { version: 1, root: { op: 'event_classification', season: 2021, round: 12, event_name: 'Belgian Grand Prix', limit: 30 } }
+    })))).resolves.toEqual({ type: 'unsupported', reason: 'program_invalid' });
+  });
+
   it('returns provider_unavailable for non-JSON output without a fallback execution path', async () => {
     await expect(translateF1QLQuestion('Max pace in 2025', new StubModel('SELECT * FROM laps_normalized')))
       .resolves.toEqual({ type: 'provider_unavailable', reason: 'invalid_response' });

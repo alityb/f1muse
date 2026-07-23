@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 
-type DriverMatchMode = 'literal' | 'ranked';
+type DriverMatchMode = 'literal' | 'ranked' | 'season';
 
 interface DriverRow {
   id: string;
@@ -16,6 +16,7 @@ interface DriverRow {
 export interface DriverResolutionResult {
   success: boolean;
   f1db_driver_id?: string;
+  candidates?: string[];
   error?: string;
   match_mode?: DriverMatchMode;
 }
@@ -131,6 +132,30 @@ export class DriverResolver {
     }
 
     return results;
+  }
+
+  async resolveUnambiguous(alias: string, season?: number): Promise<DriverResolutionResult> {
+    const normalizedInput = normalizeMatch(alias ?? '');
+    if (!normalizedInput) {
+      return { success: false, error: 'unknown_driver' };
+    }
+    try {
+      const candidates = this.findLiteralCandidates(normalizedInput, await this.fetchDriverRows(), await this.fetchAliases()).sort();
+      if (candidates.length === 0) {
+        return { success: false, error: 'unknown_driver' };
+      }
+      if (candidates.length === 1) {
+        return { success: true, f1db_driver_id: candidates[0], match_mode: 'literal' };
+      }
+      const participation = await this.fetchSeasonParticipation(candidates, season);
+      const active = season ? candidates.filter(id => (participation.get(id) || 0) > 0) : candidates;
+      if (active.length === 1) {
+        return { success: true, f1db_driver_id: active[0], match_mode: 'season' };
+      }
+      return { success: false, error: 'ambiguous_driver', candidates: (active.length > 1 ? active : candidates).sort() };
+    } catch (err) {
+      return { success: false, error: `Database error resolving driver: ${err}` };
+    }
   }
 
   private async fetchDriverRows(): Promise<DriverRow[]> {
