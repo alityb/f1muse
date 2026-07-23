@@ -23,6 +23,12 @@ Usage:
 """
 
 import sys
+
+# Refuse direct execution before loading optional legacy ETL dependencies.
+if __name__ == '__main__':
+    print('FAIL_CLOSED: legacy FastF1 lap ingestion is disabled; use the reviewed pace-v2 manifest writer.')
+    sys.exit(1)
+
 import os
 import argparse
 import hashlib
