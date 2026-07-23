@@ -73,6 +73,8 @@ function buildEndpointList(): Record<string, string> {
 
   if (process.env.F1QL_ENABLED === 'true') {
     endpoints['POST /program'] = 'Execute a validated F1QL program';
+    endpoints['GET /program/verified'] = 'List curated verified F1QL programs';
+    endpoints['POST /program/verified/:id'] = 'Execute a curated verified F1QL program';
   }
 
   // Debug endpoints only in development

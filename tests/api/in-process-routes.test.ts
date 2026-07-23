@@ -121,6 +121,19 @@ describe('in-process API routes', () => {
     expect(body.rendering).toContain('official driver standings');
   });
 
+  it('lists and executes curated verified F1QL programs through the same validation pipeline', async () => {
+    const listed = await fetch(`${baseUrl}/program/verified`);
+    expect(listed.status).toBe(200);
+    await expect(listed.json()).resolves.toMatchObject({ programs: [{ id: '2025-driver-standings' }] });
+
+    const executed = await fetch(`${baseUrl}/program/verified/2025-driver-standings`, { method: 'POST' });
+    expect(executed.status).toBe(200);
+    await expect(executed.json()).resolves.toMatchObject({
+      program: { version: 1, root: { op: 'aggregate' } },
+      rows: expect.any(Array)
+    });
+  });
+
   it('executes a validated F1QL pace comparison through HTTP', async () => {
     await pool.query(
       `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
@@ -203,7 +216,7 @@ describe('in-process API routes', () => {
   it('records F1QL operation metrics without query values', () => {
     const snapshot = metrics.toJSON();
     expect(snapshot.f1ql).toMatchObject({
-      requests: expect.objectContaining({ aggregate: 1, pace_delta: 1, invalid: 1, pace_summary: 2 }),
+      requests: expect.objectContaining({ aggregate: 2, pace_delta: 1, invalid: 1, pace_summary: 2 }),
       failures: expect.objectContaining({ 'invalid:rejected': 1, 'pace_summary:rejected': 2 })
     });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_requests_total{operation="pace_delta"} 1');

@@ -70,7 +70,9 @@ const verifiedPrograms: readonly VerifiedProgram[] = [
 
 export function getVerifiedProgram(id: string): F1QLProgram {
   const verified = verifiedPrograms.find(program => program.id === id);
-  if (!verified) throw new VerifiedProgramError('Verified program was not found');
+  if (!verified) {
+    throw new VerifiedProgramError('Verified program was not found');
+  }
   if (verified.definitions_version !== F1QL_DEFINITIONS_VERSION || verified.compiler_version !== F1QL_COMPILER_VERSION || verified.fact_space_version !== F1QL_FACT_SPACE_VERSION) {
     throw new VerifiedProgramError('Verified program is incompatible with the active F1QL versions');
   }

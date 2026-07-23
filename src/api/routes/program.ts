@@ -1,12 +1,31 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { ZodError } from 'zod';
-import { executeF1QL, F1QLCostLimitError } from '../../f1ql/executor';
+import { executeF1QL, executeVerifiedF1QL, F1QLCostLimitError } from '../../f1ql/executor';
 import { F1QLValidationError } from '../../f1ql/validation';
+import { listVerifiedPrograms, VerifiedProgramError } from '../../f1ql/verified-programs';
 import { metrics } from '../../observability/metrics';
 
 export function createProgramRoutes(pool: Pool): Router {
   const router = Router();
+
+  router.get('/program/verified', (_req: Request, res: Response) => {
+    return res.status(200).json({ programs: listVerifiedPrograms() });
+  });
+
+  router.post('/program/verified/:id', async (req: Request, res: Response) => {
+    const startedAt = Date.now();
+    try {
+      const result = await executeVerifiedF1QL(pool, req.params.id);
+      metrics.recordF1QL(getOperation(result.program), 'success', Date.now() - startedAt);
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof VerifiedProgramError) {
+        return res.status(404).json({ error: 'verified_program_not_found', reason: error.message });
+      }
+      return res.status(500).json({ error: 'execution_failed', reason: error instanceof Error ? error.message : String(error) });
+    }
+  });
 
   router.post('/program', async (req: Request, res: Response) => {
     const startedAt = Date.now();
