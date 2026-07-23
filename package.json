@@ -16,7 +16,7 @@
     "test:api:external": "vitest run tests/integration/api-integration.test.ts",
     "test:api:inprocess": "npm run db:test:up && REQUIRE_TEST_DATABASE=true DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test vitest run tests/api; status=$?; npm run db:test:down; exit $status",
     "test:nl": "vitest run tests/nl",
-    "test:f1ql": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test vitest run tests/f1ql; status=$?; npm run db:test:down; exit $status",
+    "test:f1ql": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test vitest run --no-file-parallelism tests/f1ql; status=$?; npm run db:test:down; exit $status",
     "golden:snapshot:f1ql-corpus": "tsx scripts/snapshot-f1ql-golden-corpus.ts",
     "golden:snapshot:f1ql-corpus-results": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test tsx scripts/snapshot-f1ql-golden-corpus-results.ts; status=$?; npm run db:test:down; exit $status",
     "golden:snapshot:scoring-rules": "tsx scripts/snapshot-scoring-rules.ts",
