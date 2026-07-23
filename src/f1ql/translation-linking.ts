@@ -11,7 +11,7 @@ export class F1QLLinkingError extends Error {
   }
 }
 
-export async function linkF1QLCandidate(pool: Pool, candidate: F1QLProgramCandidate): Promise<F1QLProgram> {
+export async function linkF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1QLProgramCandidate): Promise<F1QLProgram> {
   const program = await canonicalizeEvent(candidate, new EventResolver(pool));
   return parseF1QLProgram(await resolveDriverIds(program, new DriverResolver(pool)));
 }

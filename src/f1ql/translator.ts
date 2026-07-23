@@ -56,7 +56,7 @@ export type F1QLTranslationResult =
   | { type: 'provider_unavailable'; reason: 'provider_error' | 'invalid_response' };
 
 export interface F1QLTextModel {
-  complete(systemPrompt: string, question: string): Promise<string>;
+  complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string>;
 }
 
 export class AnthropicF1QLModel implements F1QLTextModel {
@@ -66,7 +66,7 @@ export class AnthropicF1QLModel implements F1QLTextModel {
     this.client = new Anthropic({ apiKey });
   }
 
-  async complete(systemPrompt: string, question: string): Promise<string> {
+  async complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string> {
     const message = await this.client.messages.create({
       model: this.model,
       max_tokens: 512,
@@ -82,7 +82,7 @@ export class AnthropicF1QLModel implements F1QLTextModel {
         }
       }],
       tool_choice: { type: 'tool', name: 'emit_f1ql_translation' }
-    });
+    }, signal ? { signal } : undefined);
     const toolUse = message.content.find((content) => content.type === 'tool_use');
     return toolUse?.type === 'tool_use' ? JSON.stringify(toolUse.input) : '';
   }
@@ -91,9 +91,10 @@ export class AnthropicF1QLModel implements F1QLTextModel {
 export class OpenAICompatibleF1QLModel implements F1QLTextModel {
   constructor(private readonly baseUrl: string, private readonly apiKey: string, private readonly model: string) {}
 
-  async complete(systemPrompt: string, question: string): Promise<string> {
+  async complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string> {
     const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
+      signal,
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.model,
@@ -124,10 +125,10 @@ export function createF1QLTextModel(): F1QLTextModel {
   return new AnthropicF1QLModel(process.env.ANTHROPIC_API_KEY ?? '');
 }
 
-export async function translateF1QLQuestion(question: string, model: F1QLTextModel): Promise<F1QLTranslationResult> {
+export async function translateF1QLQuestion(question: string, model: F1QLTextModel, signal?: AbortSignal): Promise<F1QLTranslationResult> {
   let raw: string;
   try {
-    raw = await model.complete(SYSTEM_PROMPT, question);
+    raw = await model.complete(SYSTEM_PROMPT, question, signal);
   } catch {
     return { type: 'provider_unavailable', reason: 'provider_error' };
   }

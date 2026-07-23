@@ -4,6 +4,7 @@ import { AddressInfo } from 'net';
 import { readFileSync } from 'node:fs';
 import { Pool } from 'pg';
 import { createProgramAnswerRoutes } from '../../src/api/routes/program-answer';
+import { AnswerRuntimeConfig } from '../../src/f1ql/answer-runtime';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { F1QLLinkingError } from '../../src/f1ql/translation-linking';
 import { F1QLProgramCandidate } from '../../src/f1ql/translation-schema';
@@ -11,8 +12,24 @@ import { F1QLTextModel } from '../../src/f1ql/translator';
 
 class StubModel implements F1QLTextModel {
   output = '';
-  async complete(): Promise<string> { return this.output; }
+  waitForAbort = false;
+  async complete(_systemPrompt: string, _question: string, signal?: AbortSignal): Promise<string> {
+    if (!this.waitForAbort) return this.output;
+    return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true }));
+  }
 }
+
+const runtimeConfig: AnswerRuntimeConfig = {
+  maxConcurrency: 2,
+  queueTimeoutMs: 50,
+  requestTimeoutMs: 100,
+  rateLimitMax: 100,
+  rateLimitWindowMs: 60_000,
+  statementTimeoutMs: 3_000,
+  maxWorkUnits: 100,
+  maxRows: 100,
+  maxResponseBytes: 65_536
+};
 
 const standingsProgram: F1QLProgram = {
   version: 1,
@@ -41,7 +58,8 @@ beforeAll(async () => {
       linkAttempts++;
       if (linkFailure) throw linkFailure;
       return candidate as F1QLProgram;
-    }
+    },
+    runtimeConfig
   }));
   await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -53,6 +71,7 @@ beforeEach(() => {
   modelCreations = 0;
   linkAttempts = 0;
   linkFailure = undefined;
+  model.waitForAbort = false;
 });
 
 afterAll(async () => {
@@ -122,6 +141,14 @@ describe('gated answer route skeleton', () => {
     expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 0 });
   });
 
+  it('cancels provider work at the answer request deadline', async () => {
+    model.waitForAbort = true;
+    const response = await ask();
+    expect(response.status).toBe(504);
+    await expect(response.json()).resolves.toMatchObject({ reason: 'request_timeout' });
+    expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 0 });
+  });
+
   it('returns linking ambiguity without authorization or execution', async () => {
     model.output = JSON.stringify({ type: 'program_candidate', program: standingsProgram });
     linkFailure = new F1QLLinkingError('entity_ambiguous', ['driver-a', 'driver-b']);
@@ -139,13 +166,13 @@ describe('gated answer route skeleton', () => {
     expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 1 });
   });
 
-  it('keeps an approved candidate non-executing until runtime bounds exist', async () => {
+  it('keeps an approved candidate non-executing until runtime budgets are enforced', async () => {
     model.output = JSON.stringify({ type: 'program_candidate', program: standingsProgram });
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       error: 'answer_unavailable',
-      reason: 'execution_bounds_not_configured',
+      reason: 'execution_bounds_not_enforced',
       mode: 'gated_non_execution',
       capability: { source: 'final_driver_standings' }
     });

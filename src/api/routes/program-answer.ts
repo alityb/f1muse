@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response, Router } from 'express';
-import { Pool } from 'pg';
+import rateLimit from 'express-rate-limit';
+import { Pool, PoolClient } from 'pg';
 import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-policy';
+import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { F1QLProgram } from '../../f1ql/ast';
 import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
 import { F1QLProgramCandidate } from '../../f1ql/translation-schema';
@@ -8,60 +10,170 @@ import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1Q
 
 export interface ProgramAnswerDependencies {
   modelFactory?: () => F1QLTextModel;
-  translate?: (question: string, model: F1QLTextModel) => Promise<F1QLTranslationResult>;
+  translate?: (question: string, model: F1QLTextModel, signal?: AbortSignal) => Promise<F1QLTranslationResult>;
   link?: (candidate: F1QLProgramCandidate) => Promise<F1QLProgram>;
   authorize?: (program: F1QLProgram) => AnswerPolicyDecision;
+  runtimeConfig?: AnswerRuntimeConfig;
+  admission?: AnswerAdmissionController;
 }
 
 export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswerDependencies = {}): Router {
   const router = Router();
+  const config = dependencies.runtimeConfig ?? getAnswerRuntimeConfig();
+  const admission = dependencies.admission ?? new AnswerAdmissionController(config);
+  const answerRateLimiter = rateLimit({
+    windowMs: config.rateLimitWindowMs,
+    max: config.rateLimitMax,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'answer_unavailable', reason: 'rate_limit_exceeded' }
+  });
 
-  router.post('/program/answer', answerAvailabilityGuard, answerQuestionGuard, async (req: Request, res: Response) => {
+  router.post('/program/answer', answerAvailabilityGuard, answerQuestionGuard, answerRateLimiter, async (req: Request, res: Response) => {
     const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-
-    let model: F1QLTextModel;
-    try {
-      model = (dependencies.modelFactory ?? createF1QLTextModel)();
-    } catch {
-      return res.status(503).json({ error: 'answer_unavailable', reason: 'provider_error' });
-    }
-    const translation = await (dependencies.translate ?? translateF1QLQuestion)(question, model)
-      .catch((): F1QLTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
-    if (translation.type !== 'program_candidate') {
-      return respondToTranslationOutcome(translation, res);
-    }
-
-    let program: F1QLProgram;
-    try {
-      program = await (dependencies.link ?? (candidate => linkF1QLCandidate(pool, candidate)))(translation.program);
-    } catch (error) {
-      if (error instanceof F1QLLinkingError) {
-        return respondToLinkingError(error, res);
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, config.requestTimeoutMs);
+    const abortOnDisconnect = () => {
+      if (!res.writableEnded) {
+        controller.abort();
       }
-      return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
-    }
+    };
+    req.once('aborted', abortOnDisconnect);
+    res.once('close', abortOnDisconnect);
 
-    let decision: AnswerPolicyDecision;
+    let release: (() => void) | undefined;
     try {
-      decision = (dependencies.authorize ?? authorizeAnswerProgram)(program);
-    } catch {
-      return res.status(500).json({ error: 'answer_failed', reason: 'authorization_failed' });
-    }
-    if (decision.type === 'rejected') {
-      return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
-    }
+      release = await admission.acquire(controller.signal);
 
-    // Execution remains structurally unavailable until answer-specific runtime bounds land.
-    return res.status(503).json({
-      error: 'answer_unavailable',
-      reason: 'execution_bounds_not_configured',
-      mode: 'gated_non_execution',
-      program,
-      capability: decision.capability
-    });
+      let model: F1QLTextModel;
+      try {
+        model = (dependencies.modelFactory ?? createF1QLTextModel)();
+      } catch {
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'provider_error' });
+      }
+      const translation = await (dependencies.translate ?? translateF1QLQuestion)(question, model, controller.signal)
+        .catch((): F1QLTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
+      if (controller.signal.aborted) {
+        return respondToAbort(timedOut, res);
+      }
+      if (translation.type !== 'program_candidate') {
+        return respondToTranslationOutcome(translation, res);
+      }
+
+      let program: F1QLProgram;
+      try {
+        program = await (dependencies.link ?? (candidate => linkWithBounds(pool, candidate, config.statementTimeoutMs, controller.signal)))(translation.program);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return respondToAbort(timedOut, res);
+        }
+        if (error instanceof F1QLLinkingError) {
+          return respondToLinkingError(error, res);
+        }
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
+      }
+      if (controller.signal.aborted) {
+        return respondToAbort(timedOut, res);
+      }
+
+      let decision: AnswerPolicyDecision;
+      try {
+        decision = (dependencies.authorize ?? authorizeAnswerProgram)(program);
+      } catch {
+        return res.status(500).json({ error: 'answer_failed', reason: 'authorization_failed' });
+      }
+      if (decision.type === 'rejected') {
+        return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
+      }
+
+      // Execution remains structurally unavailable until budget enforcement and least-privilege proof land.
+      return res.status(503).json({
+        error: 'answer_unavailable',
+        reason: 'execution_bounds_not_enforced',
+        mode: 'gated_non_execution',
+        program,
+        capability: decision.capability
+      });
+    } catch (error) {
+      if (error instanceof AnswerAdmissionError) {
+        if (error.reason === 'request_cancelled') {
+          return respondToAbort(timedOut, res);
+        }
+        return res.status(503).json({ error: 'answer_unavailable', reason: error.reason });
+      }
+      return res.status(500).json({ error: 'answer_failed', reason: 'unexpected_error' });
+    } finally {
+      release?.();
+      clearTimeout(timeout);
+      req.removeListener('aborted', abortOnDisconnect);
+      res.removeListener('close', abortOnDisconnect);
+    }
   });
 
   return router;
+}
+
+function respondToAbort(timedOut: boolean, res: Response): Response | void {
+  if (res.destroyed || res.writableEnded) {
+    return;
+  }
+  return res.status(timedOut ? 504 : 499).json({
+    error: 'answer_unavailable',
+    reason: timedOut ? 'request_timeout' : 'request_cancelled'
+  });
+}
+
+async function linkWithBounds(pool: Pool, candidate: F1QLProgramCandidate, statementTimeoutMs: number, signal: AbortSignal): Promise<F1QLProgram> {
+  const client = await acquireClient(pool, signal);
+  try {
+    await client.query('BEGIN READ ONLY');
+    await client.query("SELECT set_config('statement_timeout', $1, true)", [`${statementTimeoutMs}ms`]);
+    const program = await linkF1QLCandidate(client, candidate);
+    await client.query('ROLLBACK');
+    return program;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function acquireClient(pool: Pool, signal: AbortSignal): Promise<PoolClient> {
+  if (signal.aborted) {
+    return Promise.reject(new AnswerAdmissionError('request_cancelled'));
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(new AnswerAdmissionError('request_cancelled'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    pool.connect().then(client => {
+      if (settled) {
+        client.release();
+        return;
+      }
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      resolve(client);
+    }, error => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      reject(error);
+    });
+  });
 }
 
 function answerAvailabilityGuard(_req: Request, res: Response, next: NextFunction): Response | void {

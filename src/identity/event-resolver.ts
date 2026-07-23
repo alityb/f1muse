@@ -26,7 +26,7 @@ function normalizeEventName(value: string): string {
 }
 
 export class EventResolver {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pick<Pool, 'query'>) {}
 
   async resolve(season: number, name: string): Promise<EventResolution> {
     const normalized = normalizeEventName(name);

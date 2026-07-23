@@ -85,7 +85,7 @@ export function humanizeId(driverId: string): string {
  * - No fuzzy matching, no typo inference, no ambiguity prompts
  */
 export class DriverResolver {
-  constructor(private pool: Pool) {}
+  constructor(private pool: Pick<Pool, 'query'>) {}
 
   async resolve(alias: string, options?: DriverResolveOptions): Promise<DriverResolutionResult> {
     const rawInput = alias ?? '';
