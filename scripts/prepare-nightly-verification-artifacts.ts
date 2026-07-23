@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-type ArtifactKind = 'production-golden' | 'database-authority-audit' | 'pace-v2-preflight';
+type ArtifactKind = 'production-golden' | 'database-authority-audit' | 'pace-v2-preflight' | 'f1ql-performance-evidence';
 
 interface PreparedArtifact {
   kind: ArtifactKind;
@@ -15,6 +15,7 @@ interface Arguments {
   golden: string;
   authority: string;
   pace: string;
+  performance: string;
   shadow: string;
 }
 
@@ -53,7 +54,8 @@ export function prepareNightlyVerificationArtifacts(args: Arguments, generatedAt
   const reports = [
     readJsonArtifact('production-golden', args.golden),
     readJsonArtifact('database-authority-audit', args.authority),
-    readJsonArtifact('pace-v2-preflight', args.pace)
+    readJsonArtifact('pace-v2-preflight', args.pace),
+    readJsonArtifact('f1ql-performance-evidence', args.performance)
   ];
   const metadata = {
     generated_at_utc: generatedAtUtc,
@@ -80,7 +82,7 @@ function parseArguments(argv: string[]): Arguments {
     if (!flag?.startsWith('--') || !value) throw new Error('Expected paired --flag value arguments.');
     values.set(flag.slice(2), value);
   }
-  const required = ['commit', 'output', 'golden', 'authority', 'pace', 'shadow'] as const;
+  const required = ['commit', 'output', 'golden', 'authority', 'pace', 'performance', 'shadow'] as const;
   for (const key of required) if (!values.has(key)) throw new Error(`Missing --${key}.`);
   return Object.fromEntries(required.map(key => [key, values.get(key)!])) as Arguments;
 }

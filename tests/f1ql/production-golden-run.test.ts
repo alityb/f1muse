@@ -52,7 +52,7 @@ describe('production F1QL golden run', () => {
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases).toHaveLength(26);
+    expect(result.cases).toHaveLength(32);
     expect(result.corpus_audit).toHaveLength(100);
     expect(calls[0]).toEqual({ sql: 'BEGIN READ ONLY', params: undefined });
     expect(calls[1]).toEqual({ sql: "SELECT set_config('statement_timeout', $1, true)", params: ['5000ms'] });
@@ -88,7 +88,7 @@ describe('production F1QL golden run', () => {
     const result = await runProductionGolden(pool);
 
     expect(result.status).toBe('passed');
-    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toHaveLength(9);
+    expect(result.cases.filter(testCase => testCase.skip_reason === 'missing_production_view')).toHaveLength(13);
     expect(result.cases).toContainEqual(expect.objectContaining({ id: '2025-race-classification-structural', outcome: 'skipped' }));
     expect(result.cases).toContainEqual(expect.objectContaining({ id: '2024-bahrain-race-winner', outcome: 'skipped' }));
     expect(calls.filter(call => call.sql.includes('f1ql.event_classification') && !call.sql.includes('to_regclass'))).toHaveLength(0);
@@ -103,7 +103,7 @@ describe('production F1QL golden run', () => {
 
   it('covers cited scoring transitions and every factual query source', () => {
     const factual = productionCorpusManifest.filter(testCase => testCase.disposition === 'authoritative_factual');
-    expect(factual).toHaveLength(23);
+    expect(factual).toHaveLength(29);
     expect(factual.every(testCase => testCase.authority?.url && testCase.expected_facts?.length)).toBe(true);
     expect(factual.map(testCase => testCase.scoring_rule_id)).toEqual(expect.arrayContaining([
       'historical-1950-1953',
@@ -121,9 +121,25 @@ describe('production F1QL golden run', () => {
     ]));
   });
 
+  it('keeps status edges tied to final FIA classifications without inferring a DSQ mapping', () => {
+    const factual = productionCorpusManifest.filter(testCase => testCase.disposition === 'authoritative_factual');
+    expect(productionCorpusManifest).toHaveLength(32);
+    expect(factual).toContainEqual(expect.objectContaining({
+      id: '2025-australia-race-sainz-zero-lap-dnf',
+      authority: expect.objectContaining({ document: '2025 Australian Grand Prix Final Race Classification, Document 48' }),
+      expected_facts: [{ driver_id: 'carlos-sainz', finishing_position: null, classification_status: 'dnf' }]
+    }));
+    expect(factual).toContainEqual(expect.objectContaining({
+      id: '2025-australia-qualifying-bearman-dns',
+      authority: expect.objectContaining({ document: '2025 Australian Grand Prix Final Qualifying Classification, Document 26' }),
+      expected_facts: [{ driver_id: 'oliver-bearman', qualifying_position: null, classification_status: 'dns' }]
+    }));
+    expect(factual.some(testCase => testCase.expected_facts?.some(fact => fact.classification_status === 'dsq'))).toBe(false);
+  });
+
   it('uses the season standings authority for final championship totals without summing points', () => {
     const finalStandings = productionCorpusManifest.filter(testCase => testCase.required_relation === 'f1ql.driver_standings' && testCase.disposition === 'authoritative_factual');
-    expect(finalStandings).toHaveLength(9);
+    expect(finalStandings).toHaveLength(10);
     expect(finalStandings.every(testCase => testCase.required_relation === 'f1ql.driver_standings')).toBe(true);
     expect(finalStandings.every(testCase => {
       const root = testCase.program.root;
@@ -132,6 +148,6 @@ describe('production F1QL golden run', () => {
         && root.input.input.source === 'standings'
         && root.measures.every(measure => measure.function !== 'sum');
     })).toBe(true);
-    expect(finalStandings.flatMap(testCase => testCase.expected_facts ?? []).map(fact => fact.points)).toEqual([423, 421, 410, 0, 384, 413, 395.5, 454, 437]);
+    expect(finalStandings.flatMap(testCase => testCase.expected_facts ?? []).map(fact => fact.points)).toEqual([423, 421, 410, 0, 384, 413, 395.5, 454, 437, 319]);
   });
 });

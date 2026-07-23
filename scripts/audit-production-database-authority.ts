@@ -117,7 +117,7 @@ export async function runDatabaseAuthorityAudit(pool: QueryPool): Promise<Databa
       factual_checks: factualChecks,
       missing_contradiction_ledger: ledger,
       limitations: [
-        'This audit quantifies observed database coverage and a fixed 23-check official factual sample; it does not verify every season, row, or source document.',
+        'This audit quantifies observed database coverage and a fixed 29-check official factual sample; it does not verify every season, row, or source document.',
         'Pace coverage is database observation only. Official raw-lap comparisons remain limited to the separately retained 2026 artifacts and do not establish clean-air, pit, in-lap, or out-lap eligibility.',
         'The local scoring registry is checked for bounded 1950-2026 interval coverage; final championship totals remain authoritative only in season standings and FIA championship-points documents.',
         'Missing relations and mismatches are ledgered, never repaired or inferred by this runner.'

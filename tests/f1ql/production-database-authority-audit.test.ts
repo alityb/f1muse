@@ -22,7 +22,7 @@ describe('production database authority audit', () => {
     const report = await runDatabaseAuthorityAudit(pool);
     expect(report.status).toBe('attention');
     expect(report.domains.filter(domain => domain.status === 'missing_relation')).toHaveLength(6);
-    expect(report.factual_checks.filter(check => check.outcome === 'skipped_missing_relation')).toHaveLength(23);
+    expect(report.factual_checks.filter(check => check.outcome === 'skipped_missing_relation')).toHaveLength(29);
     expect(calls[0]).toBe('BEGIN READ ONLY');
     expect(calls[1]).toContain('statement_timeout');
     expect(calls.at(-1)).toBe('ROLLBACK');

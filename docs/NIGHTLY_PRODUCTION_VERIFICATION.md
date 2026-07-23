@@ -16,12 +16,19 @@ Each run invokes the committed, dual-flagged production readers:
 - `golden:f1ql:production`
 - `audit:database-authority:production`
 - `preflight:pace-v2:production`
+- `evidence:f1ql:performance:production`
 - the 30-day Railway shadow-log report
 
 The database readers enforce their own loopback refusal, one read-only
 transaction, transaction-local five-second statement timeout, and rollback. The
 shadow path fetches logs and aggregates them only; it does not call translation
 or execute translated queries.
+
+The performance reader emits only query fingerprints, structural plan summaries,
+row counts, and bounded p50/p95 observations. It omits SQL text, query values,
+result values, database URLs, and credentials. Its lap-pace report distinguishes
+the serving view from the correction and original-v2 layers without modifying
+any relation.
 
 All readers are attempted even if an earlier reader fails. The job fails when
 any reader or artifact preparation fails, but uploads sanitized artifacts with

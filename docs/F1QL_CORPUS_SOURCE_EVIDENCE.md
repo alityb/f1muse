@@ -10,7 +10,7 @@ The complete committed 100-case corpus is classified by `productionCorpusAudit`:
 | Production-runnable structural | 59 | Canonical-view shape is runnable, but synthetic fixture rows are not production facts. |
 | Authoritative factual | 0 | No local fixture case is an external fact. |
 
-The separate bounded production manifest contains 3 structural cases and 23
+The separate bounded production manifest contains 3 structural cases and 29
 authoritative factual cases. It is not a relabeling of fixture output.
 
 ## Research Method And Cost
@@ -37,6 +37,10 @@ domains and sought only the source categories below.
 | 2025 | Standings | Final P2, P3, and zero-point driver standings | [FIA Abu Dhabi Championship Points, Document 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 | 2025 | Race classification | Australia P2/P3 and DNF | [FIA Australian Final Race Classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf) |
 | 2025 | Qualifying classification | Australia P2 and P3 | [FIA Australian Final Qualifying Classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf) |
+| 2025 | Race classification | Australia winner's 25 points despite fastest lap, and zero-lap Sainz DNF | [FIA Australian Final Race Classification, Doc. 48](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf) |
+| 2025 | Qualifying classification | Australia Bearman DNS | [FIA Australian Final Qualifying Classification, Doc. 26](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_qualifying_classification.pdf) |
+| 2025 | Race classification | Abu Dhabi P2 nonwinner and Colapinto P20 on zero points | [FIA Abu Dhabi Final Race Classification, Doc. 55](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_final_race_classification.pdf) |
+| 2025 | Standings | Final P4 nonwinner standing | [FIA Abu Dhabi Championship Points, Doc. 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 
 `scripts/f1ql-production-corpus-manifest.ts` contains exact programs, expected
 field subsets, scoring-rule IDs, and source URLs. The runner validates each
@@ -59,8 +63,8 @@ does not derive a championship total from race classifications.
 | 2025 | Lando Norris | 423 | [Abu Dhabi Championship Points, Doc. 56](https://www.fia.com/system/files/decision-document/2025_abu_dhabi_grand_prix_-_championship_points.pdf) |
 
 The same FIA Document 56 establishes the additional 2025 recorded standings:
-Max Verstappen P2 on 421 points, Oscar Piastri P3 on 410 points, and Franco
-Colapinto P20 on zero points. All four 2025 totals query only
+Max Verstappen P2 on 421 points, Oscar Piastri P3 on 410 points, George Russell
+P4 on 319 points, and Franco Colapinto P20 on zero points. All five 2025 totals query only
 `f1ql.driver_standings` through recorded `MAX` measures; none sums race rows.
 
 ## Limits
@@ -73,11 +77,16 @@ Colapinto P20 on zero points. All four 2025 totals query only
 - A source URL establishes the authority for a manifest expectation; it does
   not prove that production has ingested the season. Missing views skip, and a
   mismatch fails without changing the expected fact.
-- The guarded 2026-07-21 production run found the FIA-authoritative 2025
-  Australia DNS (Isack Hadjar) and Las Vegas DSQ (Lando Norris) absent from
-  `f1ql.event_classification`; they are excluded from the manifest until the
-  canonical source supports them. The supported Australia DNF row records
-  `points: null`, so its factual assertion deliberately covers driver, null
-  position, and normalized `dnf` status only.
+- FIA's 2025 Australia provisional classification labels Isack Hadjar `DNS`, but
+  the final classification labels him `DNF`. The manifest cites only the final
+  classification and does not assert a race DNS for Hadjar. The independently
+  final qualifying classification supports the Bearman DNS check.
+- The prior guarded observation found the Las Vegas DSQ row absent from
+  `f1ql.event_classification`. It remains outside the manifest until an exact
+  final FIA classification URL and a matching canonical row are both retained;
+  no DSQ mapping is inferred from a secondary mention.
+- The supported Australia DNF row records `points: null`, so its factual
+  assertion deliberately covers driver, null position, and normalized `dnf`
+  status only.
 - Synthetic fixture rows, all fixture pace results, and deliberate rejection
   cases remain excluded from external factual claims.

@@ -27,9 +27,10 @@ jobs:
           npx @railway/cli@latest run --no-local --service main --environment production env F1QL_PRODUCTION_GOLDEN_ENABLED=true F1QL_PRODUCTION_GOLDEN_TARGET=production npm run --silent golden:f1ql:production > production-golden.json || status=1
           npx @railway/cli@latest run --no-local --service main --environment production env DATABASE_AUTHORITY_AUDIT_ENABLED=true DATABASE_AUTHORITY_AUDIT_TARGET=production npm run --silent audit:database-authority:production > database-authority-audit.json || status=1
           npx @railway/cli@latest run --no-local --service main --environment production env PACE_V2_PREFLIGHT_ENABLED=true PACE_V2_PREFLIGHT_TARGET=production npm run --silent preflight:pace-v2:production > pace-v2-preflight.json || status=1
+          npx @railway/cli@latest run --no-local --service main --environment production env F1QL_PERFORMANCE_EVIDENCE_ENABLED=true F1QL_PERFORMANCE_EVIDENCE_TARGET=production npm run --silent evidence:f1ql:performance:production > f1ql-performance-evidence.json || status=1
           npx @railway/cli@latest logs --service main --environment production --since 30d --json > shadow.log || status=1
           npx tsx scripts/report-f1ql-shadow.ts shadow.log > F1QL_SHADOW_REVIEW.md || status=1
-          npx tsx scripts/prepare-nightly-verification-artifacts.ts --commit "$GITHUB_SHA" --output nightly-verification-artifacts --golden production-golden.json --authority database-authority-audit.json --pace pace-v2-preflight.json --shadow F1QL_SHADOW_REVIEW.md || status=1
+          npx tsx scripts/prepare-nightly-verification-artifacts.ts --commit "$GITHUB_SHA" --output nightly-verification-artifacts --golden production-golden.json --authority database-authority-audit.json --pace pace-v2-preflight.json --performance f1ql-performance-evidence.json --shadow F1QL_SHADOW_REVIEW.md || status=1
           exit "$status"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

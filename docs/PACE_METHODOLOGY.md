@@ -57,6 +57,32 @@ The committed production-schema contract is refreshed only with `npm run schema:
 
 ## Production Coverage And Freshness Protocol
 
+### 2025 Expansion Preparation
+
+Historical 2025 pace remains unserved. Preparation is deliberately separate from
+the generic ingestion manifest and cannot be consumed by any writer. The
+dual-flagged command below performs only one loopback-refusing `BEGIN READ ONLY`
+transaction with a five-second local timeout and rollback:
+
+```bash
+PACE_V2_2025_EXPANSION_PREPARE_ENABLED=true PACE_V2_2025_EXPANSION_PREPARE_TARGET=production \
+  npm run --silent prepare:pace-v2:2025-expansion:production > /approved/evidence/pace-v2-2025-expansion-preparation.json
+```
+
+It selects the earliest stabilized 2025 race round with at least ten canonical
+starters, no existing v2 race facts, no existing manifest audit, and an enabled
+immutable `pace_v2_round_audit` trigger. The emitted fingerprint binds the
+round, canonical-starter identity set, and zero-coverage/audit baseline. Its
+`pilot_status` is always `requires_external_source_review`: it is not an
+ingestion approval and does not authorize a production write. If any prerequisite
+is absent, or no candidate satisfies every predicate, it emits a typed refusal.
+
+Before any later pilot can be proposed, retain and independently review a
+FastF1/source artifact that establishes complete race-session coverage and the
+same clean-air, validity, pit, in-lap, and out-lap semantics. Then create a new
+writer-specific authorization; do not repurpose this preparation manifest or
+run generic ingestion against 2025.
+
 Run the guarded preflight only from an authorized production environment:
 
 ```bash

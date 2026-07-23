@@ -49,8 +49,10 @@ material is supplementary evidence.
 
 **Production factual evidence.** The bounded production corpus passed 18
 checks on 2026-07-21 (ledger row 16), and the later authority audit passed 23
-fixed checks (row 21). The cited final-total checks cover 2014, 2019, 2021,
-2022, 2024, and 2025, with additional 2025 P2, P3, and zero-point evidence.
+fixed checks (row 21). The expanded 29-check manifest adds a recorded 2025 P4
+nonwinner standing alongside the existing P2, P3, and zero-point evidence; it
+has not yet been run in production. The cited final-total checks cover 2014,
+2019, 2021, 2022, 2024, and 2025.
 Exact sources and facts: [`F1QL_CORPUS_SOURCE_EVIDENCE.md`](F1QL_CORPUS_SOURCE_EVIDENCE.md#final-season-standings-checks).
 
 **Unsupported boundary.** This contract does not certify every driver/season,
@@ -83,17 +85,21 @@ that order. A non-null numeric position with no retirement reason is
 other case is `dnf`. Thus `classified` includes a recorded numeric classified
 position, while no status mapping infers a missing position or points value.
 
-**Production factual evidence.** The authority audit's 23 checks include 2014
+**Production factual evidence.** The authority audit's 23 executed checks include 2014
 Abu Dhabi double points, 2019 Australia fastest-lap point, 2021 Belgium's
 abbreviated classification, 2022 Austria scoring, and 2024/2025 race facts
-(ledger row 21). Sources and narrowed assertions are in
+(ledger row 21). The unrun 29-check manifest adds FIA final-classification
+checks for 2025 Australia winner/zero-lap DNF and Abu Dhabi P2/zero points.
+Sources and narrowed assertions are in
 [`F1QL_CORPUS_SOURCE_EVIDENCE.md`](F1QL_CORPUS_SOURCE_EVIDENCE.md#cited-factual-manifest).
 
-**Unsupported boundary.** The guarded corpus found the FIA-authoritative 2025
-Australia DNS and Las Vegas DSQ absent from this view; absence is not a claim
-that those decisions did not occur. Sprint classifications are not exposed.
-Status normalization beyond the cited Australia DNF and source-specific
-historical variation is unverified.
+**Unsupported boundary.** FIA's 2025 Australia provisional and final race
+classifications disagree on Hadjar's DNS/DNF label; only the final DNF is in the
+manifest. The prior guarded observation found the Las Vegas DSQ row absent from
+this view; it remains unasserted pending an exact final FIA source and matching
+canonical row. Absence is not a claim that a decision did not occur. Sprint
+classifications are not exposed. Status normalization beyond cited final
+classifications and source-specific historical variation is unverified.
 
 ## Qualifying Classification: `f1ql.qualifying_classification`
 
@@ -115,7 +121,8 @@ qualifying classifications are the external factual authority; official Formula
 
 Pole means `qualifying_position = 1`; it is not the post-penalty official grid
 position. Production factual checks cover 2025 Australia P1/P2/P3 and event
-identity (ledger rows 16 and 21; source links in
+identity (ledger rows 16 and 21). The unrun 29-check manifest adds the FIA
+final-classification Bearman DNS edge (source links in
 [`F1QL_CORPUS_SOURCE_EVIDENCE.md`](F1QL_CORPUS_SOURCE_EVIDENCE.md#cited-factual-manifest)).
 
 **Unsupported boundary.** This relation has no DSQ, withdrawn, or

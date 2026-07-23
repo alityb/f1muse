@@ -24,11 +24,11 @@ railway run --no-local --service main --environment production env DATABASE_AUTH
 The report inventories calendar/races, race classification, driver standings,
 qualifying, pace, identities (distinct driver/team IDs from race classification), and the local scoring-rule registry. For each database
 domain it reports observed season coverage counts, or a missing-relation ledger item.
-It executes the fixed 23-case factual manifest, bounded below 32 checks, against
+It executes the fixed 29-case factual manifest, bounded below 32 checks, against
 FIA/Formula 1 cited facts. The manifest samples historical and transition cases:
 1950 metadata, 2014 double-points, 2019 fastest-lap points, 2021 reduced-race
 classification, 2022 scoring, 2024 metadata/classification, and 2025 standings,
-race, and qualifying facts.
+race, qualifying, DNS, nonwinner, and zero-point facts.
 
 ## Authority And Limits
 
