@@ -72,10 +72,26 @@ The production projection intentionally does not claim factual proof for:
   historical source variation.
 - Driver identity aliases across F1DB, Jolpica, and FastF1 identifiers.
 - Historical qualifying and lap-pace data coverage.
-- The five 2026 Formula 1 official raw timing artifacts in `PACE_METHODOLOGY.md`.
-  They establish only raw completed lap-time pairs. They lack a reviewed shared
-  driver mapping and the clean-air, pit, in-lap, and out-lap fields required to
-  compare an F1QL pace median, so no pace production golden is permitted.
+- The 2026 Australian race eligibility-artifact set. Fresh 2026-07-23 UTC
+  acquisition retained Formula 1 `TimingData` SHA-256
+  `a2521be4b468f9ec4c61211558521c993269eb34c24c600e1fa3c90ebb251c8d`
+  (5,607,988 bytes) and `DriverList` SHA-256
+  `ee6c5096ab3c3f477eaf4856ed97cb9457bc0d109e26a90d4dd182df6ab57747`
+  (16,531 bytes), plus FIA Race Lap Chart SHA-256
+  `e09df9ec2dab4ab1c7ed9f8f913826c6bbe7cbd41d132ad472565c2979399270`,
+  Pit Stop Summary SHA-256
+  `b58492e23eb4f184a9c62444126a806241d81a192acee2081b7703f6a280ceb2`,
+  and On Track Analysis SHA-256
+  `6ac6c25a4826d7583c70750cfe5311f18928660ebd993f27c452c9098ca76f84`.
+  The FIA PDFs establish position order, pit-stop lap, and pit entry/exit
+  records, but no per-completed-lap validity decision or numeric car-ahead gap.
+  `TimingData` has incremental live interval and pit-state updates, but no
+  reviewed contract binding an interval sample to each completed lap or defining
+  it as the F1QL/ FastF1 car-ahead gap. Therefore `clean_air_flag`,
+  `is_valid_lap`, and the exact per-lap in/out classification remain
+  unavailable, not inferred. A strict comparison of every F1QL eligibility
+  inclusion/exclusion cannot complete and no pace production golden is
+  permitted.
 
 The factual projection does not prove source completeness: a missing view is a
 skip, and a successful case proves only the cited event fields. It does not
