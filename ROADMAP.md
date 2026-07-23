@@ -13,4 +13,11 @@ For each area: typed source/field definitions, extended coverage and participati
 ## Phase 5 — Regression backbone
 (1) 100-question golden corpus as data files (question → expected program, expected results where runnable on fixtures), covering all Phase 4 areas, edge cases, and deliberate expected rejections, with a runner asserting matches. (2) Property-based generators (`fast-check`) producing valid core-IR programs within budget; assert validation passes, SQL generates, invariants hold. (3) Metamorphic tests: vacuous filter is a no-op; sort inversion reverses order; `limit n` results are a prefix of `limit n+k`; commutative filter reordering is result-invariant. (4) Differential tests: SQL backend versus reference interpreter over fixtures, results must match. (5) CI wiring: golden + property + metamorphic + differential on every PR within a bounded time budget; nightly job runs extended generation, the production shadow smoke, and the 30-day report.
 
-## Phase 6 — (not yet authorized) Verified-program library, normalized-AST cache keys, materialized fact space. Do not begin without explicit instruction.
+## Phase 6 — COMPLETE
+Verified-program library, normalized-AST cache keys, reviewed fact-space registry, guarded executable verified-program route, production migration, deployment, and retained round-trip evidence.
+
+## Phase 7 — PROPOSED: Gated natural-language answers
+Add a separately gated `POST /program/answer` pipeline with typed clarification/abstention, deterministic entity and event linking, capability-tuple authorization, the existing guarded F1QL executor, deterministic answer formatting, source/version/coverage metadata, least-privilege database evidence, adversarial and semantic evaluation, and staged canary rollout. Pace, sprint, grid, constructor, interim-standing, unresolved team-filter, and unsupported surface-grammar requests remain disabled. Detailed definition and release gates: `docs/NL_EXECUTION_AND_HISTORICAL_PACE_ROADMAP.md`.
+
+## Phase 8 — PROPOSED: Historical lap-window pace
+Add event-name resolution, explicit lap windows, a named raw-lap comparison metric, historical timing ingestion, and artifact/identity validation. Clean-air filtered pace remains non-factual until equivalent official eligibility semantics are retained and validated. Detailed boundary: `docs/NL_EXECUTION_AND_HISTORICAL_PACE_ROADMAP.md`.
