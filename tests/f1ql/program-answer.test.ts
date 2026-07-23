@@ -26,7 +26,7 @@ const runtimeConfig: AnswerRuntimeConfig = {
   rateLimitMax: 100,
   rateLimitWindowMs: 60_000,
   statementTimeoutMs: 3_000,
-  maxWorkUnits: 100,
+  maxWorkUnits: 200,
   maxRows: 100,
   maxResponseBytes: 65_536
 };
@@ -72,6 +72,7 @@ beforeEach(() => {
   linkAttempts = 0;
   linkFailure = undefined;
   model.waitForAbort = false;
+  runtimeConfig.maxWorkUnits = 200;
 });
 
 afterAll(async () => {
@@ -163,6 +164,15 @@ describe('gated answer route skeleton', () => {
     const response = await ask();
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason: 'pace_source_disabled' });
+    expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 1 });
+  });
+
+  it('rejects an approved candidate above the deterministic work budget', async () => {
+    runtimeConfig.maxWorkUnits = 1;
+    model.output = JSON.stringify({ type: 'program_candidate', program: standingsProgram });
+    const response = await ask();
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: 'answer_bound_exceeded', reason: 'work_units' });
     expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 1 });
   });
 

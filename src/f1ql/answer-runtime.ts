@@ -17,7 +17,7 @@ const DEFAULTS: AnswerRuntimeConfig = {
   rateLimitMax: 10,
   rateLimitWindowMs: 15 * 60_000,
   statementTimeoutMs: 3_000,
-  maxWorkUnits: 100,
+  maxWorkUnits: 200,
   maxRows: 100,
   maxResponseBytes: 64 * 1024
 };
@@ -30,7 +30,7 @@ const MAXIMUMS: AnswerRuntimeConfig = {
   rateLimitWindowMs: 60 * 60_000,
   statementTimeoutMs: 10_000,
   maxWorkUnits: 10_000,
-  maxRows: 1_000,
+  maxRows: 100,
   maxResponseBytes: 1024 * 1024
 };
 

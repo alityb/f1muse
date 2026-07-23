@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { compileF1QL } from '../../src/f1ql/compiler';
-import { executeF1QL, executeF1QLReadOnly, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
+import { executeF1QL, executeF1QLReadOnly, F1QLResultLimitError, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { F1QLValidationError } from '../../src/f1ql/validation';
 import { EventClassificationRow, EventMetadataRow, interpretEventClassification, interpretEventMetadata, interpretLapPaceProgram, interpretQualifyingClassification, interpretStandingsProgram, PaceLapRow, QualifyingClassificationRow, StandingsRow } from '../../src/f1ql/interpreter';
 import { renderF1QL } from '../../src/f1ql/render';
@@ -166,6 +166,12 @@ describe('F1QL standings vertical slice', () => {
 
     expect(actual).toEqual(reference);
     expect(executed.core_program.root).toMatchObject({ op: 'limit', input: { op: 'sort' } });
+  });
+
+  it('enforces collection limits with deterministic top-level ordering', async () => {
+    const exact = await executeF1QL(pool, program, { maxRows: 2 });
+    expect(exact.rows.map(row => row.driver_id)).toEqual(['lando-norris', 'max-verstappen']);
+    await expect(executeF1QL(pool, program, { maxRows: 1 })).rejects.toBeInstanceOf(F1QLResultLimitError);
   });
 
   it('renders the calculation from the AST', () => {

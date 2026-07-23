@@ -10,7 +10,7 @@ describe('answer runtime configuration', () => {
       rateLimitMax: 10,
       rateLimitWindowMs: 900_000,
       statementTimeoutMs: 3_000,
-      maxWorkUnits: 100,
+      maxWorkUnits: 200,
       maxRows: 100,
       maxResponseBytes: 65_536
     });

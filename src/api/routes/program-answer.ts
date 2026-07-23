@@ -2,6 +2,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Pool, PoolClient } from 'pg';
 import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-policy';
+import { AnswerBoundError, enforceAnswerWorkBudget } from '../../f1ql/answer-bounds';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { F1QLProgram } from '../../f1ql/ast';
 import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
@@ -88,6 +89,14 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
       }
       if (decision.type === 'rejected') {
         return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
+      }
+      try {
+        enforceAnswerWorkBudget(program, decision.capability, config.maxWorkUnits, config.maxRows);
+      } catch (error) {
+        if (error instanceof AnswerBoundError) {
+          return res.status(422).json({ error: 'answer_bound_exceeded', reason: error.bound });
+        }
+        return res.status(500).json({ error: 'answer_failed', reason: 'budget_estimation_failed' });
       }
 
       // Execution remains structurally unavailable until budget enforcement and least-privilege proof land.

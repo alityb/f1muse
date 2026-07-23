@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { AnswerCapability, authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
+import { AnswerBoundError, enforceAnswerRows, enforceAnswerWorkBudget, estimateAnswerWork, serializeAnswerResponse } from '../../src/f1ql/answer-bounds';
+import { F1QLProgram } from '../../src/f1ql/ast';
+import { addCollectionSentinel, F1QLCostLimitError } from '../../src/f1ql/executor';
+
+const programs: F1QLProgram[] = [
+  { version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] } },
+  { version: 1, root: { op: 'rank', input: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: ['a', 'b'] } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] }, by: 'points', direction: 'desc', limit: 2 } },
+  { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30 } },
+  { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 20 } },
+  { version: 1, root: { op: 'event_metadata', season: 2025, round: 1, session_scope: 'race' } }
+];
+
+function capability(program: F1QLProgram): AnswerCapability {
+  const decision = authorizeAnswerProgram(program);
+  if (decision.type !== 'approved') throw new Error('fixture must be approved');
+  return decision.capability;
+}
+
+describe('answer bounds', () => {
+  it.each(programs)('estimates approved work deterministically for $root.op', program => {
+    const first = estimateAnswerWork(program, capability(program));
+    expect(first).toEqual(estimateAnswerWork(program, capability(program)));
+    expect(first.units).toBeGreaterThan(0);
+    expect(first.requested_rows).toBeGreaterThan(0);
+  });
+
+  it('enforces the exact work-unit boundary', () => {
+    const program = programs[2];
+    const approved = capability(program);
+    const estimate = estimateAnswerWork(program, approved);
+    expect(enforceAnswerWorkBudget(program, approved, estimate.units)).toEqual(estimate);
+    expect(() => enforceAnswerWorkBudget(program, approved, estimate.units - 1)).toThrow(AnswerBoundError);
+  });
+
+  it('enforces row and exact UTF-8 byte boundaries', () => {
+    const rows = [{ driver_id: 'norris' }, { driver_id: 'piastri' }];
+    expect(() => enforceAnswerRows(rows, 1)).toThrowError(expect.objectContaining({ bound: 'rows', actual: 2 }));
+    const response = { event: 'São Paulo' };
+    const serialized = JSON.stringify(response);
+    const bytes = Buffer.byteLength(serialized, 'utf8');
+    expect(serializeAnswerResponse(response, bytes)).toBe(serialized);
+    expect(() => serializeAnswerResponse(response, bytes - 1)).toThrowError(expect.objectContaining({ bound: 'response_bytes', actual: bytes }));
+  });
+
+  it('adds a max-plus-one collection sentinel without changing existing parameters', () => {
+    expect(addCollectionSentinel('SELECT * FROM source WHERE season = $1 ORDER BY position', [2025], 10, 'position ASC, driver_id ASC')).toEqual({
+      sql: 'SELECT * FROM (SELECT * FROM source WHERE season = $1 ORDER BY position) AS f1ql_bounded_result ORDER BY position ASC, driver_id ASC LIMIT $2',
+      params: [2025, 11]
+    });
+    expect(() => addCollectionSentinel('SELECT 1', [], 101)).toThrow(F1QLCostLimitError);
+  });
+
+  it('rejects invalid maxima and mismatched capability tuples', () => {
+    const program = programs[4];
+    expect(() => enforceAnswerRows([], Number.NaN)).toThrow(AnswerBoundError);
+    expect(() => serializeAnswerResponse({}, Number.POSITIVE_INFINITY)).toThrow(AnswerBoundError);
+    expect(() => estimateAnswerWork(program, { ...capability(program), season: 2024 })).toThrow('did not match');
+  });
+});
