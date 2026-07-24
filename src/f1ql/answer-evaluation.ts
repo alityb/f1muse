@@ -16,7 +16,6 @@ export interface AnswerEvaluationCase {
   canonical_entities: string[];
   acceptable_linked_entities?: string[][];
   risk_tags: string[];
-  expected_fixture_rows?: Array<Record<string, unknown>>;
   expected: { action: AnswerEvaluationAction; reason: string; acceptable_programs?: F1QLProgram[] };
 }
 

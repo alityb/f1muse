@@ -1,0 +1,736 @@
+[
+  {
+    "id": "dev-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "points",
+          "direction": "desc",
+          "limit": 1
+        }
+      },
+      "program_hash": "97b127226933a6bdff56ff927908bce6c6d7e58577e439989cdc3454ea8fadac",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; rank by points desc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "dev-race",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "062f10767d0d78003a2c90fee1d44d8801fcca5111371a2d39674541026995c2",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": null
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": null
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-pair",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": [
+                "lando-norris",
+                "oscar-piastri"
+              ]
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "fecfc037dd0b0ec90a4c430c7e6386a373372c69ed78686c2bb51d693af6e9ed",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-qualifying",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 20
+        }
+      },
+      "program_hash": "704101e6e0050ea829608c185eeac38fa2b9bfbe6b510030d79b1473b6a399fb",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 20.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-metadata",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_metadata",
+          "season": 2025,
+          "round": 1,
+          "session_scope": "race"
+        }
+      },
+      "program_hash": "6e565c506f8b3e75f6ef83d2b5834a745bfe4d9485cd510c8c105f136a4b0616",
+      "answer": {
+        "headline": "Race event date metadata.",
+        "facts": [
+          {
+            "subject": "Formula 1 Australian Grand Prix",
+            "values": {
+              "event_id": "australian-grand-prix",
+              "circuit_id": "albert-park",
+              "date": "2025-03-16",
+              "session_scope": "race"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "event_id": "australian-grand-prix",
+          "event_name": "Formula 1 Australian Grand Prix",
+          "circuit_id": "albert-park",
+          "date": "2025-03-16",
+          "session_scope": "race"
+        }
+      ],
+      "rendering": "Event metadata; season 2025; round 1; race session.",
+      "metadata": {
+        "source": "race_date_metadata",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-null",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "sample-driver"
+          }
+        }
+      },
+      "program_hash": "26a23cefdeeb868b70822a7a21203d8e19cb60fc9c2e3eb97116013d1f0bed3c",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "Engine"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "Engine"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-tie",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": [
+                "lando-norris",
+                "oscar-piastri"
+              ]
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "fecfc037dd0b0ec90a4c430c7e6386a373372c69ed78686c2bb51d693af6e9ed",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-empty",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_metadata",
+          "season": 2025,
+          "round": 30,
+          "session_scope": "race"
+        }
+      },
+      "program_hash": "ee1143f9706e8f33cf41be756ea6a5f47db31aa56033477d9e102c4b9ab73ab1",
+      "answer": {
+        "headline": "No matching source rows were available.",
+        "facts": []
+      },
+      "rows": [],
+      "rendering": "Event metadata; season 2025; round 30; race session.",
+      "metadata": {
+        "source": "race_date_metadata",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "empty",
+          "rows_returned": 0
+        },
+        "caveats": [
+          "empty_result_is_not_zero"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-success",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_metadata",
+          "season": 2025,
+          "round": 1,
+          "session_scope": "race"
+        }
+      },
+      "program_hash": "6e565c506f8b3e75f6ef83d2b5834a745bfe4d9485cd510c8c105f136a4b0616",
+      "answer": {
+        "headline": "Race event date metadata.",
+        "facts": [
+          {
+            "subject": "Formula 1 Australian Grand Prix",
+            "values": {
+              "event_id": "australian-grand-prix",
+              "circuit_id": "albert-park",
+              "date": "2025-03-16",
+              "session_scope": "race"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "event_id": "australian-grand-prix",
+          "event_name": "Formula 1 Australian Grand Prix",
+          "circuit_id": "albert-park",
+          "date": "2025-03-16",
+          "session_scope": "race"
+        }
+      ],
+      "rendering": "Event metadata; season 2025; round 1; race session.",
+      "metadata": {
+        "source": "race_date_metadata",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-standings-paraphrase",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "points",
+          "direction": "desc",
+          "limit": 1
+        }
+      },
+      "program_hash": "97b127226933a6bdff56ff927908bce6c6d7e58577e439989cdc3454ea8fadac",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; rank by points desc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-race-alias",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "062f10767d0d78003a2c90fee1d44d8801fcca5111371a2d39674541026995c2",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": null
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": null
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-pair-filter-order",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": [
+                "oscar-piastri",
+                "lando-norris"
+              ]
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "fecfc037dd0b0ec90a4c430c7e6386a373372c69ed78686c2bb51d693af6e9ed",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers oscar-piastri, lando-norris.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  }
+]
