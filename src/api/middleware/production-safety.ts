@@ -3,6 +3,7 @@
  * PHASE 7: Rate limiting, timeouts, CORS, logging
  */
 
+import { randomUUID } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 
@@ -141,9 +142,10 @@ export function configureCORS(allowedOrigins?: string[]) {
  */
 export function requestLogger(req: Request, res: Response, next: NextFunction) {
   const start = Date.now();
-  const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = randomUUID();
 
   // Add request ID to response headers
+  res.locals.requestId = requestId;
   res.setHeader('X-Request-ID', requestId);
 
   // Log request

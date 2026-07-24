@@ -1,7 +1,9 @@
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Pool, PoolClient } from 'pg';
 import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-policy';
+import { AnswerAuthorizationError, buildAnswerExecutionAuthorization } from '../../f1ql/answer-authorization';
 import { AnswerBoundError, enforceAnswerWorkBudget } from '../../f1ql/answer-bounds';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { F1QLProgram } from '../../f1ql/ast';
@@ -31,8 +33,9 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     message: { error: 'answer_unavailable', reason: 'rate_limit_exceeded' }
   });
 
-  router.post('/program/answer', answerAvailabilityGuard, answerDatabaseGuard(pool), answerQuestionGuard, answerRateLimiter, async (req: Request, res: Response) => {
+  router.post('/program/answer', answerAvailabilityGuard, answerDatabaseGuard(pool), answerRateLimiter, answerPrincipalGuard, answerQuestionGuard, async (req: Request, res: Response) => {
     const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+    const requestId = answerRequestId(res);
     const controller = new AbortController();
     let timedOut = false;
     const timeout = setTimeout(() => {
@@ -104,7 +107,16 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
         return res.status(500).json({ error: 'answer_failed', reason: 'budget_estimation_failed' });
       }
 
-      // Execution remains structurally unavailable until budget enforcement and least-privilege proof land.
+      try {
+        buildAnswerExecutionAuthorization(requestId, 'internal', program, decision.capability);
+      } catch (error) {
+        if (error instanceof AnswerAuthorizationError) {
+          return res.status(500).json({ error: 'answer_failed', reason: 'authorization_envelope_failed' });
+        }
+        return res.status(500).json({ error: 'answer_failed', reason: 'unexpected_error' });
+      }
+
+      // Execution remains structurally unavailable until every release gate and least-privilege proof passes.
       metrics.recordF1QLAnswer('execution', 'blocked', 'execution_bounds_not_enforced');
       return res.status(503).json({
         error: 'answer_unavailable',
@@ -140,6 +152,33 @@ function answerDatabaseGuard(pool: Pool | undefined) {
     }
     next();
   };
+}
+
+function answerPrincipalGuard(req: Request, res: Response, next: NextFunction): Response | void {
+  const expected = process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+  if (!expected || expected.length < 32) {
+    metrics.recordF1QLAnswer('gate', 'blocked', 'answer_auth_not_configured');
+    return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_auth_not_configured' });
+  }
+  const authorization = req.get('authorization');
+  const supplied = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
+  const expectedBytes = Buffer.from(expected);
+  const suppliedBytes = Buffer.from(supplied);
+  if (suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(suppliedBytes, expectedBytes)) {
+    metrics.recordF1QLAnswer('gate', 'rejected', 'answer_authentication_required');
+    return res.status(401).json({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
+  }
+  next();
+}
+
+function answerRequestId(res: Response): string {
+  if (typeof res.locals.requestId === 'string') {
+    return res.locals.requestId;
+  }
+  const requestId = randomUUID();
+  res.locals.requestId = requestId;
+  res.setHeader('X-Request-ID', requestId);
+  return requestId;
 }
 
 function respondToAbort(timedOut: boolean, res: Response): Response | void {

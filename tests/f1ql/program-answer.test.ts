@@ -31,6 +31,7 @@ const runtimeConfig: AnswerRuntimeConfig = {
   maxRows: 100,
   maxResponseBytes: 65_536
 };
+const internalToken = 'test-internal-answer-token-00000001';
 
 const standingsProgram: F1QLProgram = {
   version: 1,
@@ -68,7 +69,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   process.env.F1QL_ANSWER_ENABLED = 'true';
+  process.env.F1QL_ANSWER_INTERNAL_TOKEN = internalToken;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
+  delete process.env.F1QL_DEFINITIONS_VERSION;
   modelCreations = 0;
   linkAttempts = 0;
   linkFailure = undefined;
@@ -80,13 +83,15 @@ beforeEach(() => {
 afterAll(async () => {
   delete process.env.F1QL_ANSWER_ENABLED;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
+  delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+  delete process.env.F1QL_DEFINITIONS_VERSION;
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
 async function ask(): Promise<Response> {
   return fetch(`${baseUrl}/program/answer`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalToken}` },
     body: JSON.stringify({ question: 'Who led the 2025 standings?' })
   });
 }
@@ -115,8 +120,27 @@ describe('gated answer route skeleton', () => {
   });
 
   it('rejects invalid input before constructing a model', async () => {
-    const response = await fetch(`${baseUrl}/program/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: '' }) });
+    const response = await fetch(`${baseUrl}/program/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalToken}` }, body: JSON.stringify({ question: '' }) });
     expect(response.status).toBe(400);
+    expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 0, linkAttempts: 0 });
+  });
+
+  it('requires configured internal authentication before constructing a model', async () => {
+    delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+    const response = await ask();
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'answer_auth_not_configured' });
+    expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 0, linkAttempts: 0 });
+  });
+
+  it('rejects invalid internal authentication before constructing a model', async () => {
+    const response = await fetch(`${baseUrl}/program/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer invalid-token' },
+      body: JSON.stringify({ question: 'Who led the 2025 standings?' })
+    });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
     expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 0, linkAttempts: 0 });
   });
 
@@ -179,10 +203,21 @@ describe('gated answer route skeleton', () => {
     expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'bounds:rejected:work_units': 1 });
   });
 
+  it('refuses an authorization envelope when active definitions do not match', async () => {
+    process.env.F1QL_DEFINITIONS_VERSION = 'inactive';
+    model.output = JSON.stringify({ type: 'program_candidate', program: standingsProgram });
+    const response = await ask();
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: 'answer_failed', reason: 'authorization_envelope_failed' });
+    expect({ modelCreations, linkAttempts }).toEqual({ modelCreations: 1, linkAttempts: 1 });
+  });
+
   it('keeps an approved candidate non-executing until runtime budgets are enforced', async () => {
     model.output = JSON.stringify({ type: 'program_candidate', program: standingsProgram });
     const response = await ask();
     expect(response.status).toBe(503);
+    const requestId = response.headers.get('x-request-id');
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     await expect(response.json()).resolves.toMatchObject({
       error: 'answer_unavailable',
       reason: 'execution_bounds_not_enforced',
