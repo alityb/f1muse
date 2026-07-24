@@ -41,6 +41,13 @@ export interface AnswerObservationReport {
     max_budget_ms: typeof ANSWER_TRANSLATION_MAX_BUDGET_MS;
     status: 'pass' | 'fail' | 'insufficient';
   };
+  translation_timeouts: {
+    observations: number;
+    required_observations: number;
+    timed_out: number;
+    maximum_timeouts: 0;
+    status: 'pass' | 'fail' | 'insufficient';
+  };
   holdout_thresholds: {
     required_accuracy: 1;
     by_source: Record<(typeof REQUIRED_SOURCES)[number], SemanticThresholdResult>;
@@ -57,6 +64,7 @@ export interface AnswerObservationReport {
     holdout_source_thresholds_pass: boolean;
     holdout_operation_thresholds_pass: boolean;
     translation_latency_budget_pass: boolean;
+    translation_timeout_budget_pass: boolean;
     status: 'pass' | 'fail' | 'insufficient';
   };
 }
@@ -73,6 +81,7 @@ export function buildAnswerObservationReport(
   const selection = evaluateAnswerSelection(cases, artifact.observations);
   const metamorphic = evaluateMetamorphicConsistency(groups, artifact.observations);
   const translationLatency = translationLatencyReport(artifact);
+  const translationTimeouts = translationTimeoutReport(artifact);
   const holdout = cases.filter(item => item.split !== 'development' && item.expected.action === 'answer');
   const bySource = thresholdGroups(REQUIRED_SOURCES, holdout, artifact.observations, item => item.expected.reason);
   const byOperation = thresholdGroups(REQUIRED_OPERATIONS, holdout, artifact.observations, expectedOperation);
@@ -91,7 +100,8 @@ export function buildAnswerObservationReport(
     metamorphic_consistency_complete: metamorphic.groups_complete === metamorphic.groups_total && metamorphic.groups_consistent === metamorphic.groups_total,
     holdout_source_thresholds_pass: sourceStatuses.every(status => status === 'pass'),
     holdout_operation_thresholds_pass: operationStatuses.every(status => status === 'pass'),
-    translation_latency_budget_pass: translationLatency.status === 'pass'
+    translation_latency_budget_pass: translationLatency.status === 'pass',
+    translation_timeout_budget_pass: translationTimeouts.status === 'pass'
   };
   const coreGatesPass = release.observations_complete && release.reasons_correct && release.unsafe_answers_zero && release.forbidden_answers_zero &&
     release.candidate_recall_complete && release.canonical_links_complete && release.metamorphic_consistency_complete;
@@ -107,8 +117,27 @@ export function buildAnswerObservationReport(
     selection,
     metamorphic,
     translation_latency: translationLatency,
+    translation_timeouts: translationTimeouts,
     holdout_thresholds: { required_accuracy: 1, by_source: bySource, by_operation: byOperation },
-    release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status]) }
+    release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status, translationTimeouts.status]) }
+  };
+}
+
+function translationTimeoutReport(artifact: AnswerObservationArtifact): AnswerObservationReport['translation_timeouts'] {
+  const observed = artifact.observations.filter(observation => observation.translation_timed_out !== undefined);
+  const timedOut = observed.filter(observation => observation.translation_timed_out).length;
+  let status: AnswerObservationReport['translation_timeouts']['status'] = 'insufficient';
+  if (timedOut > 0) {
+    status = 'fail';
+  } else if (observed.length === artifact.observations.length) {
+    status = 'pass';
+  }
+  return {
+    observations: observed.length,
+    required_observations: artifact.observations.length,
+    timed_out: timedOut,
+    maximum_timeouts: 0,
+    status
   };
 }
 

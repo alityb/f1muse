@@ -3,9 +3,9 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
-import { collectAnswerObservations } from '../src/f1ql/answer-observations';
+import { ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS, collectAnswerObservations } from '../src/f1ql/answer-observations';
 import { linkAnswerF1QLCandidateObserved } from '../src/f1ql/translation-linking';
-import { createF1QLTextModel, translateF1QLQuestion } from '../src/f1ql/translator';
+import { createF1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../src/f1ql/translator';
 import { getTestDatabaseUrl, setupTestDatabase } from '../src/test/setup';
 import { seedAnswerEvaluationFixture } from '../tests/fixtures/f1ql-answer-evaluation-fixture';
 import { answerEvaluationManifest } from '../tests/fixtures/f1ql-answer-evaluation-manifest';
@@ -41,13 +41,24 @@ async function linkReadOnly(pool: Pool, candidate: Parameters<typeof linkAnswerF
   }
 }
 
-async function translateBounded(question: string, model: ReturnType<typeof createF1QLTextModel>) {
+export async function translateBounded(question: string, model: ReturnType<typeof createF1QLTextModel>, timeoutMs = ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS) {
+    throw new Error('Answer evaluation translation timeout must be between 1 and 15000 ms');
+  }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let timeout: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<{ result: F1QLTranslationResult; timedOut: true }>(resolve => {
+    timeout = setTimeout(() => {
+      resolve({ result: { type: 'provider_unavailable', reason: 'provider_error' }, timedOut: true });
+      setImmediate(() => controller.abort());
+    }, timeoutMs);
+  });
+  const translation = translateF1QLQuestion(question, model, controller.signal)
+    .then(result => ({ result, timedOut: false as const }));
   try {
-    return await translateF1QLQuestion(question, model, controller.signal);
+    return await Promise.race([translation, deadline]);
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeout!);
   }
 }
 

@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { collectAnswerObservations, getAnswerEvaluationManifestHash, parseAnswerObservationArtifact, validateAnswerObservationArtifact } from '../../src/f1ql/answer-observations';
-import { assertDisposableDatabase } from '../../scripts/collect-answer-evaluation-observations';
+import { assertDisposableDatabase, translateBounded } from '../../scripts/collect-answer-evaluation-observations';
 import { F1QLLinkingError } from '../../src/f1ql/translation-linking';
-import { F1QLTranslationResult } from '../../src/f1ql/translator';
+import { F1QLTextModel, F1QLTranslationResult } from '../../src/f1ql/translator';
 import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
 
 const provider = { type: 'openai-compatible' as const, model: 'fixture-model', collected_at: '2026-07-24T00:00:00.000Z' };
@@ -26,7 +26,7 @@ describe('answer observation artifacts', () => {
     let linked = 0;
     let now = 0;
     const artifact = await collectAnswerObservations(cases, provider, {
-      translate: async () => translations[translated++],
+      translate: async () => ({ result: translations[translated++], timedOut: false }),
       link: async candidate => {
         linked++;
         if (linked === 3) throw new F1QLLinkingError('entity_ambiguous', ['alex-one', 'alex-two']);
@@ -37,10 +37,10 @@ describe('answer observation artifacts', () => {
     });
     expect(artifact.manifest).toEqual({ case_count: 4, sha256: getAnswerEvaluationManifestHash(cases) });
     expect(artifact.observations).toEqual([
-      expect.objectContaining({ id: 'dev-race', action: 'answer', reason: 'race_classification', translation_latency_ms: 10, entity_candidates: ['driver:max-verstappen', 'event:2025:1'] }),
-      expect.objectContaining({ id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous', translation_latency_ms: 10 }),
-      expect.objectContaining({ id: 'dev-pace', action: 'abstain', reason: 'pace_source_disabled', translation_latency_ms: 10 }),
-      expect.objectContaining({ id: 'holdout-entity', action: 'clarify', reason: 'entity_ambiguous', translation_latency_ms: 10, entity_candidates: ['driver:alex-one', 'driver:alex-two'] })
+      expect.objectContaining({ id: 'dev-race', action: 'answer', reason: 'race_classification', translation_latency_ms: 10, translation_timed_out: false, entity_candidates: ['driver:max-verstappen', 'event:2025:1'] }),
+      expect.objectContaining({ id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous', translation_latency_ms: 10, translation_timed_out: false }),
+      expect.objectContaining({ id: 'dev-pace', action: 'abstain', reason: 'pace_source_disabled', translation_latency_ms: 10, translation_timed_out: false }),
+      expect.objectContaining({ id: 'holdout-entity', action: 'clarify', reason: 'entity_ambiguous', translation_latency_ms: 10, translation_timed_out: false, entity_candidates: ['driver:alex-one', 'driver:alex-two'] })
     ]);
   });
 
@@ -63,14 +63,55 @@ describe('answer observation artifacts', () => {
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], linked_entities: ['driver:x'] }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: -1 }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: 60_001 }] })).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_timed_out: 'false' }] })).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], action: 'clarify', reason: 'metric_ambiguous', translation_timed_out: true }] })).toThrow('Timed-out translation');
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_timed_out: true }] })).toThrow('deadline latency');
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: 15_000, translation_timed_out: true, entity_candidates: ['driver:x'] }] })).toThrow('linker entities');
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: 15_000, translation_timed_out: true }] })).not.toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [valid.observations[0], valid.observations[0]] })).toThrow('duplicate_evaluation_observation_id');
     expect(() => validateAnswerObservationArtifact(answerEvaluationManifest.slice(0, 1), valid)).toThrow('answer_observation_manifest_mismatch');
+  });
+
+  it('distinguishes a bounded provider timeout from an ordinary provider result', async () => {
+    const immediate: F1QLTextModel = { complete: async () => JSON.stringify({ type: 'unsupported', reason: 'capability_unsupported' }) };
+    await expect(translateBounded('question', immediate, 10)).resolves.toEqual({
+      result: { type: 'unsupported', reason: 'capability_unsupported' },
+      timedOut: false
+    });
+
+    const waitsForAbort: F1QLTextModel = {
+      complete: async (_system, _question, signal) => new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      })
+    };
+    await expect(translateBounded('question', waitsForAbort, 1)).resolves.toEqual({
+      result: { type: 'provider_unavailable', reason: 'provider_error' },
+      timedOut: true
+    });
+
+    const ignoresAbort: F1QLTextModel = { complete: async () => new Promise(() => undefined) };
+    await expect(translateBounded('question', ignoresAbort, 1)).resolves.toEqual({
+      result: { type: 'provider_unavailable', reason: 'provider_error' },
+      timedOut: true
+    });
+
+    let abortObserved = false;
+    const observesAbort: F1QLTextModel = {
+      complete: async (_system, _question, signal) => new Promise(() => {
+        signal?.addEventListener('abort', () => { abortObserved = true; }, { once: true });
+      })
+    };
+    await translateBounded('question', observesAbort, 1);
+    expect(abortObserved).toBe(false);
+    await new Promise(resolve => setImmediate(resolve));
+    expect(abortObserved).toBe(true);
+    await expect(translateBounded('question', immediate, 15_001)).rejects.toThrow('between 1 and 15000');
   });
 
   it('rejects non-monotonic observation timing', async () => {
     const times = [100, 99.5];
     await expect(collectAnswerObservations(answerEvaluationManifest.slice(0, 1), provider, {
-      translate: async () => ({ type: 'unsupported', reason: 'capability_unsupported' }),
+      translate: async () => ({ result: { type: 'unsupported', reason: 'capability_unsupported' }, timedOut: false }),
       link: async () => { throw new Error('link must not run'); },
       now: () => times.shift()!
     })).rejects.toThrow('answer_observation_translation_latency_invalid');

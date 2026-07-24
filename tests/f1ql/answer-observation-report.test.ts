@@ -18,8 +18,8 @@ function perfectArtifact() {
       const entities = program ? canonicalProgramEntities(program) : [...item.canonical_entities].sort();
       const linkedEntities = item.acceptable_linked_entities?.[0] ?? [];
       return program
-        ? { id: item.id, action: 'answer', reason: item.expected.reason, program, translation_latency_ms: 100, entity_candidates: entities, linked_entities: entities }
-        : { id: item.id, action: item.expected.action, reason: item.expected.reason, translation_latency_ms: 100, entity_candidates: entities, linked_entities: linkedEntities };
+        ? { id: item.id, action: 'answer', reason: item.expected.reason, program, translation_latency_ms: 100, translation_timed_out: false, entity_candidates: entities, linked_entities: entities }
+        : { id: item.id, action: item.expected.action, reason: item.expected.reason, translation_latency_ms: 100, translation_timed_out: false, entity_candidates: entities, linked_entities: linkedEntities };
     })
   });
 }
@@ -34,7 +34,8 @@ describe('answer observation reporting', () => {
     expect(report.holdout_thresholds.by_operation.aggregate.status).toBe('pass');
     expect(report.holdout_thresholds.by_operation.rank.status).toBe('pass');
     expect(report.translation_latency).toEqual({ observations: 26, required_observations: 26, p95_ms: 100, max_ms: 100, p95_budget_ms: 5_000, max_budget_ms: 10_000, status: 'pass' });
-    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, translation_latency_budget_pass: true, status: 'pass' });
+    expect(report.translation_timeouts).toEqual({ observations: 26, required_observations: 26, timed_out: 0, maximum_timeouts: 0, status: 'pass' });
+    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, translation_latency_budget_pass: true, translation_timeout_budget_pass: true, status: 'pass' });
     expect(Object.values(report.holdout_thresholds.by_source).every(result => result.cases > 0)).toBe(true);
     expect(Object.values(report.holdout_thresholds.by_operation).every(result => result.cases > 0)).toBe(true);
     const serialized = JSON.stringify(report);
@@ -43,6 +44,21 @@ describe('answer observation reporting', () => {
       expect(serialized).not.toContain(item.id);
     }
     expect(serialized).not.toContain('private-model-name');
+  });
+
+  it('reports missing legacy timeout evidence as insufficient and any known timeout as failed', () => {
+    const legacy = perfectArtifact();
+    for (const observation of legacy.observations) delete observation.translation_timed_out;
+    const insufficient = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
+    expect(insufficient.translation_timeouts).toEqual({ observations: 0, required_observations: 26, timed_out: 0, maximum_timeouts: 0, status: 'insufficient' });
+    expect(insufficient.release_gates).toMatchObject({ translation_timeout_budget_pass: false, status: 'insufficient' });
+
+    const timedOut = perfectArtifact();
+    delete timedOut.observations[0].translation_timed_out;
+    timedOut.observations[1].translation_timed_out = true;
+    const failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, timedOut, artifactHash);
+    expect(failed.translation_timeouts).toMatchObject({ observations: 25, timed_out: 1, status: 'fail' });
+    expect(failed.release_gates).toMatchObject({ translation_timeout_budget_pass: false, status: 'fail' });
   });
 
   it('reports missing legacy latency as insufficient and over-budget latency as failed', () => {

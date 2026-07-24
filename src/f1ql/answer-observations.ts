@@ -9,6 +9,8 @@ import { F1QLProgramCandidate } from './translation-schema';
 import { F1QLTranslationResult } from './translator';
 import { normalizeF1QLProgram } from './verified-programs';
 
+export const ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS = 15_000;
+
 const reasonSchema = z.enum([
   'final_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata',
   'metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous',
@@ -33,6 +35,7 @@ const entitySchema = z.string().min(1).max(100).regex(/^(driver:[a-z0-9]+(?:-[a-
 const observationBaseSchema = z.object({
   id: z.string().min(1).max(100),
   translation_latency_ms: z.number().int().min(0).max(60_000).optional(),
+  translation_timed_out: z.boolean().optional(),
   entity_candidates: z.array(entitySchema).max(20),
   linked_entities: z.array(entitySchema).max(20)
 });
@@ -61,6 +64,17 @@ const observationSchema = z.discriminatedUnion('action', [
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Answer reason must match its authorized capability' });
     }
   }
+  if (observation.translation_timed_out) {
+    if (observation.action !== 'abstain' || observation.reason !== 'provider_error') {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Timed-out translation must be a provider-error abstention' });
+    }
+    if (observation.translation_latency_ms === undefined || observation.translation_latency_ms < ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Timed-out translation must include deadline latency' });
+    }
+    if (observation.entity_candidates.length > 0 || observation.linked_entities.length > 0) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Timed-out translation must not include linker entities' });
+    }
+  }
 });
 
 const artifactSchema = z.object({
@@ -78,7 +92,7 @@ const artifactSchema = z.object({
 export type AnswerObservationArtifact = z.infer<typeof artifactSchema>;
 
 export interface AnswerObservationCollectorDependencies {
-  translate(question: string): Promise<F1QLTranslationResult>;
+  translate(question: string): Promise<{ result: F1QLTranslationResult; timedOut: boolean }>;
   link(candidate: F1QLProgramCandidate): Promise<{ program: F1QLProgram; entityCandidates: string[] }>;
   now?: () => number;
 }
@@ -117,8 +131,8 @@ export async function collectAnswerObservations(
     const startedAt = now();
     const translation = await dependencies.translate(item.question);
     const translationLatencyMs = boundedTranslationLatency(startedAt, now());
-    const observation = await observeTranslation(item.id, translation, dependencies.link);
-    observations.push(observationSchema.parse({ ...observation, translation_latency_ms: translationLatencyMs }));
+    const observation = await observeTranslation(item.id, translation.result, dependencies.link);
+    observations.push(observationSchema.parse({ ...observation, translation_latency_ms: translationLatencyMs, translation_timed_out: translation.timedOut }));
   }
   return validateAnswerObservationArtifact(cases, {
     version: 1,
