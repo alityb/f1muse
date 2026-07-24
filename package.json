@@ -35,6 +35,7 @@
     "audit:database-authority:production": "tsx scripts/audit-production-database-authority.ts",
     "audit:database-lifecycle:production": "tsx scripts/audit-database-lifecycle.ts",
     "audit:answer-principal:production": "tsx scripts/audit-answer-principal.ts",
+    "build:answer-production-evidence": "tsx scripts/build-answer-production-evidence.ts",
     "test:contract": "vitest run tests/contract/**/*.test.ts",
     "test:cache": "vitest run tests/cache/**/*.test.ts",
     "test:golden": "vitest run tests/golden",
