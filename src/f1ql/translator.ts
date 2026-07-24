@@ -12,11 +12,20 @@ For a named event, use event_name plus season instead of round; deterministic co
 Supported root operations only:
 - aggregate and rank over official driver standings
 - pace_summary for one driver's valid race-lap pace
- - pace_delta for the pace difference between two drivers
- - event_classification for an official race result by season and round
- - qualifying_classification for an official qualifying result by season and round
+- pace_delta for the pace difference between two drivers
+- event_classification for an official race result by season and round
+- qualifying_classification for an official qualifying result by season and round
+- event_metadata for an official race or qualifying date by season and round
+Required final-standings points program: {"version":1,"root":{"op":"aggregate","input":{"op":"filter","input":{"op":"source","source":"standings"},"where":{"season":2025,"driver_id":["lando-norris","oscar-piastri"]}},"group_by":["driver_id"],"measures":[{"as":"points","function":"max","field":"points"}]}}
+Required final-standings leader program: {"version":1,"root":{"op":"rank","input":{"op":"aggregate","input":{"op":"filter","input":{"op":"source","source":"standings"},"where":{"season":2025}},"group_by":["driver_id"],"measures":[{"as":"championship_position","function":"min","field":"championship_position"},{"as":"points","function":"max","field":"points"}]},"by":"championship_position","direction":"asc","limit":1}}
+Required named race-classification program: {"version":1,"root":{"op":"event_classification","season":2025,"event_name":"Australian Grand Prix","limit":30,"filters":{"driver_id":"max-verstappen"}}}
+Required named qualifying-classification program: {"version":1,"root":{"op":"qualifying_classification","season":2025,"event_name":"Australian Grand Prix","limit":20}}
+Required named race-date program: {"version":1,"root":{"op":"event_metadata","season":2025,"event_name":"Australian Grand Prix","session_scope":"race"}}
 Required pace_summary program: {"version":1,"root":{"op":"pace_summary","driver_id":"max-verstappen","scope":{"season":2025}}}
 Required pace_delta program: {"version":1,"root":{"op":"pace_delta","driver_a_id":"max-verstappen","driver_b_id":"lando-norris","scope":{"season":2025}}}
+Use championship_position ascending, never points descending, to identify the official final standings leader.
+Always include a season filter in standings programs. Use a driver_id array when comparing named drivers.
+Emit a structurally valid program_candidate for representable requests even if pace, an interim season, a team filter, or the requested entity count may be rejected later by deterministic policy. The deterministic linker and policy own identity ambiguity and authorization decisions.
 Never use driver, year, season_year, or free-form keys.
 Use canonical lowercase hyphenated driver IDs. Never invent an unsupported F1QL operation.
 Clarification reason codes: metric_ambiguous, session_ambiguous, season_missing, event_ambiguous, entity_ambiguous.

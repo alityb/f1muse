@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { parseF1QLProgramCandidate } from '../../src/f1ql/translation-schema';
 import { F1QLTextModel, OpenAICompatibleF1QLModel, translateF1QLQuestion } from '../../src/f1ql/translator';
 
 class StubModel implements F1QLTextModel {
@@ -15,12 +16,38 @@ class ThrowingModel implements F1QLTextModel {
   }
 }
 
+class PromptRecordingModel implements F1QLTextModel {
+  systemPrompt = '';
+
+  async complete(systemPrompt: string): Promise<string> {
+    this.systemPrompt = systemPrompt;
+    return JSON.stringify({ type: 'unsupported', reason: 'capability_unsupported' });
+  }
+}
+
 describe('constrained F1QL translation', () => {
   it('accepts a schema-valid supported program', async () => {
     await expect(translateF1QLQuestion('Max pace in 2025', new StubModel(JSON.stringify({
       type: 'program_candidate',
       program: { version: 1, root: { op: 'pace_summary', driver_id: 'max-verstappen', scope: { season: 2025 } } }
     })))).resolves.toMatchObject({ type: 'program_candidate', program: { root: { op: 'pace_summary' } } });
+  });
+
+  it('constrains answer translation with canonical program shapes and deterministic policy ownership', async () => {
+    const model = new PromptRecordingModel();
+    await translateF1QLQuestion('Who led the final standings?', model);
+
+    const examples = [...model.systemPrompt.matchAll(/^Required [^:\n]+ program: (.+)$/gm)];
+    expect(examples).toHaveLength(7);
+    for (const example of examples) {
+      expect(() => parseF1QLProgramCandidate(JSON.parse(example[1]))).not.toThrow();
+    }
+    expect(model.systemPrompt).toContain('"op":"aggregate"');
+    expect(model.systemPrompt).toContain('"by":"championship_position","direction":"asc","limit":1');
+    expect(model.systemPrompt).toContain('"op":"event_classification"');
+    expect(model.systemPrompt).toContain('"op":"qualifying_classification"');
+    expect(model.systemPrompt).toContain('"op":"event_metadata"');
+    expect(model.systemPrompt).toContain('The deterministic linker and policy own identity ambiguity and authorization decisions.');
   });
 
   it('accepts a strict translation-only named event candidate', async () => {
