@@ -98,6 +98,7 @@ export class OpenAICompatibleF1QLModel implements F1QLTextModel {
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: this.model,
+        max_tokens: 512,
         temperature: 0,
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: question }],
         tools: [{ type: 'function', function: { name: 'emit_f1ql_translation', description: 'Emit one typed F1QL translation result.', parameters: { type: 'object', additionalProperties: true } } }],
@@ -107,9 +108,40 @@ export class OpenAICompatibleF1QLModel implements F1QLTextModel {
     if (!response.ok) {
       throw new Error('F1QL translation provider unavailable');
     }
-    const body = await response.json() as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }> };
+    const body = await readBoundedJsonResponse(response) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }> };
     return body.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ?? '';
   }
+}
+
+async function readBoundedJsonResponse(response: Response): Promise<unknown> {
+  const maximumBytes = 65_536;
+  if (!response.body) {
+    throw new Error('F1QL translation provider returned an empty response');
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  let done = false;
+  do {
+    const result = await reader.read();
+    done = result.done;
+    if (!done) {
+      const value = result.value;
+      bytes += value.byteLength;
+      if (bytes > maximumBytes) {
+        await reader.cancel();
+        throw new Error('F1QL translation provider response exceeded limit');
+      }
+      chunks.push(value);
+    }
+  } while (!done);
+  const combined = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(combined));
 }
 
 export function createF1QLTextModel(): F1QLTextModel {

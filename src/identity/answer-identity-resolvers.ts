@@ -53,23 +53,19 @@ export class AnswerDriverIdentityResolver {
     if (!normalized) {
       return { success: false, error: 'unknown_driver' };
     }
-    try {
-      const identities = await this.database.query<DriverIdentityRow>('SELECT driver_id, identity FROM f1ql.answer_driver_identity');
-      const candidates = [...new Set(identities.rows.filter(row => normalizeMatch(row.identity) === normalized).map(row => row.driver_id))].sort();
-      if (candidates.length === 0) {
-        return { success: false, error: 'unknown_driver' };
-      }
-      if (candidates.length === 1) {
-        return { success: true, f1db_driver_id: candidates[0], match_mode: 'literal' };
-      }
-      const active = season ? await this.activeCandidates(candidates, season) : candidates;
-      if (active.length === 1) {
-        return { success: true, f1db_driver_id: active[0], match_mode: 'season' };
-      }
-      return { success: false, error: 'ambiguous_driver', candidates: (active.length > 1 ? active : candidates).sort() };
-    } catch (error) {
-      return { success: false, error: `Database error resolving driver: ${error}` };
+    const identities = await this.database.query<DriverIdentityRow>('SELECT driver_id, identity FROM f1ql.answer_driver_identity');
+    const candidates = [...new Set(identities.rows.filter(row => normalizeMatch(row.identity) === normalized).map(row => row.driver_id))].sort();
+    if (candidates.length === 0) {
+      return { success: false, error: 'unknown_driver' };
     }
+    if (candidates.length === 1) {
+      return { success: true, f1db_driver_id: candidates[0], candidates, match_mode: 'literal' };
+    }
+    const active = season ? await this.activeCandidates(candidates, season) : candidates;
+    if (active.length === 1) {
+      return { success: true, f1db_driver_id: active[0], candidates, match_mode: 'season' };
+    }
+    return { success: false, error: 'ambiguous_driver', candidates: (active.length > 1 ? active : candidates).sort() };
   }
 
   private async activeCandidates(candidates: string[], season: number): Promise<string[]> {

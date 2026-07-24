@@ -7,9 +7,14 @@ import { parseF1QLProgram } from './schema';
 import { F1QLProgramCandidate, isNamedEventProgram } from './translation-schema';
 
 export class F1QLLinkingError extends Error {
-  constructor(readonly code: 'event_ambiguous' | 'entity_ambiguous' | 'source_coverage_missing' | 'temporal_scope_unsupported', readonly options?: string[]) {
+  constructor(readonly code: 'event_ambiguous' | 'entity_ambiguous' | 'source_coverage_missing' | 'temporal_scope_unsupported', readonly options?: string[], readonly entityCandidates?: string[]) {
     super(code);
   }
+}
+
+export interface AnswerLinkObservation {
+  program: F1QLProgram;
+  entityCandidates: string[];
 }
 
 export async function linkF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1QLProgramCandidate): Promise<F1QLProgram> {
@@ -18,15 +23,44 @@ export async function linkF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1
 }
 
 export async function linkAnswerF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1QLProgramCandidate): Promise<F1QLProgram> {
-  const program = await canonicalizeEvent(candidate, new AnswerEventIdentityResolver(pool));
-  return parseF1QLProgram(await resolveDriverIds(program, new AnswerDriverIdentityResolver(pool)));
+  return (await linkAnswerF1QLCandidateObserved(pool, candidate)).program;
 }
 
-async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: { resolve(season: number, name: string): Promise<EventResolution> }): Promise<F1QLProgram> {
+export async function linkAnswerF1QLCandidateObserved(pool: Pick<Pool, 'query'>, candidate: F1QLProgramCandidate): Promise<AnswerLinkObservation> {
+  const entityCandidates = new Set<string>();
+  const root = candidate.root;
+  if ('season' in root && 'round' in root && typeof root.season === 'number' && typeof root.round === 'number') {
+    entityCandidates.add(`event:${root.season}:${root.round}`);
+  }
+  try {
+    const program = await canonicalizeEvent(candidate, new AnswerEventIdentityResolver(pool), resolution => {
+      let events: Array<{ season: number; round: number }> = [];
+      if (resolution.type === 'resolved') {
+        events = [resolution];
+      } else if (resolution.type === 'ambiguous') {
+        events = resolution.candidates;
+      }
+      events.forEach(event => entityCandidates.add(`event:${event.season}:${event.round}`));
+    });
+    const linked = await resolveDriverIds(program, new AnswerDriverIdentityResolver(pool), resolution => {
+      const drivers = resolution.candidates ?? (resolution.f1db_driver_id ? [resolution.f1db_driver_id] : []);
+      drivers.forEach(driver => entityCandidates.add(`driver:${driver.replace(/_/g, '-')}`));
+    });
+    return { program: parseF1QLProgram(linked), entityCandidates: [...entityCandidates].sort() };
+  } catch (error) {
+    if (error instanceof F1QLLinkingError) {
+      throw new F1QLLinkingError(error.code, error.options, [...entityCandidates].sort());
+    }
+    throw error;
+  }
+}
+
+async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: { resolve(season: number, name: string): Promise<EventResolution> }, observe?: (resolution: EventResolution) => void): Promise<F1QLProgram> {
   if (!isNamedEventProgram(candidate)) {
     return parseF1QLProgram(candidate);
   }
   const resolution = await resolver.resolve(candidate.root.season, candidate.root.event_name);
+  observe?.(resolution);
   if (resolution.type === 'missing') {
     throw new F1QLLinkingError('source_coverage_missing');
   }
@@ -40,11 +74,12 @@ async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: { re
   return parseF1QLProgram({ version: 1, root: { op: root.op, season: root.season, round: resolution.round, limit: root.limit, filters: root.filters } });
 }
 
-async function resolveDriverIds(program: F1QLProgram, resolver: { resolveUnambiguous(alias: string, season?: number): Promise<DriverResolutionResult> }): Promise<F1QLProgram> {
+async function resolveDriverIds(program: F1QLProgram, resolver: { resolveUnambiguous(alias: string, season?: number): Promise<DriverResolutionResult> }, observe?: (resolution: DriverResolutionResult) => void): Promise<F1QLProgram> {
   const { ids, season } = driverResolutionScope(program);
   const resolved = new Map<string, string>();
   for (const id of ids) {
     const result = await resolver.resolveUnambiguous(id, season);
+    observe?.(result);
     if (result.error === 'ambiguous_driver') {
       throw new F1QLLinkingError('entity_ambiguous', result.candidates?.map(candidate => candidate.replace(/_/g, '-')));
     }

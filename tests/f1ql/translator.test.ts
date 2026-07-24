@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { F1QLTextModel, translateF1QLQuestion } from '../../src/f1ql/translator';
+import { describe, expect, it, vi } from 'vitest';
+import { F1QLTextModel, OpenAICompatibleF1QLModel, translateF1QLQuestion } from '../../src/f1ql/translator';
 
 class StubModel implements F1QLTextModel {
   constructor(private readonly output: string) {}
@@ -64,5 +64,14 @@ describe('constrained F1QL translation', () => {
       .resolves.toEqual({ type: 'provider_unavailable', reason: 'invalid_response' });
     await expect(translateF1QLQuestion('Max pace', new ThrowingModel()))
       .resolves.toEqual({ type: 'provider_unavailable', reason: 'provider_error' });
+  });
+
+  it('bounds OpenAI-compatible output tokens and response bytes', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('x'.repeat(65_537)));
+    const model = new OpenAICompatibleF1QLModel('https://provider.invalid', 'secret', 'model');
+    await expect(model.complete('system', 'question')).rejects.toThrow('response exceeded limit');
+    const request = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(request?.body as string)).toMatchObject({ max_tokens: 512 });
+    fetchMock.mockRestore();
   });
 });
