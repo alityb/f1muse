@@ -1,7 +1,9 @@
-import { AnswerEvaluationCase } from '../../../src/f1ql/answer-evaluation';
-import { F1QLProgram } from '../../../src/f1ql/ast';
+import { AnswerEvaluationCase, AnswerMetamorphicGroup } from '../../../src/f1ql/answer-evaluation';
+import { AggregateNode, F1QLProgram } from '../../../src/f1ql/ast';
 
-const standings = (season: number, drivers?: string[]): F1QLProgram => ({ version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season, driver_id: drivers } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] } });
+const standingsRoot = (season: number, drivers?: string[]): AggregateNode => ({ op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season, driver_id: drivers } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] });
+const standings = (season: number, drivers?: string[]): F1QLProgram => ({ version: 1, root: standingsRoot(season, drivers) });
+const leader: F1QLProgram = { version: 1, root: { op: 'rank', input: standingsRoot(2025), by: 'points', direction: 'desc', limit: 1 } };
 const race: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30, filters: { driver_id: 'max-verstappen' } } };
 const sampleRace: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30, filters: { driver_id: 'sample-driver' } } };
 const qualifying: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 20 } };
@@ -26,7 +28,7 @@ function canonicalEntities(program: F1QLProgram): string[] {
 }
 
 export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
-  reviewed('dev-standings', 'development', 'Who led the final 2025 standings?', 'answer', 'final_driver_standings', ['clean'], [standings(2025)]),
+  reviewed('dev-standings', 'development', 'Who led the final 2025 standings?', 'answer', 'final_driver_standings', ['clean'], [leader]),
   reviewed('dev-race', 'development', 'Where did Max finish in Australia 2025?', 'answer', 'race_classification', ['entity_alias'], [race]),
   reviewed('dev-ambiguous', 'development', 'Who was better in 2025?', 'clarify', 'metric_ambiguous', ['ambiguity']),
   reviewed('dev-pace', 'development', 'Compare Max and Lando race pace', 'abstain', 'pace_source_disabled', ['unsupported_source'], undefined, undefined, ['driver:lando-norris', 'driver:max-verstappen'], [['driver:lando-norris', 'driver:max-verstappen']]),
@@ -47,5 +49,14 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   reviewed('adv-grid', 'adversarial', 'What was the starting grid?', 'abstain', 'grid_source_unsupported', ['unsupported_source']),
   reviewed('adv-constructor', 'adversarial', 'Constructor standings for 2025', 'abstain', 'constructor_source_unsupported', ['unsupported_source']),
   reviewed('adv-team', 'adversarial', 'Only Red Bull in the race result', 'abstain', 'team_filter_unsupported', ['capability_escalation']),
-  reviewed('adv-oversized', 'adversarial', 'Compare five drivers in final standings', 'abstain', 'entity_set_too_large', ['oversized_request'])
+  reviewed('adv-oversized', 'adversarial', 'Compare five drivers in final standings', 'abstain', 'entity_set_too_large', ['oversized_request']),
+  reviewed('meta-standings-paraphrase', 'development', 'Show the final driver championship leader for 2025', 'answer', 'final_driver_standings', ['paraphrase'], [leader]),
+  reviewed('meta-race-alias', 'development', 'Where did Max Verstappen finish at the 2025 Australian Grand Prix?', 'answer', 'race_classification', ['entity_alias'], [race]),
+  reviewed('meta-pair-filter-order', 'development', 'In the final 2025 standings, show Piastri and Norris points', 'answer', 'final_driver_standings', ['filter_reordering'], [standings(2025, ['oscar-piastri', 'lando-norris'])])
+];
+
+export const answerMetamorphicGroups: readonly AnswerMetamorphicGroup[] = [
+  { id: 'standings-paraphrase', transformation: 'paraphrase', case_ids: ['dev-standings', 'meta-standings-paraphrase'] },
+  { id: 'race-alias', transformation: 'alias', case_ids: ['dev-race', 'meta-race-alias'] },
+  { id: 'standings-filter-order', transformation: 'filter_reordering', case_ids: ['iid-pair', 'meta-pair-filter-order'] }
 ];

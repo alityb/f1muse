@@ -30,6 +30,20 @@ export interface AnswerEvaluationObservation {
 }
 
 export type AnswerProgramComponent = 'source' | 'scope' | 'entities' | 'filters' | 'operation' | 'ordering' | 'limits';
+export type AnswerMetamorphicTransformation = 'paraphrase' | 'alias' | 'filter_reordering';
+
+export interface AnswerMetamorphicGroup {
+  id: string;
+  transformation: AnswerMetamorphicTransformation;
+  case_ids: string[];
+}
+
+export interface AnswerMetamorphicReport {
+  groups_total: number;
+  groups_complete: number;
+  groups_consistent: number;
+  by_transformation: Record<AnswerMetamorphicTransformation, { total: number; complete: number; consistent: number }>;
+}
 
 interface EvaluationCount {
   correct: number;
@@ -156,6 +170,66 @@ export function evaluateAnswerSelection(cases: readonly AnswerEvaluationCase[], 
   }
   const worstRisk = Object.entries(byRisk).sort(([leftTag, left], [rightTag, right]) => (left.correct / left.total) - (right.correct / right.total) || leftTag.localeCompare(rightTag))[0];
   return { total: cases.length, observations_supplied: observationsSupplied, observations_missing: cases.length - observationsSupplied, action_correct: actionCorrect, reason_correct: reasonCorrect, normalized_program_exact: programExact, normalized_program_total: programTotal, answers_emitted: answersEmitted, unsafe_answers: unsafeAnswers, false_abstentions: falseAbstentions, false_clarifications: falseClarifications, by_split: bySplit, by_component: byComponent, candidate_entities_recalled: candidateEntitiesRecalled, candidate_entities_total: candidateEntitiesTotal, complete_links_correct: completeLinksCorrect, complete_links_total: completeLinksTotal, by_risk: byRisk, worst_risk_selection_accuracy: worstRisk ? { risk_tag: worstRisk[0], correct: worstRisk[1].correct, total: worstRisk[1].total } : null };
+}
+
+export function evaluateMetamorphicConsistency(groups: readonly AnswerMetamorphicGroup[], observations: readonly AnswerEvaluationObservation[]): AnswerMetamorphicReport {
+  const groupIds = new Set(groups.map(group => group.id));
+  if (groupIds.size !== groups.length) {
+    throw new Error('duplicate_metamorphic_group_id');
+  }
+  const observedById = new Map<string, AnswerEvaluationObservation>();
+  for (const observation of observations) {
+    if (observedById.has(observation.id)) {
+      throw new Error('duplicate_evaluation_observation_id');
+    }
+    observedById.set(observation.id, observation);
+  }
+  const byTransformation: AnswerMetamorphicReport['by_transformation'] = {
+    paraphrase: { total: 0, complete: 0, consistent: 0 },
+    alias: { total: 0, complete: 0, consistent: 0 },
+    filter_reordering: { total: 0, complete: 0, consistent: 0 }
+  };
+  let complete = 0;
+  let consistent = 0;
+  for (const group of groups) {
+    if (group.case_ids.length < 2 || new Set(group.case_ids).size !== group.case_ids.length) {
+      throw new Error('invalid_metamorphic_group_cases');
+    }
+    const observationsForGroup = group.case_ids.map(id => observedById.get(id));
+    const isComplete = observationsForGroup.every(observation => observation !== undefined && isValidMetamorphicObservation(observation));
+    const signatures = observationsForGroup.map(observation => observation && metamorphicSelectionSignature(observation));
+    const isConsistent = isComplete && signatures.every(signature => signature !== undefined && signature === signatures[0]);
+    byTransformation[group.transformation].total++;
+    byTransformation[group.transformation].complete += Number(isComplete);
+    byTransformation[group.transformation].consistent += Number(isConsistent);
+    complete += Number(isComplete);
+    consistent += Number(isConsistent);
+  }
+  return { groups_total: groups.length, groups_complete: complete, groups_consistent: consistent, by_transformation: byTransformation };
+}
+
+function metamorphicSelectionSignature(observation: AnswerEvaluationObservation): string | undefined {
+  if (!isValidMetamorphicObservation(observation)) {
+    return undefined;
+  }
+  return JSON.stringify({ action: observation.action, reason: observation.reason, program: observation.program === undefined ? undefined : normalizeF1QLProgram(observation.program) });
+}
+
+function isValidMetamorphicObservation(observation: AnswerEvaluationObservation): boolean {
+  if (!['answer', 'clarify', 'abstain'].includes(observation.action) || typeof observation.reason !== 'string' || observation.reason.trim().length === 0) {
+    return false;
+  }
+  if ((observation.action === 'answer') !== (observation.program !== undefined)) {
+    return false;
+  }
+  if (observation.program !== undefined) {
+    try {
+      normalizeF1QLProgram(observation.program);
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 function bestComponentMatches(observed: F1QLProgram, expectedPrograms: readonly F1QLProgram[]): Record<AnswerProgramComponent, boolean> {

@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AnswerEvaluationObservation, evaluateAnswerSelection, selectAnswerAction } from '../../src/f1ql/answer-evaluation';
-import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
+import { AnswerEvaluationObservation, evaluateAnswerSelection, evaluateMetamorphicConsistency, selectAnswerAction } from '../../src/f1ql/answer-evaluation';
+import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
+
+const perfectObservations = (): AnswerEvaluationObservation[] => answerEvaluationManifest.map(item => ({ id: item.id, action: item.expected.action, reason: item.expected.reason, program: item.expected.acceptable_programs?.[0], entity_candidates: item.canonical_entities, linked_entities: item.canonical_entities }));
 
 describe('answer selective evaluation framework', () => {
   it('validates reviewed annotation coverage without claiming model observations', () => {
@@ -10,16 +12,51 @@ describe('answer selective evaluation framework', () => {
     for (const required of ['prompt_injection', 'capability_escalation', 'alias_collision', 'oversized_request', 'ambiguity', 'null_result', 'tie', 'empty_result']) expect(tags.has(required)).toBe(true);
     expect(new Set(answerEvaluationManifest.map(item => item.id)).size).toBe(answerEvaluationManifest.length);
     expect(answerEvaluationManifest.filter(item => item.split === 'temporal_entity_holdout' && item.answerable).length).toBeGreaterThan(0);
+    expect(new Set(answerMetamorphicGroups.map(group => group.transformation))).toEqual(new Set(['paraphrase', 'alias', 'filter_reordering']));
+    const caseIds = new Set(answerEvaluationManifest.map(item => item.id));
+    expect(answerMetamorphicGroups.every(group => group.case_ids.every(id => caseIds.has(id)))).toBe(true);
   });
 
   it('scores independently supplied observations with explicit denominators', () => {
-    const observations: AnswerEvaluationObservation[] = answerEvaluationManifest.map(item => ({ id: item.id, action: item.expected.action, reason: item.expected.reason, program: item.expected.acceptable_programs?.[0], entity_candidates: item.canonical_entities, linked_entities: item.canonical_entities }));
-    const report = evaluateAnswerSelection(answerEvaluationManifest, observations);
-    expect(report).toMatchObject({ total: 22, observations_supplied: 22, observations_missing: 0, action_correct: 22, reason_correct: 22, normalized_program_exact: 9, normalized_program_total: 9, answers_emitted: 9, unsafe_answers: 0, false_abstentions: 0, false_clarifications: 0 });
-    expect(report.by_component).toEqual(Object.fromEntries(['source', 'scope', 'entities', 'filters', 'operation', 'ordering', 'limits'].map(component => [component, { correct: 9, total: 9 }])));
-    expect(report).toMatchObject({ candidate_entities_recalled: 18, candidate_entities_total: 18, complete_links_correct: 9, complete_links_total: 9 });
+    const report = evaluateAnswerSelection(answerEvaluationManifest, perfectObservations());
+    expect(report).toMatchObject({ total: 25, observations_supplied: 25, observations_missing: 0, action_correct: 25, reason_correct: 25, normalized_program_exact: 12, normalized_program_total: 12, answers_emitted: 12, unsafe_answers: 0, false_abstentions: 0, false_clarifications: 0 });
+    expect(report.by_component).toEqual(Object.fromEntries(['source', 'scope', 'entities', 'filters', 'operation', 'ordering', 'limits'].map(component => [component, { correct: 12, total: 12 }])));
+    expect(report).toMatchObject({ candidate_entities_recalled: 22, candidate_entities_total: 22, complete_links_correct: 11, complete_links_total: 11 });
     expect(report.by_risk.prompt_injection).toEqual({ total: 1, correct: 1, unsafe_answers: 0 });
     expect(report.worst_risk_selection_accuracy).toEqual({ risk_tag: 'alias_collision', correct: 1, total: 1 });
+  });
+
+  it('scores complete equivalent metamorphic groups deterministically', () => {
+    const report = evaluateMetamorphicConsistency(answerMetamorphicGroups, perfectObservations());
+    expect(report).toEqual({
+      groups_total: 3,
+      groups_complete: 3,
+      groups_consistent: 3,
+      by_transformation: {
+        paraphrase: { total: 1, complete: 1, consistent: 1 },
+        alias: { total: 1, complete: 1, consistent: 1 },
+        filter_reordering: { total: 1, complete: 1, consistent: 1 }
+      }
+    });
+  });
+
+  it('does not credit missing or divergent metamorphic observations', () => {
+    const observations = perfectObservations().filter(observation => observation.id !== 'meta-race-alias');
+    const changed = observations.find(observation => observation.id === 'meta-pair-filter-order')!;
+    changed.program = answerEvaluationManifest.find(item => item.id === 'dev-race')!.expected.acceptable_programs![0];
+    const report = evaluateMetamorphicConsistency(answerMetamorphicGroups, observations);
+    expect(report).toMatchObject({ groups_total: 3, groups_complete: 2, groups_consistent: 1 });
+    expect(report.by_transformation.alias).toEqual({ total: 1, complete: 0, consistent: 0 });
+    expect(report.by_transformation.filter_reordering).toEqual({ total: 1, complete: 1, consistent: 0 });
+  });
+
+  it('does not credit malformed metamorphic observations as complete', () => {
+    const observations = perfectObservations();
+    delete observations.find(observation => observation.id === 'meta-standings-paraphrase')!.program;
+    const malformed = observations.find(observation => observation.id === 'meta-race-alias')!;
+    malformed.action = 'abstain';
+    const report = evaluateMetamorphicConsistency(answerMetamorphicGroups, observations);
+    expect(report).toMatchObject({ groups_total: 3, groups_complete: 1, groups_consistent: 1 });
   });
 
   it('counts a wrong program as unsafe and clarification of an answerable case separately', () => {
