@@ -1,6 +1,7 @@
 import { AnswerCapability, authorizeAnswerProgram } from './answer-policy';
 import { F1QLProgram } from './ast';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
+import { VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 
 export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v1';
 
@@ -46,6 +47,32 @@ export function enforceAnswerWorkBudget(program: F1QLProgram, capability: Answer
   validateMaximum(maximum, 'work_units');
   validateMaximum(maxRows, 'rows');
   const estimate = estimateAnswerWork(program, capability);
+  if (estimate.units > maximum) {
+    throw new AnswerBoundError('work_units', estimate.units, maximum);
+  }
+  if (estimate.requested_rows > maxRows) {
+    throw new AnswerBoundError('rows', estimate.requested_rows, maxRows);
+  }
+  return estimate;
+}
+
+export function estimateVerifiedAnswerWork(proofInput: VerifiedAnswerSemanticProof): AnswerWorkEstimate {
+  const proof = verifyAnswerSemanticProof(proofInput);
+  const decision = authorizeAnswerProgram(proof.program);
+  if (decision.type !== 'approved') {
+    throw new AnswerWorkModelError('Verified proof was not approved');
+  }
+  return estimateAnswerWork(proof.program, decision.capability);
+}
+
+export function enforceVerifiedAnswerWorkBudget(
+  proofInput: VerifiedAnswerSemanticProof,
+  maximum: number,
+  maxRows = MAX_F1QL_RESPONSE_ROWS
+): AnswerWorkEstimate {
+  validateMaximum(maximum, 'work_units');
+  validateMaximum(maxRows, 'rows');
+  const estimate = estimateVerifiedAnswerWork(proofInput);
   if (estimate.units > maximum) {
     throw new AnswerBoundError('work_units', estimate.units, maximum);
   }

@@ -48,16 +48,36 @@ describe('in-process API routes', () => {
     await expect(response.json()).resolves.toMatchObject({ reason: 'answer_disabled' });
   });
 
-  it('fails closed when enabled without a dedicated answer database pool', async () => {
+  it('checks answer authentication before dedicated database configuration', async () => {
     process.env.F1QL_ANSWER_ENABLED = 'true';
+    delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
     try {
       const response = await fetch(`${baseUrl}/program/answer`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Who won in 2025?' })
       });
       expect(response.status).toBe(503);
-      await expect(response.json()).resolves.toMatchObject({ reason: 'answer_database_not_configured' });
+      await expect(response.json()).resolves.toMatchObject({ reason: 'answer_auth_not_configured' });
     } finally {
       delete process.env.F1QL_ANSWER_ENABLED;
+    }
+  });
+
+  it('fails closed for an intermediate answer canary percentage', async () => {
+    process.env.F1QL_ANSWER_ENABLED = 'true';
+    process.env.F1QL_ANSWER_INTERNAL_TOKEN = 'in-process-answer-token-000000000001';
+    process.env.F1QL_ANSWER_CANARY_STAGE = '25';
+    try {
+      const response = await fetch(`${baseUrl}/program/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.F1QL_ANSWER_INTERNAL_TOKEN}` },
+        body: JSON.stringify({ question: 'Who led the 2025 standings?' })
+      });
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'release_not_approved' });
+    } finally {
+      delete process.env.F1QL_ANSWER_ENABLED;
+      delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+      delete process.env.F1QL_ANSWER_CANARY_STAGE;
     }
   });
 

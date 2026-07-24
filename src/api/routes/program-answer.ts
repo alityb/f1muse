@@ -2,29 +2,35 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Pool, PoolClient } from 'pg';
-import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-policy';
+import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../identity/answer-identity-resolvers';
 import { AnswerAuthorizationError, buildAnswerExecutionAuthorization } from '../../f1ql/answer-authorization';
-import { AnswerBoundError, enforceAnswerWorkBudget } from '../../f1ql/answer-bounds';
+import { AnswerBoundError, enforceVerifiedAnswerWorkBudget } from '../../f1ql/answer-bounds';
+import { getAnswerCanaryStage, selectAnswerCanaryCohort } from '../../f1ql/answer-canary';
+import { AnswerReleaseVerificationInput, loadAnswerReleaseVerificationInput, VerifiedAnswerReleaseAttestation, verifyAnswerReleaseAttestation } from '../../f1ql/answer-release-attestation';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
-import { F1QLProgram } from '../../f1ql/ast';
-import { F1QLLinkingError, linkAnswerF1QLCandidate } from '../../f1ql/translation-linking';
-import { F1QLProgramCandidate } from '../../f1ql/translation-schema';
-import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../../f1ql/translator';
+import { AnswerIntent, parseAnswerIntent } from '../../f1ql/answer-intent';
+import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContract } from '../../f1ql/answer-question';
+import { AnswerSemanticProofError, proveAnswerIntent, VerifiedAnswerSemanticProof } from '../../f1ql/answer-semantic-proof';
+import { AnswerIntentModel, AnswerProviderConfigurationError, AnswerTranslationResult, createAnswerIntentModel, translateAnswerQuestion } from '../../f1ql/answer-translator';
+import { F1QLLinkingError } from '../../f1ql/translation-linking';
 import { metrics } from '../../observability/metrics';
 
 export interface ProgramAnswerDependencies {
-  modelFactory?: () => F1QLTextModel;
-  translate?: (question: string, model: F1QLTextModel, signal?: AbortSignal) => Promise<F1QLTranslationResult>;
-  link?: (candidate: F1QLProgramCandidate) => Promise<F1QLProgram>;
-  authorize?: (program: F1QLProgram) => AnswerPolicyDecision;
+  modelFactory?: () => AnswerIntentModel;
+  translate?: (contract: AnswerQuestionContract, model: AnswerIntentModel, signal?: AbortSignal) => Promise<AnswerTranslationResult>;
+  releaseVerification?: AnswerReleaseVerificationInput | (() => AnswerReleaseVerificationInput | Promise<AnswerReleaseVerificationInput>);
   runtimeConfig?: AnswerRuntimeConfig;
   admission?: AnswerAdmissionController;
+  environment?: () => NodeJS.ProcessEnv;
+  now?: () => number;
 }
 
 export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: ProgramAnswerDependencies = {}): Router {
   const router = Router();
   const config = dependencies.runtimeConfig ?? getAnswerRuntimeConfig();
   const admission = dependencies.admission ?? new AnswerAdmissionController(config);
+  const environment = dependencies.environment ?? (() => process.env);
+  const now = dependencies.now ?? Date.now;
   const answerRateLimiter = rateLimit({
     windowMs: config.rateLimitWindowMs,
     max: config.rateLimitMax,
@@ -33,8 +39,36 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     message: { error: 'answer_unavailable', reason: 'rate_limit_exceeded' }
   });
 
-  router.post('/program/answer', answerAvailabilityGuard, answerDatabaseGuard(pool), answerRateLimiter, answerPrincipalGuard, answerQuestionGuard, async (req: Request, res: Response) => {
-    const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  router.post('/program/answer', answerAvailabilityGuard(environment), answerRateLimiter, answerPrincipalGuard(environment), answerQuestionGuard, async (req: Request, res: Response) => {
+    const contract = res.locals.answerQuestionContract as AnswerQuestionContract;
+    if (contract.outcome.type !== 'inspection_required') {
+      return respondToQuestionOutcome(contract.outcome, res);
+    }
+    let canaryStage: number;
+    try {
+      const liveEnvironment = environment();
+      canaryStage = getAnswerCanaryStage(liveEnvironment);
+      const preliminaryCanary = selectAnswerCanaryCohort({ kill_switch: liveEnvironment.F1QL_ANSWER_KILL_SWITCH === 'true', stage: canaryStage });
+      if (preliminaryCanary.reason === 'kill_switch') {
+        return killSwitchResponse(res);
+      }
+      if (preliminaryCanary.reason === 'stage_zero') {
+        metrics.recordF1QLAnswer('execution', 'blocked', 'canary_control');
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
+      }
+    } catch {
+      metrics.recordF1QLAnswer('gate', 'blocked', 'release_not_approved');
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+    }
+    const release = await resolveReleaseAttestation(dependencies.releaseVerification, config, environment(), now());
+    if (!release || !runtimeMatchesAttestation(config, release.attestation)) {
+      metrics.recordF1QLAnswer('gate', 'blocked', 'release_not_approved');
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+    }
+    if (!pool) {
+      metrics.recordF1QLAnswer('gate', 'blocked', 'answer_database_not_configured');
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_database_not_configured' });
+    }
     const requestId = answerRequestId(res);
     const controller = new AbortController();
     let timedOut = false;
@@ -50,29 +84,40 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     req.once('aborted', abortOnDisconnect);
     res.once('close', abortOnDisconnect);
 
-    let release: (() => void) | undefined;
+    let releaseAdmission: (() => void) | undefined;
     try {
-      release = await admission.acquire(controller.signal);
+      releaseAdmission = await admission.acquire(controller.signal);
 
-      let model: F1QLTextModel;
+      let model: AnswerIntentModel;
       try {
-        model = (dependencies.modelFactory ?? createF1QLTextModel)();
-      } catch {
-        return res.status(503).json({ error: 'answer_unavailable', reason: 'provider_error' });
+        model = (dependencies.modelFactory ?? createAnswerIntentModel)();
+      } catch (error) {
+        return res.status(503).json({ error: 'answer_unavailable', reason: error instanceof AnswerProviderConfigurationError ? 'unsupported_provider' : 'provider_error' });
       }
-      const translation = await (dependencies.translate ?? translateF1QLQuestion)(question, model, controller.signal)
-        .catch((): F1QLTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
+      const translation = await (dependencies.translate ?? translateAnswerQuestion)(contract, model, controller.signal)
+        .catch((): AnswerTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
       if (controller.signal.aborted) {
         return respondToAbort(timedOut, res);
       }
-      if (translation.type !== 'program_candidate') {
+      if (translation.type !== 'intent_candidate') {
         metrics.recordF1QLAnswer('translation', translation.type, translation.reason);
         return respondToTranslationOutcome(translation, res);
       }
 
-      let program: F1QLProgram;
+      let reparsedIntent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>;
       try {
-        program = await (dependencies.link ?? (candidate => linkWithBounds(pool!, candidate, config.statementTimeoutMs, controller.signal)))(translation.program);
+        const parsed = parseAnswerIntent(translation.intent, contract);
+        if (parsed.type === 'clarification' || parsed.type === 'unsupported') {
+          return res.status(503).json({ error: 'answer_unavailable', reason: 'invalid_response' });
+        }
+        reparsedIntent = parsed;
+      } catch {
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'invalid_response' });
+      }
+
+      let proof: VerifiedAnswerSemanticProof;
+      try {
+        proof = await proveWithBounds(pool, contract, reparsedIntent, config.statementTimeoutMs, controller.signal);
       } catch (error) {
         if (controller.signal.aborted) {
           return respondToAbort(timedOut, res);
@@ -81,24 +126,18 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
           metrics.recordF1QLAnswer('linking', 'rejected', error.code);
           return respondToLinkingError(error, res);
         }
+        if (error instanceof AnswerSemanticProofError) {
+          metrics.recordF1QLAnswer('linking', 'rejected', error.reason);
+          return res.status(422).json({ error: 'capability_unsupported', reason: error.reason });
+        }
         return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
       }
       if (controller.signal.aborted) {
         return respondToAbort(timedOut, res);
       }
 
-      let decision: AnswerPolicyDecision;
       try {
-        decision = (dependencies.authorize ?? authorizeAnswerProgram)(program);
-      } catch {
-        return res.status(500).json({ error: 'answer_failed', reason: 'authorization_failed' });
-      }
-      if (decision.type === 'rejected') {
-        metrics.recordF1QLAnswer('policy', 'rejected', decision.reason);
-        return res.status(422).json({ error: 'capability_unsupported', reason: decision.reason });
-      }
-      try {
-        enforceAnswerWorkBudget(program, decision.capability, config.maxWorkUnits, config.maxRows);
+        enforceVerifiedAnswerWorkBudget(proof, config.maxWorkUnits, config.maxRows);
       } catch (error) {
         if (error instanceof AnswerBoundError) {
           metrics.recordF1QLAnswer('bounds', 'rejected', error.bound);
@@ -108,12 +147,32 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
       }
 
       try {
-        buildAnswerExecutionAuthorization(requestId, 'internal', program, decision.capability);
-      } catch (error) {
-        if (error instanceof AnswerAuthorizationError) {
-          return res.status(500).json({ error: 'answer_failed', reason: 'authorization_envelope_failed' });
+        const liveEnvironment = environment();
+        const canary = selectAnswerCanaryCohort({
+          kill_switch: liveEnvironment.F1QL_ANSWER_KILL_SWITCH === 'true',
+          stage: getAnswerCanaryStage(liveEnvironment),
+          template_id: proof.template_id,
+          deployment_template_ids: release.verification.active_context.deployment_template_ids,
+          attestation: release.attestation
+        });
+        if (canary.reason === 'kill_switch') {
+          return killSwitchResponse(res);
         }
-        return res.status(500).json({ error: 'answer_failed', reason: 'unexpected_error' });
+        if (canary.cohort !== 'canary') {
+          metrics.recordF1QLAnswer('execution', 'blocked', 'canary_control');
+          return res.status(503).json({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
+        }
+      } catch {
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+      }
+
+      try {
+        buildAnswerExecutionAuthorization(requestId, 'internal', proof, release.attestation, now());
+      } catch (error) {
+        return res.status(500).json({
+          error: 'answer_failed',
+          reason: error instanceof AnswerAuthorizationError ? 'authorization_envelope_failed' : 'unexpected_error'
+        });
       }
 
       // Execution remains structurally unavailable until every release gate and least-privilege proof passes.
@@ -121,9 +180,7 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
       return res.status(503).json({
         error: 'answer_unavailable',
         reason: 'execution_bounds_not_enforced',
-        mode: 'gated_non_execution',
-        program,
-        capability: decision.capability
+        mode: 'gated_non_execution'
       });
     } catch (error) {
       if (error instanceof AnswerAdmissionError) {
@@ -134,7 +191,7 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
       }
       return res.status(500).json({ error: 'answer_failed', reason: 'unexpected_error' });
     } finally {
-      release?.();
+      releaseAdmission?.();
       clearTimeout(timeout);
       req.removeListener('aborted', abortOnDisconnect);
       res.removeListener('close', abortOnDisconnect);
@@ -144,18 +201,9 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
   return router;
 }
 
-function answerDatabaseGuard(pool: Pool | undefined) {
-  return (_req: Request, res: Response, next: NextFunction): Response | void => {
-    if (!pool) {
-      metrics.recordF1QLAnswer('gate', 'blocked', 'answer_database_not_configured');
-      return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_database_not_configured' });
-    }
-    next();
-  };
-}
-
-function answerPrincipalGuard(req: Request, res: Response, next: NextFunction): Response | void {
-  const expected = process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+function answerPrincipalGuard(environment: () => NodeJS.ProcessEnv) {
+  return (req: Request, res: Response, next: NextFunction): Response | void => {
+  const expected = environment().F1QL_ANSWER_INTERNAL_TOKEN;
   if (!expected || expected.length < 32) {
     metrics.recordF1QLAnswer('gate', 'blocked', 'answer_auth_not_configured');
     return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_auth_not_configured' });
@@ -169,6 +217,7 @@ function answerPrincipalGuard(req: Request, res: Response, next: NextFunction): 
     return res.status(401).json({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
   }
   next();
+  };
 }
 
 function answerRequestId(res: Response): string {
@@ -191,20 +240,61 @@ function respondToAbort(timedOut: boolean, res: Response): Response | void {
   });
 }
 
-async function linkWithBounds(pool: Pool, candidate: F1QLProgramCandidate, statementTimeoutMs: number, signal: AbortSignal): Promise<F1QLProgram> {
+async function proveWithBounds(
+  pool: Pool,
+  contract: AnswerQuestionContract,
+  intent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>,
+  statementTimeoutMs: number,
+  signal: AbortSignal
+): Promise<VerifiedAnswerSemanticProof> {
   const client = await acquireClient(pool, signal);
   try {
     await client.query('BEGIN READ ONLY');
     await client.query("SELECT set_config('statement_timeout', $1, true)", [`${statementTimeoutMs}ms`]);
-    const program = await linkAnswerF1QLCandidate(client, candidate);
+    const proof = await proveAnswerIntent(contract, intent, new AnswerEventIdentityResolver(client), new AnswerDriverIdentityResolver(client));
     await client.query('ROLLBACK');
-    return program;
+    return proof;
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     throw error;
   } finally {
     client.release();
   }
+}
+
+async function resolveReleaseAttestation(
+  configured: ProgramAnswerDependencies['releaseVerification'],
+  config: AnswerRuntimeConfig,
+  environment: NodeJS.ProcessEnv,
+  nowMs: number
+): Promise<{ attestation: VerifiedAnswerReleaseAttestation; verification: AnswerReleaseVerificationInput } | undefined> {
+  try {
+    const verification = typeof configured === 'function'
+      ? await configured()
+      : configured ?? loadAnswerReleaseVerificationInput(config, environment);
+    const attestation = verifyAnswerReleaseAttestation(
+      verification.raw_attestation,
+      verification.trusted_key,
+      verification.active_context,
+      { ...verification.temporal_policy, now_ms: nowMs }
+    );
+    return { attestation, verification };
+  } catch {
+    return undefined;
+  }
+}
+
+function runtimeMatchesAttestation(config: AnswerRuntimeConfig, attestation: VerifiedAnswerReleaseAttestation): boolean {
+  const runtime = attestation.runtime_evidence;
+  return runtime.max_concurrency === config.maxConcurrency &&
+    runtime.queue_timeout_ms === config.queueTimeoutMs &&
+    runtime.request_timeout_ms === config.requestTimeoutMs &&
+    runtime.rate_limit_max === config.rateLimitMax &&
+    runtime.rate_limit_window_ms === config.rateLimitWindowMs &&
+    runtime.statement_timeout_ms === config.statementTimeoutMs &&
+    runtime.max_work_units === config.maxWorkUnits &&
+    runtime.max_rows === config.maxRows &&
+    runtime.max_response_bytes === config.maxResponseBytes;
 }
 
 function acquireClient(pool: Pool, signal: AbortSignal): Promise<PoolClient> {
@@ -240,41 +330,74 @@ function acquireClient(pool: Pool, signal: AbortSignal): Promise<PoolClient> {
   });
 }
 
-function answerAvailabilityGuard(_req: Request, res: Response, next: NextFunction): Response | void {
-  if (process.env.F1QL_ANSWER_KILL_SWITCH === 'true') {
-    metrics.recordF1QLAnswer('gate', 'blocked', 'kill_switch_active');
-    return res.status(503).json({ error: 'answer_unavailable', reason: 'kill_switch_active' });
+function answerAvailabilityGuard(environment: () => NodeJS.ProcessEnv) {
+  return (_req: Request, res: Response, next: NextFunction): Response | void => {
+  const env = environment();
+  if (env.F1QL_ANSWER_KILL_SWITCH === 'true') {
+    return killSwitchResponse(res);
   }
-  if (process.env.F1QL_ANSWER_ENABLED !== 'true') {
+  if (env.F1QL_ANSWER_ENABLED !== 'true') {
     metrics.recordF1QLAnswer('gate', 'blocked', 'answer_disabled');
     return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_disabled' });
   }
   next();
+  };
+}
+
+function killSwitchResponse(res: Response): Response {
+  metrics.recordF1QLAnswer('gate', 'blocked', 'kill_switch_active');
+  return res.status(503).json({ error: 'answer_unavailable', reason: 'kill_switch_active' });
 }
 
 function answerQuestionGuard(req: Request, res: Response, next: NextFunction): Response | void {
-  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-  if (!question || question.length > 1000) {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length !== 1 || !Object.prototype.hasOwnProperty.call(req.body, 'question')) {
     metrics.recordF1QLAnswer('input', 'rejected', 'question_invalid');
-    return res.status(400).json({ error: 'answer_invalid', reason: 'question must be 1-1000 characters' });
+    return res.status(400).json({ error: 'answer_invalid', reason: 'question_invalid' });
+  }
+  try {
+    res.locals.answerQuestionContract = createAnswerQuestionContract(req.body.question);
+  } catch (error) {
+    if (error instanceof AnswerQuestionError) {
+      metrics.recordF1QLAnswer('input', 'rejected', 'question_invalid');
+      return res.status(400).json({ error: 'answer_invalid', reason: 'question_invalid' });
+    }
+    throw error;
   }
   next();
 }
 
-function respondToTranslationOutcome(translation: Exclude<F1QLTranslationResult, { type: 'program_candidate' }>, res: Response): Response {
+function respondToTranslationOutcome(translation: Exclude<AnswerTranslationResult, { type: 'intent_candidate' }>, res: Response): Response {
   if (translation.type === 'provider_unavailable') {
     return res.status(503).json({ error: 'answer_unavailable', reason: translation.reason });
   }
   if (translation.type === 'clarification_required') {
-    return res.status(422).json({ error: 'clarification_required', reason: translation.reason, question: translation.question, options: translation.options });
+    return clarificationResponse(translation.reason, res);
   }
   return res.status(422).json({ error: 'capability_unsupported', reason: translation.reason });
 }
 
+function respondToQuestionOutcome(outcome: Exclude<AnswerQuestionContract['outcome'], { type: 'inspection_required' }>, res: Response): Response {
+  if (outcome.type === 'clarification_required') {
+    return clarificationResponse(outcome.reason, res);
+  }
+  return res.status(422).json({ error: 'capability_unsupported', reason: outcome.reason });
+}
+
+function clarificationResponse(reason: string, res: Response, options?: readonly string[]): Response {
+  const questions: Record<string, string> = {
+    season_missing: 'Which season did you mean?',
+    session_ambiguous: 'Did you mean the race or qualifying?',
+    metric_ambiguous: 'Did you mean points or official championship position?',
+    event_ambiguous: 'Which event did you mean?',
+    entity_ambiguous: 'Which driver did you mean?'
+  };
+  const boundedOptions = options?.slice(0, 5);
+  return res.status(422).json({ error: 'clarification_required', reason, question: questions[reason] ?? 'Please clarify the question.', ...(boundedOptions ? { options: boundedOptions } : {}) });
+}
+
 function respondToLinkingError(error: F1QLLinkingError, res: Response): Response {
   if (error.code === 'event_ambiguous' || error.code === 'entity_ambiguous') {
-    const question = error.code === 'event_ambiguous' ? 'Which event did you mean?' : 'Which driver did you mean?';
-    return res.status(422).json({ error: 'clarification_required', reason: error.code, question, options: error.options });
+    return clarificationResponse(error.code, res, error.options);
   }
   return res.status(422).json({ error: 'capability_unsupported', reason: error.code });
 }

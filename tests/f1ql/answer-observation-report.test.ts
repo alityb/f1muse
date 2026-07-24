@@ -1,115 +1,187 @@
-import { readFileSync } from 'node:fs';
+import { createHash, generateKeyPairSync } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildAnswerObservationReport } from '../../src/f1ql/answer-observation-report';
 import { reportAnswerObservationFile } from '../../scripts/report-answer-evaluation-observations';
-import { canonicalProgramEntities, getAnswerEvaluationManifestHash, validateAnswerObservationArtifact } from '../../src/f1ql/answer-observations';
+import { createAnswerObservationSigningHelper, getAnswerEvaluationManifestHash, signAnswerObservationArtifact, validateAnswerObservationArtifact, verifyAnswerObservationArtifact } from '../../src/f1ql/answer-observations';
+import { ANSWER_QUESTION_CONTRACT_VERSION } from '../../src/f1ql/answer-question';
+import { ANSWER_SEMANTIC_PROOF_VERSION } from '../../src/f1ql/answer-semantic-proof';
+import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from '../../src/f1ql/answer-templates';
+import { ANSWER_INTENT_CONTRACT_VERSION } from '../../src/f1ql/answer-translator';
+import { ANSWER_TRANSLATOR_PROMPT_SHA256, ANSWER_TRANSLATOR_SCHEMA_SHA256 } from '../../src/f1ql/answer-translator';
+import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
 
 const artifactHash = 'a'.repeat(64);
+const keyId = 'evaluation-report-key';
+const keys = generateKeyPairSync('ed25519');
+const signer = createAnswerObservationSigningHelper(keyId, keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64'));
+const trustedKey = { key_id: keyId, public_key_base64: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64') };
+const reportEnv = { F1QL_ANSWER_EVALUATION_KEY_ID: keyId, F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64: trustedKey.public_key_base64 };
 
-function perfectArtifact() {
-  return validateAnswerObservationArtifact(answerEvaluationManifest, {
-    version: 1,
+function perfectArtifact(modify?: (artifact: any) => void) {
+  const unsigned: any = {
+    version: 3,
     kind: 'f1ql_answer_observations',
-    provider: { type: 'openai-compatible', model: 'private-model-name', collected_at: '2026-07-24T00:00:00.000Z' },
+    provider: { type: 'groq', model: 'private-model-name', collected_at: '2026-07-24T00:00:00.000Z' },
     manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) },
+    contract: {
+      question_version: ANSWER_QUESTION_CONTRACT_VERSION,
+      intent_version: ANSWER_INTENT_CONTRACT_VERSION,
+      translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256,
+      translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256,
+      template_version: ANSWER_TEMPLATE_REGISTRY_VERSION,
+      template_registry_hash: ANSWER_TEMPLATE_REGISTRY_HASH,
+      proof_version: ANSWER_SEMANTIC_PROOF_VERSION
+    },
     observations: answerEvaluationManifest.map(item => {
-      const program = item.expected.action === 'answer' ? item.expected.acceptable_programs![0] : undefined;
-      const entities = program ? canonicalProgramEntities(program) : [...item.canonical_entities].sort();
-      const linkedEntities = item.acceptable_linked_entities?.[0] ?? [];
-      return program
-        ? { id: item.id, action: 'answer', reason: item.expected.reason, program, translation_latency_ms: 100, translation_timed_out: false, entity_candidates: entities, linked_entities: entities }
-        : { id: item.id, action: item.expected.action, reason: item.expected.reason, translation_latency_ms: 100, translation_timed_out: false, entity_candidates: entities, linked_entities: linkedEntities };
+      const program = item.expected.acceptable_programs?.[0];
+      const base = {
+        id: item.id, action: item.expected.action, reason: item.expected.reason,
+        translation_attempted: true, translation_latency_ms: 100, translation_timed_out: false,
+        entity_candidates: [...item.canonical_entities].sort(),
+        linked_entities: item.expected.action === 'answer' ? [...item.canonical_entities].sort() : []
+      };
+      return program ? {
+        ...base, template_id: item.expected.template_id, proof_status: 'passed',
+        proof_hash: 'b'.repeat(64), program_hash: getF1QLProgramHash(program)
+      } : { ...base, proof_status: 'not_applicable' };
     })
-  });
+  };
+  modify?.(unsigned);
+  return verifyAnswerObservationArtifact(answerEvaluationManifest, signAnswerObservationArtifact(answerEvaluationManifest, unsigned, signer), trustedKey);
 }
 
 describe('answer observation reporting', () => {
-  it('emits sanitized aggregate thresholds for every required source and operation', () => {
+  it('emits aggregate template, semantic, link, latency, and timeout gates without private identifiers', () => {
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, perfectArtifact(), artifactHash);
-    expect(report.artifact).toMatchObject({ sha256: artifactHash, provider: 'openai-compatible' });
-    expect(report.artifact).not.toHaveProperty('model_sha256');
+    expect(report.artifact).toEqual({ version: 3, observations: answerEvaluationManifest.length, sha256: artifactHash, manifest_sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) });
+    expect(report.contract).toMatchObject({ translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256, translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256, status: 'pass' });
+    expect(Object.values(report.templates).every(value => value.cases >= 2 && value.non_development_cases >= 2 && value.exact === value.cases && value.proof_complete === value.cases)).toBe(true);
     expect(report.selection).toMatchObject({ observations_missing: 0, unsafe_answers: 0 });
-    expect(report.holdout_thresholds.by_source.final_driver_standings.status).toBe('pass');
-    expect(report.holdout_thresholds.by_operation.aggregate.status).toBe('pass');
-    expect(report.holdout_thresholds.by_operation.rank.status).toBe('pass');
-    expect(report.translation_latency).toEqual({ observations: 26, required_observations: 26, p95_ms: 100, max_ms: 100, p95_budget_ms: 5_000, max_budget_ms: 10_000, status: 'pass' });
-    expect(report.translation_timeouts).toEqual({ observations: 26, required_observations: 26, timed_out: 0, maximum_timeouts: 0, status: 'pass' });
-    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, translation_latency_budget_pass: true, translation_timeout_budget_pass: true, status: 'pass' });
-    expect(Object.values(report.holdout_thresholds.by_source).every(result => result.cases > 0)).toBe(true);
-    expect(Object.values(report.holdout_thresholds.by_operation).every(result => result.cases > 0)).toBe(true);
+    expect(report.metamorphic).toMatchObject({ groups_total: 8, groups_complete: 8, groups_consistent: 8 });
+    expect(report.translation_latency).toMatchObject({ observations: answerEvaluationManifest.length, required_observations: answerEvaluationManifest.length, p95_ms: 100, max_ms: 100, status: 'pass' });
+    expect(report.translation_timeouts).toEqual({ observations: answerEvaluationManifest.length, required_observations: answerEvaluationManifest.length, timed_out: 0, maximum_timeouts: 0, status: 'pass' });
+    expect(report.release_gates).toMatchObject({ provider_diagnostics_zero: true, exact_templates_complete: true, exact_programs_complete: true, semantic_proofs_complete: true, status: 'pass' });
     const serialized = JSON.stringify(report);
+    expect(serialized).not.toContain('private-model-name');
+    expect(serialized).toContain(artifactHash);
+    expect(serialized).toContain(ANSWER_TEMPLATE_REGISTRY_HASH);
     for (const item of answerEvaluationManifest) {
       expect(serialized).not.toContain(item.question);
       expect(serialized).not.toContain(item.id);
+      expect(serialized).not.toContain(item.canonical_entities[0] ?? '__no_entity__');
     }
-    expect(serialized).not.toContain('private-model-name');
   });
 
-  it('reports missing legacy timeout evidence as insufficient and any known timeout as failed', () => {
-    const legacy = perfectArtifact();
-    for (const observation of legacy.observations) delete observation.translation_timed_out;
-    const insufficient = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
-    expect(insufficient.translation_timeouts).toEqual({ observations: 0, required_observations: 26, timed_out: 0, maximum_timeouts: 0, status: 'insufficient' });
-    expect(insufficient.release_gates).toMatchObject({ translation_timeout_budget_pass: false, status: 'insufficient' });
-
-    const timedOut = perfectArtifact();
-    delete timedOut.observations[0].translation_timed_out;
-    timedOut.observations[1].translation_timed_out = true;
-    const failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, timedOut, artifactHash);
-    expect(failed.translation_timeouts).toMatchObject({ observations: 25, timed_out: 1, status: 'fail' });
-    expect(failed.release_gates).toMatchObject({ translation_timeout_budget_pass: false, status: 'fail' });
-  });
-
-  it('reports missing legacy latency as insufficient and over-budget latency as failed', () => {
-    const legacy = perfectArtifact();
-    for (const observation of legacy.observations) delete observation.translation_latency_ms;
-    const insufficient = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
-    expect(insufficient.translation_latency).toMatchObject({ observations: 0, required_observations: 26, status: 'insufficient' });
-    expect(insufficient.release_gates).toMatchObject({ translation_latency_budget_pass: false, status: 'insufficient' });
-
-    const incompleteSlow = perfectArtifact();
-    delete incompleteSlow.observations[0].translation_latency_ms;
-    incompleteSlow.observations[1].translation_latency_ms = 10_001;
-    const knownFailure = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, incompleteSlow, artifactHash);
-    expect(knownFailure.translation_latency).toMatchObject({ observations: 25, max_ms: 10_001, status: 'fail' });
-
-    const incompleteP95Failure = perfectArtifact();
-    delete incompleteP95Failure.observations[0].translation_latency_ms;
-    incompleteP95Failure.observations[1].translation_latency_ms = 5_001;
-    incompleteP95Failure.observations[2].translation_latency_ms = 5_001;
-    const knownP95Failure = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, incompleteP95Failure, artifactHash);
-    expect(knownP95Failure.translation_latency).toMatchObject({ observations: 25, max_ms: 5_001, status: 'fail' });
-
-    const slow = perfectArtifact();
-    slow.observations[0].translation_latency_ms = 10_001;
-    const failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, slow, artifactHash);
-    expect(failed.translation_latency).toMatchObject({ max_ms: 10_001, status: 'fail' });
-    expect(failed.release_gates).toMatchObject({ translation_latency_budget_pass: false, status: 'fail' });
-
-    const slowP95 = perfectArtifact();
-    slowP95.observations[0].translation_latency_ms = 5_001;
-    slowP95.observations[1].translation_latency_ms = 5_001;
-    const p95Failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, slowP95, artifactHash);
-    expect(p95Failed.translation_latency).toMatchObject({ p95_ms: 5_001, max_ms: 5_001, status: 'fail' });
-  });
-
-  it('fails affected semantic and unsafe-answer gates', () => {
-    const artifact = perfectArtifact();
-    const target = artifact.observations.find(observation => observation.id === 'iid-pair')!;
-    target.program = answerEvaluationManifest.find(item => item.id === 'dev-standings')!.expected.acceptable_programs![0];
+  it('excludes deterministic outcomes from attempted-call latency and timeout denominators', () => {
+    const artifact = perfectArtifact(input => {
+      for (const observation of input.observations.slice(0, 10)) {
+        observation.translation_attempted = false;
+        delete observation.translation_latency_ms;
+      }
+      input.observations[10].translation_latency_ms = 5_001;
+    });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.holdout_thresholds.by_source.final_driver_standings.status).toBe('fail');
-    expect(report.release_gates).toMatchObject({ unsafe_answers_zero: false, status: 'fail' });
+    expect(report.translation_outcomes).toEqual({ attempted: answerEvaluationManifest.length - 10, deterministic: 10 });
+    expect(report.translation_latency.required_observations).toBe(answerEvaluationManifest.length - 10);
+    expect(report.translation_timeouts.required_observations).toBe(answerEvaluationManifest.length - 10);
+    expect(report.translation_latency.observations).toBe(answerEvaluationManifest.length - 10);
   });
 
-  it('fails globally and by source when a supplied reason is wrong', () => {
-    const artifact = perfectArtifact();
-    artifact.observations.find(observation => observation.id === 'iid-session')!.reason = 'metric_ambiguous';
-    artifact.observations.find(observation => observation.id === 'iid-pair')!.reason = 'race_classification';
+  it('normalizes historical diagnostics and fails release on every provider diagnostic', () => {
+    const artifact = perfectArtifact(input => {
+      const target = input.observations.find((item: any) => item.id === 'dev-ambiguous')!;
+      Object.assign(target, { action: 'abstain', reason: 'provider_error', provider_diagnostic_code: 'quota' });
+    });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.holdout_thresholds.by_source.final_driver_standings.status).toBe('fail');
-    expect(report.release_gates).toMatchObject({ reasons_correct: false, status: 'fail' });
+    expect(report.provider_diagnostics).toMatchObject({ observations: 1, counts: { quota: 1, auth: 0, transport: 0 } });
+    expect(report.release_gates).toMatchObject({ provider_diagnostics_zero: false, status: 'fail' });
+  });
+
+  it('requires exact actions independently from exact reasons', () => {
+    const artifact = perfectArtifact(input => {
+      const target = input.observations.find((item: any) => item.action === 'clarify')!;
+      target.action = 'abstain';
+    });
+    const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
+    expect(report.selection.reason_correct).toBe(report.selection.total);
+    expect(report.selection.action_correct).toBe(report.selection.total - 1);
+    expect(report.release_gates).toMatchObject({ actions_correct: false, reasons_correct: true, status: 'fail' });
+  });
+
+  it('retains low-cardinality proof rejection reasons and never credits provider abstention as proof rejection', () => {
+    const artifact = perfectArtifact(input => {
+      const target = input.observations.find((item: any) => item.id === 'attack-event')!;
+      target.reason = 'entity_cardinality_mismatch';
+      target.proof_status = 'failed';
+    });
+    let report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
+    expect(report.proof_rejections.observations).toBeGreaterThan(0);
+    expect(report.proof_rejections.counts.entity_cardinality_mismatch).toBeGreaterThan(0);
+
+    const providerArtifact = perfectArtifact(input => {
+      const target = input.observations.find((item: any) => item.id === 'attack-event')!;
+      Object.assign(target, { reason: 'provider_error', proof_status: 'failed', provider_diagnostic_code: 'transport' });
+    });
+    report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, providerArtifact, artifactHash);
+    expect(report.selection.reason_correct).toBeLessThan(report.selection.total);
+    expect(report.release_gates).toMatchObject({ reasons_correct: false, provider_diagnostics_zero: false, status: 'fail' });
+  });
+
+  it('fails causal timeout and latency violations', () => {
+    const timedOut = perfectArtifact(input => {
+      const target = input.observations.find((item: any) => item.id === 'dev-ambiguous')!;
+      Object.assign(target, { action: 'abstain', reason: 'provider_error', provider_diagnostic_code: 'request_timeout', translation_timed_out: true, translation_latency_ms: 15_000 });
+    });
+    const timeoutReport = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, timedOut, artifactHash);
+    expect(timeoutReport.translation_timeouts.status).toBe('fail');
+    expect(timeoutReport.release_gates.status).toBe('fail');
+
+    const slow = perfectArtifact(input => { input.observations[0].translation_latency_ms = 10_001; });
+    expect(buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, slow, artifactHash).translation_latency.status).toBe('fail');
+  });
+
+  it('requires verified provenance and refuses forged proof evidence or a tampered file', () => {
+    const verified = perfectArtifact();
+    const forged = structuredClone(verified);
+    forged.observations.find(item => item.action === 'answer')!.proof_hash = 'f'.repeat(64);
+    expect(() => buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, forged, artifactHash)).toThrow('unverified');
+
+    const directory = mkdtempSync(join(tmpdir(), 'answer-observation-report-'));
+    try {
+      const path = join(directory, 'artifact.json');
+      const serialized = `${JSON.stringify(verified)}\n`;
+      writeFileSync(path, serialized);
+      expect(reportAnswerObservationFile(path, reportEnv).release_gates.status).toBe('pass');
+      const tampered = JSON.parse(serialized);
+      tampered.observations.find((item: any) => item.action === 'answer').program_hash = 'e'.repeat(64);
+      writeFileSync(path, `${JSON.stringify(tampered)}\n`);
+      expect(() => reportAnswerObservationFile(path, reportEnv)).toThrow('signature_invalid');
+      expect(createHash('sha256').update(serialized).digest('hex')).toMatch(/^[a-f0-9]{64}$/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('retains explicit historical artifact compatibility but marks proof evidence insufficient', () => {
+    const modern = perfectArtifact();
+    const legacy = validateAnswerObservationArtifact(answerEvaluationManifest, {
+      version: 1, kind: 'f1ql_answer_observations', provider: { type: 'openai-compatible', model: 'legacy', collected_at: '2026-07-24T00:00:00.000Z' },
+      manifest: modern.manifest,
+      observations: answerEvaluationManifest.map(item => ({
+        id: item.id, action: item.expected.action, reason: item.expected.reason,
+        ...(item.expected.acceptable_programs ? { program: item.expected.acceptable_programs[0] } : {}),
+        entity_candidates: [...item.canonical_entities].sort(), linked_entities: item.expected.action === 'answer' ? [...item.canonical_entities].sort() : []
+      }))
+    });
+    const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
+    expect(report.translation_latency.status).toBe('insufficient');
+    expect(report.translation_timeouts.status).toBe('insufficient');
+    expect(report.release_gates.semantic_proofs_complete).toBe(false);
+    expect(report.release_gates.status).toBe('insufficient');
   });
 
   it('remains structurally disconnected from execution and raw output', () => {

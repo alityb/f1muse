@@ -16,6 +16,8 @@ describe('verified F1QL programs', () => {
     const reordered = { ...baseProgram, root: { ...baseProgram.root, scope: { ...baseProgram.root.scope, rounds: [2, 3, 1] } } };
     expect(getF1QLProgramHash(baseProgram)).toBe(getF1QLProgramHash(reordered));
     expect(getF1QLCacheKey(baseProgram)).toBe(getF1QLCacheKey(reordered));
+    expect(getF1QLProgramHash(baseProgram)).toBe('5a348036618a52658766148bda67053a65826661ab7e9f4b137bf231f6eb6617');
+    expect(getF1QLCacheKey(baseProgram)).toBe('534f3d81f17158adcbec4c3fb9d3e2ff8d66fc9824e19f0862e3db66d9ca9b56');
   });
 
   it('changes hashes for semantic changes', () => {

@@ -22,7 +22,19 @@ const DEFAULTS: AnswerRuntimeConfig = {
   maxResponseBytes: 64 * 1024
 };
 
-const MAXIMUMS: AnswerRuntimeConfig = {
+export const ANSWER_RUNTIME_MINIMUMS: Readonly<AnswerRuntimeConfig> = Object.freeze({
+  maxConcurrency: 1,
+  queueTimeoutMs: 1,
+  requestTimeoutMs: 1,
+  rateLimitMax: 1,
+  rateLimitWindowMs: 60_000,
+  statementTimeoutMs: 1,
+  maxWorkUnits: 1,
+  maxRows: 1,
+  maxResponseBytes: 1
+});
+
+export const ANSWER_RUNTIME_MAXIMUMS: Readonly<AnswerRuntimeConfig> = Object.freeze({
   maxConcurrency: 16,
   queueTimeoutMs: 10_000,
   requestTimeoutMs: 14_000,
@@ -32,7 +44,7 @@ const MAXIMUMS: AnswerRuntimeConfig = {
   maxWorkUnits: 10_000,
   maxRows: 100,
   maxResponseBytes: 1024 * 1024
-};
+});
 
 const ENV_KEYS: Record<keyof AnswerRuntimeConfig, string> = {
   maxConcurrency: 'F1QL_ANSWER_MAX_CONCURRENCY',
@@ -50,17 +62,19 @@ export function getAnswerRuntimeConfig(env: NodeJS.ProcessEnv = process.env): An
   const config = Object.fromEntries(
     (Object.keys(DEFAULTS) as Array<keyof AnswerRuntimeConfig>).map(key => [
       key,
-      parseBoundedInteger(env[ENV_KEYS[key]], ENV_KEYS[key], DEFAULTS[key], minimumFor(key), MAXIMUMS[key])
+      parseBoundedInteger(
+        env[ENV_KEYS[key]],
+        ENV_KEYS[key],
+        DEFAULTS[key],
+        ANSWER_RUNTIME_MINIMUMS[key],
+        ANSWER_RUNTIME_MAXIMUMS[key]
+      )
     ])
   ) as unknown as AnswerRuntimeConfig;
   if (config.statementTimeoutMs > config.requestTimeoutMs) {
     throw new Error('F1QL_ANSWER_STATEMENT_TIMEOUT_MS must not exceed F1QL_ANSWER_REQUEST_TIMEOUT_MS');
   }
   return config;
-}
-
-function minimumFor(key: keyof AnswerRuntimeConfig): number {
-  return key === 'rateLimitWindowMs' ? 60_000 : 1;
 }
 
 function parseBoundedInteger(raw: string | undefined, name: string, defaultValue: number, minimum: number, maximum: number): number {

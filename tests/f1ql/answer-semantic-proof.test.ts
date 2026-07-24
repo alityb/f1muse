@@ -1,0 +1,204 @@
+import { describe, expect, it } from 'vitest';
+import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver, ANSWER_DRIVER_IDENTITY_MAX_ROWS, ANSWER_EVENT_IDENTITY_MAX_ROWS } from '../../src/identity/answer-identity-resolvers';
+import { ANSWER_AMBIGUITY_MAX_OPTIONS, AnswerProofDriverResolver, AnswerProofEventResolver, AnswerSemanticProofError, proveAnswerIntent, stableSerialize, verifyAnswerSemanticProof } from '../../src/f1ql/answer-semantic-proof';
+import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
+import { F1QLLinkingError } from '../../src/f1ql/translation-linking';
+
+const span = (question: string, text: string) => {
+  const start = Array.from(question.slice(0, question.indexOf(text))).length;
+  return { text, start, end: start + Array.from(text).length };
+};
+const events: AnswerProofEventResolver = {
+  resolve: async (season, name) => name === 'Monaco' ? { type: 'resolved', season, round: 8 } : { type: 'missing' },
+  resolveRound: async (season, round) => round === 8 ? { type: 'resolved', season, round } : { type: 'missing' }
+};
+const drivers: AnswerProofDriverResolver = {
+  inventoryMentions: async question => {
+    const mentions = ['Max', 'Lando Norris'].filter(name => question.includes(name));
+    return mentions.map(text => {
+      const reference = span(question, text);
+      const driver = text === 'Max' ? 'max_verstappen' : 'lando_norris';
+      return { ...reference, candidates: [driver], active_candidates: [driver] };
+    });
+  }
+};
+
+describe('independent answer semantic proof', () => {
+  it('materializes and immutably binds an exact server-owned canonical program', async () => {
+    const question = 'Max in the 2025 Monaco race results';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
+    }, events, drivers);
+    expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v2', template_id: 'race_classification_driver' });
+    expect(proof.question_hash).toHaveLength(64);
+    expect(proof.intent_hash).toHaveLength(64);
+    expect(proof.template_registry_hash).toHaveLength(64);
+    expect(proof.template_variables).toEqual({ season: 2025, round: 8, driver_id: 'max-verstappen' });
+    expect(proof.program_hash).toHaveLength(64);
+    expect(proof.proof_hash).toHaveLength(64);
+    expect(verifyAnswerSemanticProof(proof)).toBe(proof);
+    expect(Object.isFrozen(proof)).toBe(true);
+    expect(Object.isFrozen(proof.template_variables)).toBe(true);
+    expect(Object.isFrozen(proof.program)).toBe(true);
+  });
+
+  it('rejects plain-object proof forgeries and mutation attempts', async () => {
+    const question = 'Who led the 2025 standings?';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'final_standings_leader', season: 2025, season_reference: span(question, '2025')
+    }, events, drivers);
+    expect(() => verifyAnswerSemanticProof({ ...proof })).toThrow(AnswerSemanticProofError);
+    expect(() => { (proof.template_variables as { season: number }).season = 2024; }).toThrow();
+    expect(() => { (proof.program.root as { limit: number }).limit = 2; }).toThrow();
+    expect(verifyAnswerSemanticProof(proof)).toBe(proof);
+  });
+
+  it.each([
+    ['season', { type: 'final_standings_leader', season: 2024, season_reference: undefined }, 'season_mismatch'],
+    ['session', { type: 'qualifying_classification_driver', season: 2025, season_reference: undefined, event_reference: undefined, driver_reference: undefined }, 'session_mismatch'],
+    ['metric', { type: 'final_standings_points', season: 2025, season_reference: undefined, driver_references: [] }, 'metric_mismatch']
+  ] as const)('rejects wrong-but-valid %s intent', async (_label, partial, reason) => {
+    const question = _label === 'metric' ? 'Who was the 2025 standings leader?' : 'Max in the 2025 Monaco race results';
+    const intent = { ...partial, season_reference: span(question, '2025') } as any;
+    if ('event_reference' in partial) intent.event_reference = span(question, 'Monaco');
+    if ('driver_reference' in partial) intent.driver_reference = span(question, 'Max');
+    const proof = expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, drivers)).rejects;
+    if (_label === 'season') {
+      await proof.toThrow();
+    } else {
+      await proof.toMatchObject({ reason });
+    }
+  });
+
+  it('rejects dropped or invented status and all-driver cardinality', async () => {
+    const question = 'Show all DNFs in the 2025 Monaco race results';
+    const contract = createAnswerQuestionContract(question);
+    await expect(proveAnswerIntent(contract, {
+      type: 'race_classification_all', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco')
+    }, events, drivers)).rejects.toBeInstanceOf(AnswerSemanticProofError);
+    const plain = 'Show all 2025 Monaco race results';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(plain), {
+      type: 'race_classification_status', season: 2025, season_reference: span(plain, '2025'), event_reference: span(plain, 'Monaco'), status: 'dnf', status_reference: span(plain, 'Show')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'status_mismatch' });
+  });
+
+  it('materializes an exact classification-status filter from its literal status span', async () => {
+    const question = 'Show all DNFs in the 2025 Monaco race results';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_classification_status', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), status: 'dnf', status_reference: span(question, 'DNFs')
+    }, events, drivers);
+    expect(proof.program.root).toMatchObject({ op: 'event_classification', filters: { classification_status: ['dnf'] } });
+  });
+
+  it('never resolves deterministic ambiguity and verifies literal rounds exist', async () => {
+    const question = 'Max in the 2025 Monaco race results';
+    const ambiguousDrivers: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [{ text: 'Max', start: 0, end: 3, candidates: ['max-one', 'max-two'], active_candidates: ['max-one', 'max-two'] }]
+    };
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
+    }, events, ambiguousDrivers)).rejects.toBeInstanceOf(F1QLLinkingError);
+
+    const roundQuestion = 'Show all 2025 race results for round 9';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(roundQuestion), {
+      type: 'race_classification_all', season: 2025, season_reference: span(roundQuestion, '2025'), event_reference: span(roundQuestion, 'round 9')
+    }, events, drivers)).rejects.toMatchObject({ code: 'source_coverage_missing' });
+  });
+
+  it('rejects multiple explicit events and the prior race-versus-qualifying ambiguity', async () => {
+    const eventsQuestion = 'Show all 2025 Monaco and British race results';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(eventsQuestion), {
+      type: 'race_classification_all', season: 2025, season_reference: span(eventsQuestion, '2025'), event_reference: span(eventsQuestion, 'Monaco')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+
+    const sessionQuestion = 'Show all 2025 Monaco race or qualifying results';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(sessionQuestion), {
+      type: 'qualifying_classification_all', season: 2025, season_reference: span(sessionQuestion, '2025'), event_reference: span(sessionQuestion, 'Monaco')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'session_mismatch' });
+  });
+
+  it('requires the model driver references to exactly equal the independent inventory', async () => {
+    const question = 'Max and Lando Norris points in the 2025 standings';
+    const contract = createAnswerQuestionContract(question);
+    const base = { type: 'final_standings_points' as const, season: 2025, season_reference: span(question, '2025') };
+    await expect(proveAnswerIntent(contract, { ...base, driver_references: [span(question, 'Max')] }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+    await expect(proveAnswerIntent(contract, { ...base, driver_references: [] }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+    await expect(proveAnswerIntent(contract, { ...base, driver_references: [span(question, 'Max'), span(question, '2025')] }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+    const proof = await proveAnswerIntent(contract, { ...base, driver_references: [span(question, 'Max'), span(question, 'Lando Norris')] }, events, drivers);
+    expect(proof.program.root).toMatchObject({ input: { where: { driver_id: ['lando-norris', 'max-verstappen'] } } });
+  });
+
+  it('requires participation and caps preserved ambiguity candidates', async () => {
+    const question = 'Max in the 2025 Monaco race results';
+    const inactive: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [{ text: 'Max', start: 0, end: 3, candidates: ['max-verstappen'], active_candidates: [] }]
+    };
+    const many = Array.from({ length: 10 }, (_, index) => `max-${index}`);
+    const ambiguous: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [{ text: 'Max', start: 0, end: 3, candidates: many, active_candidates: many }]
+    };
+    const intent = { type: 'race_classification_driver' as const, season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max') };
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, inactive)).rejects.toMatchObject({ code: 'source_coverage_missing' });
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, ambiguous)).rejects.toMatchObject({ code: 'entity_ambiguous', options: many.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS) });
+  });
+
+  it('reparses unknown intent inputs and uses stable key-order hashing', async () => {
+    const question = 'Who led the 2025 standings?';
+    const malformed = { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 0, end: 4 } };
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), malformed, events, drivers)).rejects.toThrow();
+    expect(stableSerialize({ z: 1, a: { y: 2, x: 3 } })).toBe(stableSerialize({ a: { x: 3, y: 2 }, z: 1 }));
+    expect(stableSerialize({ '😀': 4, 'é': 3, 'ä': 2, z: 1 })).toBe('{"z":1,"ä":2,"é":3,"😀":4}');
+  });
+
+  it('clarifies status session deterministically and rejects it at proof without a source', async () => {
+    const question = 'Show DNFs in 2025 at Monaco';
+    const contract = createAnswerQuestionContract(question);
+    expect(contract.outcome).toEqual({ type: 'clarification_required', reason: 'session_ambiguous' });
+    await expect(proveAnswerIntent(contract, {
+      type: 'race_classification_status', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), status: 'dnf', status_reference: span(question, 'DNFs')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'session_mismatch' });
+  });
+
+  it.each(['Monaco', 'round 8'])('requires non-event templates to consume every material event or round cue: %s', async qualifier => {
+    const question = `Who led the 2025 standings at ${qualifier}?`;
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'final_standings_leader', season: 2025, season_reference: span(question, '2025')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'event_mismatch' });
+  });
+
+  it('inventories boundary-safe longest driver spans with candidates and season participation', async () => {
+    const rows = [
+      { driver_id: 'max-verstappen', identity: 'Max', participation_source: 'entrant' },
+      { driver_id: 'max-other', identity: 'Max', participation_source: 'legacy_fallback' },
+      { driver_id: 'maximum-driver', identity: 'Maximum', participation_source: 'entrant' },
+      { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' },
+      { driver_id: 'max-verstappen', identity: 'Verstappen', participation_source: 'entrant' }
+    ];
+    const database = { query: async () => ({ rows }) } as any;
+    const question = '🏁 Maximum, Max Verstappen and Max.';
+    const mentions = await new AnswerDriverIdentityResolver(database).inventoryMentions(question, 2025);
+    expect(mentions).toEqual([
+      { ...span(question, 'Maximum'), candidates: ['maximum-driver'], active_candidates: ['maximum-driver'] },
+      { ...span(question, 'Max Verstappen'), candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] },
+      { text: 'Max', start: 30, end: 33, candidates: ['max-other', 'max-verstappen'], active_candidates: ['max-verstappen'] }
+    ]);
+  });
+
+  it('bounds identity queries with deterministic ordering and sentinel overflow', async () => {
+    const driverRows = Array.from({ length: ANSWER_DRIVER_IDENTITY_MAX_ROWS + 1 }, (_, index) => ({ driver_id: `driver-${index}`, identity: `Driver ${index}` }));
+    const driverDatabase = { query: async (sql: string, params: unknown[]) => {
+      expect(sql).toContain('ORDER BY i.identity, i.driver_id, p.participation_source');
+      expect(params[1]).toBe(ANSWER_DRIVER_IDENTITY_MAX_ROWS + 1);
+      return { rows: driverRows };
+    } } as any;
+    await expect(new AnswerDriverIdentityResolver(driverDatabase).inventoryMentions('Driver 1', 2025)).rejects.toMatchObject({ code: 'driver_identity_overflow' });
+
+    const eventDatabase = { query: async (sql: string, params: unknown[]) => {
+      expect(sql).toContain('ORDER BY round, identity');
+      expect(params[1]).toBe(ANSWER_EVENT_IDENTITY_MAX_ROWS + 1);
+      return { rows: Array.from({ length: ANSWER_EVENT_IDENTITY_MAX_ROWS + 1 }, (_, index) => ({ season: 2025, round: index + 1, identity: 'Monaco' })) };
+    } } as any;
+    await expect(new AnswerEventIdentityResolver(eventDatabase).resolve(2025, 'Monaco')).rejects.toMatchObject({ code: 'event_identity_overflow' });
+  });
+});

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AnswerAdmissionController, AnswerAdmissionError, getAnswerRuntimeConfig } from '../../src/f1ql/answer-runtime';
+import {
+  ANSWER_RUNTIME_MAXIMUMS,
+  ANSWER_RUNTIME_MINIMUMS,
+  AnswerAdmissionController,
+  AnswerAdmissionError,
+  getAnswerRuntimeConfig
+} from '../../src/f1ql/answer-runtime';
 
 describe('answer runtime configuration', () => {
   it('provides conservative bounded defaults', () => {
@@ -14,6 +20,14 @@ describe('answer runtime configuration', () => {
       maxRows: 100,
       maxResponseBytes: 65_536
     });
+  });
+
+  it('exports immutable authoritative minima and maxima', () => {
+    expect(ANSWER_RUNTIME_MINIMUMS.rateLimitWindowMs).toBe(60_000);
+    expect(ANSWER_RUNTIME_MAXIMUMS.maxConcurrency).toBe(16);
+    expect(Object.isFrozen(ANSWER_RUNTIME_MINIMUMS)).toBe(true);
+    expect(Object.isFrozen(ANSWER_RUNTIME_MAXIMUMS)).toBe(true);
+    expect(() => { (ANSWER_RUNTIME_MAXIMUMS as { maxRows: number }).maxRows = 101; }).toThrow();
   });
 
   it.each(['0', '-1', '1.5', 'nope', '17'] as const)('rejects invalid concurrency %s', value => {

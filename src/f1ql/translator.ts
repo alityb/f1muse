@@ -62,7 +62,41 @@ export type F1QLTranslationResult =
   | { type: 'program_candidate'; program: F1QLProgramCandidate }
   | { type: 'clarification_required'; reason: z.infer<typeof clarificationReasonSchema>; question: string; options?: string[] }
   | { type: 'unsupported'; reason: z.infer<typeof unsupportedReasonSchema> | 'program_invalid' }
-  | { type: 'provider_unavailable'; reason: 'provider_error' | 'invalid_response' };
+  | { type: 'provider_unavailable'; reason: 'provider_error' | 'invalid_response'; diagnostic_code?: ProviderDiagnosticCode };
+
+export const PROVIDER_DIAGNOSTIC_CODES = [
+  'transport_error',
+  'http_auth',
+  'http_quota',
+  'http_rate_limit',
+  'http_client',
+  'http_server',
+  'response_oversized',
+  'response_json_malformed',
+  'tool_call_missing',
+  'tool_call_multiple',
+  'tool_name_invalid',
+  'tool_arguments_invalid',
+  'generation_incomplete',
+  'request_timeout'
+] as const;
+
+export type ProviderDiagnosticCode = (typeof PROVIDER_DIAGNOSTIC_CODES)[number];
+
+function providerUnavailable(
+  reason: 'provider_error' | 'invalid_response',
+  diagnosticCode: ProviderDiagnosticCode
+): Extract<F1QLTranslationResult, { type: 'provider_unavailable' }> {
+  const result: Extract<F1QLTranslationResult, { type: 'provider_unavailable' }> = { type: 'provider_unavailable', reason };
+  Object.defineProperty(result, 'diagnostic_code', { value: diagnosticCode, enumerable: false });
+  return result;
+}
+
+class ProviderDiagnosticError extends Error {
+  constructor(readonly diagnosticCode: ProviderDiagnosticCode) {
+    super('F1QL translation provider failed');
+  }
+}
 
 export interface F1QLTextModel {
   complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string>;
@@ -76,24 +110,43 @@ export class AnthropicF1QLModel implements F1QLTextModel {
   }
 
   async complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string> {
-    const message = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 512,
-      temperature: 0,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: question }],
-      tools: [{
-        name: 'emit_f1ql_translation',
-        description: 'Emit exactly one typed F1QL translation result.',
-        input_schema: {
-          type: 'object',
-          additionalProperties: true
-        }
-      }],
-      tool_choice: { type: 'tool', name: 'emit_f1ql_translation' }
-    }, signal ? { signal } : undefined);
-    const toolUse = message.content.find((content) => content.type === 'tool_use');
-    return toolUse?.type === 'tool_use' ? JSON.stringify(toolUse.input) : '';
+    try {
+      const message = await this.client.messages.create({
+        model: this.model,
+        max_tokens: 512,
+        temperature: 0,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: question }],
+        tools: [{
+          name: 'emit_f1ql_translation',
+          description: 'Emit exactly one typed F1QL translation result.',
+          input_schema: {
+            type: 'object',
+            additionalProperties: true
+          }
+        }],
+        tool_choice: { type: 'tool', name: 'emit_f1ql_translation' }
+      }, signal ? { signal } : undefined);
+      if (message.stop_reason === 'max_tokens') {
+        throw new ProviderDiagnosticError('generation_incomplete');
+      }
+      const toolUses = message.content.filter((content) => content.type === 'tool_use');
+      if (toolUses.length === 0) {
+        throw new ProviderDiagnosticError('tool_call_missing');
+      }
+      if (toolUses.length > 1) {
+        throw new ProviderDiagnosticError('tool_call_multiple');
+      }
+      if (toolUses[0].name !== 'emit_f1ql_translation') {
+        throw new ProviderDiagnosticError('tool_name_invalid');
+      }
+      return JSON.stringify(toolUses[0].input);
+    } catch (error) {
+      if (error instanceof ProviderDiagnosticError) {
+        throw error;
+      }
+      throw new ProviderDiagnosticError(diagnosticForProviderError(error));
+    }
   }
 }
 
@@ -101,31 +154,54 @@ export class OpenAICompatibleF1QLModel implements F1QLTextModel {
   constructor(private readonly baseUrl: string, private readonly apiKey: string, private readonly model: string) {}
 
   async complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string> {
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      signal,
-      headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 512,
-        temperature: 0,
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: question }],
-        tools: [{ type: 'function', function: { name: 'emit_f1ql_translation', description: 'Emit one typed F1QL translation result.', parameters: { type: 'object', additionalProperties: true } } }],
-        tool_choice: { type: 'function', function: { name: 'emit_f1ql_translation' } }
-      })
-    });
-    if (!response.ok) {
-      throw new Error('F1QL translation provider unavailable');
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        signal,
+        headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 512,
+          temperature: 0,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: question }],
+          tools: [{ type: 'function', function: { name: 'emit_f1ql_translation', description: 'Emit one typed F1QL translation result.', parameters: { type: 'object', additionalProperties: true } } }],
+          tool_choice: { type: 'function', function: { name: 'emit_f1ql_translation' } }
+        })
+      });
+    } catch {
+      throw new ProviderDiagnosticError('transport_error');
     }
-    const body = await readBoundedJsonResponse(response) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { arguments?: string } }> } }> };
-    return body.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments ?? '';
+    if (!response.ok) {
+      throw new ProviderDiagnosticError(diagnosticForHttpStatus(response.status));
+    }
+    const body = await readBoundedJsonResponse(response) as { choices?: Array<{ finish_reason?: string; message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+    const choice = body.choices?.[0];
+    if (choice?.finish_reason === 'length') {
+      throw new ProviderDiagnosticError('generation_incomplete');
+    }
+    const toolCalls = choice?.message?.tool_calls ?? [];
+    if (toolCalls.length === 0) {
+      throw new ProviderDiagnosticError('tool_call_missing');
+    }
+    if (toolCalls.length > 1) {
+      throw new ProviderDiagnosticError('tool_call_multiple');
+    }
+    if (toolCalls[0].function?.name !== 'emit_f1ql_translation') {
+      throw new ProviderDiagnosticError('tool_name_invalid');
+    }
+    const argumentsValue = toolCalls[0].function?.arguments;
+    if (typeof argumentsValue !== 'string') {
+      throw new ProviderDiagnosticError('tool_arguments_invalid');
+    }
+    return argumentsValue;
   }
 }
 
 async function readBoundedJsonResponse(response: Response): Promise<unknown> {
   const maximumBytes = 65_536;
   if (!response.body) {
-    throw new Error('F1QL translation provider returned an empty response');
+    throw new ProviderDiagnosticError('response_json_malformed');
   }
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -139,7 +215,7 @@ async function readBoundedJsonResponse(response: Response): Promise<unknown> {
       bytes += value.byteLength;
       if (bytes > maximumBytes) {
         await reader.cancel();
-        throw new Error('F1QL translation provider response exceeded limit');
+        throw new ProviderDiagnosticError('response_oversized');
       }
       chunks.push(value);
     }
@@ -150,7 +226,34 @@ async function readBoundedJsonResponse(response: Response): Promise<unknown> {
     combined.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return JSON.parse(new TextDecoder().decode(combined));
+  try {
+    return JSON.parse(new TextDecoder().decode(combined));
+  } catch {
+    throw new ProviderDiagnosticError('response_json_malformed');
+  }
+}
+
+function diagnosticForHttpStatus(status: number): ProviderDiagnosticCode {
+  if (status === 401 || status === 403) {
+    return 'http_auth';
+  }
+  if (status === 402) {
+    return 'http_quota';
+  }
+  if (status === 429) {
+    return 'http_rate_limit';
+  }
+  if (status >= 500) {
+    return 'http_server';
+  }
+  return 'http_client';
+}
+
+function diagnosticForProviderError(error: unknown): ProviderDiagnosticCode {
+  if (typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number') {
+    return diagnosticForHttpStatus(error.status);
+  }
+  return 'transport_error';
 }
 
 export function createF1QLTextModel(): F1QLTextModel {
@@ -170,19 +273,19 @@ export async function translateF1QLQuestion(question: string, model: F1QLTextMod
   let raw: string;
   try {
     raw = await model.complete(SYSTEM_PROMPT, question, signal);
-  } catch {
-    return { type: 'provider_unavailable', reason: 'provider_error' };
+  } catch (error) {
+    return providerUnavailable('provider_error', error instanceof ProviderDiagnosticError ? error.diagnosticCode : 'transport_error');
   }
 
   let output: unknown;
   try {
     output = JSON.parse(raw);
   } catch {
-    return { type: 'provider_unavailable', reason: 'invalid_response' };
+    return providerUnavailable('invalid_response', 'tool_arguments_invalid');
   }
   const envelope = translationEnvelopeSchema.safeParse(output);
   if (!envelope.success) {
-    return { type: 'provider_unavailable', reason: 'invalid_response' };
+    return providerUnavailable('invalid_response', 'tool_arguments_invalid');
   }
   if (envelope.data.type !== 'program_candidate') {
     return envelope.data;

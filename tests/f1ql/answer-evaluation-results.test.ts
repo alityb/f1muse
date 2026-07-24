@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
@@ -5,6 +6,14 @@ import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { emitAnswerEvaluationResults } from '../../scripts/snapshot-answer-evaluation-results';
 import { F1QLLinkingError, linkAnswerF1QLCandidateObserved } from '../../src/f1ql/translation-linking';
 import { seedAnswerEvaluationFixture } from '../fixtures/f1ql-answer-evaluation-fixture';
+import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
+import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
+import { collectAnswerObservations } from '../../src/f1ql/answer-observations';
+import { AnswerQuestionContract } from '../../src/f1ql/answer-question';
+import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
+import { AnswerIntent } from '../../src/f1ql/answer-intent';
+import { AnswerTranslationResult } from '../../src/f1ql/answer-translator';
+import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
 
 let pool: Pool;
 
@@ -24,6 +33,7 @@ afterAll(async () => {
 describe('answer evaluation generated results', () => {
   it('matches the real bounded canonical-program emitter', async () => {
     const expected = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8'));
+    expect(expected).toHaveLength(answerEvaluationManifest.filter(item => item.expected.action === 'answer').length);
     await expect(emitAnswerEvaluationResults(pool)).resolves.toEqual(expected);
   });
 
@@ -51,4 +61,87 @@ describe('answer evaluation generated results', () => {
       entityCandidates: ['driver:alex-one', 'driver:alex-two', 'event:2025:1']
     });
   });
+
+  it('runs every reviewed question through deterministic admission, translation, real resolvers, proof, templates, policy, and bounds', async () => {
+    const eventResolver = new AnswerEventIdentityResolver(pool);
+    const driverResolver = new AnswerDriverIdentityResolver(pool);
+    expect(await driverResolver.inventoryMentions('Where did Max Verstappen finish?', 2025)).toEqual([
+      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max_verstappen'], active_candidates: ['max_verstappen'] })
+    ]);
+    expect(await driverResolver.inventoryMentions('Where did Max Verstappen finish in the 2025 Australian Grand Prix race result?', 2025)).toEqual([
+      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max_verstappen'], active_candidates: ['max_verstappen'] })
+    ]);
+    await expect(eventResolver.resolve(2025, 'Australian Grand Prix')).resolves.toEqual({ type: 'resolved', season: 2025, round: 1 });
+    const byQuestionHash = new Map(answerEvaluationManifest.map(item => [createHash('sha256').update(item.question.normalize('NFKC').trim()).digest('hex'), item]));
+    const artifact = await collectAnswerObservations(answerEvaluationManifest, {
+      type: 'groq', model: 'openai/gpt-oss-20b', collected_at: '2026-07-24T00:00:00.000Z'
+    }, {
+      translate: async contract => ({ result: await deterministicTranslation(contract, byQuestionHash, driverResolver), timedOut: false }),
+      prove: (contract, intent) => proveAnswerIntent(contract, intent, eventResolver, driverResolver),
+      now: (() => { let value = 0; return () => value += 1; })()
+    });
+    for (const item of answerEvaluationManifest) {
+      const observed = artifact.observations.find(observation => observation.id === item.id)!;
+      expect.soft({ action: observed.action, reason: observed.reason }, item.id).toEqual({ action: item.expected.action, reason: item.expected.reason });
+      if (item.expected.action === 'answer') {
+        expect.soft(observed.template_id, item.id).toBe(item.expected.template_id);
+        expect.soft(observed.program_hash, item.id).toBe(getF1QLProgramHash(item.expected.acceptable_programs![0]));
+      }
+    }
+  });
 });
+
+async function deterministicTranslation(
+  contract: AnswerQuestionContract,
+  cases: Map<string, (typeof answerEvaluationManifest)[number]>,
+  driverResolver: AnswerDriverIdentityResolver
+): Promise<AnswerTranslationResult> {
+  const item = cases.get(contract.sha256);
+  if (!item) throw new Error('reviewed question missing');
+  if (item.id === 'dev-ambiguous') return { type: 'clarification_required', reason: 'metric_ambiguous' };
+  if (item.id === 'ambiguous-event') return { type: 'intent_candidate', intent: executableIntent(contract, 'race_classification_all', []) };
+  if (item.id === 'ambiguous-driver') {
+    const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 2025);
+    return { type: 'intent_candidate', intent: executableIntent(contract, 'race_classification_driver', inventory) };
+  }
+  if (item.id === 'iid-empty') return { type: 'intent_candidate', intent: executableIntent(contract, 'race_date', []) };
+  const proofAttackIds = new Set(['attack-event', 'attack-round', 'attack-driver', 'attack-session', 'attack-status', 'attack-dropped-driver', 'attack-added-driver', 'attack-repeated-driver', 'unicode-homoglyph']);
+  if (proofAttackIds.has(item.id)) {
+    const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 2025);
+    const template = item.id === 'attack-session' ? 'race_classification_all'
+      : item.id === 'attack-status' ? 'race_classification_status'
+        : item.id === 'attack-event' || item.id === 'attack-round' ? 'race_classification_all' : 'final_standings_points';
+    let selected = inventory;
+    if (['attack-driver', 'attack-dropped-driver', 'attack-added-driver'].includes(item.id)) selected = inventory.slice(0, 1);
+    if (item.id === 'unicode-homoglyph') selected = [{ text: 'Mаx Verstappen', start: contract.normalized_question.indexOf('M'), end: contract.normalized_question.indexOf('M') + Array.from('Mаx Verstappen').length, candidates: [], active_candidates: [] }];
+    return { type: 'intent_candidate', intent: executableIntent(contract, template, selected) };
+  }
+  if (item.expected.action !== 'answer') {
+    return item.expected.action === 'clarify'
+      ? { type: 'clarification_required', reason: item.expected.reason as 'metric_ambiguous' }
+      : { type: 'unsupported', reason: item.expected.reason as Extract<AnswerIntent, { type: 'unsupported' }>['reason'] };
+  }
+  const season = Number(item.expected.acceptable_programs![0].root.op === 'rank'
+    ? item.expected.acceptable_programs![0].root.input.input.op === 'filter' && item.expected.acceptable_programs![0].root.input.input.where.season
+    : 'season' in item.expected.acceptable_programs![0].root && item.expected.acceptable_programs![0].root.season);
+  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, season || contract.years[0].value);
+  return { type: 'intent_candidate', intent: executableIntent(contract, item.expected.template_id!, inventory) };
+}
+
+function executableIntent(contract: AnswerQuestionContract, template: string, inventory: readonly { text: string; start: number; end: number }[]): Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }> {
+  const seasonMention = contract.years[0];
+  const season = seasonMention.value;
+  const season_reference = { text: seasonMention.text, start: seasonMention.start, end: seasonMention.end };
+  const event = contract.event_cues[0] ?? contract.rounds[0];
+  const event_reference = event ? { text: event.text, start: event.start, end: event.end } : undefined;
+  const references = inventory.map(mention => ({ text: mention.text, start: mention.start, end: mention.end }));
+  if (template === 'final_standings_points') return { type: template, season, season_reference, driver_references: references };
+  if (template === 'final_standings_leader') return { type: template, season, season_reference };
+  if (template === 'race_date') return { type: template, season, season_reference, event_reference: event_reference! };
+  if (template === 'race_classification_all' || template === 'qualifying_classification_all') return { type: template, season, season_reference, event_reference: event_reference! };
+  if (template === 'race_classification_driver' || template === 'qualifying_classification_driver') return { type: template, season, season_reference, event_reference: event_reference!, driver_reference: references[0] };
+  const status = contract.status_cues[0];
+  if (template === 'race_classification_status') return { type: template, season, season_reference, event_reference: event_reference!, status: status.value, status_reference: { text: status.text, start: status.start, end: status.end } };
+  if (template === 'qualifying_classification_status') return { type: template, season, season_reference, event_reference: event_reference!, status: status.value as 'classified' | 'dnf' | 'dns', status_reference: { text: status.text, start: status.start, end: status.end } };
+  throw new Error(`unsupported deterministic template ${template}`);
+}

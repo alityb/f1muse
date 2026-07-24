@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { buildAnswerObservationReport } from '../src/f1ql/answer-observation-report';
-import { validateAnswerObservationArtifact } from '../src/f1ql/answer-observations';
+import { parseAnswerObservationArtifact, validateAnswerObservationArtifact, verifyAnswerObservationArtifact } from '../src/f1ql/answer-observations';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../tests/fixtures/f1ql-answer-evaluation-manifest';
 
 const MAXIMUM_ARTIFACT_BYTES = 1_000_000;
 
-export function reportAnswerObservationFile(path: string): ReturnType<typeof buildAnswerObservationReport> {
+export function reportAnswerObservationFile(path: string, env: NodeJS.ProcessEnv = process.env): ReturnType<typeof buildAnswerObservationReport> {
   const descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
   let content: Buffer;
   try {
@@ -33,13 +33,26 @@ export function reportAnswerObservationFile(path: string): ReturnType<typeof bui
   } finally {
     closeSync(descriptor);
   }
-  const artifact = validateAnswerObservationArtifact(answerEvaluationManifest, JSON.parse(content.toString('utf8')));
+  const input = JSON.parse(content.toString('utf8'));
+  const parsed = parseAnswerObservationArtifact(input);
+  const artifact = parsed.version === 3
+    ? verifyAnswerObservationArtifact(answerEvaluationManifest, input, {
+      key_id: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_KEY_ID'),
+      public_key_base64: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64')
+    })
+    : validateAnswerObservationArtifact(answerEvaluationManifest, parsed);
   return buildAnswerObservationReport(
     answerEvaluationManifest,
     answerMetamorphicGroups,
     artifact,
     createHash('sha256').update(content).digest('hex')
   );
+}
+
+function requiredEnvironment(env: NodeJS.ProcessEnv, name: string): string {
+  const value = env[name];
+  if (!value) throw new Error(`Missing required ${name}`);
+  return value;
 }
 
 function main(): void {

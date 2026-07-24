@@ -3,6 +3,8 @@ import { F1QLProgram } from './ast';
 import { parseF1QLProgram } from './schema';
 import { F1QLTranslationResult } from './translator';
 import { normalizeF1QLProgram } from './verified-programs';
+import { getF1QLProgramHash } from './verified-programs';
+import { AnswerTemplateId } from './answer-templates';
 
 export type AnswerEvaluationAction = 'answer' | 'clarify' | 'abstain';
 export type AnswerEvaluationSplit = 'development' | 'iid_holdout' | 'temporal_entity_holdout' | 'adversarial';
@@ -16,7 +18,13 @@ export interface AnswerEvaluationCase {
   canonical_entities: string[];
   acceptable_linked_entities?: string[][];
   risk_tags: string[];
-  expected: { action: AnswerEvaluationAction; reason: string; acceptable_programs?: F1QLProgram[] };
+  expected: {
+    action: AnswerEvaluationAction;
+    reason: string;
+    template_id?: AnswerTemplateId;
+    proof_outcome: 'passed' | 'clarification' | 'rejected';
+    acceptable_programs?: F1QLProgram[];
+  };
 }
 
 export interface AnswerEvaluationObservation {
@@ -26,10 +34,13 @@ export interface AnswerEvaluationObservation {
   program?: F1QLProgram;
   entity_candidates?: string[];
   linked_entities?: string[];
+  template_id?: AnswerTemplateId;
+  proof_status?: 'passed' | 'failed' | 'not_applicable';
+  program_hash?: string;
 }
 
 export type AnswerProgramComponent = 'source' | 'scope' | 'entities' | 'filters' | 'operation' | 'ordering' | 'limits';
-export type AnswerMetamorphicTransformation = 'paraphrase' | 'alias' | 'filter_reordering';
+export type AnswerMetamorphicTransformation = 'year_placement' | 'alias' | 'event_round' | 'session_synonym' | 'filter_reordering' | 'punctuation_whitespace' | 'negation' | 'harmless_distractor';
 
 export interface AnswerMetamorphicGroup {
   id: string;
@@ -122,7 +133,9 @@ export function evaluateAnswerSelection(cases: readonly AnswerEvaluationCase[], 
       reasonCorrect++;
     }
     const acceptablePrograms = item.expected.acceptable_programs ?? [];
-    const exactProgram = observed.program !== undefined && acceptablePrograms.some(program => JSON.stringify(normalizeF1QLProgram(observed.program)) === JSON.stringify(normalizeF1QLProgram(program)));
+    const exactProgram = acceptablePrograms.some(program => observed.program !== undefined
+      ? JSON.stringify(normalizeF1QLProgram(observed.program)) === JSON.stringify(normalizeF1QLProgram(program))
+      : observed.program_hash === getF1QLProgramHash(program));
     if (acceptablePrograms.length > 0) {
       programTotal++;
       const componentMatches = observed.program === undefined ? undefined : bestComponentMatches(observed.program, acceptablePrograms);
@@ -184,9 +197,14 @@ export function evaluateMetamorphicConsistency(groups: readonly AnswerMetamorphi
     observedById.set(observation.id, observation);
   }
   const byTransformation: AnswerMetamorphicReport['by_transformation'] = {
-    paraphrase: { total: 0, complete: 0, consistent: 0 },
+    year_placement: { total: 0, complete: 0, consistent: 0 },
     alias: { total: 0, complete: 0, consistent: 0 },
-    filter_reordering: { total: 0, complete: 0, consistent: 0 }
+    event_round: { total: 0, complete: 0, consistent: 0 },
+    session_synonym: { total: 0, complete: 0, consistent: 0 },
+    filter_reordering: { total: 0, complete: 0, consistent: 0 },
+    punctuation_whitespace: { total: 0, complete: 0, consistent: 0 },
+    negation: { total: 0, complete: 0, consistent: 0 },
+    harmless_distractor: { total: 0, complete: 0, consistent: 0 }
   };
   let complete = 0;
   let consistent = 0;
@@ -211,14 +229,19 @@ function metamorphicSelectionSignature(observation: AnswerEvaluationObservation)
   if (!isValidMetamorphicObservation(observation)) {
     return undefined;
   }
-  return JSON.stringify({ action: observation.action, reason: observation.reason, program: observation.program === undefined ? undefined : normalizeF1QLProgram(observation.program) });
+  return JSON.stringify({
+    action: observation.action,
+    reason: observation.reason,
+    template_id: observation.template_id,
+    program: observation.program === undefined ? observation.program_hash : normalizeF1QLProgram(observation.program)
+  });
 }
 
 function isValidMetamorphicObservation(observation: AnswerEvaluationObservation): boolean {
   if (!['answer', 'clarify', 'abstain'].includes(observation.action) || typeof observation.reason !== 'string' || observation.reason.trim().length === 0) {
     return false;
   }
-  if ((observation.action === 'answer') !== (observation.program !== undefined)) {
+  if ((observation.action === 'answer') !== (observation.program !== undefined || observation.program_hash !== undefined)) {
     return false;
   }
   if (observation.program !== undefined) {

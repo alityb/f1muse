@@ -22,6 +22,8 @@
     "golden:snapshot:answer-evaluation": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test tsx scripts/snapshot-answer-evaluation-results.ts; status=$?; npm run db:test:down; exit $status",
     "collect:answer-evaluation:local": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test tsx scripts/collect-answer-evaluation-observations.ts; status=$?; npm run db:test:down; exit $status",
     "report:answer-evaluation": "tsx scripts/report-answer-evaluation-observations.ts",
+    "build:answer-release-attestation": "tsx scripts/build-answer-release-attestation.ts",
+    "verify:answer-release-attestation": "tsx scripts/verify-answer-release-attestation.ts",
     "golden:snapshot:scoring-rules": "tsx scripts/snapshot-scoring-rules.ts",
     "smoke:f1ql": "./scripts/smoke-f1ql.sh",
     "report:f1ql-shadow": "tsx scripts/report-f1ql-shadow.ts",

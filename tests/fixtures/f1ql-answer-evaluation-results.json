@@ -1,6 +1,88 @@
 [
   {
-    "id": "dev-standings",
+    "id": "dev-points",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "1f82b552e8725369662711d51af4271bd0a7286af28b575b8831ca807c87c9dc",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "points": "25"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "points": "25"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "dev-leader",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -75,7 +157,7 @@
     }
   },
   {
-    "id": "dev-race",
+    "id": "dev-race-driver",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -100,7 +182,7 @@
               "finishing_position": "1",
               "points": "25",
               "classification_status": "classified",
-              "status_reason": null
+              "status_reason": "1"
             }
           }
         ]
@@ -111,7 +193,7 @@
           "finishing_position": 1,
           "points": "25",
           "classification_status": "classified",
-          "status_reason": null
+          "status_reason": "1"
         }
       ],
       "rendering": "Official race classification; season 2025; round 1; top 30.",
@@ -129,7 +211,7 @@
     }
   },
   {
-    "id": "iid-pair",
+    "id": "iid-points-pair",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -199,6 +281,88 @@
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-points-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "1f82b552e8725369662711d51af4271bd0a7286af28b575b8831ca807c87c9dc",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "points": "300"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "points": "25"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "points": "300"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "points": "25"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
         },
         "caveats": []
       }
@@ -280,7 +444,564 @@
     }
   },
   {
-    "id": "iid-qualifying",
+    "id": "holdout-leader",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 1
+        }
+      },
+      "program_hash": "b362ebc019916898b283a446224fcb1072188be7053dc04bf37db2081d649168",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1",
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-race-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "86b4e073d2fb0dcac885234a7d2f46bcd12b540f7daec2485127a75f08dfd683",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          },
+          {
+            "subject": "status-dns",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dns",
+              "status_reason": "DNS"
+            }
+          },
+          {
+            "subject": "status-dsq",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dsq",
+              "status_reason": "DSQ"
+            }
+          },
+          {
+            "subject": "status-nc",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "not_classified",
+              "status_reason": "NC"
+            }
+          },
+          {
+            "subject": "status-withdrawn",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "withdrawn",
+              "status_reason": "W"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        },
+        {
+          "driver_id": "status-dns",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dns",
+          "status_reason": "DNS"
+        },
+        {
+          "driver_id": "status-dsq",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dsq",
+          "status_reason": "DSQ"
+        },
+        {
+          "driver_id": "status-nc",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "not_classified",
+          "status_reason": "NC"
+        },
+        {
+          "driver_id": "status-withdrawn",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "withdrawn",
+          "status_reason": "W"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 6
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "86b4e073d2fb0dcac885234a7d2f46bcd12b540f7daec2485127a75f08dfd683",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          },
+          {
+            "subject": "status-dns",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dns",
+              "status_reason": "DNS"
+            }
+          },
+          {
+            "subject": "status-dsq",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dsq",
+              "status_reason": "DSQ"
+            }
+          },
+          {
+            "subject": "status-nc",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "not_classified",
+              "status_reason": "NC"
+            }
+          },
+          {
+            "subject": "status-withdrawn",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "withdrawn",
+              "status_reason": "W"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        },
+        {
+          "driver_id": "status-dns",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dns",
+          "status_reason": "DNS"
+        },
+        {
+          "driver_id": "status-dsq",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dsq",
+          "status_reason": "DSQ"
+        },
+        {
+          "driver_id": "status-nc",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "not_classified",
+          "status_reason": "NC"
+        },
+        {
+          "driver_id": "status-withdrawn",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "withdrawn",
+          "status_reason": "W"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 6
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-race-driver",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "062f10767d0d78003a2c90fee1d44d8801fcca5111371a2d39674541026995c2",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-driver-null",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "sample-driver"
+          }
+        }
+      },
+      "program_hash": "26a23cefdeeb868b70822a7a21203d8e19cb60fc9c2e3eb97116013d1f0bed3c",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-race-status",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dnf"
+            ]
+          }
+        }
+      },
+      "program_hash": "ef2cf85af9d3563bb3b85a5067f3561968d0f177a25a76d5a3edd99763076139",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-status",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dnf"
+            ]
+          }
+        }
+      },
+      "program_hash": "ef2cf85af9d3563bb3b85a5067f3561968d0f177a25a76d5a3edd99763076139",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-qual-all",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -289,10 +1010,10 @@
           "op": "qualifying_classification",
           "season": 2025,
           "round": 1,
-          "limit": 20
+          "limit": 30
         }
       },
-      "program_hash": "704101e6e0050ea829608c185eeac38fa2b9bfbe6b510030d79b1473b6a399fb",
+      "program_hash": "729b378d5ca768ac5c50cc4ceac49e90bb8cf6a36c5ded51fc42d17098743afc",
       "answer": {
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
@@ -315,6 +1036,16 @@
               "eliminated_in_round": null,
               "classification_status": "dns"
             }
+          },
+          {
+            "subject": "status-qual-dnf",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": "Q1",
+              "eliminated_in_round": null,
+              "classification_status": "dnf"
+            }
           }
         ]
       },
@@ -334,9 +1065,17 @@
           "best_session": null,
           "eliminated_in_round": null,
           "classification_status": "dns"
+        },
+        {
+          "driver_id": "status-qual-dnf",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": "Q1",
+          "eliminated_in_round": null,
+          "classification_status": "dnf"
         }
       ],
-      "rendering": "Official qualifying classification; season 2025; round 1; top 20.",
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v2",
@@ -344,14 +1083,331 @@
         "fact_space_version": "source-views-v1",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 2
+          "rows_returned": 3
         },
         "caveats": []
       }
     }
   },
   {
-    "id": "iid-metadata",
+    "id": "holdout-qual-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "729b378d5ca768ac5c50cc4ceac49e90bb8cf6a36c5ded51fc42d17098743afc",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
+          },
+          {
+            "subject": "status-qual-dnf",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": "Q1",
+              "eliminated_in_round": null,
+              "classification_status": "dnf"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
+        },
+        {
+          "driver_id": "status-qual-dnf",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": "Q1",
+          "eliminated_in_round": null,
+          "classification_status": "dnf"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-qual-driver",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "5df5ce8ba99ca06fae386c7e1ea748574c7cdc1544cad46f31169d91faffb6e5",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-qual-driver",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "5df5ce8ba99ca06fae386c7e1ea748574c7cdc1544cad46f31169d91faffb6e5",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-qual-status",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dns"
+            ]
+          }
+        }
+      },
+      "program_hash": "3fa12e19d566f6bb302cade9c3c7e78adf560ee11617fac5c409f105fd8c35f5",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-qual-status",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dns"
+            ]
+          }
+        }
+      },
+      "program_hash": "3fa12e19d566f6bb302cade9c3c7e78adf560ee11617fac5c409f105fd8c35f5",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-date",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -402,48 +1458,45 @@
     }
   },
   {
-    "id": "iid-null",
+    "id": "holdout-date",
     "envelope": {
       "mode": "gated_execution",
       "program": {
         "version": 1,
         "root": {
-          "op": "event_classification",
+          "op": "event_metadata",
           "season": 2025,
           "round": 1,
-          "limit": 30,
-          "filters": {
-            "driver_id": "sample-driver"
-          }
+          "session_scope": "race"
         }
       },
-      "program_hash": "26a23cefdeeb868b70822a7a21203d8e19cb60fc9c2e3eb97116013d1f0bed3c",
+      "program_hash": "6e565c506f8b3e75f6ef83d2b5834a745bfe4d9485cd510c8c105f136a4b0616",
       "answer": {
-        "headline": "Race classification for 2025 round 1.",
+        "headline": "Race event date metadata.",
         "facts": [
           {
-            "subject": "sample-driver",
+            "subject": "Formula 1 Australian Grand Prix",
             "values": {
-              "finishing_position": null,
-              "points": "0",
-              "classification_status": "dnf",
-              "status_reason": "Engine"
+              "event_id": "australian-grand-prix",
+              "circuit_id": "albert-park",
+              "date": "2025-03-16",
+              "session_scope": "race"
             }
           }
         ]
       },
       "rows": [
         {
-          "driver_id": "sample-driver",
-          "finishing_position": null,
-          "points": "0",
-          "classification_status": "dnf",
-          "status_reason": "Engine"
+          "event_id": "australian-grand-prix",
+          "event_name": "Formula 1 Australian Grand Prix",
+          "circuit_id": "albert-park",
+          "date": "2025-03-16",
+          "session_scope": "race"
         }
       ],
-      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
-        "source": "race_classification",
+        "source": "race_date_metadata",
         "definitions_version": "v2",
         "compiler_version": "core-v1",
         "fact_space_version": "source-views-v1",
@@ -532,54 +1585,803 @@
     }
   },
   {
-    "id": "iid-empty",
+    "id": "holdout-historical-points",
     "envelope": {
       "mode": "gated_execution",
       "program": {
         "version": 1,
         "root": {
-          "op": "event_metadata",
-          "season": 2025,
-          "round": 30,
-          "session_scope": "race"
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2024,
+              "driver_id": [
+                "charles-leclerc"
+              ]
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
         }
       },
-      "program_hash": "ee1143f9706e8f33cf41be756ea6a5f47db31aa56033477d9e102c4b9ab73ab1",
+      "program_hash": "9c8aad7683abe1bfdd48b9353b0fc2e6fef588cda6a2936b9c5cb4b3d4bebfd4",
       "answer": {
-        "headline": "No matching source rows were available.",
-        "facts": []
+        "headline": "Final 2024 driver standings result.",
+        "facts": [
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "points": "356"
+            }
+          }
+        ]
       },
-      "rows": [],
-      "rendering": "Event metadata; season 2025; round 30; race session.",
+      "rows": [
+        {
+          "driver_id": "charles-leclerc",
+          "points": "356"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2024; drivers charles-leclerc.",
       "metadata": {
-        "source": "race_date_metadata",
+        "source": "final_driver_standings",
         "definitions_version": "v2",
         "compiler_version": "core-v1",
         "fact_space_version": "source-views-v1",
         "coverage": {
-          "status": "empty",
-          "rows_returned": 0
+          "status": "sufficient",
+          "rows_returned": 1
         },
-        "caveats": [
-          "empty_result_is_not_zero"
-        ]
+        "caveats": []
       }
     }
   },
   {
-    "id": "holdout-success",
+    "id": "holdout-historical-leader",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2024
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 1
+        }
+      },
+      "program_hash": "3ef2a33029ae6068893509ac7f87523e50adb82660fad1300bbca345b209bed6",
+      "answer": {
+        "headline": "Final 2024 driver standings result.",
+        "facts": [
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "championship_position": "1",
+              "points": "389"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lewis-hamilton",
+          "championship_position": 1,
+          "points": "389"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2024; rank by championship_position asc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-historical-race-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2024,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "0790906219ff72f5b4beaadad805dbfdacaed6e15d59c39b291f629bfd96cb46",
+      "answer": {
+        "headline": "Race classification for 2024 round 1.",
+        "facts": [
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        }
+      ],
+      "rendering": "Official race classification; season 2024; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-monaco-charles",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 2,
+          "limit": 30,
+          "filters": {
+            "driver_id": "charles-leclerc"
+          }
+        }
+      },
+      "program_hash": "f53ae45ba0b7d8b56c3cb179fbd167fa8bac19b0311a91dabb5eab28448cefa0",
+      "answer": {
+        "headline": "Race classification for 2025 round 2.",
+        "facts": [
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 2; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-classified",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "classified"
+            ]
+          }
+        }
+      },
+      "program_hash": "e67e1b713bd27d3bc4dc846cdc9b175a22729c8aefb0ce2c887a735d280431af",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-dns",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dns"
+            ]
+          }
+        }
+      },
+      "program_hash": "bad15a4591eda2e5e8a459e3d6acd6ca71a8384444927fdb0e07a0eb513f9b8f",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "status-dns",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dns",
+              "status_reason": "DNS"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "status-dns",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dns",
+          "status_reason": "DNS"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-dsq",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dsq"
+            ]
+          }
+        }
+      },
+      "program_hash": "f1bcdc90ce6172a81588cb22094bfdfbe2fd8daf9c74c0173c0e46b45e994315",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "status-dsq",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dsq",
+              "status_reason": "DSQ"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "status-dsq",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dsq",
+          "status_reason": "DSQ"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-not-classified",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "not_classified"
+            ]
+          }
+        }
+      },
+      "program_hash": "42e65389b975ef1b957a71ffd189a677907d38f23b43d12e8498c9f44d35a1d2",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "status-nc",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "not_classified",
+              "status_reason": "NC"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "status-nc",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "not_classified",
+          "status_reason": "NC"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-race-withdrawn",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "withdrawn"
+            ]
+          }
+        }
+      },
+      "program_hash": "7de5cacbecfc744ce06eed04a584f5b8643e36883b16e6388feb7a6642ea6f29",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "status-withdrawn",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "withdrawn",
+              "status_reason": "W"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "status-withdrawn",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "withdrawn",
+          "status_reason": "W"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-historical-qual-all",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2024,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "fc7470e55590be82ea1c7e4799f7ce303b006f8966dba6de1c75ab11ce6410d1",
+      "answer": {
+        "headline": "Qualifying classification for 2024 round 1.",
+        "facts": [
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80500",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "2",
+              "best_time_ms": "80600",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 1,
+          "best_time_ms": 80500,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 2,
+          "best_time_ms": 80600,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2024; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-monaco-lando-qual",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 2,
+          "limit": 30,
+          "filters": {
+            "driver_id": "lando-norris"
+          }
+        }
+      },
+      "program_hash": "0b5831c3f8447bd4d0d35263835f8a3d5bb477aabb49d181a49bc5149b5103ce",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 2.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "79000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": 1,
+          "best_time_ms": 79000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 2; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-qual-classified",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "classified"
+            ]
+          }
+        }
+      },
+      "program_hash": "7fea8291b9c54f9b5c9f19c1e0be2734eb6be2ce518134a8677cbb47b9088f54",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-qual-dnf",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "classification_status": [
+              "dnf"
+            ]
+          }
+        }
+      },
+      "program_hash": "9a686b2fa60eb784b8f9ac0e14db27cd02b33833ad69e3753789a529b299fb0c",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "status-qual-dnf",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": "Q1",
+              "eliminated_in_round": null,
+              "classification_status": "dnf"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "status-qual-dnf",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": "Q1",
+          "eliminated_in_round": null,
+          "classification_status": "dnf"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-historical-date",
     "envelope": {
       "mode": "gated_execution",
       "program": {
         "version": 1,
         "root": {
           "op": "event_metadata",
-          "season": 2025,
+          "season": 2024,
           "round": 1,
           "session_scope": "race"
         }
       },
-      "program_hash": "6e565c506f8b3e75f6ef83d2b5834a745bfe4d9485cd510c8c105f136a4b0616",
+      "program_hash": "9bcbc4f9d68d2b050f33f1f760da55f6b4b9e507945f45363a710a509041f14a",
       "answer": {
         "headline": "Race event date metadata.",
         "facts": [
@@ -588,7 +2390,7 @@
             "values": {
               "event_id": "australian-grand-prix",
               "circuit_id": "albert-park",
-              "date": "2025-03-16",
+              "date": "2024-03-24",
               "session_scope": "race"
             }
           }
@@ -599,11 +2401,11 @@
           "event_id": "australian-grand-prix",
           "event_name": "Formula 1 Australian Grand Prix",
           "circuit_id": "albert-park",
-          "date": "2025-03-16",
+          "date": "2024-03-24",
           "session_scope": "race"
         }
       ],
-      "rendering": "Event metadata; season 2025; round 1; race session.",
+      "rendering": "Event metadata; season 2024; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
         "definitions_version": "v2",
@@ -618,7 +2420,72 @@
     }
   },
   {
-    "id": "meta-standings-paraphrase",
+    "id": "unicode-astral",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": [
+                "max-verstappen"
+              ]
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            }
+          ]
+        }
+      },
+      "program_hash": "499ca1f887d5ca30a9efbb820afe85c6cc239db57328653eeda13e4810290464",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "points": "25"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "points": "25"
+        }
+      ],
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers max-verstappen.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-year",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -693,7 +2560,7 @@
     }
   },
   {
-    "id": "meta-race-alias",
+    "id": "meta-alias",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -718,7 +2585,7 @@
               "finishing_position": "1",
               "points": "25",
               "classification_status": "classified",
-              "status_reason": null
+              "status_reason": "1"
             }
           }
         ]
@@ -729,7 +2596,7 @@
           "finishing_position": 1,
           "points": "25",
           "classification_status": "classified",
-          "status_reason": null
+          "status_reason": "1"
         }
       ],
       "rendering": "Official race classification; season 2025; round 1; top 30.",
@@ -747,7 +2614,189 @@
     }
   },
   {
-    "id": "meta-pair-filter-order",
+    "id": "meta-event-round",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_metadata",
+          "season": 2025,
+          "round": 1,
+          "session_scope": "race"
+        }
+      },
+      "program_hash": "6e565c506f8b3e75f6ef83d2b5834a745bfe4d9485cd510c8c105f136a4b0616",
+      "answer": {
+        "headline": "Race event date metadata.",
+        "facts": [
+          {
+            "subject": "Formula 1 Australian Grand Prix",
+            "values": {
+              "event_id": "australian-grand-prix",
+              "circuit_id": "albert-park",
+              "date": "2025-03-16",
+              "session_scope": "race"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "event_id": "australian-grand-prix",
+          "event_name": "Formula 1 Australian Grand Prix",
+          "circuit_id": "albert-park",
+          "date": "2025-03-16",
+          "session_scope": "race"
+        }
+      ],
+      "rendering": "Event metadata; season 2025; round 1; race session.",
+      "metadata": {
+        "source": "race_date_metadata",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-session",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "86b4e073d2fb0dcac885234a7d2f46bcd12b540f7daec2485127a75f08dfd683",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "sample-driver",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dnf",
+              "status_reason": "R"
+            }
+          },
+          {
+            "subject": "status-dns",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dns",
+              "status_reason": "DNS"
+            }
+          },
+          {
+            "subject": "status-dsq",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "dsq",
+              "status_reason": "DSQ"
+            }
+          },
+          {
+            "subject": "status-nc",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "not_classified",
+              "status_reason": "NC"
+            }
+          },
+          {
+            "subject": "status-withdrawn",
+            "values": {
+              "finishing_position": null,
+              "points": "0",
+              "classification_status": "withdrawn",
+              "status_reason": "W"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "sample-driver",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dnf",
+          "status_reason": "R"
+        },
+        {
+          "driver_id": "status-dns",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dns",
+          "status_reason": "DNS"
+        },
+        {
+          "driver_id": "status-dsq",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "dsq",
+          "status_reason": "DSQ"
+        },
+        {
+          "driver_id": "status-nc",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "not_classified",
+          "status_reason": "NC"
+        },
+        {
+          "driver_id": "status-withdrawn",
+          "finishing_position": null,
+          "points": "0",
+          "classification_status": "withdrawn",
+          "status_reason": "W"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 6
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-pair-order",
     "envelope": {
       "mode": "gated_execution",
       "program": {
@@ -763,8 +2812,8 @@
             "where": {
               "season": 2025,
               "driver_id": [
-                "oscar-piastri",
-                "lando-norris"
+                "lando-norris",
+                "oscar-piastri"
               ]
             }
           },
@@ -808,7 +2857,7 @@
           "points": "300"
         }
       ],
-      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers oscar-piastri, lando-norris.",
+      "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v2",
@@ -817,6 +2866,137 @@
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-punctuation",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30,
+          "filters": {
+            "driver_id": "max-verstappen"
+          }
+        }
+      },
+      "program_hash": "5df5ce8ba99ca06fae386c7e1ea748574c7cdc1544cad46f31169d91faffb6e5",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "meta-distractor",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 1
+        }
+      },
+      "program_hash": "b362ebc019916898b283a446224fcb1072188be7053dc04bf37db2081d649168",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1",
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
         },
         "caveats": []
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseF1QLProgramCandidate } from '../../src/f1ql/translation-schema';
-import { F1QLTextModel, OpenAICompatibleF1QLModel, translateF1QLQuestion } from '../../src/f1ql/translator';
+import { AnthropicF1QLModel, F1QLTextModel, OpenAICompatibleF1QLModel, translateF1QLQuestion } from '../../src/f1ql/translator';
 
 class StubModel implements F1QLTextModel {
   constructor(private readonly output: string) {}
@@ -93,12 +93,53 @@ describe('constrained F1QL translation', () => {
       .resolves.toEqual({ type: 'provider_unavailable', reason: 'provider_error' });
   });
 
-  it('bounds OpenAI-compatible output tokens and response bytes', async () => {
+  it('classifies sanitized OpenAI-compatible HTTP failures', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const model = new OpenAICompatibleF1QLModel('https://provider.invalid', 'secret', 'model');
+    for (const [status, diagnostic] of [[401, 'http_auth'], [402, 'http_quota'], [429, 'http_rate_limit'], [400, 'http_client'], [503, 'http_server']] as const) {
+      fetchMock.mockResolvedValueOnce(new Response(null, { status }));
+      const result = await translateF1QLQuestion('question', model);
+      expect(result).toEqual({ type: 'provider_unavailable', reason: 'provider_error' });
+      expect(result.type === 'provider_unavailable' && result.diagnostic_code).toBe(diagnostic);
+    }
+    fetchMock.mockRestore();
+  });
+
+  it('classifies bounded response and tool-call failures without retaining response content', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('x'.repeat(65_537)));
     const model = new OpenAICompatibleF1QLModel('https://provider.invalid', 'secret', 'model');
-    await expect(model.complete('system', 'question')).rejects.toThrow('response exceeded limit');
+    const oversized = await translateF1QLQuestion('question', model);
+    expect(oversized).toEqual({ type: 'provider_unavailable', reason: 'provider_error' });
+    expect(oversized.type === 'provider_unavailable' && oversized.diagnostic_code).toBe('response_oversized');
     const request = fetchMock.mock.calls[0][1];
     expect(JSON.parse(request?.body as string)).toMatchObject({ max_tokens: 512 });
+
+    fetchMock.mockResolvedValueOnce(new Response('{'));
+    await expect(translateF1QLQuestion('question', model)).resolves.toMatchObject({ diagnostic_code: 'response_json_malformed' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: {} }] })));
+    await expect(translateF1QLQuestion('question', model)).resolves.toMatchObject({ diagnostic_code: 'tool_call_missing' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { arguments: '{}' } }, { function: { arguments: '{}' } }] } }] })));
+    await expect(translateF1QLQuestion('question', model)).resolves.toMatchObject({ diagnostic_code: 'tool_call_multiple' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { name: 'wrong_tool', arguments: '{}' } }] } }] })));
+    await expect(translateF1QLQuestion('question', model)).resolves.toMatchObject({ diagnostic_code: 'tool_name_invalid' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: {} }] })));
+    await expect(translateF1QLQuestion('question', model)).resolves.toMatchObject({ diagnostic_code: 'generation_incomplete' });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { name: 'emit_f1ql_translation', arguments: '{' } }] } }] })));
+    const invalidArguments = await translateF1QLQuestion('question', model);
+    expect(invalidArguments).toEqual({ type: 'provider_unavailable', reason: 'invalid_response' });
+    expect(invalidArguments.type === 'provider_unavailable' && invalidArguments.diagnostic_code).toBe('tool_arguments_invalid');
     fetchMock.mockRestore();
+  });
+
+  it('rejects a differently named Anthropic tool call', async () => {
+    const model = new AnthropicF1QLModel('fixture-key', 'fixture-model');
+    const client = model as unknown as { client: { messages: { create: ReturnType<typeof vi.fn> } } };
+    client.client.messages.create = vi.fn().mockResolvedValue({
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', name: 'wrong_tool', input: {} }]
+    });
+    const result = await translateF1QLQuestion('question', model);
+    expect(result).toEqual({ type: 'provider_unavailable', reason: 'provider_error' });
+    expect(result.type === 'provider_unavailable' && result.diagnostic_code).toBe('tool_name_invalid');
   });
 });

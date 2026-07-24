@@ -1,4 +1,5 @@
 import { Pool, PoolConfig } from 'pg';
+import { buildAnswerDatabasePoolConfig } from './answer-database';
 
 /**
  * Parse database URL to extract host for logging (no secrets)
@@ -211,18 +212,16 @@ export function createReplicaPool(config?: PoolConfig): Pool {
   return pool;
 }
 
-export function createAnswerPool(config?: PoolConfig): Pool {
-  const connectionString = config?.connectionString ?? process.env.F1QL_ANSWER_DATABASE_URL;
-  if (!connectionString) {
-    throw new Error('F1QL_ANSWER_DATABASE_URL is required for the answer pool');
-  }
-  const useSSL = isSupabaseUrl(connectionString);
-  const pool = new Pool(config ?? {
-    connectionString,
+export function createAnswerPool(): Pool {
+  const secureConfig = buildAnswerDatabasePoolConfig(
+    process.env.F1QL_ANSWER_DATABASE_URL,
+    process.env.F1QL_ANSWER_DATABASE_CA_CERT_BASE64
+  );
+  const pool = new Pool({
+    ...secureConfig,
     max: 4,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: useSSL ? 10000 : 5000,
-    ssl: useSSL ? { rejectUnauthorized: false } : undefined
+    connectionTimeoutMillis: 10000
   });
   pool.on('connect', async client => {
     try {

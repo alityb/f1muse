@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AnswerCapability, authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
-import { AnswerBoundError, enforceAnswerRows, enforceAnswerWorkBudget, estimateAnswerWork, serializeAnswerResponse } from '../../src/f1ql/answer-bounds';
+import { AnswerBoundError, enforceAnswerRows, enforceAnswerWorkBudget, enforceVerifiedAnswerWorkBudget, estimateAnswerWork, estimateVerifiedAnswerWork, serializeAnswerResponse } from '../../src/f1ql/answer-bounds';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { addCollectionSentinel, F1QLCostLimitError } from '../../src/f1ql/executor';
+import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
+import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
 
 const programs: F1QLProgram[] = [
   { version: 1, root: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] } },
@@ -57,5 +59,17 @@ describe('answer bounds', () => {
     expect(() => enforceAnswerRows([], Number.NaN)).toThrow(AnswerBoundError);
     expect(() => serializeAnswerResponse({}, Number.POSITIVE_INFINITY)).toThrow(AnswerBoundError);
     expect(() => estimateAnswerWork(program, { ...capability(program), season: 2024 })).toThrow('did not match');
+  });
+
+  it('estimates route work only from a module-verified semantic proof', async () => {
+    const question = 'Who led the 2025 standings?';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 }
+    }, {
+      resolve: async () => ({ type: 'missing' }), resolveRound: async () => ({ type: 'missing' })
+    }, { inventoryMentions: async () => [] });
+    const estimate = estimateVerifiedAnswerWork(proof);
+    expect(enforceVerifiedAnswerWorkBudget(proof, estimate.units, estimate.requested_rows)).toEqual(estimate);
+    expect(() => estimateVerifiedAnswerWork({ ...proof } as never)).toThrow();
   });
 });
