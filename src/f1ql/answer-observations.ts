@@ -54,6 +54,12 @@ const observationSchema = z.discriminatedUnion('action', [
   if (observation.action === 'answer' && JSON.stringify(observation.linked_entities) !== JSON.stringify(canonicalProgramEntities(observation.program))) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Answer linked_entities must match the canonical program' });
   }
+  if (observation.action === 'answer') {
+    const decision = authorizeAnswerProgram(observation.program);
+    if (decision.type !== 'approved' || decision.capability.source !== observation.reason) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Answer reason must match its authorized capability' });
+    }
+  }
 });
 
 const artifactSchema = z.object({

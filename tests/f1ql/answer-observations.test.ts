@@ -54,6 +54,7 @@ describe('answer observation artifacts', () => {
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], extra: true }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], action: 'answer' }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], action: 'answer', reason: 'provider_error', program: answerEvaluationManifest[0].expected.acceptable_programs![0] }] })).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ id: 'one', action: 'answer', reason: 'race_classification', program: answerEvaluationManifest[0].expected.acceptable_programs![0], entity_candidates: [], linked_entities: [] }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], action: 'clarify', reason: 'rows' }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], entity_candidates: ['driver:x', 'driver:x'] }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], entity_candidates: ['not-an-entity'] }] })).toThrow();
