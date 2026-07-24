@@ -9,6 +9,8 @@ import { AnswerObservationArtifact } from './answer-observations';
 
 const REQUIRED_SOURCES = ['final_driver_standings', 'qualifying_classification', 'race_classification', 'race_date_metadata'] as const;
 const REQUIRED_OPERATIONS = ['aggregate', 'rank', 'event_classification', 'qualifying_classification', 'event_metadata'] as const;
+export const ANSWER_TRANSLATION_P95_BUDGET_MS = 5_000;
+export const ANSWER_TRANSLATION_MAX_BUDGET_MS = 10_000;
 
 interface SemanticThresholdResult {
   cases: number;
@@ -30,6 +32,15 @@ export interface AnswerObservationReport {
   };
   selection: ReturnType<typeof evaluateAnswerSelection>;
   metamorphic: ReturnType<typeof evaluateMetamorphicConsistency>;
+  translation_latency: {
+    observations: number;
+    required_observations: number;
+    p95_ms: number | null;
+    max_ms: number | null;
+    p95_budget_ms: typeof ANSWER_TRANSLATION_P95_BUDGET_MS;
+    max_budget_ms: typeof ANSWER_TRANSLATION_MAX_BUDGET_MS;
+    status: 'pass' | 'fail' | 'insufficient';
+  };
   holdout_thresholds: {
     required_accuracy: 1;
     by_source: Record<(typeof REQUIRED_SOURCES)[number], SemanticThresholdResult>;
@@ -45,6 +56,7 @@ export interface AnswerObservationReport {
     metamorphic_consistency_complete: boolean;
     holdout_source_thresholds_pass: boolean;
     holdout_operation_thresholds_pass: boolean;
+    translation_latency_budget_pass: boolean;
     status: 'pass' | 'fail' | 'insufficient';
   };
 }
@@ -60,6 +72,7 @@ export function buildAnswerObservationReport(
   }
   const selection = evaluateAnswerSelection(cases, artifact.observations);
   const metamorphic = evaluateMetamorphicConsistency(groups, artifact.observations);
+  const translationLatency = translationLatencyReport(artifact);
   const holdout = cases.filter(item => item.split !== 'development' && item.expected.action === 'answer');
   const bySource = thresholdGroups(REQUIRED_SOURCES, holdout, artifact.observations, item => item.expected.reason);
   const byOperation = thresholdGroups(REQUIRED_OPERATIONS, holdout, artifact.observations, expectedOperation);
@@ -77,7 +90,8 @@ export function buildAnswerObservationReport(
     canonical_links_complete: selection.complete_links_correct === selection.complete_links_total,
     metamorphic_consistency_complete: metamorphic.groups_complete === metamorphic.groups_total && metamorphic.groups_consistent === metamorphic.groups_total,
     holdout_source_thresholds_pass: sourceStatuses.every(status => status === 'pass'),
-    holdout_operation_thresholds_pass: operationStatuses.every(status => status === 'pass')
+    holdout_operation_thresholds_pass: operationStatuses.every(status => status === 'pass'),
+    translation_latency_budget_pass: translationLatency.status === 'pass'
   };
   const coreGatesPass = release.observations_complete && release.reasons_correct && release.unsafe_answers_zero && release.forbidden_answers_zero &&
     release.candidate_recall_complete && release.canonical_links_complete && release.metamorphic_consistency_complete;
@@ -92,8 +106,37 @@ export function buildAnswerObservationReport(
     },
     selection,
     metamorphic,
+    translation_latency: translationLatency,
     holdout_thresholds: { required_accuracy: 1, by_source: bySource, by_operation: byOperation },
-    release_gates: { ...release, status: releaseStatus(coreGatesPass, thresholdStatuses) }
+    release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status]) }
+  };
+}
+
+function translationLatencyReport(artifact: AnswerObservationArtifact): AnswerObservationReport['translation_latency'] {
+  const latencies = artifact.observations
+    .map(observation => observation.translation_latency_ms)
+    .filter((latency): latency is number => latency !== undefined)
+    .sort((left, right) => left - right);
+  const complete = latencies.length === artifact.observations.length;
+  const p95 = latencies.length === 0 ? null : latencies[Math.ceil(latencies.length * 0.95) - 1];
+  const maximum = latencies.length === 0 ? null : latencies[latencies.length - 1];
+  const requiredP95Rank = Math.ceil(artifact.observations.length * 0.95);
+  const allowedAboveP95 = artifact.observations.length - requiredP95Rank;
+  const observedAboveP95 = latencies.filter(latency => latency > ANSWER_TRANSLATION_P95_BUDGET_MS).length;
+  let status: AnswerObservationReport['translation_latency']['status'] = 'insufficient';
+  if ((maximum !== null && maximum > ANSWER_TRANSLATION_MAX_BUDGET_MS) || observedAboveP95 > allowedAboveP95) {
+    status = 'fail';
+  } else if (complete && p95 !== null && maximum !== null) {
+    status = p95 <= ANSWER_TRANSLATION_P95_BUDGET_MS && maximum <= ANSWER_TRANSLATION_MAX_BUDGET_MS ? 'pass' : 'fail';
+  }
+  return {
+    observations: latencies.length,
+    required_observations: artifact.observations.length,
+    p95_ms: p95,
+    max_ms: maximum,
+    p95_budget_ms: ANSWER_TRANSLATION_P95_BUDGET_MS,
+    max_budget_ms: ANSWER_TRANSLATION_MAX_BUDGET_MS,
+    status
   };
 }
 

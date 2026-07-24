@@ -24,6 +24,7 @@ describe('answer observation artifacts', () => {
     ];
     let translated = 0;
     let linked = 0;
+    let now = 0;
     const artifact = await collectAnswerObservations(cases, provider, {
       translate: async () => translations[translated++],
       link: async candidate => {
@@ -31,14 +32,15 @@ describe('answer observation artifacts', () => {
         if (linked === 3) throw new F1QLLinkingError('entity_ambiguous', ['alex-one', 'alex-two']);
         const program = candidate as never;
         return { program, entityCandidates: linked === 1 ? ['driver:max-verstappen', 'event:2025:1'] : ['driver:lando-norris', 'driver:max-verstappen'] };
-      }
+      },
+      now: () => now += 10
     });
     expect(artifact.manifest).toEqual({ case_count: 4, sha256: getAnswerEvaluationManifestHash(cases) });
     expect(artifact.observations).toEqual([
-      expect.objectContaining({ id: 'dev-race', action: 'answer', reason: 'race_classification', entity_candidates: ['driver:max-verstappen', 'event:2025:1'] }),
-      expect.objectContaining({ id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous' }),
-      expect.objectContaining({ id: 'dev-pace', action: 'abstain', reason: 'pace_source_disabled' }),
-      expect.objectContaining({ id: 'holdout-entity', action: 'clarify', reason: 'entity_ambiguous', entity_candidates: ['driver:alex-one', 'driver:alex-two'] })
+      expect.objectContaining({ id: 'dev-race', action: 'answer', reason: 'race_classification', translation_latency_ms: 10, entity_candidates: ['driver:max-verstappen', 'event:2025:1'] }),
+      expect.objectContaining({ id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous', translation_latency_ms: 10 }),
+      expect.objectContaining({ id: 'dev-pace', action: 'abstain', reason: 'pace_source_disabled', translation_latency_ms: 10 }),
+      expect.objectContaining({ id: 'holdout-entity', action: 'clarify', reason: 'entity_ambiguous', translation_latency_ms: 10, entity_candidates: ['driver:alex-one', 'driver:alex-two'] })
     ]);
   });
 
@@ -59,8 +61,19 @@ describe('answer observation artifacts', () => {
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], entity_candidates: ['driver:x', 'driver:x'] }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], entity_candidates: ['not-an-entity'] }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], linked_entities: ['driver:x'] }] })).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: -1 }] })).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...valid, observations: [{ ...valid.observations[0], translation_latency_ms: 60_001 }] })).toThrow();
     expect(() => parseAnswerObservationArtifact({ ...valid, observations: [valid.observations[0], valid.observations[0]] })).toThrow('duplicate_evaluation_observation_id');
     expect(() => validateAnswerObservationArtifact(answerEvaluationManifest.slice(0, 1), valid)).toThrow('answer_observation_manifest_mismatch');
+  });
+
+  it('rejects non-monotonic observation timing', async () => {
+    const times = [100, 99.5];
+    await expect(collectAnswerObservations(answerEvaluationManifest.slice(0, 1), provider, {
+      translate: async () => ({ type: 'unsupported', reason: 'capability_unsupported' }),
+      link: async () => { throw new Error('link must not run'); },
+      now: () => times.shift()!
+    })).rejects.toThrow('answer_observation_translation_latency_invalid');
   });
 
   it('binds the complete manifest and exact disposable database', () => {

@@ -32,6 +32,7 @@ const programSchema = z.unknown().transform((value, context) => {
 const entitySchema = z.string().min(1).max(100).regex(/^(driver:[a-z0-9]+(?:-[a-z0-9]+)*|event:\d{4}:\d+)$/);
 const observationBaseSchema = z.object({
   id: z.string().min(1).max(100),
+  translation_latency_ms: z.number().int().min(0).max(60_000).optional(),
   entity_candidates: z.array(entitySchema).max(20),
   linked_entities: z.array(entitySchema).max(20)
 });
@@ -79,6 +80,7 @@ export type AnswerObservationArtifact = z.infer<typeof artifactSchema>;
 export interface AnswerObservationCollectorDependencies {
   translate(question: string): Promise<F1QLTranslationResult>;
   link(candidate: F1QLProgramCandidate): Promise<{ program: F1QLProgram; entityCandidates: string[] }>;
+  now?: () => number;
 }
 
 export function parseAnswerObservationArtifact(input: unknown): AnswerObservationArtifact {
@@ -109,10 +111,14 @@ export async function collectAnswerObservations(
   provider: AnswerObservationArtifact['provider'],
   dependencies: AnswerObservationCollectorDependencies
 ): Promise<AnswerObservationArtifact> {
-  const observations: AnswerEvaluationObservation[] = [];
+  const observations: AnswerObservationArtifact['observations'] = [];
+  const now = dependencies.now ?? (() => performance.now());
   for (const item of cases) {
+    const startedAt = now();
     const translation = await dependencies.translate(item.question);
-    observations.push(await observeTranslation(item.id, translation, dependencies.link));
+    const translationLatencyMs = boundedTranslationLatency(startedAt, now());
+    const observation = await observeTranslation(item.id, translation, dependencies.link);
+    observations.push(observationSchema.parse({ ...observation, translation_latency_ms: translationLatencyMs }));
   }
   return validateAnswerObservationArtifact(cases, {
     version: 1,
@@ -121,6 +127,14 @@ export async function collectAnswerObservations(
     manifest: { case_count: cases.length, sha256: getAnswerEvaluationManifestHash(cases) },
     observations
   });
+}
+
+function boundedTranslationLatency(startedAt: number, finishedAt: number): number {
+  const elapsed = finishedAt - startedAt;
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 60_000) {
+    throw new Error('answer_observation_translation_latency_invalid');
+  }
+  return Math.ceil(elapsed);
 }
 
 async function observeTranslation(id: string, translation: F1QLTranslationResult, link: AnswerObservationCollectorDependencies['link']): Promise<AnswerEvaluationObservation> {

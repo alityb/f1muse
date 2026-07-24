@@ -18,8 +18,8 @@ function perfectArtifact() {
       const entities = program ? canonicalProgramEntities(program) : [...item.canonical_entities].sort();
       const linkedEntities = item.acceptable_linked_entities?.[0] ?? [];
       return program
-        ? { id: item.id, action: 'answer', reason: item.expected.reason, program, entity_candidates: entities, linked_entities: entities }
-        : { id: item.id, action: item.expected.action, reason: item.expected.reason, entity_candidates: entities, linked_entities: linkedEntities };
+        ? { id: item.id, action: 'answer', reason: item.expected.reason, program, translation_latency_ms: 100, entity_candidates: entities, linked_entities: entities }
+        : { id: item.id, action: item.expected.action, reason: item.expected.reason, translation_latency_ms: 100, entity_candidates: entities, linked_entities: linkedEntities };
     })
   });
 }
@@ -33,7 +33,8 @@ describe('answer observation reporting', () => {
     expect(report.holdout_thresholds.by_source.final_driver_standings.status).toBe('pass');
     expect(report.holdout_thresholds.by_operation.aggregate.status).toBe('pass');
     expect(report.holdout_thresholds.by_operation.rank.status).toBe('pass');
-    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, status: 'pass' });
+    expect(report.translation_latency).toEqual({ observations: 26, required_observations: 26, p95_ms: 100, max_ms: 100, p95_budget_ms: 5_000, max_budget_ms: 10_000, status: 'pass' });
+    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, translation_latency_budget_pass: true, status: 'pass' });
     expect(Object.values(report.holdout_thresholds.by_source).every(result => result.cases > 0)).toBe(true);
     expect(Object.values(report.holdout_thresholds.by_operation).every(result => result.cases > 0)).toBe(true);
     const serialized = JSON.stringify(report);
@@ -42,6 +43,39 @@ describe('answer observation reporting', () => {
       expect(serialized).not.toContain(item.id);
     }
     expect(serialized).not.toContain('private-model-name');
+  });
+
+  it('reports missing legacy latency as insufficient and over-budget latency as failed', () => {
+    const legacy = perfectArtifact();
+    for (const observation of legacy.observations) delete observation.translation_latency_ms;
+    const insufficient = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
+    expect(insufficient.translation_latency).toMatchObject({ observations: 0, required_observations: 26, status: 'insufficient' });
+    expect(insufficient.release_gates).toMatchObject({ translation_latency_budget_pass: false, status: 'insufficient' });
+
+    const incompleteSlow = perfectArtifact();
+    delete incompleteSlow.observations[0].translation_latency_ms;
+    incompleteSlow.observations[1].translation_latency_ms = 10_001;
+    const knownFailure = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, incompleteSlow, artifactHash);
+    expect(knownFailure.translation_latency).toMatchObject({ observations: 25, max_ms: 10_001, status: 'fail' });
+
+    const incompleteP95Failure = perfectArtifact();
+    delete incompleteP95Failure.observations[0].translation_latency_ms;
+    incompleteP95Failure.observations[1].translation_latency_ms = 5_001;
+    incompleteP95Failure.observations[2].translation_latency_ms = 5_001;
+    const knownP95Failure = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, incompleteP95Failure, artifactHash);
+    expect(knownP95Failure.translation_latency).toMatchObject({ observations: 25, max_ms: 5_001, status: 'fail' });
+
+    const slow = perfectArtifact();
+    slow.observations[0].translation_latency_ms = 10_001;
+    const failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, slow, artifactHash);
+    expect(failed.translation_latency).toMatchObject({ max_ms: 10_001, status: 'fail' });
+    expect(failed.release_gates).toMatchObject({ translation_latency_budget_pass: false, status: 'fail' });
+
+    const slowP95 = perfectArtifact();
+    slowP95.observations[0].translation_latency_ms = 5_001;
+    slowP95.observations[1].translation_latency_ms = 5_001;
+    const p95Failed = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, slowP95, artifactHash);
+    expect(p95Failed.translation_latency).toMatchObject({ p95_ms: 5_001, max_ms: 5_001, status: 'fail' });
   });
 
   it('fails affected semantic and unsafe-answer gates', () => {
