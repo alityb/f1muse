@@ -15,8 +15,8 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (2025, 'mclaren', 'mclaren', 'oscar-piastri'),
     (2025, 'sample', 'sample', 'sample-driver')`);
   await pool.query(`INSERT INTO season_driver_standing (year, position_display_order, position_number, position_text, driver_id, points) VALUES
-    (2025, 1, 1, '1', 'lando_norris', 300),
-    (2025, 2, 2, '2', 'oscar_piastri', 300),
+    (2025, 1, 1, '1', 'oscar_piastri', 300),
+    (2025, 2, 2, '2', 'lando_norris', 300),
     (2025, 3, 3, '3', 'max_verstappen', 25)`);
   await pool.query(`INSERT INTO grand_prix (id, name, full_name, short_name, abbreviation) VALUES
     ('australian_grand_prix', 'Australian Grand Prix', 'Formula 1 Australian Grand Prix', 'Australian GP', 'AUS'),

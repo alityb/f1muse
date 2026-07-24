@@ -4,7 +4,7 @@ import { AggregateNode, F1QLProgram } from '../../src/f1ql/ast';
 
 const standingsRoot = (season: number, drivers?: string[]): AggregateNode => ({ op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season, driver_id: drivers } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] });
 const standings = (season: number, drivers?: string[]): F1QLProgram => ({ version: 1, root: standingsRoot(season, drivers) });
-const leader: F1QLProgram = { version: 1, root: { op: 'rank', input: standingsRoot(2025), by: 'points', direction: 'desc', limit: 1 } };
+const leader: F1QLProgram = { version: 1, root: { op: 'rank', input: { ...standingsRoot(2025), measures: [{ as: 'championship_position', function: 'min', field: 'championship_position' }, { as: 'points', function: 'max', field: 'points' }] }, by: 'championship_position', direction: 'asc', limit: 1 } };
 const race: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30, filters: { driver_id: 'max-verstappen' } } };
 const sampleRace: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30, filters: { driver_id: 'sample-driver' } } };
 const qualifying: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 20 } };
@@ -22,6 +22,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   reviewed('dev-ambiguous', 'development', 'Who was better in 2025?', 'clarify', 'metric_ambiguous', ['ambiguity']),
   reviewed('dev-pace', 'development', 'Compare Max and Lando race pace', 'abstain', 'pace_source_disabled', ['unsupported_source'], undefined, ['driver:lando-norris', 'driver:max-verstappen'], [['driver:lando-norris', 'driver:max-verstappen']]),
   reviewed('iid-pair', 'iid_holdout', 'Final points for Norris and Piastri in 2025', 'answer', 'final_driver_standings', ['paraphrase'], [pair]),
+  reviewed('iid-leader', 'iid_holdout', 'Who finished first in the final 2025 driver standings?', 'answer', 'final_driver_standings', ['paraphrase'], [leader]),
   reviewed('iid-qualifying', 'iid_holdout', 'Give me Australia 2025 qualifying', 'answer', 'qualifying_classification', ['clean'], [qualifying]),
   reviewed('iid-metadata', 'iid_holdout', 'When was the 2025 Australian race?', 'answer', 'race_date_metadata', ['event_alias'], [metadata]),
   reviewed('iid-session', 'iid_holdout', 'What was the classification in Australia?', 'clarify', 'session_ambiguous', ['ambiguity']),

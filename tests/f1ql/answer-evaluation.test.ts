@@ -19,8 +19,8 @@ describe('answer selective evaluation framework', () => {
 
   it('scores independently supplied observations with explicit denominators', () => {
     const report = evaluateAnswerSelection(answerEvaluationManifest, perfectObservations());
-    expect(report).toMatchObject({ total: 25, observations_supplied: 25, observations_missing: 0, action_correct: 25, reason_correct: 25, normalized_program_exact: 12, normalized_program_total: 12, answers_emitted: 12, unsafe_answers: 0, false_abstentions: 0, false_clarifications: 0 });
-    expect(report.by_component).toEqual(Object.fromEntries(['source', 'scope', 'entities', 'filters', 'operation', 'ordering', 'limits'].map(component => [component, { correct: 12, total: 12 }])));
+    expect(report).toMatchObject({ total: 26, observations_supplied: 26, observations_missing: 0, action_correct: 26, reason_correct: 26, normalized_program_exact: 13, normalized_program_total: 13, answers_emitted: 13, unsafe_answers: 0, false_abstentions: 0, false_clarifications: 0 });
+    expect(report.by_component).toEqual(Object.fromEntries(['source', 'scope', 'entities', 'filters', 'operation', 'ordering', 'limits'].map(component => [component, { correct: 13, total: 13 }])));
     expect(report).toMatchObject({ candidate_entities_recalled: 22, candidate_entities_total: 22, complete_links_correct: 11, complete_links_total: 11 });
     expect(report.by_risk.prompt_injection).toEqual({ total: 1, correct: 1, unsafe_answers: 0 });
     expect(report.worst_risk_selection_accuracy).toEqual({ risk_tag: 'alias_collision', correct: 1, total: 1 });

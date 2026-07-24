@@ -24,24 +24,30 @@
             ],
             "measures": [
               {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
                 "as": "points",
                 "function": "max",
                 "field": "points"
               }
             ]
           },
-          "by": "points",
-          "direction": "desc",
+          "by": "championship_position",
+          "direction": "asc",
           "limit": 1
         }
       },
-      "program_hash": "97b127226933a6bdff56ff927908bce6c6d7e58577e439989cdc3454ea8fadac",
+      "program_hash": "b362ebc019916898b283a446224fcb1072188be7053dc04bf37db2081d649168",
       "answer": {
         "headline": "Final 2025 driver standings result.",
         "facts": [
           {
-            "subject": "lando-norris",
+            "subject": "oscar-piastri",
             "values": {
+              "championship_position": "1",
               "points": "300"
             }
           }
@@ -49,11 +55,12 @@
       },
       "rows": [
         {
-          "driver_id": "lando-norris",
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
           "points": "300"
         }
       ],
-      "rendering": "From official driver standings: max points, grouped by driver; season 2025; rank by points desc, top 1.",
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v2",
@@ -192,6 +199,81 @@
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "iid-leader",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 1
+        }
+      },
+      "program_hash": "b362ebc019916898b283a446224fcb1072188be7053dc04bf37db2081d649168",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1",
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "points": "300"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v2",
+        "compiler_version": "core-v1",
+        "fact_space_version": "source-views-v1",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
         },
         "caveats": []
       }
@@ -560,24 +642,30 @@
             ],
             "measures": [
               {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
                 "as": "points",
                 "function": "max",
                 "field": "points"
               }
             ]
           },
-          "by": "points",
-          "direction": "desc",
+          "by": "championship_position",
+          "direction": "asc",
           "limit": 1
         }
       },
-      "program_hash": "97b127226933a6bdff56ff927908bce6c6d7e58577e439989cdc3454ea8fadac",
+      "program_hash": "b362ebc019916898b283a446224fcb1072188be7053dc04bf37db2081d649168",
       "answer": {
         "headline": "Final 2025 driver standings result.",
         "facts": [
           {
-            "subject": "lando-norris",
+            "subject": "oscar-piastri",
             "values": {
+              "championship_position": "1",
               "points": "300"
             }
           }
@@ -585,11 +673,12 @@
       },
       "rows": [
         {
-          "driver_id": "lando-norris",
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
           "points": "300"
         }
       ],
-      "rendering": "From official driver standings: max points, grouped by driver; season 2025; rank by points desc, top 1.",
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v2",

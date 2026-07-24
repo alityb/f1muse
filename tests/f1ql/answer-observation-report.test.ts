@@ -25,15 +25,17 @@ function perfectArtifact() {
 }
 
 describe('answer observation reporting', () => {
-  it('emits sanitized aggregate thresholds and refuses to pass missing operation coverage', () => {
+  it('emits sanitized aggregate thresholds for every required source and operation', () => {
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, perfectArtifact(), artifactHash);
     expect(report.artifact).toMatchObject({ sha256: artifactHash, provider: 'openai-compatible' });
     expect(report.artifact).not.toHaveProperty('model_sha256');
     expect(report.selection).toMatchObject({ observations_missing: 0, unsafe_answers: 0 });
     expect(report.holdout_thresholds.by_source.final_driver_standings.status).toBe('pass');
     expect(report.holdout_thresholds.by_operation.aggregate.status).toBe('pass');
-    expect(report.holdout_thresholds.by_operation.rank.status).toBe('insufficient');
-    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: false, status: 'insufficient' });
+    expect(report.holdout_thresholds.by_operation.rank.status).toBe('pass');
+    expect(report.release_gates).toMatchObject({ holdout_source_thresholds_pass: true, holdout_operation_thresholds_pass: true, status: 'pass' });
+    expect(Object.values(report.holdout_thresholds.by_source).every(result => result.cases > 0)).toBe(true);
+    expect(Object.values(report.holdout_thresholds.by_operation).every(result => result.cases > 0)).toBe(true);
     const serialized = JSON.stringify(report);
     for (const item of answerEvaluationManifest) {
       expect(serialized).not.toContain(item.question);
