@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
-import { DriverResolver } from '../identity/driver-resolver';
-import { EventResolver } from '../identity/event-resolver';
+import { DriverResolutionResult, DriverResolver } from '../identity/driver-resolver';
+import { EventResolution, EventResolver } from '../identity/event-resolver';
+import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../identity/answer-identity-resolvers';
 import { AggregateNode, F1QLProgram } from './ast';
 import { parseF1QLProgram } from './schema';
 import { F1QLProgramCandidate, isNamedEventProgram } from './translation-schema';
@@ -16,7 +17,12 @@ export async function linkF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1
   return parseF1QLProgram(await resolveDriverIds(program, new DriverResolver(pool)));
 }
 
-async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: EventResolver): Promise<F1QLProgram> {
+export async function linkAnswerF1QLCandidate(pool: Pick<Pool, 'query'>, candidate: F1QLProgramCandidate): Promise<F1QLProgram> {
+  const program = await canonicalizeEvent(candidate, new AnswerEventIdentityResolver(pool));
+  return parseF1QLProgram(await resolveDriverIds(program, new AnswerDriverIdentityResolver(pool)));
+}
+
+async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: { resolve(season: number, name: string): Promise<EventResolution> }): Promise<F1QLProgram> {
   if (!isNamedEventProgram(candidate)) {
     return parseF1QLProgram(candidate);
   }
@@ -34,7 +40,7 @@ async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: Even
   return parseF1QLProgram({ version: 1, root: { op: root.op, season: root.season, round: resolution.round, limit: root.limit, filters: root.filters } });
 }
 
-async function resolveDriverIds(program: F1QLProgram, resolver: DriverResolver): Promise<F1QLProgram> {
+async function resolveDriverIds(program: F1QLProgram, resolver: { resolveUnambiguous(alias: string, season?: number): Promise<DriverResolutionResult> }): Promise<F1QLProgram> {
   const { ids, season } = driverResolutionScope(program);
   const resolved = new Map<string, string>();
   for (const id of ids) {

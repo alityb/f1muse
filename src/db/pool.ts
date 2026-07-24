@@ -211,6 +211,30 @@ export function createReplicaPool(config?: PoolConfig): Pool {
   return pool;
 }
 
+export function createAnswerPool(config?: PoolConfig): Pool {
+  const connectionString = config?.connectionString ?? process.env.F1QL_ANSWER_DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('F1QL_ANSWER_DATABASE_URL is required for the answer pool');
+  }
+  const useSSL = isSupabaseUrl(connectionString);
+  const pool = new Pool(config ?? {
+    connectionString,
+    max: 4,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: useSSL ? 10000 : 5000,
+    ssl: useSSL ? { rejectUnauthorized: false } : undefined
+  });
+  pool.on('connect', async client => {
+    try {
+      await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
+    } catch (error) {
+      console.error('Failed to set READ ONLY mode on answer connection:', error);
+    }
+  });
+  pool.on('error', error => console.error('Unexpected database error (answer pool):', error));
+  return pool;
+}
+
 /**
  * Get connection info for both primary and replica (no secrets)
  */

@@ -48,6 +48,19 @@ describe('in-process API routes', () => {
     await expect(response.json()).resolves.toMatchObject({ reason: 'answer_disabled' });
   });
 
+  it('fails closed when enabled without a dedicated answer database pool', async () => {
+    process.env.F1QL_ANSWER_ENABLED = 'true';
+    try {
+      const response = await fetch(`${baseUrl}/program/answer`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Who won in 2025?' })
+      });
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toMatchObject({ reason: 'answer_database_not_configured' });
+    } finally {
+      delete process.env.F1QL_ANSWER_ENABLED;
+    }
+  });
+
   it('serves the health endpoint from the initialized application', async () => {
     const response = await fetch(`${baseUrl}/health`);
 

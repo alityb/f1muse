@@ -14,7 +14,7 @@ import { createProgramTranslateRoutes } from './program-translate';
 import { createProgramAnswerRoutes } from './program-answer';
 import { isLLMConfigured } from '../../llm/claude-client';
 
-export function createRoutes(pool: Pool, cachePool?: Pool): Router {
+export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): Router {
   const router = Router();
   const executor = new QueryExecutor(pool, undefined, cachePool);
   const logger = new QueryLogger();
@@ -37,7 +37,7 @@ export function createRoutes(pool: Pool, cachePool?: Pool): Router {
   if (process.env.F1QL_TRANSLATION_ENABLED === 'true') {
     router.use('/', createProgramTranslateRoutes(pool));
   }
-  router.use('/', createProgramAnswerRoutes(pool));
+  router.use('/', createProgramAnswerRoutes(answerPool));
 
   // Debug routes only in development
   if (process.env.NODE_ENV !== 'production') {

@@ -5,7 +5,7 @@ import { AnswerPolicyDecision, authorizeAnswerProgram } from '../../f1ql/answer-
 import { AnswerBoundError, enforceAnswerWorkBudget } from '../../f1ql/answer-bounds';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { F1QLProgram } from '../../f1ql/ast';
-import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
+import { F1QLLinkingError, linkAnswerF1QLCandidate } from '../../f1ql/translation-linking';
 import { F1QLProgramCandidate } from '../../f1ql/translation-schema';
 import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1QLQuestion } from '../../f1ql/translator';
 import { metrics } from '../../observability/metrics';
@@ -19,7 +19,7 @@ export interface ProgramAnswerDependencies {
   admission?: AnswerAdmissionController;
 }
 
-export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswerDependencies = {}): Router {
+export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: ProgramAnswerDependencies = {}): Router {
   const router = Router();
   const config = dependencies.runtimeConfig ?? getAnswerRuntimeConfig();
   const admission = dependencies.admission ?? new AnswerAdmissionController(config);
@@ -31,7 +31,7 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
     message: { error: 'answer_unavailable', reason: 'rate_limit_exceeded' }
   });
 
-  router.post('/program/answer', answerAvailabilityGuard, answerQuestionGuard, answerRateLimiter, async (req: Request, res: Response) => {
+  router.post('/program/answer', answerAvailabilityGuard, answerDatabaseGuard(pool), answerQuestionGuard, answerRateLimiter, async (req: Request, res: Response) => {
     const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
     const controller = new AbortController();
     let timedOut = false;
@@ -69,7 +69,7 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
 
       let program: F1QLProgram;
       try {
-        program = await (dependencies.link ?? (candidate => linkWithBounds(pool, candidate, config.statementTimeoutMs, controller.signal)))(translation.program);
+        program = await (dependencies.link ?? (candidate => linkWithBounds(pool!, candidate, config.statementTimeoutMs, controller.signal)))(translation.program);
       } catch (error) {
         if (controller.signal.aborted) {
           return respondToAbort(timedOut, res);
@@ -132,6 +132,16 @@ export function createProgramAnswerRoutes(pool: Pool, dependencies: ProgramAnswe
   return router;
 }
 
+function answerDatabaseGuard(pool: Pool | undefined) {
+  return (_req: Request, res: Response, next: NextFunction): Response | void => {
+    if (!pool) {
+      metrics.recordF1QLAnswer('gate', 'blocked', 'answer_database_not_configured');
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_database_not_configured' });
+    }
+    next();
+  };
+}
+
 function respondToAbort(timedOut: boolean, res: Response): Response | void {
   if (res.destroyed || res.writableEnded) {
     return;
@@ -147,7 +157,7 @@ async function linkWithBounds(pool: Pool, candidate: F1QLProgramCandidate, state
   try {
     await client.query('BEGIN READ ONLY');
     await client.query("SELECT set_config('statement_timeout', $1, true)", [`${statementTimeoutMs}ms`]);
-    const program = await linkF1QLCandidate(client, candidate);
+    const program = await linkAnswerF1QLCandidate(client, candidate);
     await client.query('ROLLBACK');
     return program;
   } catch (error) {

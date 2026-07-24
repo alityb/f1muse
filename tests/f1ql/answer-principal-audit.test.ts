@@ -12,7 +12,7 @@ describe('answer principal least-privilege audit', () => {
     const pool = { async connect() { return { async query(sql: string) {
       calls.push(sql);
       if (sql.includes('FROM pg_roles')) return { rows: [{ role_name: 'postgres', transaction_read_only: 'on', rolsuper: true, rolcreaterole: true, rolcreatedb: true, rolreplication: true, rolbypassrls: true, database_create: true, database_temp: true, f1ql_usage: true, f1ql_create: true, public_create: true }] };
-      if (sql.includes('FROM unnest')) return { rows: [] };
+      if (sql.includes('FROM pg_class')) return { rows: [] };
       return { rows: [] };
     }, release() {} }; }, async end() {} };
     const report = await runAnswerPrincipalAudit(pool);
@@ -31,9 +31,19 @@ describe('answer principal least-privilege audit', () => {
     const relation = (name: string, can_select: boolean) => ({ relation: name, exists: true, can_select, can_insert: false, can_update: false, can_delete: false, can_truncate: false, can_references: false, can_trigger: false });
     const pool = { async connect() { return { async query(sql: string) {
       if (sql.includes('FROM pg_roles')) return { rows: [{ role_name: 'f1ql_answer', transaction_read_only: 'on', rolsuper: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolbypassrls: false, database_create: false, database_temp: false, f1ql_usage: true, f1ql_create: false, public_create: false }] };
-      if (sql.includes('FROM unnest')) return { rows: [...required.map(name => relation(name, true)), ...['race', 'grand_prix', 'driver', 'driver_aliases', 'season_entrant_driver'].map(name => relation(name, false))] };
+      if (sql.includes('FROM pg_class')) return { rows: required.map(name => relation(name, true)) };
       return { rows: [] };
     }, release() {} }; }, async end() {} };
     await expect(runAnswerPrincipalAudit(pool)).resolves.toMatchObject({ status: 'passed', findings: [] });
+  });
+
+  it('rejects effective SELECT on every relation outside the exact allowlist', async () => {
+    const pool = { async connect() { return { async query(sql: string) {
+      if (sql.includes('FROM pg_roles')) return { rows: [{ role_name: 'f1ql_answer', transaction_read_only: 'on', rolsuper: false, rolcreaterole: false, rolcreatedb: false, rolreplication: false, rolbypassrls: false, database_create: false, database_temp: false, f1ql_usage: true, f1ql_create: false, public_create: false }] };
+      if (sql.includes('FROM pg_class')) return { rows: [{ relation: 'public.unrelated_table', exists: true, can_select: true, can_insert: false, can_update: false, can_delete: false, can_truncate: false, can_references: false, can_trigger: false }] };
+      return { rows: [] };
+    }, release() {} }; }, async end() {} };
+    const report = await runAnswerPrincipalAudit(pool);
+    expect(report.findings).toContain('unexpected_select:public.unrelated_table');
   });
 });

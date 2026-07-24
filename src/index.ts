@@ -3,6 +3,7 @@ import express from 'express';
 import {
   createPrimaryPool,
   createReplicaPool,
+  createAnswerPool,
   getPoolConnectionInfo
 } from './db/pool';
 import { createRoutes } from './api/routes';
@@ -92,6 +93,7 @@ async function main() {
   // Create database pools
   const replicaPool = createReplicaPool();
   const primaryPool = createPrimaryPool();
+  const answerPool = process.env.F1QL_ANSWER_DATABASE_URL ? createAnswerPool() : undefined;
 
   // Test replica connection
   try {
@@ -204,7 +206,7 @@ async function main() {
   });
 
   // Register routes
-  const routes = createRoutes(replicaPool, primaryPool);
+  const routes = createRoutes(replicaPool, primaryPool, answerPool);
   app.use('/', routes);
 
   // Register production NL query router when either supported provider is configured.
@@ -281,7 +283,7 @@ async function main() {
     await redisCache.disconnect();
 
     // Close database pools
-    await Promise.all([replicaPool.end(), primaryPool.end()]);
+    await Promise.all([replicaPool.end(), primaryPool.end(), answerPool?.end()]);
 
     console.log('Shutdown complete');
     process.exit(0);

@@ -41,7 +41,7 @@ export interface DriverResolveOptions {
  * - "MAX" → "max"
  * - "  Max   Verstappen  " → "max verstappen"
  */
-function normalizeMatch(value: string): string {
+export function normalizeMatch(value: string): string {
   return value
     // NFD decomposition to separate base characters from diacritics
     .normalize('NFD')

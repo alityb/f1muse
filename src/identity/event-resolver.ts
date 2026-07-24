@@ -20,9 +20,14 @@ const EVENT_NAME_ALIASES: Record<string, string[]> = {
   belgium: ['belgian grand prix']
 };
 
-function normalizeEventName(value: string): string {
+export function normalizeEventName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]/g, ' ')
     .replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export function acceptedEventNames(value: string): Set<string> {
+  const normalized = normalizeEventName(value);
+  return new Set([normalized, ...(EVENT_NAME_ALIASES[normalized] || [])]);
 }
 
 export class EventResolver {
@@ -42,7 +47,7 @@ export class EventResolver {
       WHERE r.year = $1
       ORDER BY r.round
     `, [season]);
-    const acceptedNames = new Set([normalized, ...(EVENT_NAME_ALIASES[normalized] || [])]);
+    const acceptedNames = acceptedEventNames(name);
     const candidates = result.rows.filter(row => [row.event_id, row.name, row.event_name, row.short_name, row.abbreviation, row.official_name]
       .some(value => value !== null && acceptedNames.has(normalizeEventName(value))))
       .map(row => ({ season: Number(row.season), round: Number(row.round) }));

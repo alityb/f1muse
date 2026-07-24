@@ -10,7 +10,6 @@ const REQUIRED_RELATIONS = [
   'f1ql.answer_event_identity',
   'f1ql.answer_season_participation'
 ] as const;
-const FORBIDDEN_RELATIONS = ['race', 'grand_prix', 'driver', 'driver_aliases', 'season_entrant_driver'] as const;
 
 type QueryClient = { query<Row extends Record<string, unknown> = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: Row[] }>; release(): void };
 type QueryPool = { connect(): Promise<QueryClient>; end(): Promise<void> };
@@ -75,16 +74,20 @@ export async function runAnswerPrincipalAudit(pool: QueryPool): Promise<AnswerPr
       FROM pg_roles r WHERE r.rolname = current_user
     `)).rows[0];
     const relations = (await client.query<RelationRow>(`
-      SELECT name AS relation, to_regclass(name) IS NOT NULL AS exists,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'SELECT'), false) AS can_select,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'INSERT'), false) AS can_insert,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'UPDATE'), false) AS can_update,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'DELETE'), false) AS can_delete,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'TRUNCATE'), false) AS can_truncate,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'REFERENCES'), false) AS can_references,
-        COALESCE(has_table_privilege(current_user, to_regclass(name), 'TRIGGER'), false) AS can_trigger
-      FROM unnest($1::text[]) AS name ORDER BY name
-    `, [[...REQUIRED_RELATIONS, ...FORBIDDEN_RELATIONS]])).rows;
+      SELECT n.nspname || '.' || c.relname AS relation, true AS exists,
+        has_table_privilege(current_user, c.oid, 'SELECT') AS can_select,
+        has_table_privilege(current_user, c.oid, 'INSERT') AS can_insert,
+        has_table_privilege(current_user, c.oid, 'UPDATE') AS can_update,
+        has_table_privilege(current_user, c.oid, 'DELETE') AS can_delete,
+        has_table_privilege(current_user, c.oid, 'TRUNCATE') AS can_truncate,
+        has_table_privilege(current_user, c.oid, 'REFERENCES') AS can_references,
+        has_table_privilege(current_user, c.oid, 'TRIGGER') AS can_trigger
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind IN ('r', 'p', 'v', 'm')
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_toast%'
+      ORDER BY relation
+    `)).rows;
     await client.query('ROLLBACK');
     const findings = evaluate(role, relations);
     return { status: findings.length === 0 ? 'passed' : 'attention', assertion_scope: 'answer_principal_least_privilege', statement_timeout_ms: STATEMENT_TIMEOUT_MS, required_relations: REQUIRED_RELATIONS, findings };
@@ -110,8 +113,8 @@ function evaluate(role: RoleRow | undefined, relations: RelationRow[]): string[]
     else if (!relation.can_select) findings.push(`select_missing:${required}`);
     if (relation && (relation.can_insert || relation.can_update || relation.can_delete || relation.can_truncate || relation.can_references || relation.can_trigger)) findings.push(`write_privilege:${required}`);
   }
-  for (const forbidden of FORBIDDEN_RELATIONS) {
-    if (observed.get(forbidden)?.can_select) findings.push(`unexpected_select:${forbidden}`);
+  for (const relation of relations) {
+    if (relation.can_select && !REQUIRED_RELATIONS.includes(relation.relation as typeof REQUIRED_RELATIONS[number])) findings.push(`unexpected_select:${relation.relation}`);
   }
   return findings;
 }
