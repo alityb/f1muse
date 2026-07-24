@@ -2,13 +2,13 @@ import { createHash } from 'crypto';
 import { EventResolution } from '../identity/event-resolver';
 import { AnswerDriverLiteralMention } from '../identity/answer-identity-resolvers';
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
-import { AnswerQuestionContract } from './answer-question';
+import { AnswerQuestionContract, parseRoundReference } from './answer-question';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION, AnswerTemplateId, AnswerTemplateVariables, computeAnswerTemplateRegistryHash, materializeAnswerTemplate, validateAnswerTemplateVariables } from './answer-templates';
 import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v2' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v4' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -120,7 +120,12 @@ export async function proveAnswerIntent(
       throw new F1QLLinkingError('source_coverage_missing');
     }
     if (candidates.length > 1 || active.length > 1) {
-      throw new F1QLLinkingError('entity_ambiguous', candidates.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS));
+      const options = candidates.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS);
+      const entityCandidates = [...new Set([
+        ...mentions.flatMap(proven => proven.candidates.map(candidate => proven.kind === 'driver' ? `driver:${candidate}` : candidate)),
+        ...options.map(candidate => `driver:${candidate}`)
+      ])].sort();
+      throw new F1QLLinkingError('entity_ambiguous', options, entityCandidates);
     }
     const selected = active[0];
     driverIds.push(selected);
@@ -317,8 +322,9 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
     throw new AnswerSemanticProofError('status_mismatch');
   }
   const allRequested = contract.action_cues.some(cue => cue.value === 'all');
+  const classificationIntent = intent.type.includes('_classification_');
   const allIntent = intent.type === 'race_classification_all' || intent.type === 'qualifying_classification_all';
-  if (allRequested !== allIntent) {
+  if (classificationIntent && allRequested !== allIntent) {
     throw new AnswerSemanticProofError('entity_cardinality_mismatch');
   }
   if ('driver_references' in intent && intent.driver_references.length === 0 && intent.type !== 'final_standings_points') {
@@ -340,8 +346,7 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
 }
 
 function roundFromReference(reference: LiteralMentionReference): number | undefined {
-  const match = reference.text.match(/^(?:round|rd\.?|r)?\s*#?\s*(\d{1,2})$/iu);
-  return match ? Number(match[1]) : undefined;
+  return parseRoundReference(reference.text);
 }
 
 function eventCandidates(resolution: EventResolution): string[] {

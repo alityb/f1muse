@@ -3,6 +3,7 @@ import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver, ANSWER_DRIVE
 import { ANSWER_AMBIGUITY_MAX_OPTIONS, AnswerProofDriverResolver, AnswerProofEventResolver, AnswerSemanticProofError, proveAnswerIntent, stableSerialize, verifyAnswerSemanticProof } from '../../src/f1ql/answer-semantic-proof';
 import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
 import { F1QLLinkingError } from '../../src/f1ql/translation-linking';
+import { hydrateAndParseAnswerIntent } from '../../src/f1ql/answer-intent';
 
 const span = (question: string, text: string) => {
   const start = Array.from(question.slice(0, question.indexOf(text))).length;
@@ -30,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v2', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v4', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -52,6 +53,68 @@ describe('independent answer semantic proof', () => {
     expect(() => { (proof.template_variables as { season: number }).season = 2024; }).toThrow();
     expect(() => { (proof.program.root as { limit: number }).limit = 2; }).toThrow();
     expect(verifyAnswerSemanticProof(proof)).toBe(proof);
+  });
+
+  it.each([
+    ['Show all 2025 race results for the second round', 'the second round'],
+    ['Show all 2025 race results for round two', 'round two']
+  ])('proves and materializes the exact word round reference: %s', async (question, reference) => {
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_classification_all', season: 2025,
+      season_reference: span(question, '2025'), event_reference: span(question, reference)
+    }, {
+      resolve: async () => ({ type: 'missing' }),
+      resolveRound: async (season, round) => ({ type: 'resolved', season, round })
+    }, drivers);
+    expect(proof).toMatchObject({
+      template_id: 'race_classification_all',
+      template_variables: { season: 2025, round: 2 },
+      program: { root: { op: 'event_classification', season: 2025, round: 2 } }
+    });
+  });
+
+  it('hydrates, proves, and materializes all final standings points without a driver filter', async () => {
+    const question = 'Show all final 2025 standings points.';
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'final_standings_points', season: 2025,
+      season_reference: { text: '2025' }, driver_references: []
+    }, contract);
+    const proof = await proveAnswerIntent(contract, intent, events, drivers);
+    expect(proof).toMatchObject({
+      version: 'answer-semantic-proof-v4',
+      template_id: 'final_standings_points',
+      template_variables: { season: 2025 },
+      program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
+    });
+    expect(proof.program.root).not.toMatchObject({ input: { where: { driver_id: expect.anything() } } });
+  });
+
+  it.each([
+    'Who was the final 2025 champion?',
+    'Who was the final 2025 standings champion?',
+    'Who was the 2025 championship champion?',
+    'Who was the final 2025 driver champion?'
+  ])('hydrates, proves, and materializes the official final leader: %s', async question => {
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' }
+    }, contract);
+    const proof = await proveAnswerIntent(contract, intent, events, drivers);
+    expect(proof).toMatchObject({
+      template_id: 'final_standings_leader',
+      template_variables: { season: 2025 },
+      program: { root: { op: 'rank', by: 'championship_position', direction: 'asc', limit: 1 } }
+    });
+  });
+
+  it('rejects an event champion as unsupported rather than mapping it to standings', async () => {
+    const question = 'Who was the final 2025 Monaco champion?';
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' }
+    }, contract);
+    await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason: 'template_mismatch' });
   });
 
   it.each([
@@ -81,6 +144,9 @@ describe('independent answer semantic proof', () => {
     await expect(proveAnswerIntent(createAnswerQuestionContract(plain), {
       type: 'race_classification_status', season: 2025, season_reference: span(plain, '2025'), event_reference: span(plain, 'Monaco'), status: 'dnf', status_reference: span(plain, 'Show')
     }, events, drivers)).rejects.toMatchObject({ reason: 'status_mismatch' });
+    await expect(proveAnswerIntent(createAnswerQuestionContract(plain), {
+      type: 'race_classification_driver', season: 2025, season_reference: span(plain, '2025'), event_reference: span(plain, 'Monaco'), driver_reference: span(plain, 'Show')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
   });
 
   it('materializes an exact classification-status filter from its literal status span', async () => {
@@ -89,6 +155,16 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_status', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), status: 'dnf', status_reference: span(question, 'DNFs')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', filters: { classification_status: ['dnf'] } });
+  });
+
+  it('rejects a hydrated candidate when the contract has multiple status cues', async () => {
+    const question = 'Show DNFs and DNSs in the 2025 Monaco race results';
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'race_classification_status', season: 2025, status: 'dns',
+      season_reference: { text: '2025' }, event_reference: { text: 'Monaco' }, status_reference: { text: 'DNSs' }
+    }, contract);
+    await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason: 'status_mismatch' });
   });
 
   it('never resolves deterministic ambiguity and verifies literal rounds exist', async () => {
@@ -118,6 +194,18 @@ describe('independent answer semantic proof', () => {
     }, events, drivers)).rejects.toMatchObject({ reason: 'session_mismatch' });
   });
 
+  it('rejects multiple word rounds and mixed event plus word round', async () => {
+    const multiple = 'Show all 2025 race results for round two and the third round';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(multiple), {
+      type: 'race_classification_all', season: 2025, season_reference: span(multiple, '2025'), event_reference: span(multiple, 'round two')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+
+    const mixed = 'Show all 2025 Monaco race results for round two';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(mixed), {
+      type: 'race_classification_all', season: 2025, season_reference: span(mixed, '2025'), event_reference: span(mixed, 'round two')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
+  });
+
   it('requires the model driver references to exactly equal the independent inventory', async () => {
     const question = 'Max and Lando Norris points in the 2025 standings';
     const contract = createAnswerQuestionContract(question);
@@ -127,6 +215,21 @@ describe('independent answer semantic proof', () => {
     await expect(proveAnswerIntent(contract, { ...base, driver_references: [span(question, 'Max'), span(question, '2025')] }, events, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
     const proof = await proveAnswerIntent(contract, { ...base, driver_references: [span(question, 'Max'), span(question, 'Lando Norris')] }, events, drivers);
     expect(proof.program.root).toMatchObject({ input: { where: { driver_id: ['lando-norris', 'max-verstappen'] } } });
+  });
+
+  it('rejects repeated canonical driver identity after repeated-reference hydration', async () => {
+    const question = 'Final 2025 standings points for Max Verstappen and Max Verstappen.';
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'final_standings_points', season: 2025, season_reference: { text: '2025' },
+      driver_references: [{ text: 'Max Verstappen' }, { text: 'Max Verstappen' }]
+    }, contract);
+    const repeatedDrivers: AnswerProofDriverResolver = {
+      inventoryMentions: async () => intent.driver_references.map(reference => ({
+        ...reference, candidates: ['max_verstappen'], active_candidates: ['max_verstappen']
+      }))
+    };
+    await expect(proveAnswerIntent(contract, intent, events, repeatedDrivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
   });
 
   it('requires participation and caps preserved ambiguity candidates', async () => {
@@ -140,7 +243,11 @@ describe('independent answer semantic proof', () => {
     };
     const intent = { type: 'race_classification_driver' as const, season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max') };
     await expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, inactive)).rejects.toMatchObject({ code: 'source_coverage_missing' });
-    await expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, ambiguous)).rejects.toMatchObject({ code: 'entity_ambiguous', options: many.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS) });
+    await expect(proveAnswerIntent(createAnswerQuestionContract(question), intent, events, ambiguous)).rejects.toMatchObject({
+      code: 'entity_ambiguous',
+      options: many.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS),
+      entityCandidates: [...many.slice(0, ANSWER_AMBIGUITY_MAX_OPTIONS).map(candidate => `driver:${candidate}`), 'event:2025:8'].sort()
+    });
   });
 
   it('reparses unknown intent inputs and uses stable key-order hashing', async () => {

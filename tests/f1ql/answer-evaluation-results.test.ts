@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
@@ -6,14 +6,15 @@ import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { emitAnswerEvaluationResults } from '../../scripts/snapshot-answer-evaluation-results';
 import { F1QLLinkingError, linkAnswerF1QLCandidateObserved } from '../../src/f1ql/translation-linking';
 import { seedAnswerEvaluationFixture } from '../fixtures/f1ql-answer-evaluation-fixture';
-import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
+import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
-import { collectAnswerObservations } from '../../src/f1ql/answer-observations';
+import { collectAnswerObservations, createAnswerObservationSigningHelper, verifyAnswerObservationArtifact } from '../../src/f1ql/answer-observations';
 import { AnswerQuestionContract } from '../../src/f1ql/answer-question';
 import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
 import { AnswerIntent } from '../../src/f1ql/answer-intent';
 import { AnswerTranslationResult } from '../../src/f1ql/answer-translator';
 import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
+import { buildAnswerObservationReport } from '../../src/f1ql/answer-observation-report';
 
 let pool: Pool;
 
@@ -73,13 +74,17 @@ describe('answer evaluation generated results', () => {
     ]);
     await expect(eventResolver.resolve(2025, 'Australian Grand Prix')).resolves.toEqual({ type: 'resolved', season: 2025, round: 1 });
     const byQuestionHash = new Map(answerEvaluationManifest.map(item => [createHash('sha256').update(item.question.normalize('NFKC').trim()).digest('hex'), item]));
+    const keys = generateKeyPairSync('ed25519');
+    const keyId = 'candidate-recall-test';
+    const signer = createAnswerObservationSigningHelper(keyId, keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64'));
     const artifact = await collectAnswerObservations(answerEvaluationManifest, {
-      type: 'groq', model: 'openai/gpt-oss-20b', collected_at: '2026-07-24T00:00:00.000Z'
+      type: 'groq', model: 'openai/gpt-oss-20b', endpoint_sha256: '1'.repeat(64),
+      reasoning_effort: 'disabled', collected_at: '2026-07-24T00:00:00.000Z'
     }, {
       translate: async contract => ({ result: await deterministicTranslation(contract, byQuestionHash, driverResolver), timedOut: false }),
       prove: (contract, intent) => proveAnswerIntent(contract, intent, eventResolver, driverResolver),
       now: (() => { let value = 0; return () => value += 1; })()
-    });
+    }, signer);
     for (const item of answerEvaluationManifest) {
       const observed = artifact.observations.find(observation => observation.id === item.id)!;
       expect.soft({ action: observed.action, reason: observed.reason }, item.id).toEqual({ action: item.expected.action, reason: item.expected.reason });
@@ -88,6 +93,18 @@ describe('answer evaluation generated results', () => {
         expect.soft(observed.program_hash, item.id).toBe(getF1QLProgramHash(item.expected.acceptable_programs![0]));
       }
     }
+    expect(artifact.observations.find(observation => observation.id === 'ambiguous-driver')).toMatchObject({
+      action: 'clarify',
+      reason: 'entity_ambiguous',
+      entity_candidates: ['driver:alex-one', 'driver:alex-two', 'event:2025:1']
+    });
+    const verified = verifyAnswerObservationArtifact(answerEvaluationManifest, artifact, {
+      key_id: keyId,
+      public_key_base64: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
+    });
+    const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, verified, 'a'.repeat(64));
+    expect(report.selection).toMatchObject({ candidate_entities_recalled: 53, candidate_entities_total: 53 });
+    expect(report.release_gates).toMatchObject({ candidate_recall_complete: true, status: 'pass' });
   });
 });
 
@@ -105,7 +122,7 @@ async function deterministicTranslation(
     return { type: 'intent_candidate', intent: executableIntent(contract, 'race_classification_driver', inventory) };
   }
   if (item.id === 'iid-empty') return { type: 'intent_candidate', intent: executableIntent(contract, 'race_date', []) };
-  const proofAttackIds = new Set(['attack-event', 'attack-round', 'attack-driver', 'attack-session', 'attack-status', 'attack-dropped-driver', 'attack-added-driver', 'attack-repeated-driver', 'unicode-homoglyph']);
+  const proofAttackIds = new Set(['attack-round', 'attack-session', 'attack-repeated-driver', 'unicode-homoglyph']);
   if (proofAttackIds.has(item.id)) {
     const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 2025);
     const template = item.id === 'attack-session' ? 'race_classification_all'

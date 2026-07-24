@@ -26,7 +26,7 @@ interface SemanticThresholdResult {
 }
 
 export interface AnswerObservationReport {
-  version: 1;
+  version: 2;
   kind: 'f1ql_answer_observation_report';
   artifact: { version: 1 | 2 | 3; observations: number; sha256: string; manifest_sha256: string };
   contract: {
@@ -37,6 +37,12 @@ export interface AnswerObservationReport {
     template_version: string;
     template_registry_hash: string;
     proof_version: string;
+    status: 'pass' | 'insufficient';
+  };
+  provider_evidence: {
+    provider: string;
+    endpoint_sha256: string;
+    reasoning_effort: string;
     status: 'pass' | 'insufficient';
   };
   translation_outcomes: { attempted: number; deterministic: number };
@@ -140,10 +146,11 @@ export function buildAnswerObservationReport(
     release.provider_diagnostics_zero && release.exact_programs_complete && (artifact.version !== 3 || (release.exact_templates_complete && release.semantic_proofs_complete));
   const hardenedEvidenceStatus: SemanticThresholdResult['status'] = artifact.version === 3 ? 'pass' : 'insufficient';
   return {
-    version: 1,
+    version: 2,
     kind: 'f1ql_answer_observation_report',
     artifact: { version: artifact.version, observations: artifact.observations.length, sha256: artifactSha256, manifest_sha256: artifact.manifest.sha256 },
     contract: contractReport(artifact),
+    provider_evidence: providerEvidenceReport(artifact),
     translation_outcomes: translationOutcomeReport(artifact),
     selection,
     metamorphic,
@@ -154,6 +161,18 @@ export function buildAnswerObservationReport(
     templates,
     holdout_thresholds: { required_accuracy: 1, by_source: bySource, by_operation: byOperation },
     release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status, translationTimeouts.status, hardenedEvidenceStatus]) }
+  };
+}
+
+function providerEvidenceReport(artifact: AnswerObservationArtifact): AnswerObservationReport['provider_evidence'] {
+  if (artifact.version !== 3) {
+    return { provider: artifact.provider.type, endpoint_sha256: '', reasoning_effort: '', status: 'insufficient' };
+  }
+  return {
+    provider: artifact.provider.type,
+    endpoint_sha256: artifact.provider.endpoint_sha256,
+    reasoning_effort: artifact.provider.reasoning_effort,
+    status: 'pass'
   };
 }
 

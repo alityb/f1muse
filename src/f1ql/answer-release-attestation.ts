@@ -22,6 +22,7 @@ const COMMIT_SHA = /^[a-f0-9]{40}$/;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const TEMPLATE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ED25519_SIGNATURE = /^[A-Za-z0-9+/]{86}==$/;
+const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'disabled']);
 
 const CODE_HASH_KEYS = [
   'prompt_version_sha256',
@@ -66,6 +67,8 @@ export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHash
   readonly commit_sha: string;
   readonly provider: string;
   readonly model_id: string;
+  readonly endpoint_sha256: string;
+  readonly reasoning_effort: string;
   readonly audience: string;
   readonly deployment_id: string;
   readonly statuses: AnswerReleaseStatuses;
@@ -90,6 +93,8 @@ export interface ActiveAnswerReleaseContext {
   readonly commit_sha: string;
   readonly provider: string;
   readonly model_id: string;
+  readonly endpoint_sha256: string;
+  readonly reasoning_effort: string;
   readonly audience: string;
   readonly deployment_id: string;
   readonly evidence_hashes: Readonly<Record<AnswerReleaseEvidenceHashKey, string>>;
@@ -138,6 +143,8 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
     expires_at: context.expires_at,
     provider: context.provider,
     model_id: context.model_id,
+    endpoint_sha256: context.endpoint_sha256,
+    reasoning_effort: context.reasoning_effort,
     audience: context.audience,
     deployment_id: context.deployment_id,
     prompt_version_sha256: ANSWER_TRANSLATOR_PROMPT_SHA256,
@@ -159,7 +166,7 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
 
 export function parseAnswerReleaseAttestation(input: unknown): AnswerReleaseAttestation {
   const value = strictRecord(input, [
-    'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'audience', 'deployment_id',
+    'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
@@ -300,6 +307,8 @@ export function loadAnswerReleaseVerificationInput(
       commit_sha: commitSha,
       provider: model.provider,
       model_id: model.model_id,
+      endpoint_sha256: model.endpoint_sha256,
+      reasoning_effort: model.reasoning_effort,
       audience,
       deployment_id: deploymentId,
       evidence_hashes: evidenceHashes,
@@ -316,7 +325,7 @@ function parseUnsignedAttestation(input: unknown): UnsignedAnswerReleaseAttestat
     ? Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([key]) => key !== 'signature'))
     : input;
   const value = strictRecord(candidate, [
-    'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'audience', 'deployment_id',
+    'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
@@ -332,6 +341,8 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
       typeof value.commit_sha !== 'string' || !COMMIT_SHA.test(value.commit_sha) ||
       typeof value.provider !== 'string' || !IDENTIFIER.test(value.provider) ||
       typeof value.model_id !== 'string' || !IDENTIFIER.test(value.model_id) ||
+      typeof value.endpoint_sha256 !== 'string' || !SHA256.test(value.endpoint_sha256) ||
+      typeof value.reasoning_effort !== 'string' || !REASONING_EFFORTS.has(value.reasoning_effort) ||
       typeof value.audience !== 'string' || !IDENTIFIER.test(value.audience) ||
       typeof value.deployment_id !== 'string' || !IDENTIFIER.test(value.deployment_id)) {
     invalid();
@@ -344,6 +355,7 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
   return {
     release_id: value.release_id, issued_at: value.issued_at, expires_at: value.expires_at,
     commit_sha: value.commit_sha, provider: value.provider, model_id: value.model_id,
+    endpoint_sha256: value.endpoint_sha256, reasoning_effort: value.reasoning_effort,
     audience: value.audience, deployment_id: value.deployment_id,
     ...Object.fromEntries(HASH_KEYS.map(key => [key, value[key]])) as Record<AnswerReleaseHashKey, string>,
     statuses: parseStatuses(value.statuses),
@@ -441,6 +453,7 @@ function cloneBindings(value: AnswerReleaseBindings): AnswerReleaseBindings {
 function sameBindings(left: AnswerReleaseBindings, right: AnswerReleaseBindings): boolean {
   return left.release_id === right.release_id && left.issued_at === right.issued_at && left.expires_at === right.expires_at &&
     left.commit_sha === right.commit_sha && left.provider === right.provider && left.model_id === right.model_id &&
+    left.endpoint_sha256 === right.endpoint_sha256 && left.reasoning_effort === right.reasoning_effort &&
     left.audience === right.audience && left.deployment_id === right.deployment_id &&
     HASH_KEYS.every(key => left[key] === right[key]) && sameStatuses(left.statuses, right.statuses) &&
     sameRuntime(left.runtime_ceilings, right.runtime_ceilings) && sameRuntime(left.runtime_evidence, right.runtime_evidence) &&

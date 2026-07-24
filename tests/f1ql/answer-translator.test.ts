@@ -1,11 +1,8 @@
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { parseUntrustedAnswerIntentCandidate } from '../../src/f1ql/answer-intent';
 import { ANSWER_INTENT_JSON_SCHEMA, ANSWER_TRANSLATOR_PROMPT_SHA256, ANSWER_TRANSLATOR_SCHEMA_SHA256, ANSWER_TRANSLATOR_SYSTEM_PROMPT, OpenAICompatibleAnswerIntentModel, createAnswerIntentModel, getConfiguredAnswerModelIdentity, translateAnswerQuestion } from '../../src/f1ql/answer-translator';
 import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
-
-const span = (question: string, text: string) => {
-  const start = Array.from(question.slice(0, question.indexOf(text))).length;
-  return { text, start, end: start + Array.from(text).length };
-};
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -30,9 +27,26 @@ describe('answer-specific strict translator', () => {
       expect(variant.additionalProperties).toBe(false);
       expect(new Set(variant.required)).toEqual(new Set(Object.keys(variant.properties)));
     }
+    expect(JSON.stringify(ANSWER_INTENT_JSON_SCHEMA)).not.toMatch(/"(?:start|end)"/);
+    expect(request).not.toHaveProperty('reasoning_effort');
     expect(ANSWER_TRANSLATOR_PROMPT_SHA256).toMatch(/^[a-f0-9]{64}$/);
     expect(ANSWER_TRANSLATOR_SCHEMA_SHA256).toMatch(/^[a-f0-9]{64}$/);
     expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('{ "intent": <AnswerIntent> }');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('An explicit 4-digit year is never season_missing');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('final standings are supported');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('Session, event, driver, status, and all/single cardinality must follow literal wording');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers"');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('status_reference must copy the complete literal status phrase');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('DNF/DNFs/did not finish to dnf');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('DNS/DNSs/did not start to dns');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('server normalizes the candidate status enum and full status_reference');
+    expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('one reference object per literal driver occurrence');
+    expect((ANSWER_TRANSLATOR_SYSTEM_PROMPT.match(/\{"intent":/g) ?? [])).toHaveLength(5);
+    expect((ANSWER_TRANSLATOR_SYSTEM_PROMPT.match(/"type":"(?:final_standings_leader|race_classification_all|qualifying_classification_driver)"/g) ?? [])).toHaveLength(3);
+    const examples = ANSWER_TRANSLATOR_SYSTEM_PROMPT.split('\n').filter(line => line.startsWith('{"intent":')).map(line => JSON.parse(line) as { intent: unknown });
+    expect(examples.map(example => parseUntrustedAnswerIntentCandidate(example.intent).type)).toEqual([
+      'final_standings_leader', 'race_classification_all', 'qualifying_classification_driver', 'clarification', 'unsupported'
+    ]);
   });
 
   it('conforms statically to the documented Groq strict-schema subset', () => {
@@ -69,9 +83,11 @@ describe('answer-specific strict translator', () => {
   it('returns only parsed AnswerIntent and fails closed for malformed or incomplete output', async () => {
     const question = 'Who was the 2025 standings leader?';
     const contract = createAnswerQuestionContract(question);
-    const intent = { type: 'final_standings_leader', season: 2025, season_reference: span(question, '2025') };
+    const intent = { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } };
     const valid = JSON.stringify({ intent });
-    await expect(translateAnswerQuestion(contract, { complete: async () => valid })).resolves.toMatchObject({ type: 'intent_candidate', intent: { type: 'final_standings_leader' } });
+    await expect(translateAnswerQuestion(contract, { complete: async () => valid })).resolves.toEqual({
+      type: 'intent_candidate', intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 } }
+    });
     await expect(translateAnswerQuestion(contract, { complete: async () => '{bad' })).resolves.toEqual({ type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'malformed' });
     await expect(translateAnswerQuestion(contract, { complete: async () => JSON.stringify({ intent: { ...intent, season: 2024 } }) })).resolves.toEqual({ type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'schema_invalid' });
   });
@@ -79,7 +95,7 @@ describe('answer-specific strict translator', () => {
   it('rejects missing, extra, wrong, and legacy bare wrappers', async () => {
     const question = 'Who was the 2025 standings leader?';
     const contract = createAnswerQuestionContract(question);
-    const intent = { type: 'final_standings_leader', season: 2025, season_reference: span(question, '2025') };
+    const intent = { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } };
     const invalid = [intent, {}, { intent, extra: true }, { answer: intent }, { intent: null }];
     for (const output of invalid) {
       await expect(translateAnswerQuestion(contract, { complete: async () => JSON.stringify(output) })).resolves.toEqual({ type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'schema_invalid' });
@@ -130,7 +146,39 @@ describe('answer-specific strict translator', () => {
     expect(() => createAnswerIntentModel()).toThrow('not supported');
     vi.stubEnv('F1QL_ANSWER_MODEL', 'openai/gpt-oss-20b');
     expect(createAnswerIntentModel()).toBeInstanceOf(OpenAICompatibleAnswerIntentModel);
-    expect(getConfiguredAnswerModelIdentity()).toEqual({ provider: 'groq', model_id: 'openai/gpt-oss-20b' });
+    expect(getConfiguredAnswerModelIdentity()).toEqual({
+      provider: 'groq',
+      model_id: 'openai/gpt-oss-20b',
+      endpoint_sha256: createHash('sha256').update('https://api.groq.com/openai/v1').digest('hex'),
+      reasoning_effort: 'disabled'
+    });
+  });
+
+  it('includes only explicitly configured provider reasoning effort and keeps the none token cap', async () => {
+    let request: Record<string, unknown> | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      request = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"intent":{"type":"clarification","reason":"metric_ambiguous"}}' } }] }), { status: 200 });
+    }));
+    vi.stubEnv('F1QL_ANSWER_LLM_PROVIDER', 'openai-compatible');
+    vi.stubEnv('F1QL_ANSWER_LLM_BASE_URL', 'https://strict.example/v1');
+    vi.stubEnv('F1QL_ANSWER_LLM_API_KEY', 'secret');
+    vi.stubEnv('F1QL_ANSWER_MODEL', 'strict-model');
+    vi.stubEnv('F1QL_ANSWER_MODEL_STRICT_JSON_SCHEMA', 'true');
+    vi.stubEnv('F1QL_ANSWER_REASONING_EFFORT', 'none');
+    expect(getConfiguredAnswerModelIdentity()).toEqual({
+      provider: 'openai-compatible',
+      model_id: 'strict-model',
+      endpoint_sha256: createHash('sha256').update('https://strict.example/v1').digest('hex'),
+      reasoning_effort: 'none'
+    });
+    await createAnswerIntentModel().complete('system', 'question');
+    expect(request).toMatchObject({ reasoning_effort: 'none', max_tokens: 512 });
+
+    vi.stubEnv('F1QL_ANSWER_REASONING_EFFORT', 'extreme');
+    vi.stubEnv('F1QL_ANSWER_LLM_API_KEY', '');
+    expect(() => createAnswerIntentModel()).toThrow('Invalid answer reasoning effort');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('rejects HTTP Groq and declared-compatible endpoints before credential use', () => {
@@ -142,6 +190,8 @@ describe('answer-specific strict translator', () => {
     vi.stubEnv('F1QL_ANSWER_LLM_BASE_URL', 'http://api.groq.com/openai/v1');
     vi.stubEnv('F1QL_ANSWER_LLM_API_KEY', 'secret');
     vi.stubEnv('F1QL_ANSWER_MODEL', 'openai/gpt-oss-20b');
+    expect(() => createAnswerIntentModel()).toThrow('HTTPS');
+    vi.stubEnv('F1QL_ANSWER_LLM_BASE_URL', 'https://strict.example/v1?credential=private');
     expect(() => createAnswerIntentModel()).toThrow('HTTPS');
 
     vi.stubEnv('F1QL_ANSWER_LLM_PROVIDER', 'openai-compatible');

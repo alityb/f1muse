@@ -83,7 +83,8 @@ export function buildAnswerReleaseAttestationFile(
     public_key_base64: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64')
   });
   const model = getConfiguredAnswerModelIdentity(env);
-  if (artifact.provider.type !== model.provider || artifact.provider.model !== model.model_id) {
+  if (artifact.provider.type !== model.provider || artifact.provider.model !== model.model_id ||
+      artifact.provider.endpoint_sha256 !== model.endpoint_sha256 || artifact.provider.reasoning_effort !== model.reasoning_effort) {
     throw new Error('answer_release_model_mismatch');
   }
   requireFreshEvidence(artifact.provider.collected_at, requiredAgeLimit(env, 'F1QL_ANSWER_PROVIDER_EVIDENCE_MAX_AGE_MS'), nowMs, 'answer_release_provider_evidence_stale');
@@ -152,6 +153,8 @@ export function buildAnswerReleaseAttestationFile(
     commit_sha: commitSha,
     provider: model.provider,
     model_id: model.model_id,
+    endpoint_sha256: model.endpoint_sha256,
+    reasoning_effort: model.reasoning_effort,
     audience,
     deployment_id: deploymentId,
     evidence_hashes: {
@@ -232,7 +235,7 @@ function parseJson(content: Buffer): unknown {
 function requirePassingReport(report: ReturnType<typeof buildAnswerObservationReport>): void {
   const gates = report.release_gates;
   const booleanGates = Object.entries(gates).filter(([key]) => key !== 'status');
-  if (report.contract.status !== 'pass' || gates.status !== 'pass' ||
+  if (report.contract.status !== 'pass' || report.provider_evidence.status !== 'pass' || gates.status !== 'pass' ||
       booleanGates.some(([, value]) => value !== true) || report.translation_latency.status !== 'pass' ||
       report.translation_timeouts.status !== 'pass' || report.provider_diagnostics.observations !== 0 ||
       Object.values(report.holdout_thresholds.by_source).some(value => value.status !== 'pass') ||

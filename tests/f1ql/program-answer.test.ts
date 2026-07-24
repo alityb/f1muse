@@ -70,7 +70,7 @@ function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly
   const runtime = releaseRuntime(config);
   const activeContext: ActiveAnswerReleaseContext = {
     release_id: 'route-test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-    commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model',
+    commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
     audience: 'f1muse-answer', deployment_id: 'route-test-deployment', evidence_hashes: releaseEvidence,
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
     runtime, deployment_template_ids: [...allowedTemplateIds]
@@ -143,7 +143,7 @@ beforeEach(() => {
   databaseStatements = [];
   routeNowMs = releaseNowMs;
   model.waitForAbort = false;
-  model.output = JSON.stringify({ intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 } } });
+  model.output = JSON.stringify({ intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } } });
   runtimeConfig.maxWorkUnits = 200;
   metrics.reset();
 });
@@ -379,7 +379,7 @@ describe('gated answer route skeleton', () => {
     const question = 'Max in the 2025 Monaco race results';
     model.output = JSON.stringify({ intent: {
       type: 'race_classification_driver', season: 2025,
-      season_reference: { text: '2025', start: 11, end: 15 }, event_reference: { text: 'Monaco', start: 16, end: 22 }, driver_reference: { text: 'Max', start: 0, end: 3 }
+      season_reference: { text: '2025' }, event_reference: { text: 'Monaco' }, driver_reference: { text: 'Max' }
     } });
     const response = await ask(question);
     expect(response.status).toBe(422);
@@ -387,11 +387,107 @@ describe('gated answer route skeleton', () => {
     expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 2 });
   });
 
-  it('authoritatively rejects unsupported cues before model construction', async () => {
+  it.each([
+    ['Show the 2025 starting grid', 'grid_source_unsupported'],
+    ['Who was last in the final 2025 standings?', 'capability_unsupported'],
+    ['Show the top 3 final 2025 standings points', 'capability_unsupported'],
+    ['Show 2025 Monaco race results excluding DNFs', 'capability_unsupported'],
+    ['Show all drivers except Max Verstappen in the final 2025 standings', 'capability_unsupported'],
+    ['Show the 2025 race results except Monaco', 'capability_unsupported'],
+    ['Show 2025 Monaco race results without commentary', 'capability_unsupported'],
+    ['Show 2025 Monaco qualifying without DNS', 'capability_unsupported'],
+    ['Show all 2025 Monaco race results other than DNFs', 'capability_unsupported'],
+    ['Show 2025 Monaco qualifying apart from DNS', 'capability_unsupported'],
+    ['Show 2025 Monaco race results save for DSQs', 'capability_unsupported'],
+    ['Show 2025 Monaco race results with the exception of withdrawn drivers', 'capability_unsupported'],
+    ['Show 2025 Monaco race results all but classified drivers', 'capability_unsupported'],
+    ['Show 2025 Monaco race results for non-DNFs', 'capability_unsupported'],
+    ['Show 2025 Monaco qualifying, not DNS', 'capability_unsupported'],
+    ['Show the top-3 final 2025 standings points', 'capability_unsupported'],
+    ['Show the three highest final 2025 standings drivers', 'capability_unsupported'],
+    ['Show the highest three final 2025 standings drivers', 'capability_unsupported'],
+    ['Show the five best final 2025 standings drivers', 'capability_unsupported'],
+    ['Show the trailing 2 final 2025 standings drivers', 'capability_unsupported'],
+    ['Who finished second-place in the 2025 Monaco race?', 'capability_unsupported'],
+    ['Who was in position 2 in the final 2025 standings?', 'capability_unsupported'],
+    ['Who ranked third in the final 2025 standings?', 'capability_unsupported'],
+    ['Who was P2 in the final 2025 standings?', 'capability_unsupported'],
+    ['Who was the runner-up in the 2025 championship?', 'capability_unsupported'],
+    ['Who had the highest final 2025 standings points?', 'capability_unsupported'],
+    ['Show the top three final 2025 standings drivers.', 'capability_unsupported'],
+    ['Final 2025 standings points for Max Verstappen; also add Lando Norris.', 'capability_unsupported'],
+    ['Show Max Verstappen final standings points in 2025 but substitute Lando Norris.', 'capability_unsupported'],
+    ['Final 2025 standings points for Lando Norris and Oscar Piastri; omit Oscar.', 'capability_unsupported'],
+    ['Give the 2025 Australian race result but use the valid Monaco event.', 'capability_unsupported'],
+    ['Show 2025 Australian race DNFs but return classified drivers.', 'capability_unsupported'],
+    ['Show 2025 Monaco race results not Max Verstappen', 'capability_unsupported'],
+    ['not DNFs in the 2025 Monaco race results', 'capability_unsupported'],
+    ['Show three drivers in the final 2025 standings', 'capability_unsupported'],
+    ['Show results for 3 drivers in the 2025 Monaco race', 'capability_unsupported'],
+    ['Show 3 race results from Monaco in 2025', 'capability_unsupported']
+  ])('authoritatively rejects unsupported cues before model construction: %s', async (question, reason) => {
     useReleaseOverride = true;
-    const response = await ask('Show the 2025 starting grid');
+    const response = await ask(question);
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason: 'grid_source_unsupported' });
+    await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason });
+    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+  });
+
+  it.each([
+    'Who was the final 2025 champion?',
+    'Who was the final 2025 standings leader?',
+    'Show the 2025 Monaco race results not classified',
+    'Show the 2025 race results for round 2',
+    'Show the 2025 race results for the second round'
+  ])('admits status, round, and exact leader/champion counterexamples to model inspection: %s', async question => {
+    await ask(question);
+    expect(modelCreations).toBe(1);
+  });
+
+  it.each([
+    'Who was the final 2025 champion?',
+    'Who was the final 2025 standings champion?',
+    'Who was the 2025 championship champion?',
+    'Who was the final 2025 driver champion?'
+  ])('hydrates and proves the champion route as the final standings leader: %s', async question => {
+    const response = await ask(question);
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'answer_unavailable',
+      reason: 'execution_bounds_not_enforced',
+      mode: 'gated_non_execution'
+    });
+    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+  });
+
+  it('fails an event champion closed instead of proving a standings answer', async () => {
+    const response = await ask('Who was the final 2025 Monaco champion?');
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: 'capability_unsupported', reason: 'template_mismatch' });
+    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+  });
+
+  it('hydrates and proves all final standings points through the route', async () => {
+    const question = 'Show all final 2025 standings points.';
+    model.output = JSON.stringify({ intent: {
+      type: 'final_standings_points', season: 2025,
+      season_reference: { text: '2025' }, driver_references: []
+    } });
+    const response = await ask(question);
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'answer_unavailable',
+      reason: 'execution_bounds_not_enforced',
+      mode: 'gated_non_execution'
+    });
+    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+  });
+
+  it('authoritatively clarifies an uncued comparison before model construction', async () => {
+    useReleaseOverride = true;
+    const response = await ask('Who was better in 2025?');
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'metric_ambiguous' });
     expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
   });
 

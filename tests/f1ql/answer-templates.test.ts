@@ -58,6 +58,12 @@ describe('answer template registry', () => {
     expect(materializeAnswerTemplate('race_date', { season: 2025, round: 1 }).root).toMatchObject({ session_scope: 'race' });
   });
 
+  it('materializes all final standings points without a driver filter', () => {
+    const root = materializeAnswerTemplate('final_standings_points', { season: 2025 }).root;
+    expect(root).toMatchObject({ op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } });
+    expect(root).not.toMatchObject({ input: { where: { driver_id: expect.anything() } } });
+  });
+
   it.each([
     ['race_classification_all', { season: 2025, round: 0 }],
     ['race_classification_all', { season: 1995, round: 1 }],

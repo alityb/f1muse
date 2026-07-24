@@ -19,7 +19,7 @@ const runtime = {
 };
 const context: ActiveAnswerReleaseContext = {
   release_id: 'test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'groq', model_id: 'reviewed-model', audience: 'f1muse-answer', deployment_id: 'test-deployment',
+  commit_sha: 'e'.repeat(40), provider: 'groq', model_id: 'reviewed-model', endpoint_sha256: h('1'), reasoning_effort: 'disabled', audience: 'f1muse-answer', deployment_id: 'test-deployment',
   evidence_hashes: {
     manifest_sha256: h('8'), artifact_sha256: h('9'), report_sha256: h('a'), result_fixture_sha256: h('b'),
     principal_audit_sha256: h('c'), production_evidence_sha256: h('d')

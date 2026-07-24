@@ -65,7 +65,13 @@ export function createAnswerEvaluationProviderPacer(
 
 function providerMetadata() {
   const identity = getConfiguredAnswerModelIdentity();
-  return { type: identity.provider, model: identity.model_id, collected_at: new Date().toISOString() };
+  return {
+    type: identity.provider,
+    model: identity.model_id,
+    endpoint_sha256: identity.endpoint_sha256,
+    reasoning_effort: identity.reasoning_effort,
+    collected_at: new Date().toISOString()
+  };
 }
 
 async function proveReadOnly(pool: Pool, contract: AnswerQuestionContract, intent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>) {

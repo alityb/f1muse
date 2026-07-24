@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { AnswerIntent, parseAnswerIntent } from './answer-intent';
+import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v1';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v1' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v2';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v4' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -22,11 +22,9 @@ export type AnswerProviderDiagnosticCode = (typeof ANSWER_PROVIDER_DIAGNOSTIC_CO
 const referenceSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['text', 'start', 'end'],
+  required: ['text'],
   properties: {
-    text: { type: 'string', minLength: 1, maxLength: 200 },
-    start: { type: 'integer', minimum: 0 },
-    end: { type: 'integer', minimum: 1 }
+    text: { type: 'string', minLength: 1, maxLength: 200 }
   }
 } as const;
 
@@ -68,9 +66,32 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
   }
 } as const);
 
-export const ANSWER_TRANSLATOR_SYSTEM_PROMPT = `Return exactly { "intent": <AnswerIntent> } matching the supplied strict JSON schema, with no other top-level keys.
-Every season, event or round, driver, and classification-status value must include the exact literal span from the normalized question, measured in Unicode code points. Never emit canonical IDs or F1QL.
-Do not guess omitted season, session, metric, status, event, driver, or cardinality semantics. Use clarification or unsupported when the question does not uniquely select one supported answer template.`;
+export const ANSWER_TRANSLATOR_SYSTEM_PROMPT = `Return exactly { "intent": <AnswerIntent> } matching the strict JSON schema. Never emit IDs or F1QL. Every reference must copy an exact case-sensitive text sequence from the normalized question; emit text only, never offsets.
+
+Decision table (follow literal wording):
+- final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
+- final_standings_leader: final driver standings champion/leader.
+- race_classification_all: literal full/all race classification.
+- race_classification_driver: race classification for exactly one literal driver.
+- race_classification_status: race classification filtered by exactly one literal supported status.
+- qualifying_classification_all: literal full/all qualifying classification.
+- qualifying_classification_driver: qualifying classification for exactly one literal driver.
+- qualifying_classification_status: qualifying classification filtered by exactly one literal supported status.
+- race_date: literal race/Grand Prix date request.
+
+Rules: final standings are supported. An explicit 4-digit year is never season_missing. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when no year is written; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final-standings request as unsupported.
+
+Valid examples:
+Question: Who led the 2025 standings?
+{"intent":{"type":"final_standings_leader","season":2025,"season_reference":{"text":"2025"}}}
+Question: All 2025 Monaco race results
+{"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
+Question: Show Max in 2025 Monaco qualifying
+{"intent":{"type":"qualifying_classification_driver","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"},"driver_reference":{"text":"Max"}}}
+Question: Who led the standings?
+{"intent":{"type":"clarification","reason":"season_missing"}}
+Question: Show 2025 sprint results
+{"intent":{"type":"unsupported","reason":"sprint_source_unsupported"}}`;
 
 export const ANSWER_TRANSLATOR_PROMPT_SHA256 = sha256(ANSWER_TRANSLATOR_SYSTEM_PROMPT);
 export const ANSWER_TRANSLATOR_SCHEMA_SHA256 = sha256(stableSerialize(ANSWER_INTENT_JSON_SCHEMA));
@@ -78,6 +99,10 @@ export const ANSWER_TRANSLATOR_SCHEMA_SHA256 = sha256(stableSerialize(ANSWER_INT
 export interface AnswerIntentModel {
   complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string>;
 }
+
+const ANSWER_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type AnswerReasoningEffort = (typeof ANSWER_REASONING_EFFORTS)[number];
+export type AnswerReasoningMode = AnswerReasoningEffort | 'disabled';
 
 export type AnswerTranslationResult =
   | { readonly type: 'intent_candidate'; readonly intent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }> }
@@ -89,11 +114,13 @@ export class OpenAICompatibleAnswerIntentModel implements AnswerIntentModel {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly model: string;
+  private readonly reasoningEffort: AnswerReasoningEffort | undefined;
 
-  constructor(baseUrl: string, apiKey: string, model: string) {
+  constructor(baseUrl: string, apiKey: string, model: string, reasoningEffort?: AnswerReasoningEffort) {
     this.baseUrl = validateAnswerEndpoint(baseUrl);
     this.apiKey = apiKey;
     this.model = model;
+    this.reasoningEffort = reasoningEffort;
   }
 
   async complete(systemPrompt: string, question: string, signal?: AbortSignal): Promise<string> {
@@ -105,6 +132,7 @@ export class OpenAICompatibleAnswerIntentModel implements AnswerIntentModel {
         model: this.model,
         max_tokens: 512,
         temperature: 0,
+        ...(this.reasoningEffort === undefined ? {} : { reasoning_effort: this.reasoningEffort }),
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: question }],
         response_format: {
           type: 'json_schema',
@@ -148,11 +176,14 @@ export class AnswerProviderConfigurationError extends Error {}
 export interface ConfiguredAnswerModelIdentity {
   readonly provider: 'groq' | 'openai-compatible';
   readonly model_id: string;
+  readonly endpoint_sha256: string;
+  readonly reasoning_effort: AnswerReasoningMode;
 }
 
 interface ConfiguredAnswerModel extends ConfiguredAnswerModelIdentity {
   readonly base_url: string;
   readonly api_key: string;
+  readonly request_reasoning_effort?: AnswerReasoningEffort;
 }
 
 function readConfiguredAnswerModel(env: NodeJS.ProcessEnv = process.env): ConfiguredAnswerModel {
@@ -170,21 +201,35 @@ function readConfiguredAnswerModel(env: NodeJS.ProcessEnv = process.env): Config
   if ((!isGroq && !isDeclaredStrictCompatible) || !model) {
     throw new AnswerProviderConfigurationError('Strict answer intent provider is not supported or configured');
   }
+  const reasoningEffort = readAnswerReasoningEffort(env.F1QL_ANSWER_REASONING_EFFORT);
   const apiKey = env.F1QL_ANSWER_LLM_API_KEY ?? env.LLM_API_KEY;
   if (!apiKey) {
     throw new AnswerProviderConfigurationError('Strict answer intent provider is not supported or configured');
   }
-  return { provider: provider as ConfiguredAnswerModel['provider'], model_id: model, base_url: validatedBaseUrl, api_key: apiKey };
+  return {
+    provider: provider as ConfiguredAnswerModel['provider'],
+    model_id: model,
+    endpoint_sha256: sha256(validatedBaseUrl),
+    reasoning_effort: reasoningEffort ?? 'disabled',
+    base_url: validatedBaseUrl,
+    api_key: apiKey,
+    ...(reasoningEffort === undefined ? {} : { request_reasoning_effort: reasoningEffort })
+  };
 }
 
 export function getConfiguredAnswerModelIdentity(env: NodeJS.ProcessEnv = process.env): ConfiguredAnswerModelIdentity {
   const configured = readConfiguredAnswerModel(env);
-  return Object.freeze({ provider: configured.provider, model_id: configured.model_id });
+  return Object.freeze({
+    provider: configured.provider,
+    model_id: configured.model_id,
+    endpoint_sha256: configured.endpoint_sha256,
+    reasoning_effort: configured.reasoning_effort
+  });
 }
 
 export function createAnswerIntentModel(): AnswerIntentModel {
   const configured = readConfiguredAnswerModel();
-  return new OpenAICompatibleAnswerIntentModel(configured.base_url, configured.api_key, configured.model_id);
+  return new OpenAICompatibleAnswerIntentModel(configured.base_url, configured.api_key, configured.model_id, configured.request_reasoning_effort);
 }
 
 async function readBoundedResponse(response: Response): Promise<string> {
@@ -231,7 +276,7 @@ export async function translateAnswerQuestion(contract: AnswerQuestionContract, 
     return { type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'malformed' };
   }
   try {
-    const intent = parseAnswerIntent(extractAnswerIntentWrapper(parsed), contract);
+    const intent = hydrateAndParseAnswerIntent(extractAnswerIntentWrapper(parsed), contract);
     if (intent.type === 'clarification') {
       return { type: 'clarification_required', reason: intent.reason };
     }
@@ -242,6 +287,16 @@ export async function translateAnswerQuestion(contract: AnswerQuestionContract, 
   } catch {
     return { type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'schema_invalid' };
   }
+}
+
+function readAnswerReasoningEffort(value: string | undefined): AnswerReasoningEffort | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!(ANSWER_REASONING_EFFORTS as readonly string[]).includes(value)) {
+    throw new AnswerProviderConfigurationError('Invalid answer reasoning effort');
+  }
+  return value as AnswerReasoningEffort;
 }
 
 function extractAnswerIntentWrapper(parsed: unknown): unknown {
@@ -275,6 +330,9 @@ function validateAnswerEndpoint(baseUrl: string): string {
     throw new AnswerProviderConfigurationError('Answer intent provider endpoint must use HTTPS');
   }
   if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
+    throw new AnswerProviderConfigurationError('Answer intent provider endpoint must use HTTPS');
+  }
+  if (endpoint.search || endpoint.hash) {
     throw new AnswerProviderConfigurationError('Answer intent provider endpoint must use HTTPS');
   }
   return endpoint.toString().replace(/\/$/, '');

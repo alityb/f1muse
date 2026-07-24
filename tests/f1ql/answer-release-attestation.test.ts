@@ -49,12 +49,13 @@ const evidence = {
 };
 const passingStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' } as const;
 const RELEASE_NOW_MS = Date.parse('2026-07-24T00:01:00.000Z');
+const GROQ_ENDPOINT_HASH = createHash('sha256').update('https://api.groq.com/openai/v1').digest('hex');
 const temporalPolicy = { now_ms: RELEASE_NOW_MS, max_validity_ms: 600_000, max_age_ms: 300_000 };
 const buildAnswerReleaseAttestationFile = (paths: Parameters<typeof buildReleaseAtClock>[0], env: NodeJS.ProcessEnv) => buildReleaseAtClock(paths, env, RELEASE_NOW_MS);
 const verifyAnswerReleaseAttestationFile = (path: string, env: NodeJS.ProcessEnv) => verifyReleaseAtClock(path, env, RELEASE_NOW_MS);
 const context = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAnswerReleaseContext => ({
   release_id: 'test-release-1', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model',
+  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
   audience: 'f1muse-answer', deployment_id: 'test-deployment', evidence_hashes: evidence,
   statuses: passingStatuses, runtime, deployment_template_ids: ['final_standings_leader', 'race_date'],
   ...overrides
@@ -96,6 +97,12 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(() => verifyAnswerReleaseAttestation({ ...raw, model_id: 'tampered-model' }, trustedKey, context(), temporalPolicy)).toThrowError(
       expect.objectContaining({ code: 'signature_invalid' })
     );
+    expect(() => verifyAnswerReleaseAttestation({ ...raw, endpoint_sha256: hash('2') }, trustedKey, context(), temporalPolicy)).toThrowError(
+      expect.objectContaining({ code: 'signature_invalid' })
+    );
+    expect(() => verifyAnswerReleaseAttestation({ ...raw, reasoning_effort: 'medium' }, trustedKey, context(), temporalPolicy)).toThrowError(
+      expect.objectContaining({ code: 'signature_invalid' })
+    );
     expect(() => verifyAnswerReleaseAttestation(raw, { ...trustedKey, public_key: other.publicKey }, context(), temporalPolicy)).toThrowError(
       expect.objectContaining({ code: 'signature_invalid' })
     );
@@ -130,6 +137,8 @@ describe('cryptographically rooted answer release attestation', () => {
       context({ commit_sha: 'f'.repeat(40) }),
       context({ release_id: 'other-release' }),
       context({ model_id: 'other-model' }),
+      context({ endpoint_sha256: hash('2') }),
+      context({ reasoning_effort: 'medium' }),
       context({ audience: 'other-audience' }),
       context({ deployment_id: 'other-deployment' }),
       context({ evidence_hashes: { ...evidence, report_sha256: hash('f') } }),
@@ -176,7 +185,7 @@ describe('cryptographically rooted answer release attestation', () => {
   });
 
   it('loads production verification context from bounded environment values and binds the configured provider/model', () => {
-    const productionContext = context({ provider: 'groq', model_id: 'openai/gpt-oss-20b' });
+    const productionContext = context({ provider: 'groq', model_id: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH, reasoning_effort: 'disabled' });
     const raw = signedFixture(productionContext);
     const env: NodeJS.ProcessEnv = {
       F1QL_ANSWER_RELEASE_ATTESTATION: JSON.stringify(raw),
@@ -202,8 +211,17 @@ describe('cryptographically rooted answer release attestation', () => {
       maxWorkUnits: runtime.max_work_units, maxRows: runtime.max_rows, maxResponseBytes: runtime.max_response_bytes
     };
     const loaded = loadAnswerReleaseVerificationInput(config, env, RELEASE_NOW_MS);
-    expect(loaded.active_context).toMatchObject({ provider: 'groq', model_id: 'openai/gpt-oss-20b' });
+    expect(loaded.active_context).toMatchObject({ provider: 'groq', model_id: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH, reasoning_effort: 'disabled' });
     expect(verifyAnswerReleaseAttestation(loaded.raw_attestation, loaded.trusted_key, loaded.active_context, loaded.temporal_policy).model_id).toBe('openai/gpt-oss-20b');
+    for (const changedEnv of [
+      { ...env, F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v2' },
+      { ...env, F1QL_ANSWER_REASONING_EFFORT: 'none' }
+    ]) {
+      const changed = loadAnswerReleaseVerificationInput(config, changedEnv, RELEASE_NOW_MS);
+      expect(() => verifyAnswerReleaseAttestation(changed.raw_attestation, changed.trusted_key, changed.active_context, changed.temporal_policy)).toThrowError(
+        expect.objectContaining({ code: 'binding_mismatch' })
+      );
+    }
     expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_LLM_API_KEY: undefined })).toThrow();
     expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: `${env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64}\n` })).toThrow();
   });
@@ -239,6 +257,8 @@ describe('guarded answer release attestation files', () => {
   it('rejects a model mismatch and empty evidence', () => {
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_MODEL: 'openai/gpt-oss-120b' })).toThrow('answer_release_model_mismatch');
+      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v2' })).toThrow('answer_release_model_mismatch');
+      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_REASONING_EFFORT: 'none' })).toThrow('answer_release_model_mismatch');
       writeFileSync(paths.principal_audit, '');
       expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_input_invalid');
     });
@@ -379,7 +399,10 @@ function makePassingArtifact(): any {
   return {
     version: 3,
     kind: 'f1ql_answer_observations',
-    provider: { type: 'groq', model: 'openai/gpt-oss-20b', collected_at: '2026-07-24T00:00:00.000Z' },
+    provider: {
+      type: 'groq', model: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH,
+      reasoning_effort: 'disabled', collected_at: '2026-07-24T00:00:00.000Z'
+    },
     manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) },
     contract: {
       question_version: ANSWER_QUESTION_CONTRACT_VERSION,

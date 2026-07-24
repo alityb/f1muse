@@ -25,7 +25,10 @@ function perfectArtifact(modify?: (artifact: any) => void) {
   const unsigned: any = {
     version: 3,
     kind: 'f1ql_answer_observations',
-    provider: { type: 'groq', model: 'private-model-name', collected_at: '2026-07-24T00:00:00.000Z' },
+    provider: {
+      type: 'groq', model: 'private-model-name', endpoint_sha256: '1'.repeat(64),
+      reasoning_effort: 'disabled', collected_at: '2026-07-24T00:00:00.000Z'
+    },
     manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) },
     contract: {
       question_version: ANSWER_QUESTION_CONTRACT_VERSION,
@@ -59,6 +62,7 @@ describe('answer observation reporting', () => {
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, perfectArtifact(), artifactHash);
     expect(report.artifact).toEqual({ version: 3, observations: answerEvaluationManifest.length, sha256: artifactHash, manifest_sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) });
     expect(report.contract).toMatchObject({ translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256, translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256, status: 'pass' });
+    expect(report.provider_evidence).toEqual({ provider: 'groq', endpoint_sha256: '1'.repeat(64), reasoning_effort: 'disabled', status: 'pass' });
     expect(Object.values(report.templates).every(value => value.cases >= 2 && value.non_development_cases >= 2 && value.exact === value.cases && value.proof_complete === value.cases)).toBe(true);
     expect(report.selection).toMatchObject({ observations_missing: 0, unsafe_answers: 0 });
     expect(report.metamorphic).toMatchObject({ groups_total: 8, groups_complete: 8, groups_consistent: 8 });
@@ -67,6 +71,7 @@ describe('answer observation reporting', () => {
     expect(report.release_gates).toMatchObject({ provider_diagnostics_zero: true, exact_templates_complete: true, exact_programs_complete: true, semantic_proofs_complete: true, status: 'pass' });
     const serialized = JSON.stringify(report);
     expect(serialized).not.toContain('private-model-name');
+    expect(serialized).not.toContain('https://');
     expect(serialized).toContain(artifactHash);
     expect(serialized).toContain(ANSWER_TEMPLATE_REGISTRY_HASH);
     for (const item of answerEvaluationManifest) {

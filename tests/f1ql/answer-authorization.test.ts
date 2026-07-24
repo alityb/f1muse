@@ -27,7 +27,7 @@ const trustedKey = { key_id: 'authorization-release-key', public_key: keyPair.pu
 const releaseNowMs = Date.parse('2026-07-24T00:01:00.000Z');
 const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAnswerReleaseContext => ({
   release_id: 'test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model',
+  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
   audience: 'f1muse-answer', deployment_id: 'test-deployment',
   evidence_hashes: {
     manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),

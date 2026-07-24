@@ -9,7 +9,10 @@ import { AnswerIntentModel, AnswerTranslationResult } from '../../src/f1ql/answe
 import { ANSWER_TRANSLATOR_PROMPT_SHA256, ANSWER_TRANSLATOR_SCHEMA_SHA256 } from '../../src/f1ql/answer-translator';
 import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
 
-const provider = { type: 'groq' as const, model: 'openai/gpt-oss-20b', collected_at: '2026-07-24T00:00:00.000Z' };
+const provider = {
+  type: 'groq' as const, model: 'openai/gpt-oss-20b', endpoint_sha256: '1'.repeat(64),
+  reasoning_effort: 'disabled' as const, collected_at: '2026-07-24T00:00:00.000Z'
+};
 const legacyProvider = { type: 'openai-compatible' as const, model: 'fixture-model', collected_at: provider.collected_at };
 const keys = generateKeyPairSync('ed25519');
 const keyId = 'evaluation-test-key';
@@ -37,7 +40,7 @@ describe('answer observation artifacts', () => {
   });
 
   it('collects deterministic question outcomes and semantic proofs without execution', async () => {
-    const cases = ['dev-leader', 'dev-pace', 'dev-ambiguous', 'unicode-control'].map(id => answerEvaluationManifest.find(item => item.id === id)!);
+    const cases = ['dev-leader', 'dev-pace', 'iid-points-all', 'unicode-control'].map(id => answerEvaluationManifest.find(item => item.id === id)!);
     const leaderQuestion = cases[0].question;
     const results: AnswerTranslationResult[] = [
       { type: 'intent_candidate', intent: { type: 'final_standings_leader', season: 2025, season_reference: span(leaderQuestion, '2025') } },
@@ -66,7 +69,7 @@ describe('answer observation artifacts', () => {
     expect(artifact.observations).toEqual([
       expect.objectContaining({ id: 'dev-leader', action: 'answer', template_id: 'final_standings_leader', proof_status: 'passed', translation_attempted: true, translation_latency_ms: 10 }),
       expect.objectContaining({ id: 'dev-pace', action: 'abstain', reason: 'pace_source_disabled', proof_status: 'not_applicable', translation_attempted: false }),
-      expect.objectContaining({ id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous', proof_status: 'not_applicable' }),
+      expect.objectContaining({ id: 'iid-points-all', action: 'clarify', reason: 'metric_ambiguous', proof_status: 'not_applicable' }),
       expect.objectContaining({ id: 'unicode-control', action: 'abstain', reason: 'question_invalid', proof_status: 'not_applicable' })
     ]);
     expect(artifact.contract).toMatchObject({ translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256, translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256 });
@@ -108,7 +111,7 @@ describe('answer observation artifacts', () => {
   });
 
   it('retains only low-cardinality diagnostics and the exact model privately', async () => {
-    const cases = [answerEvaluationManifest.find(item => item.id === 'dev-ambiguous')!];
+    const cases = [answerEvaluationManifest.find(item => item.id === 'dev-leader')!];
     let translated = 0;
     const artifact = await collectAnswerObservations(cases, provider, {
       translate: async () => { translated++; return { result: { type: 'provider_unavailable', reason: 'provider_error', diagnostic_code: 'rate_limit' }, timedOut: false }; },
@@ -134,6 +137,87 @@ describe('answer observation artifacts', () => {
     expect(artifact.observations).toEqual([expect.objectContaining({
       id: 'multi-intent', action: 'clarify', reason: 'session_ambiguous', translation_attempted: false,
       translation_timed_out: false, proof_status: 'not_applicable', entity_candidates: [], linked_entities: []
+    })]);
+  });
+
+  it('records deterministic unsupported capability cases without calling the model', async () => {
+    const ids = ['attack-event', 'attack-order', 'attack-limit', 'attack-driver', 'attack-status', 'attack-dropped-driver', 'attack-added-driver'];
+    const cases = ids.map(id => answerEvaluationManifest.find(item => item.id === id)!);
+    let translated = 0;
+    let paced = 0;
+    const artifact = await collectAnswerObservations(cases, provider, {
+      beforeTranslate: async () => { paced++; },
+      translate: async () => { translated++; throw new Error('model must not run'); },
+      prove: async () => { throw new Error('proof must not run'); }
+    }, signer);
+    expect({ translated, paced }).toEqual({ translated: 0, paced: 0 });
+    expect(artifact.observations).toEqual(ids.map(id => expect.objectContaining({
+      id, action: 'abstain', reason: 'capability_unsupported', translation_attempted: false, proof_status: 'not_applicable'
+    })));
+  });
+
+  it('records exclusion and bounded-rank rejections without calling the model', async () => {
+    const base = answerEvaluationManifest[0];
+    const cases = [
+      { ...base, id: 'exclusion-race-status', question: 'Show all 2025 Monaco race results other than DNFs' },
+      { ...base, id: 'exclusion-qualifying-status', question: 'Show 2025 Monaco qualifying apart from DNS' },
+      { ...base, id: 'exclusion-save-for', question: 'Show 2025 Monaco race results save for DSQs' },
+      { ...base, id: 'exclusion-all-but', question: 'Show 2025 Monaco race results all but classified drivers' },
+      { ...base, id: 'exclusion-driver', question: 'Show all drivers except Max Verstappen in the final 2025 standings' },
+      { ...base, id: 'exclusion-event', question: 'Show the 2025 race results except Monaco' },
+      { ...base, id: 'exclusion-harmless-without', question: 'Show 2025 Monaco race results without commentary' },
+      { ...base, id: 'exclusion-non-dnf', question: 'Show 2025 Monaco race results for non-DNFs' },
+      { ...base, id: 'bounded-rank', question: 'Show the top-3 final 2025 standings points' },
+      { ...base, id: 'bounded-rank-reversed', question: 'Show the three highest final 2025 standings drivers' },
+      { ...base, id: 'bounded-best', question: 'Show the five best final 2025 standings drivers' },
+      { ...base, id: 'bounded-trailing', question: 'Show the trailing 2 final 2025 standings drivers' },
+      { ...base, id: 'rank-second-place', question: 'Who finished second-place in the 2025 Monaco race?' },
+      { ...base, id: 'rank-position', question: 'Who was in position 2 in the final 2025 standings?' },
+      { ...base, id: 'ranked-third', question: 'Who ranked third in the final 2025 standings?' },
+      { ...base, id: 'rank-p2', question: 'Who was P2 in the final 2025 standings?' },
+      { ...base, id: 'rank-runner-up', question: 'Who was the runner-up in the 2025 championship?' },
+      { ...base, id: 'rank-highest', question: 'Who had the highest final 2025 standings points?' },
+      { ...base, id: 'bare-not-driver', question: 'Show 2025 Monaco race results not Max Verstappen' },
+      { ...base, id: 'bare-not-dnf', question: 'not DNFs in the 2025 Monaco race results' },
+      { ...base, id: 'cardinality-drivers', question: 'Show three drivers in the final 2025 standings' },
+      { ...base, id: 'cardinality-results', question: 'Show 3 race results from Monaco in 2025' }
+    ];
+    let translated = 0;
+    const artifact = await collectAnswerObservations(cases, provider, {
+      translate: async () => { translated++; throw new Error('model must not run'); },
+      prove: async () => { throw new Error('proof must not run'); }
+    }, signer);
+    expect(translated).toBe(0);
+    expect(artifact.observations).toEqual(cases.map(item => expect.objectContaining({
+      id: item.id, action: 'abstain', reason: 'capability_unsupported', translation_attempted: false
+    })));
+  });
+
+  it.each([
+    'Show the 2025 race results for round 2',
+    'Show the 2025 race results for the second round',
+    'Who was the final 2025 standings leader?',
+    'Who was the final 2025 champion?'
+  ])('sends round and exact leader/champion counterexamples to model inspection: %s', async question => {
+    const base = answerEvaluationManifest[0];
+    let translated = 0;
+    await collectAnswerObservations([{ ...base, id: 'counterexample', question }], provider, {
+      translate: async () => { translated++; return { result: { type: 'unsupported', reason: 'capability_unsupported' }, timedOut: false }; },
+      prove: async () => { throw new Error('proof must not run'); }
+    }, signer);
+    expect(translated).toBe(1);
+  });
+
+  it('records deterministic metric ambiguity without calling the model', async () => {
+    const cases = [answerEvaluationManifest.find(item => item.id === 'dev-ambiguous')!];
+    let translated = 0;
+    const artifact = await collectAnswerObservations(cases, provider, {
+      translate: async () => { translated++; throw new Error('model must not run'); },
+      prove: async () => { throw new Error('proof must not run'); }
+    }, signer);
+    expect(translated).toBe(0);
+    expect(artifact.observations).toEqual([expect.objectContaining({
+      id: 'dev-ambiguous', action: 'clarify', reason: 'metric_ambiguous', translation_attempted: false, proof_status: 'not_applicable'
     })]);
   });
 
@@ -201,7 +285,7 @@ describe('answer observation artifacts', () => {
 
   it('rejects non-monotonic timing and binds the exact disposable database', async () => {
     const times = [100, 99.5];
-    await expect(collectAnswerObservations([answerEvaluationManifest.find(item => item.id === 'dev-ambiguous')!], provider, {
+    await expect(collectAnswerObservations([answerEvaluationManifest.find(item => item.id === 'dev-leader')!], provider, {
       translate: async () => ({ result: { type: 'unsupported', reason: 'capability_unsupported' }, timedOut: false }),
       prove: async () => { throw new Error('proof must not run'); }, now: () => times.shift()!
     }, signer)).rejects.toThrow('answer_observation_translation_latency_invalid');
@@ -222,10 +306,19 @@ describe('answer observation artifacts', () => {
     const unsigned = structuredClone(artifact) as any;
     delete unsigned.evaluation.signature;
     expect(() => parseAnswerObservationArtifact(unsigned)).toThrow();
+    expect(() => parseAnswerObservationArtifact({ ...artifact, provider: { type: artifact.provider.type, model: artifact.provider.model, collected_at: artifact.provider.collected_at } })).toThrow();
 
     const tampered = structuredClone(artifact);
     tampered.observations[0].proof_hash = 'f'.repeat(64);
     expect(() => verifyAnswerObservationArtifact(cases, tampered, trustedKey)).toThrow('signature_invalid');
+    for (const providerMutation of [
+      { endpoint_sha256: '2'.repeat(64) },
+      { reasoning_effort: 'medium' as const }
+    ]) {
+      expect(() => verifyAnswerObservationArtifact(cases, {
+        ...artifact, provider: { ...artifact.provider, ...providerMutation }
+      }, trustedKey)).toThrow('signature_invalid');
+    }
     const wrongKeys = generateKeyPairSync('ed25519');
     expect(() => verifyAnswerObservationArtifact(cases, artifact, {
       key_id: keyId,

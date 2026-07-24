@@ -124,7 +124,13 @@ const artifactSchema = z.discriminatedUnion('version', [
   z.object({
     version: z.literal(3),
     kind: z.literal('f1ql_answer_observations'),
-    provider: z.object({ type: z.enum(['groq', 'openai-compatible']), model: modelIdSchema, collected_at: z.string().datetime() }).strict(),
+    provider: z.object({
+      type: z.enum(['groq', 'openai-compatible']),
+      model: modelIdSchema,
+      endpoint_sha256: hashSchema,
+      reasoning_effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'disabled']),
+      collected_at: z.string().datetime()
+    }).strict(),
     manifest: z.object({ case_count: z.number().int().positive(), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
     contract: z.object({
       question_version: z.string().min(1).max(100),
@@ -199,7 +205,13 @@ const artifactSchema = z.discriminatedUnion('version', [
 export type AnswerObservationArtifact = z.infer<typeof artifactSchema>;
 export type HardenedAnswerObservationArtifact = Extract<AnswerObservationArtifact, { version: 3 }>;
 export type HistoricalAnswerObservationArtifact = Exclude<AnswerObservationArtifact, { version: 3 }>;
-export type AnswerObservationProvider = { type: 'groq' | 'openai-compatible'; model: string; collected_at: string };
+export type AnswerObservationProvider = {
+  type: 'groq' | 'openai-compatible';
+  model: string;
+  endpoint_sha256: string;
+  reasoning_effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'disabled';
+  collected_at: string;
+};
 
 const verifiedArtifactBrand: unique symbol = Symbol('VerifiedAnswerObservationArtifact');
 const signingHelperBrand: unique symbol = Symbol('AnswerObservationSigningHelper');
