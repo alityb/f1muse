@@ -104,6 +104,7 @@ describe('answer principal least-privilege audit', () => {
     expect(calls.every(sql => !/^\s*(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i.test(sql))).toBe(true);
     expect(calls.join('\n')).toContain('pg_auth_members');
     expect(calls.join('\n')).toContain("has_function_privilege(current_user, p.oid, 'EXECUTE')");
+    expect(calls.join('\n')).toContain("has_schema_privilege(current_user, n.oid, 'USAGE')");
     expect(calls.join('\n')).toContain('FROM pg_proc p JOIN pg_namespace n');
     expect(calls.join('\n')).not.toMatch(/pg_has_role\s*\([^)]*['"]SET['"]/i);
     expect(ANSWER_PRINCIPAL_ALLOWED_ROUTINES).toEqual([]);

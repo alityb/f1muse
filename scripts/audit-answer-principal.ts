@@ -185,7 +185,8 @@ export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPr
     `)).rows;
     const routines = (await client.query<RoutineObservationRow>(`
       SELECT COUNT(*)::integer AS routine_observation_count,
-        (COUNT(*) FILTER (WHERE has_function_privilege(current_user, p.oid, 'EXECUTE')))::integer AS effective_routine_execute_count
+        (COUNT(*) FILTER (WHERE has_schema_privilege(current_user, n.oid, 'USAGE')
+          AND has_function_privilege(current_user, p.oid, 'EXECUTE')))::integer AS effective_routine_execute_count
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname <> 'information_schema'
         AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'
