@@ -154,13 +154,13 @@ export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPr
     `)).rows[0];
     const relations = (await client.query<RelationRow>(`
       SELECT n.nspname || '.' || c.relname AS relation, true AS exists,
-        has_table_privilege(current_user, c.oid, 'SELECT') AS can_select,
-        has_table_privilege(current_user, c.oid, 'INSERT') AS can_insert,
-        has_table_privilege(current_user, c.oid, 'UPDATE') AS can_update,
-        has_table_privilege(current_user, c.oid, 'DELETE') AS can_delete,
-        has_table_privilege(current_user, c.oid, 'TRUNCATE') AS can_truncate,
-        has_table_privilege(current_user, c.oid, 'REFERENCES') AS can_references,
-        has_table_privilege(current_user, c.oid, 'TRIGGER') AS can_trigger
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'SELECT') AS can_select,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'INSERT') AS can_insert,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'UPDATE') AS can_update,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'DELETE') AS can_delete,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'TRUNCATE') AS can_truncate,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'REFERENCES') AS can_references,
+        has_schema_privilege(current_user, n.oid, 'USAGE') AND has_table_privilege(current_user, c.oid, 'TRIGGER') AS can_trigger
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
       WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
         AND n.nspname NOT IN ('pg_catalog', 'information_schema')
