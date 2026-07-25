@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { F1QLProgram } from './ast';
 import { CoreDeltaNode, CoreFilterNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 
@@ -29,14 +29,27 @@ export function refreshF1QLDefinitionsVersion(): string {
 }
 
 export async function validateParticipation(pool: Pool, program: F1QLProgram): Promise<void> {
+  return validateParticipationFrom(pool, program, 'public');
+}
+
+export async function validateAnswerParticipation(queryable: Pick<PoolClient, 'query'>, program: F1QLProgram): Promise<void> {
+  return validateParticipationFrom(queryable, program, 'answer');
+}
+
+async function validateParticipationFrom(queryable: Pick<Pool, 'query'>, program: F1QLProgram, mode: 'public' | 'answer'): Promise<void> {
   const { season, drivers } = getParticipationScope(program);
   if (season === undefined || drivers.length === 0) {
     return;
   }
-  const result = await pool.query(
-    `SELECT DISTINCT REPLACE(driver_id, '_', '-') AS driver_id FROM season_entrant_driver WHERE year = $1 AND REPLACE(driver_id, '_', '-') = ANY($2::text[]) AND COALESCE(test_driver, false) = false`,
-    [season, drivers]
-  );
+  const result = mode === 'answer'
+    ? await queryable.query(
+      `SELECT DISTINCT REPLACE(driver_id, '_', '-') AS driver_id FROM f1ql.answer_season_participation WHERE season = $1 AND REPLACE(driver_id, '_', '-') = ANY($2::text[])`,
+      [season, drivers]
+    )
+    : await queryable.query(
+      `SELECT DISTINCT REPLACE(driver_id, '_', '-') AS driver_id FROM season_entrant_driver WHERE year = $1 AND REPLACE(driver_id, '_', '-') = ANY($2::text[]) AND COALESCE(test_driver, false) = false`,
+      [season, drivers]
+    );
   if (result.rows.length !== drivers.length) {
     throw new F1QLValidationError('participation_missing', 'Driver did not participate in the requested season');
   }

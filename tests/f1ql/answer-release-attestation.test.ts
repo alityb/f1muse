@@ -50,6 +50,9 @@ const evidence = {
 const passingStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' } as const;
 const RELEASE_NOW_MS = Date.parse('2026-07-24T00:01:00.000Z');
 const GROQ_ENDPOINT_HASH = createHash('sha256').update('https://api.groq.com/openai/v1').digest('hex');
+const CANARY_HMAC_KEY = Buffer.alloc(32, 7);
+const CANARY_HMAC_KEY_BASE64 = CANARY_HMAC_KEY.toString('base64');
+const CANARY_HMAC_KEY_SHA256 = createHash('sha256').update(CANARY_HMAC_KEY).digest('hex');
 const temporalPolicy = { now_ms: RELEASE_NOW_MS, max_validity_ms: 600_000, max_age_ms: 300_000 };
 const buildAnswerReleaseAttestationFile = (paths: Parameters<typeof buildReleaseAtClock>[0], env: NodeJS.ProcessEnv) => buildReleaseAtClock(paths, env, RELEASE_NOW_MS);
 const verifyAnswerReleaseAttestationFile = (path: string, env: NodeJS.ProcessEnv) => verifyReleaseAtClock(path, env, RELEASE_NOW_MS);
@@ -57,6 +60,7 @@ const context = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAns
   release_id: 'test-release-1', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
   commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
   audience: 'f1muse-answer', deployment_id: 'test-deployment', evidence_hashes: evidence,
+  canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256,
   statuses: passingStatuses, runtime, deployment_template_ids: ['final_standings_leader', 'race_date'],
   ...overrides
 });
@@ -67,7 +71,7 @@ const trustedKey = { key_id: 'release-key-1', public_key: trusted.publicKey };
 
 function signedFixture(active = context(), privateKey = trusted.privateKey, keyId = trustedKey.key_id) {
   const unsigned = {
-    version: 3 as const,
+    version: 4 as const,
     kind: 'f1ql_answer_release_attestation' as const,
     key_id: keyId,
     ...buildActiveAnswerReleaseBindings(active)
@@ -88,6 +92,7 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(Object.isFrozen(verified)).toBe(true);
     expect(Object.isFrozen(verified.statuses)).toBe(true);
     expect(Object.isFrozen(verified.allowed_template_ids)).toBe(true);
+    expect(verified).toMatchObject({ canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256 });
     expect(getAnswerReleaseAttestationHash(verified)).toMatch(/^[a-f0-9]{64}$/);
     expect(() => { (verified.statuses as { semantic: string }).semantic = 'fail'; }).toThrow();
   });
@@ -141,6 +146,8 @@ describe('cryptographically rooted answer release attestation', () => {
       context({ reasoning_effort: 'medium' }),
       context({ audience: 'other-audience' }),
       context({ deployment_id: 'other-deployment' }),
+      context({ maximum_canary_stage: 25 }),
+      context({ canary_hmac_key_sha256: hash('f') }),
       context({ evidence_hashes: { ...evidence, report_sha256: hash('f') } }),
       context({ runtime: { ...runtime, max_rows: 99 } }),
       context({ deployment_template_ids: ['race_date'] })
@@ -196,6 +203,8 @@ describe('cryptographically rooted answer release attestation', () => {
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: productionContext.audience,
       F1QL_ANSWER_DEPLOYMENT_ID: productionContext.deployment_id,
       F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: productionContext.deployment_template_ids.join(','),
+      F1QL_ANSWER_CANARY_MAXIMUM_STAGE: String(productionContext.maximum_canary_stage),
+      F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
       F1QL_ANSWER_LLM_PROVIDER: 'groq',
       F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v1',
       F1QL_ANSWER_LLM_API_KEY: 'not-printed-or-returned',
@@ -224,6 +233,9 @@ describe('cryptographically rooted answer release attestation', () => {
     }
     expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_LLM_API_KEY: undefined })).toThrow();
     expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: `${env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64}\n` })).toThrow();
+    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '10' })).toThrow();
+    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '050' })).toThrow();
+    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: `${CANARY_HMAC_KEY_BASE64}\n` })).toThrow();
   });
 });
 
@@ -517,6 +529,8 @@ function withReleaseFiles(
       F1QL_ANSWER_EVALUATION_KEY_ID: signer.key_id,
       F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64: evaluationPublicKey,
       F1QL_ANSWER_RELEASE_ID: 'test-release-1',
+      F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '50',
+      F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
       F1QL_ANSWER_PROVIDER_EVIDENCE_MAX_AGE_MS: '300000',
       F1QL_ANSWER_PRINCIPAL_AUDIT_MAX_AGE_MS: '300000',
       F1QL_ANSWER_PRODUCTION_EVIDENCE_KEY_ID: productionKeyId,

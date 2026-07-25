@@ -142,6 +142,25 @@ export function consumeAnswerExecutionAuthorization(
   context: AnswerAuthorizationConsumptionContext,
   nowMs: number = Date.now()
 ): VerifiedAnswerExecutionAuthorization {
+  const authorization = validateAnswerExecutionAuthorization(input, context, nowMs, false);
+  consumedAuthorizations.add(authorization);
+  return authorization;
+}
+
+export function assertAnswerExecutionAuthorizationActive(
+  input: unknown,
+  context: AnswerAuthorizationConsumptionContext,
+  nowMs: number = Date.now()
+): VerifiedAnswerExecutionAuthorization {
+  return validateAnswerExecutionAuthorization(input, context, nowMs, true);
+}
+
+function validateAnswerExecutionAuthorization(
+  input: unknown,
+  context: AnswerAuthorizationConsumptionContext,
+  nowMs: number,
+  requireConsumed: boolean
+): VerifiedAnswerExecutionAuthorization {
   try {
     if (typeof context?.is_kill_switch_active !== 'function' || context.is_kill_switch_active()) {
       throw new AnswerAuthorizationError('kill_switch_active');
@@ -156,8 +175,11 @@ export function consumeAnswerExecutionAuthorization(
     throw new AnswerAuthorizationError('invalid_authorization');
   }
   const authorization = input as VerifiedAnswerExecutionAuthorization;
-  if (consumedAuthorizations.has(authorization)) {
+  if (!requireConsumed && consumedAuthorizations.has(authorization)) {
     throw new AnswerAuthorizationError('authorization_replayed');
+  }
+  if (requireConsumed && !consumedAuthorizations.has(authorization)) {
+    throw new AnswerAuthorizationError('invalid_authorization');
   }
   if (!isVerifiedAnswerReleaseAttestation(context.release_attestation)) {
     throw new AnswerAuthorizationError('invalid_authorization');
@@ -178,7 +200,6 @@ export function consumeAnswerExecutionAuthorization(
       !sameActiveVersions(authorization.active_versions, activeVersions())) {
     throw new AnswerAuthorizationError('authorization_binding_mismatch');
   }
-  consumedAuthorizations.add(authorization);
   return authorization;
 }
 

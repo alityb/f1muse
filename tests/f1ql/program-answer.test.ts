@@ -3,11 +3,14 @@ import express from 'express';
 import { AddressInfo } from 'net';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { Pool } from 'pg';
 import { createProgramAnswerRoutes } from '../../src/api/routes/program-answer';
 import { AnswerIntentModel, AnswerTranslationResult, translateAnswerQuestion } from '../../src/f1ql/answer-translator';
 import { AnswerRuntimeConfig } from '../../src/f1ql/answer-runtime';
+import { executeAuthorizedAnswer } from '../../src/f1ql/answer-execution';
+import { AnswerBoundError } from '../../src/f1ql/answer-bounds';
+import { F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { ActiveAnswerReleaseContext, AnswerReleaseVerificationInput, buildActiveAnswerReleaseBindings, getAnswerReleaseAttestationSigningPayload, verifyAnswerReleaseAttestation } from '../../src/f1ql/answer-release-attestation';
 import { ANSWER_TEMPLATE_IDS } from '../../src/f1ql/answer-templates';
 import { metrics } from '../../src/observability/metrics';
@@ -48,6 +51,8 @@ let releaseLoads: number;
 let connectionAttempts: number;
 let databaseStatements: string[];
 let routeNowMs: number;
+let executionAttempts: number;
+let executionError: Error | undefined;
 
 const hash = (digit: string) => digit.repeat(64);
 const releaseEvidence = {
@@ -56,6 +61,9 @@ const releaseEvidence = {
 };
 const releaseKeyPair = generateKeyPairSync('ed25519');
 const releaseKey = { key_id: 'route-release-key', public_key: releaseKeyPair.publicKey };
+const canaryHmacKey = Buffer.alloc(32, 7);
+const canaryHmacKeyBase64 = canaryHmacKey.toString('base64');
+const canaryHmacKeySha256 = createHash('sha256').update(canaryHmacKey).digest('hex');
 
 function releaseRuntime(config: AnswerRuntimeConfig) {
   return {
@@ -72,11 +80,12 @@ function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly
     release_id: 'route-test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
     commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
     audience: 'f1muse-answer', deployment_id: 'route-test-deployment', evidence_hashes: releaseEvidence,
+    canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryHmacKeySha256,
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
     runtime, deployment_template_ids: [...allowedTemplateIds]
   };
   const unsigned = {
-    version: 3 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 4 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: releaseKey.key_id, ...buildActiveAnswerReleaseBindings(activeContext)
   };
   return {
@@ -101,6 +110,12 @@ const fakeClient = {
         { driver_id: 'driver-b', identity: 'Max', participation_source: 'entrant' }
       ] };
     }
+    if (sql.includes('f1ql.answer_season_participation')) {
+      return { rows: [{ driver_id: 'lando-norris' }] };
+    }
+    if (sql.startsWith('SELECT * FROM')) {
+      return { rows: [{ driver_id: 'lando-norris', championship_position: 1, points: '357' }] };
+    }
     return { rows: [] };
   },
   release: () => undefined
@@ -120,7 +135,14 @@ beforeAll(async () => {
       return useReleaseOverride ? releaseOverride as AnswerReleaseVerificationInput : createRelease(runtimeConfig);
     },
     runtimeConfig,
-    now: () => routeNowMs
+    now: () => routeNowMs,
+    execute: (...args) => {
+      executionAttempts++;
+      if (executionError) {
+        return Promise.reject(executionError);
+      }
+      return executeAuthorizedAnswer(...args);
+    }
   }));
   await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -130,6 +152,7 @@ beforeEach(() => {
   process.env.F1QL_ANSWER_ENABLED = 'true';
   process.env.F1QL_ANSWER_INTERNAL_TOKEN = internalToken;
   process.env.F1QL_ANSWER_CANARY_STAGE = '100';
+  process.env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64 = canaryHmacKeyBase64;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
   delete process.env.F1QL_DEFINITIONS_VERSION;
   modelCreations = 0;
@@ -142,6 +165,8 @@ beforeEach(() => {
   connectionAttempts = 0;
   databaseStatements = [];
   routeNowMs = releaseNowMs;
+  executionAttempts = 0;
+  executionError = undefined;
   model.waitForAbort = false;
   model.output = JSON.stringify({ intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } } });
   runtimeConfig.maxWorkUnits = 200;
@@ -154,6 +179,7 @@ afterAll(async () => {
   delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
   delete process.env.F1QL_DEFINITIONS_VERSION;
   delete process.env.F1QL_ANSWER_CANARY_STAGE;
+  delete process.env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64;
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -198,10 +224,9 @@ function resolveLocalTypeScriptModule(importer: string, specifier: string): stri
   return undefined;
 }
 
-describe('gated answer route skeleton', () => {
-  it('has no reachable executor import or F1QL execution call', () => {
+describe('gated answer route', () => {
+  it('keeps evaluation and observation entrypoints structurally non-executing', () => {
     assertNoReachableExecution([
-      'src/api/routes/program-answer.ts',
       'scripts/collect-answer-evaluation-observations.ts',
       'scripts/report-answer-evaluation-observations.ts',
       'src/f1ql/answer-observations.ts'
@@ -219,14 +244,16 @@ describe('gated answer route skeleton', () => {
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
     expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 0, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
+    expect(executionAttempts).toBe(0);
   });
 
-  it('rejects intermediate canary percentages before release or model work', async () => {
+  it('applies an attested intermediate canary cohort before execution', async () => {
     process.env.F1QL_ANSWER_CANARY_STAGE = '25';
     const response = await ask();
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'release_not_approved' });
-    expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 0, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
+    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
+    expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 1, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
+    expect(executionAttempts).toBe(0);
   });
 
   it('checks the disabled gate before constructing a model', async () => {
@@ -247,7 +274,8 @@ describe('gated answer route skeleton', () => {
 
   it('rechecks an injected live kill switch immediately before authorization', async () => {
     const liveEnvironment: NodeJS.ProcessEnv = {
-      F1QL_ANSWER_ENABLED: 'true', F1QL_ANSWER_INTERNAL_TOKEN: internalToken, F1QL_ANSWER_CANARY_STAGE: '100'
+      F1QL_ANSWER_ENABLED: 'true', F1QL_ANSWER_INTERNAL_TOKEN: internalToken, F1QL_ANSWER_CANARY_STAGE: '100',
+      F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: canaryHmacKeyBase64
     };
     const app = express();
     app.use(express.json());
@@ -290,8 +318,8 @@ describe('gated answer route skeleton', () => {
     };
     try {
       const response = await ask();
-      expect(response.status).toBe(500);
-      await expect(response.json()).resolves.toEqual({ error: 'answer_failed', reason: 'authorization_envelope_failed' });
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'release_not_approved' });
     } finally {
       fakeClient.query = originalQuery;
     }
@@ -451,12 +479,8 @@ describe('gated answer route skeleton', () => {
     'Who was the final 2025 driver champion?'
   ])('hydrates and proves the champion route as the final standings leader: %s', async question => {
     const response = await ask(question);
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'answer_unavailable',
-      reason: 'execution_bounds_not_enforced',
-      mode: 'gated_non_execution'
-    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
     expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
   });
 
@@ -474,12 +498,8 @@ describe('gated answer route skeleton', () => {
       season_reference: { text: '2025' }, driver_references: []
     } });
     const response = await ask(question);
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: 'answer_unavailable',
-      reason: 'execution_bounds_not_enforced',
-      mode: 'gated_non_execution'
-    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
     expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
   });
 
@@ -566,16 +586,24 @@ describe('gated answer route skeleton', () => {
     expect(databaseStatements.at(-1)).toBe('ROLLBACK');
   });
 
-  it('keeps an approved candidate non-executing until runtime budgets are enforced', async () => {
+  it('executes one approved candidate and returns the bounded deterministic envelope', async () => {
     const response = await ask();
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(200);
     const requestId = response.headers.get('x-request-id');
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
-    await expect(response.json()).resolves.toEqual({
-      error: 'answer_unavailable',
-      reason: 'execution_bounds_not_enforced',
-      mode: 'gated_non_execution'
-    });
+    await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
     expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+    expect(executionAttempts).toBe(1);
+  });
+
+  it.each([
+    [new AnswerBoundError('response_bytes', 65_537, 65_536), 422, 'answer_bound_exceeded', 'response_bytes'],
+    [new F1QLStatementTimeoutError(50), 504, 'answer_unavailable', 'statement_timeout']
+  ] as const)('maps bounded execution failure %# without exposing query details', async (error, status, responseError, reason) => {
+    executionError = error;
+    const response = await ask();
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ error: responseError, reason });
+    expect(executionAttempts).toBe(1);
   });
 });

@@ -11,8 +11,9 @@ import {
   getConfiguredAnswerModelIdentity
 } from './answer-translator';
 
-export const ANSWER_RELEASE_ATTESTATION_VERSION = 3 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v5' as const;
+export const ANSWER_RELEASE_ATTESTATION_VERSION = 4 as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v6' as const;
+export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS = 10 * 60 * 1000;
 export const ANSWER_RELEASE_DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
 const ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS = 60 * 60 * 1000;
@@ -71,6 +72,9 @@ export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHash
   readonly reasoning_effort: string;
   readonly audience: string;
   readonly deployment_id: string;
+  readonly canary_policy_version: typeof ANSWER_CANARY_POLICY_VERSION;
+  readonly maximum_canary_stage: number;
+  readonly canary_hmac_key_sha256: string;
   readonly statuses: AnswerReleaseStatuses;
   readonly runtime_ceilings: AnswerRuntimeCeilings;
   readonly runtime_evidence: AnswerRuntimeCeilings;
@@ -97,6 +101,9 @@ export interface ActiveAnswerReleaseContext {
   readonly reasoning_effort: string;
   readonly audience: string;
   readonly deployment_id: string;
+  readonly canary_policy_version: typeof ANSWER_CANARY_POLICY_VERSION;
+  readonly maximum_canary_stage: number;
+  readonly canary_hmac_key_sha256: string;
   readonly evidence_hashes: Readonly<Record<AnswerReleaseEvidenceHashKey, string>>;
   readonly statuses: AnswerReleaseStatuses;
   readonly runtime: AnswerRuntimeCeilings;
@@ -147,6 +154,9 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
     reasoning_effort: context.reasoning_effort,
     audience: context.audience,
     deployment_id: context.deployment_id,
+    canary_policy_version: context.canary_policy_version,
+    maximum_canary_stage: context.maximum_canary_stage,
+    canary_hmac_key_sha256: context.canary_hmac_key_sha256,
     prompt_version_sha256: ANSWER_TRANSLATOR_PROMPT_SHA256,
     schema_version_sha256: ANSWER_TRANSLATOR_SCHEMA_SHA256,
     question_version_sha256: sha256(ANSWER_QUESTION_CONTRACT_VERSION),
@@ -167,6 +177,7 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
 export function parseAnswerReleaseAttestation(input: unknown): AnswerReleaseAttestation {
   const value = strictRecord(input, [
     'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
+    'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
@@ -269,6 +280,8 @@ export function loadAnswerReleaseVerificationInput(
   const audience = env.F1QL_ANSWER_AUTHORIZATION_AUDIENCE;
   const deploymentId = env.F1QL_ANSWER_DEPLOYMENT_ID;
   const releaseId = env.F1QL_ANSWER_RELEASE_ID;
+  const maximumCanaryStage = parseCanaryMaximumStage(env.F1QL_ANSWER_CANARY_MAXIMUM_STAGE);
+  const canaryHmacKeySha256 = getAnswerCanaryHmacKeySha256(env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64);
   const templateIds = parseEnvironmentTemplateIds(env.F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS);
   if (!raw || Buffer.byteLength(raw, 'utf8') > 100_000 || !publicKeyBase64 || !keyId || !commitSha || !audience || !deploymentId || !releaseId) {
     throw new AnswerReleaseAttestationError('release_not_configured');
@@ -311,6 +324,9 @@ export function loadAnswerReleaseVerificationInput(
       reasoning_effort: model.reasoning_effort,
       audience,
       deployment_id: deploymentId,
+      canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
+      maximum_canary_stage: maximumCanaryStage,
+      canary_hmac_key_sha256: canaryHmacKeySha256,
       evidence_hashes: evidenceHashes,
       statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
       runtime: answerRuntimeCeilingsFromConfig(runtimeConfig),
@@ -326,6 +342,7 @@ function parseUnsignedAttestation(input: unknown): UnsignedAnswerReleaseAttestat
     : input;
   const value = strictRecord(candidate, [
     'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
+    'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
@@ -344,7 +361,10 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
       typeof value.endpoint_sha256 !== 'string' || !SHA256.test(value.endpoint_sha256) ||
       typeof value.reasoning_effort !== 'string' || !REASONING_EFFORTS.has(value.reasoning_effort) ||
       typeof value.audience !== 'string' || !IDENTIFIER.test(value.audience) ||
-      typeof value.deployment_id !== 'string' || !IDENTIFIER.test(value.deployment_id)) {
+      typeof value.deployment_id !== 'string' || !IDENTIFIER.test(value.deployment_id) ||
+      value.canary_policy_version !== ANSWER_CANARY_POLICY_VERSION ||
+      !isCanaryStage(value.maximum_canary_stage) ||
+      typeof value.canary_hmac_key_sha256 !== 'string' || !SHA256.test(value.canary_hmac_key_sha256)) {
     invalid();
   }
   for (const key of HASH_KEYS) {
@@ -357,6 +377,9 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
     commit_sha: value.commit_sha, provider: value.provider, model_id: value.model_id,
     endpoint_sha256: value.endpoint_sha256, reasoning_effort: value.reasoning_effort,
     audience: value.audience, deployment_id: value.deployment_id,
+    canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
+    maximum_canary_stage: value.maximum_canary_stage as number,
+    canary_hmac_key_sha256: value.canary_hmac_key_sha256 as string,
     ...Object.fromEntries(HASH_KEYS.map(key => [key, value[key]])) as Record<AnswerReleaseHashKey, string>,
     statuses: parseStatuses(value.statuses),
     runtime_ceilings: parseRuntime(value.runtime_ceilings),
@@ -455,6 +478,8 @@ function sameBindings(left: AnswerReleaseBindings, right: AnswerReleaseBindings)
     left.commit_sha === right.commit_sha && left.provider === right.provider && left.model_id === right.model_id &&
     left.endpoint_sha256 === right.endpoint_sha256 && left.reasoning_effort === right.reasoning_effort &&
     left.audience === right.audience && left.deployment_id === right.deployment_id &&
+    left.canary_policy_version === right.canary_policy_version && left.maximum_canary_stage === right.maximum_canary_stage &&
+    left.canary_hmac_key_sha256 === right.canary_hmac_key_sha256 &&
     HASH_KEYS.every(key => left[key] === right[key]) && sameStatuses(left.statuses, right.statuses) &&
     sameRuntime(left.runtime_ceilings, right.runtime_ceilings) && sameRuntime(left.runtime_evidence, right.runtime_evidence) &&
     sameStrings(left.allowed_template_ids, right.allowed_template_ids);
@@ -518,6 +543,36 @@ function isCanonicalBase64Length(value: string, length: number): boolean {
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+export function getAnswerCanaryHmacKeySha256(raw: string | undefined): string {
+  if (!raw || raw.length > 1_000) {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+  try {
+    const key = decodeCanonicalBase64(raw);
+    if (key.byteLength < 32 || key.byteLength > 64) {
+      throw new Error('Invalid HMAC key length');
+    }
+    return createHash('sha256').update(key).digest('hex');
+  } catch {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+}
+
+function parseCanaryMaximumStage(raw: string | undefined): number {
+  if (!raw || !/^(0|[1-9]\d*)$/.test(raw)) {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+  const stage = Number(raw);
+  if (!isCanaryStage(stage)) {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+  return stage;
+}
+
+function isCanaryStage(value: unknown): value is number {
+  return typeof value === 'number' && [0, 1, 5, 25, 50, 100].includes(value);
 }
 
 export function answerReleaseTemporalPolicy(env: NodeJS.ProcessEnv = process.env, nowMs: number = Date.now()): AnswerReleaseTemporalPolicy {

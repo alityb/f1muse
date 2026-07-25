@@ -1,11 +1,12 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Pool, PoolClient } from 'pg';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../identity/answer-identity-resolvers';
 import { AnswerAuthorizationError, buildAnswerExecutionAuthorization } from '../../f1ql/answer-authorization';
 import { AnswerBoundError, enforceVerifiedAnswerWorkBudget } from '../../f1ql/answer-bounds';
-import { getAnswerCanaryStage, selectAnswerCanaryCohort } from '../../f1ql/answer-canary';
+import { getAnswerCanaryStage, selectAnswerCanaryCohort, selectAnswerCanarySubjectCohort } from '../../f1ql/answer-canary';
+import { AnswerExecutionResult, executeAuthorizedAnswer } from '../../f1ql/answer-execution';
 import { AnswerReleaseVerificationInput, loadAnswerReleaseVerificationInput, VerifiedAnswerReleaseAttestation, verifyAnswerReleaseAttestation } from '../../f1ql/answer-release-attestation';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { AnswerIntent, parseAnswerIntent } from '../../f1ql/answer-intent';
@@ -13,6 +14,7 @@ import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContra
 import { AnswerSemanticProofError, proveAnswerIntent, VerifiedAnswerSemanticProof } from '../../f1ql/answer-semantic-proof';
 import { AnswerIntentModel, AnswerProviderConfigurationError, AnswerTranslationResult, createAnswerIntentModel, translateAnswerQuestion } from '../../f1ql/answer-translator';
 import { F1QLLinkingError } from '../../f1ql/translation-linking';
+import { F1QLRequestDeadlineError, F1QLResultLimitError, F1QLStatementTimeoutError } from '../../f1ql/executor';
 import { metrics } from '../../observability/metrics';
 
 export interface ProgramAnswerDependencies {
@@ -23,6 +25,7 @@ export interface ProgramAnswerDependencies {
   admission?: AnswerAdmissionController;
   environment?: () => NodeJS.ProcessEnv;
   now?: () => number;
+  execute?: typeof executeAuthorizedAnswer;
 }
 
 export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: ProgramAnswerDependencies = {}): Router {
@@ -48,11 +51,10 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     try {
       const liveEnvironment = environment();
       canaryStage = getAnswerCanaryStage(liveEnvironment);
-      const preliminaryCanary = selectAnswerCanaryCohort({ kill_switch: liveEnvironment.F1QL_ANSWER_KILL_SWITCH === 'true', stage: canaryStage });
-      if (preliminaryCanary.reason === 'kill_switch') {
+      if (liveEnvironment.F1QL_ANSWER_KILL_SWITCH === 'true') {
         return killSwitchResponse(res);
       }
-      if (preliminaryCanary.reason === 'stage_zero') {
+      if (canaryStage === 0) {
         metrics.recordF1QLAnswer('execution', 'blocked', 'canary_control');
         return res.status(503).json({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
       }
@@ -65,12 +67,34 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
       metrics.recordF1QLAnswer('gate', 'blocked', 'release_not_approved');
       return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
     }
+    try {
+      const liveEnvironment = environment();
+      const subjectCanary = selectAnswerCanarySubjectCohort({
+        kill_switch: liveEnvironment.F1QL_ANSWER_KILL_SWITCH === 'true',
+        stage: getAnswerCanaryStage(liveEnvironment),
+        attestation: release.attestation,
+        subject_id: res.locals.answerCanarySubject as string,
+        hmac_key_base64: liveEnvironment.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64,
+        now_ms: now()
+      });
+      if (subjectCanary.reason === 'kill_switch') {
+        return killSwitchResponse(res);
+      }
+      if (subjectCanary.cohort !== 'canary') {
+        metrics.recordF1QLAnswer('execution', 'blocked', 'canary_control');
+        return res.status(503).json({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
+      }
+    } catch {
+      metrics.recordF1QLAnswer('gate', 'blocked', 'release_not_approved');
+      return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+    }
     if (!pool) {
       metrics.recordF1QLAnswer('gate', 'blocked', 'answer_database_not_configured');
       return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_database_not_configured' });
     }
     const requestId = answerRequestId(res);
     const controller = new AbortController();
+    const requestDeadlineMs = now() + config.requestTimeoutMs;
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
@@ -117,7 +141,7 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
 
       let proof: VerifiedAnswerSemanticProof;
       try {
-        proof = await proveWithBounds(pool, contract, reparsedIntent, config.statementTimeoutMs, controller.signal);
+        proof = await proveWithBounds(pool, contract, reparsedIntent, config.statementTimeoutMs, requestDeadlineMs, now, controller.signal);
       } catch (error) {
         if (controller.signal.aborted) {
           return respondToAbort(timedOut, res);
@@ -129,6 +153,12 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
         if (error instanceof AnswerSemanticProofError) {
           metrics.recordF1QLAnswer('linking', 'rejected', error.reason);
           return res.status(422).json({ error: 'capability_unsupported', reason: error.reason });
+        }
+        if (error instanceof F1QLRequestDeadlineError) {
+          return res.status(504).json({ error: 'answer_unavailable', reason: 'request_timeout' });
+        }
+        if (error instanceof F1QLStatementTimeoutError) {
+          return res.status(504).json({ error: 'answer_unavailable', reason: 'statement_timeout' });
         }
         return res.status(503).json({ error: 'answer_unavailable', reason: 'linking_unavailable' });
       }
@@ -153,7 +183,10 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
           stage: getAnswerCanaryStage(liveEnvironment),
           template_id: proof.template_id,
           deployment_template_ids: release.verification.active_context.deployment_template_ids,
-          attestation: release.attestation
+          attestation: release.attestation,
+          subject_id: res.locals.answerCanarySubject as string,
+          hmac_key_base64: liveEnvironment.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64,
+          now_ms: now()
         });
         if (canary.reason === 'kill_switch') {
           return killSwitchResponse(res);
@@ -166,22 +199,58 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
         return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
       }
 
+      let authorization;
       try {
-        buildAnswerExecutionAuthorization(requestId, 'internal', proof, release.attestation, now());
+        authorization = buildAnswerExecutionAuthorization(requestId, 'internal', proof, release.attestation, now());
       } catch (error) {
+        if (error instanceof AnswerAuthorizationError && error.code === 'release_expired') {
+          return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+        }
         return res.status(500).json({
           error: 'answer_failed',
           reason: error instanceof AnswerAuthorizationError ? 'authorization_envelope_failed' : 'unexpected_error'
         });
       }
 
-      // Execution remains structurally unavailable until every release gate and least-privilege proof passes.
-      metrics.recordF1QLAnswer('execution', 'blocked', 'execution_bounds_not_enforced');
-      return res.status(503).json({
-        error: 'answer_unavailable',
-        reason: 'execution_bounds_not_enforced',
-        mode: 'gated_non_execution'
-      });
+      try {
+        const result: AnswerExecutionResult = await (dependencies.execute ?? executeAuthorizedAnswer)(pool, authorization, proof, {
+          request_id: requestId,
+          audience: release.attestation.audience,
+          deployment_id: release.attestation.deployment_id,
+          release_attestation: release.attestation,
+          is_kill_switch_active: () => environment().F1QL_ANSWER_KILL_SWITCH === 'true'
+        }, { now, signal: controller.signal, deadlineMs: requestDeadlineMs });
+        if (controller.signal.aborted) {
+          return respondToAbort(timedOut, res);
+        }
+        metrics.recordF1QLAnswer('execution', 'succeeded', proof.template_id);
+        return res.status(200).type('application/json').send(result.serialized_response);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return respondToAbort(timedOut, res);
+        }
+        if (error instanceof AnswerAuthorizationError) {
+          if (error.code === 'kill_switch_active') {
+            return killSwitchResponse(res);
+          }
+          metrics.recordF1QLAnswer('execution', 'blocked', error.code);
+          return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
+        }
+        if (error instanceof AnswerBoundError || error instanceof F1QLResultLimitError) {
+          const bound = error instanceof AnswerBoundError ? error.bound : 'rows';
+          metrics.recordF1QLAnswer('bounds', 'rejected', bound);
+          return res.status(422).json({ error: 'answer_bound_exceeded', reason: bound });
+        }
+        if (error instanceof F1QLStatementTimeoutError || error instanceof F1QLRequestDeadlineError) {
+          metrics.recordF1QLAnswer('execution', 'failed', 'statement_timeout');
+          return res.status(504).json({
+            error: 'answer_unavailable',
+            reason: error instanceof F1QLRequestDeadlineError ? 'request_timeout' : 'statement_timeout'
+          });
+        }
+        metrics.recordF1QLAnswer('execution', 'failed', 'execution_failed');
+        return res.status(500).json({ error: 'answer_failed', reason: 'execution_failed' });
+      }
     } catch (error) {
       if (error instanceof AnswerAdmissionError) {
         if (error.reason === 'request_cancelled') {
@@ -216,6 +285,7 @@ function answerPrincipalGuard(environment: () => NodeJS.ProcessEnv) {
     metrics.recordF1QLAnswer('gate', 'rejected', 'answer_authentication_required');
     return res.status(401).json({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
   }
+  res.locals.answerCanarySubject = createHash('sha256').update(expectedBytes).digest('hex');
   next();
   };
 }
@@ -245,13 +315,15 @@ async function proveWithBounds(
   contract: AnswerQuestionContract,
   intent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>,
   statementTimeoutMs: number,
+  deadlineMs: number,
+  now: () => number,
   signal: AbortSignal
 ): Promise<VerifiedAnswerSemanticProof> {
   const client = await acquireClient(pool, signal);
   try {
     await client.query('BEGIN READ ONLY');
-    await client.query("SELECT set_config('statement_timeout', $1, true)", [`${statementTimeoutMs}ms`]);
-    const proof = await proveAnswerIntent(contract, intent, new AnswerEventIdentityResolver(client), new AnswerDriverIdentityResolver(client));
+    const boundedClient = deadlineBoundClient(client, deadlineMs, statementTimeoutMs, now, signal);
+    const proof = await proveAnswerIntent(contract, intent, new AnswerEventIdentityResolver(boundedClient), new AnswerDriverIdentityResolver(boundedClient));
     await client.query('ROLLBACK');
     return proof;
   } catch (error) {
@@ -260,6 +332,31 @@ async function proveWithBounds(
   } finally {
     client.release();
   }
+}
+
+function deadlineBoundClient(client: PoolClient, deadlineMs: number, statementTimeoutMs: number, now: () => number, signal: AbortSignal): PoolClient {
+  return {
+    query: async (sql: string, params?: unknown[]) => {
+      if (signal.aborted) {
+        throw new AnswerAdmissionError('request_cancelled');
+      }
+      const remaining = Math.floor(deadlineMs - now());
+      if (remaining < 1) {
+        throw new F1QLRequestDeadlineError();
+      }
+      const deadlineLimited = remaining <= statementTimeoutMs;
+      const timeoutMs = Math.min(remaining, statementTimeoutMs);
+      await client.query("SELECT set_config('statement_timeout', $1, true)", [`${timeoutMs}ms`]);
+      try {
+        return await client.query(sql, params);
+      } catch (error) {
+        if ((error as { code?: string }).code === '57014') {
+          throw deadlineLimited ? new F1QLRequestDeadlineError() : new F1QLStatementTimeoutError(timeoutMs);
+        }
+        throw error;
+      }
+    }
+  } as PoolClient;
 }
 
 async function resolveReleaseAttestation(

@@ -26,6 +26,7 @@ import { buildAnswerObservationReport } from '../src/f1ql/answer-observation-rep
 import { getAnswerEvaluationManifestHash, verifyAnswerObservationArtifact } from '../src/f1ql/answer-observations';
 import {
   ANSWER_RELEASE_ATTESTATION_VERSION,
+  ANSWER_CANARY_POLICY_VERSION,
   ActiveAnswerReleaseContext,
   AnswerReleaseAttestation,
   AnswerReleaseStatuses,
@@ -34,6 +35,7 @@ import {
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationHash,
   getAnswerReleaseAttestationSigningPayload,
+  getAnswerCanaryHmacKeySha256,
   verifyAnswerReleaseAttestation
 } from '../src/f1ql/answer-release-attestation';
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
@@ -157,6 +159,9 @@ export function buildAnswerReleaseAttestationFile(
     reasoning_effort: model.reasoning_effort,
     audience,
     deployment_id: deploymentId,
+    canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
+    maximum_canary_stage: parseCanaryMaximumStage(env.F1QL_ANSWER_CANARY_MAXIMUM_STAGE),
+    canary_hmac_key_sha256: getAnswerCanaryHmacKeySha256(env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64),
     evidence_hashes: {
       manifest_sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest),
       artifact_sha256: artifactFile.sha256,
@@ -351,6 +356,13 @@ function parseTemplateAllowlist(raw: string | undefined): AnswerTemplateId[] {
     throw new Error('answer_release_template_allowlist_invalid');
   }
   return values as AnswerTemplateId[];
+}
+
+function parseCanaryMaximumStage(raw: string | undefined): number {
+  if (!raw || !/^(0|[1-9]\d*)$/.test(raw)) throw new Error('answer_release_canary_maximum_invalid');
+  const stage = Number(raw);
+  if (![0, 1, 5, 25, 50, 100].includes(stage)) throw new Error('answer_release_canary_maximum_invalid');
+  return stage;
 }
 
 function loadSigningKey(raw: string | undefined): KeyObject {
