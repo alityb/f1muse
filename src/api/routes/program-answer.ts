@@ -3,7 +3,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { Pool, PoolClient } from 'pg';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../identity/answer-identity-resolvers';
-import { AnswerAuthorizationError, buildAnswerExecutionAuthorization } from '../../f1ql/answer-authorization';
+import { AnswerAuthorizationError, AnswerPrincipalClass, buildAnswerExecutionAuthorization } from '../../f1ql/answer-authorization';
 import { AnswerBoundError, enforceVerifiedAnswerWorkBudget } from '../../f1ql/answer-bounds';
 import { getAnswerCanaryStage, selectAnswerCanaryCohort, selectAnswerCanarySubjectCohort } from '../../f1ql/answer-canary';
 import { AnswerExecutionResult, executeAuthorizedAnswer } from '../../f1ql/answer-execution';
@@ -201,7 +201,7 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
 
       let authorization;
       try {
-        authorization = buildAnswerExecutionAuthorization(requestId, 'internal', proof, release.attestation, now());
+        authorization = buildAnswerExecutionAuthorization(requestId, res.locals.answerPrincipalClass as AnswerPrincipalClass, proof, release.attestation, now());
       } catch (error) {
         if (error instanceof AnswerAuthorizationError && error.code === 'release_expired') {
           return res.status(503).json({ error: 'answer_unavailable', reason: 'release_not_approved' });
@@ -272,20 +272,28 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
 
 function answerPrincipalGuard(environment: () => NodeJS.ProcessEnv) {
   return (req: Request, res: Response, next: NextFunction): Response | void => {
-  const expected = environment().F1QL_ANSWER_INTERNAL_TOKEN;
-  if (!expected || expected.length < 32) {
+  const env = environment();
+  const expected = env.F1QL_ANSWER_INTERNAL_TOKEN;
+  const expectedCanary = env.F1QL_ANSWER_INTERNAL_CANARY_TOKEN;
+  if (!expected || expected.length < 32 ||
+      (expectedCanary !== undefined && (expectedCanary.length < 32 || expectedCanary === expected))) {
     metrics.recordF1QLAnswer('gate', 'blocked', 'answer_auth_not_configured');
     return res.status(503).json({ error: 'answer_unavailable', reason: 'answer_auth_not_configured' });
   }
   const authorization = req.get('authorization');
   const supplied = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
-  const expectedBytes = Buffer.from(expected);
   const suppliedBytes = Buffer.from(supplied);
-  if (suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(suppliedBytes, expectedBytes)) {
+  const expectedBytes = Buffer.from(expected);
+  const canaryBytes = expectedCanary === undefined ? undefined : Buffer.from(expectedCanary);
+  const primaryMatches = suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+  const canaryMatches = canaryBytes !== undefined && suppliedBytes.length === canaryBytes.length && timingSafeEqual(suppliedBytes, canaryBytes);
+  if (!primaryMatches && !canaryMatches) {
     metrics.recordF1QLAnswer('gate', 'rejected', 'answer_authentication_required');
     return res.status(401).json({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
   }
-  res.locals.answerCanarySubject = createHash('sha256').update(expectedBytes).digest('hex');
+  const matchedBytes = canaryMatches ? canaryBytes as Buffer : expectedBytes;
+  res.locals.answerCanarySubject = createHash('sha256').update(matchedBytes).digest('hex');
+  res.locals.answerPrincipalClass = canaryMatches ? 'internal_canary' : 'internal';
   next();
   };
 }

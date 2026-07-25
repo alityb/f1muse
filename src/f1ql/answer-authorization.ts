@@ -15,9 +15,9 @@ import { F1QLProgram } from './ast';
 import { refreshF1QLDefinitionsVersion, validateF1QLProgram } from './validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION, getF1QLProgramHash, normalizeF1QLProgram } from './verified-programs';
 
-export const ANSWER_AUTHORIZATION_VERSION = 4 as const;
+export const ANSWER_AUTHORIZATION_VERSION = 5 as const;
 export const ANSWER_AUTHORIZATION_TTL_MS = 5_000;
-export type AnswerPrincipalClass = 'internal';
+export type AnswerPrincipalClass = 'internal' | 'internal_canary';
 type AuthorizedAnswerCapability = Readonly<Omit<AnswerCapability, 'filters'>> & {
   readonly filters: ReadonlyArray<AnswerCapability['filters'][number]>;
 };
@@ -233,7 +233,8 @@ function activeVersions(): AnswerAuthorizationActiveVersions {
 }
 
 function validateRequestAndPrincipal(requestId: string, principalClass: AnswerPrincipalClass): void {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) || principalClass !== 'internal') {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) ||
+      (principalClass !== 'internal' && principalClass !== 'internal_canary')) {
     throw new AnswerAuthorizationError('invalid_authorization');
   }
 }

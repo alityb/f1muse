@@ -36,6 +36,7 @@ const runtimeConfig: AnswerRuntimeConfig = {
   maxResponseBytes: 65_536
 };
 const internalToken = 'test-internal-answer-token-00000001';
+const internalCanaryToken = 'test-internal-canary-token-00000087';
 const releaseNowMs = Date.parse('2026-07-24T00:01:00.000Z');
 
 let server: ReturnType<ReturnType<typeof express>['listen']>;
@@ -53,6 +54,7 @@ let databaseStatements: string[];
 let routeNowMs: number;
 let executionAttempts: number;
 let executionError: Error | undefined;
+let executedPrincipalClasses: string[];
 
 const hash = (digit: string) => digit.repeat(64);
 const releaseEvidence = {
@@ -138,6 +140,7 @@ beforeAll(async () => {
     now: () => routeNowMs,
     execute: (...args) => {
       executionAttempts++;
+      executedPrincipalClasses.push(args[1].principal_class);
       if (executionError) {
         return Promise.reject(executionError);
       }
@@ -151,6 +154,7 @@ beforeAll(async () => {
 beforeEach(() => {
   process.env.F1QL_ANSWER_ENABLED = 'true';
   process.env.F1QL_ANSWER_INTERNAL_TOKEN = internalToken;
+  process.env.F1QL_ANSWER_INTERNAL_CANARY_TOKEN = internalCanaryToken;
   process.env.F1QL_ANSWER_CANARY_STAGE = '100';
   process.env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64 = canaryHmacKeyBase64;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
@@ -167,6 +171,7 @@ beforeEach(() => {
   routeNowMs = releaseNowMs;
   executionAttempts = 0;
   executionError = undefined;
+  executedPrincipalClasses = [];
   model.waitForAbort = false;
   model.output = JSON.stringify({ intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } } });
   runtimeConfig.maxWorkUnits = 200;
@@ -177,16 +182,17 @@ afterAll(async () => {
   delete process.env.F1QL_ANSWER_ENABLED;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
   delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
+  delete process.env.F1QL_ANSWER_INTERNAL_CANARY_TOKEN;
   delete process.env.F1QL_DEFINITIONS_VERSION;
   delete process.env.F1QL_ANSWER_CANARY_STAGE;
   delete process.env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64;
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-async function ask(question = 'Who led the 2025 standings?', body?: Record<string, unknown>): Promise<Response> {
+async function ask(question = 'Who led the 2025 standings?', body?: Record<string, unknown>, token = internalToken): Promise<Response> {
   return fetch(`${baseUrl}/program/answer`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalToken}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(body ?? { question })
   });
 }
@@ -254,6 +260,20 @@ describe('gated answer route', () => {
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
     expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 1, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
     expect(executionAttempts).toBe(0);
+  });
+
+  it('admits only the separately authenticated canary principal at stage one', async () => {
+    process.env.F1QL_ANSWER_CANARY_STAGE = '1';
+    const primary = await ask();
+    expect(primary.status).toBe(503);
+    await expect(primary.json()).resolves.toMatchObject({ reason: 'canary_control' });
+    expect(executionAttempts).toBe(0);
+
+    const canary = await ask('Who led the 2025 standings?', undefined, internalCanaryToken);
+    expect(canary.status).toBe(200);
+    await expect(canary.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
+    expect(executionAttempts).toBe(1);
+    expect(executedPrincipalClasses).toEqual(['internal_canary']);
   });
 
   it('checks the disabled gate before constructing a model', async () => {

@@ -78,7 +78,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v6', release_attestation: 4 }
+      active_versions: { authorization: 'answer-authorization-v7', release_attestation: 4 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);
@@ -92,6 +92,14 @@ describe('one-time answer execution authorization', () => {
     const context = { request_id: requestId, audience: attestation.audience, deployment_id: attestation.deployment_id, release_attestation: attestation, is_kill_switch_active: () => false };
     expect(consumeAnswerExecutionAuthorization(authorization, context)).toBe(authorization);
     expect(() => consumeAnswerExecutionAuthorization(authorization, context)).toThrowError(expect.objectContaining({ code: 'authorization_replayed' }));
+  });
+
+  it('issues distinct authority for the authenticated internal canary principal', async () => {
+    const semanticProof = await proof();
+    const attestation = release();
+    const authorization = buildAnswerExecutionAuthorization(randomUUID(), 'internal_canary', semanticProof, attestation);
+    expect(authorization).toMatchObject({ version: 5, principal_class: 'internal_canary' });
+    expect(() => buildAnswerExecutionAuthorization(randomUUID(), 'unknown' as never, semanticProof, attestation)).toThrow(AnswerAuthorizationError);
   });
 
   it('rejects forged/copy authority and mismatched consumption bindings', async () => {
