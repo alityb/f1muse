@@ -264,6 +264,12 @@ describe('guarded answer release attestation files', () => {
       writeFileSync(paths.report, `${JSON.stringify(report)}\n`);
       expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_report_mismatch');
     });
+    const driftedArtifact = makePassingArtifact();
+    const repeated = driftedArtifact.observations.find((item: any) => item.observation_index === 2 && item.action === 'answer');
+    repeated.program_hash = 'f'.repeat(64);
+    withReleaseFiles(driftedArtifact, ({ paths, buildEnv }) => {
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_report_failed');
+    });
   });
 
   it('rejects a model mismatch and empty evidence', () => {
@@ -290,6 +296,17 @@ describe('guarded answer release attestation files', () => {
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64: `${buildEnv.F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64}\n` })).toThrow('answer_release_signing_key_invalid');
       expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_PRODUCTION_EVIDENCE_PUBLIC_KEY_BASE64: `${buildEnv.F1QL_ANSWER_PRODUCTION_EVIDENCE_PUBLIC_KEY_BASE64} ` })).toThrow('answer_release_environment_invalid');
+    });
+  });
+
+  it('refuses signed historical v3 evidence for a new release', () => {
+    const historical = makePassingArtifact();
+    historical.version = 3;
+    delete historical.reliability;
+    historical.observations = historical.observations.filter((item: any) => item.observation_index === 0);
+    for (const observation of historical.observations) delete observation.observation_index;
+    withReleaseFiles(historical, ({ paths, buildEnv }) => {
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_observation_artifact_version_unsupported');
     });
   });
 
@@ -409,13 +426,14 @@ describe('guarded answer release attestation files', () => {
 
 function makePassingArtifact(): any {
   return {
-    version: 3,
+    version: 4,
     kind: 'f1ql_answer_observations',
     provider: {
       type: 'groq', model: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH,
       reasoning_effort: 'disabled', collected_at: '2026-07-24T00:00:00.000Z'
     },
     manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) },
+    reliability: { answerable_observations_per_case: 3, non_answerable_observations_per_case: 1 },
     contract: {
       question_version: ANSWER_QUESTION_CONTRACT_VERSION,
       intent_version: ANSWER_INTENT_CONTRACT_VERSION,
@@ -425,11 +443,12 @@ function makePassingArtifact(): any {
       template_registry_hash: ANSWER_TEMPLATE_REGISTRY_HASH,
       proof_version: ANSWER_SEMANTIC_PROOF_VERSION
     },
-    observations: answerEvaluationManifest.map(item => {
+    observations: answerEvaluationManifest.flatMap(item => Array.from({ length: item.answerable ? 3 : 1 }, (_, observationIndex) => {
       const answer = item.expected.action === 'answer';
       const program = item.expected.acceptable_programs?.[0];
       return {
         id: item.id,
+        observation_index: observationIndex,
         action: item.expected.action,
         reason: item.expected.reason,
         translation_attempted: true,
@@ -444,7 +463,7 @@ function makePassingArtifact(): any {
         entity_candidates: item.canonical_entities,
         linked_entities: answer ? item.canonical_entities : []
       };
-    })
+    }))
   };
 }
 

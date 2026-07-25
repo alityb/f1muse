@@ -35,7 +35,7 @@ export function reportAnswerObservationFile(path: string, env: NodeJS.ProcessEnv
   }
   const input = JSON.parse(content.toString('utf8'));
   const parsed = parseAnswerObservationArtifact(input);
-  const artifact = parsed.version === 3
+  const artifact = parsed.version === 3 || parsed.version === 4
     ? verifyAnswerObservationArtifact(answerEvaluationManifest, input, {
       key_id: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_KEY_ID'),
       public_key_base64: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64')

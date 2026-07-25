@@ -84,6 +84,9 @@ export function buildAnswerReleaseAttestationFile(
     key_id: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_KEY_ID'),
     public_key_base64: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64')
   });
+  if (artifact.version !== 4) {
+    throw new Error('answer_release_observation_artifact_version_unsupported');
+  }
   const model = getConfiguredAnswerModelIdentity(env);
   if (artifact.provider.type !== model.provider || artifact.provider.model !== model.model_id ||
       artifact.provider.endpoint_sha256 !== model.endpoint_sha256 || artifact.provider.reasoning_effort !== model.reasoning_effort) {

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../src/identity/answer-identity-resolvers';
-import { ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS, collectAnswerObservations, createAnswerObservationSigningHelper } from '../src/f1ql/answer-observations';
+import { ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE, ANSWER_EVALUATION_TRANSLATION_TIMEOUT_MS, collectAnswerObservations, createAnswerObservationSigningHelper } from '../src/f1ql/answer-observations';
 import { AnswerIntent } from '../src/f1ql/answer-intent';
 import { AnswerQuestionContract } from '../src/f1ql/answer-question';
 import { proveAnswerIntent } from '../src/f1ql/answer-semantic-proof';
@@ -139,14 +139,17 @@ async function main(): Promise<void> {
       translate: contract => translateBounded(contract, model),
       prove: (contract, intent) => proveReadOnly(pool, contract, intent)
     }, signer);
-    if (artifact.observations.length !== answerEvaluationManifest.length || artifact.observations.length !== 79) {
+    const uniqueCaseCount = new Set(artifact.observations.map(observation => observation.id)).size;
+    const expectedObservationCount = answerEvaluationManifest.reduce((count, item) =>
+      count + (item.answerable ? ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE : 1), 0);
+    if (uniqueCaseCount !== answerEvaluationManifest.length || uniqueCaseCount !== 79 || artifact.observations.length !== expectedObservationCount) {
       throw new Error('Answer evaluation collection did not complete the reviewed corpus');
     }
     const serialized = `${JSON.stringify(artifact, null, 2)}\n`;
     const directory = mkdtempSync(join(tmpdir(), 'f1ql-answer-observations-'));
     const output = join(directory, 'observations.json');
     writeFileSync(output, serialized, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
-    process.stdout.write(`${JSON.stringify({ path: output, sha256: createHash('sha256').update(serialized).digest('hex'), count: artifact.observations.length, provider: provider.type })}\n`);
+    process.stdout.write(`${JSON.stringify({ path: output, sha256: createHash('sha256').update(serialized).digest('hex'), count: artifact.observations.length, case_count: uniqueCaseCount, provider: provider.type })}\n`);
   } finally {
     await pool.end();
   }

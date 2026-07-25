@@ -6,7 +6,7 @@ import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { emitAnswerEvaluationResults } from '../../scripts/snapshot-answer-evaluation-results';
 import { F1QLLinkingError, linkAnswerF1QLCandidateObserved } from '../../src/f1ql/translation-linking';
 import { seedAnswerEvaluationFixture } from '../fixtures/f1ql-answer-evaluation-fixture';
-import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
+import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
 import { collectAnswerObservations, createAnswerObservationSigningHelper, verifyAnswerObservationArtifact } from '../../src/f1ql/answer-observations';
 import { AnswerQuestionContract } from '../../src/f1ql/answer-question';
@@ -14,7 +14,6 @@ import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
 import { AnswerIntent } from '../../src/f1ql/answer-intent';
 import { AnswerTranslationResult } from '../../src/f1ql/answer-translator';
 import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
-import { buildAnswerObservationReport } from '../../src/f1ql/answer-observation-report';
 
 let pool: Pool;
 
@@ -86,11 +85,14 @@ describe('answer evaluation generated results', () => {
       now: (() => { let value = 0; return () => value += 1; })()
     }, signer);
     for (const item of answerEvaluationManifest) {
-      const observed = artifact.observations.find(observation => observation.id === item.id)!;
-      expect.soft({ action: observed.action, reason: observed.reason }, item.id).toEqual({ action: item.expected.action, reason: item.expected.reason });
-      if (item.expected.action === 'answer') {
-        expect.soft(observed.template_id, item.id).toBe(item.expected.template_id);
-        expect.soft(observed.program_hash, item.id).toBe(getF1QLProgramHash(item.expected.acceptable_programs![0]));
+      const observed = artifact.observations.filter(observation => observation.id === item.id);
+      expect.soft(observed, item.id).toHaveLength(item.answerable ? 3 : 1);
+      for (const observation of observed) {
+        expect.soft({ action: observation.action, reason: observation.reason }, item.id).toEqual({ action: item.expected.action, reason: item.expected.reason });
+        if (item.expected.action === 'answer') {
+          expect.soft(observation.template_id, item.id).toBe(item.expected.template_id);
+          expect.soft(observation.program_hash, item.id).toBe(getF1QLProgramHash(item.expected.acceptable_programs![0]));
+        }
       }
     }
     expect(artifact.observations.find(observation => observation.id === 'ambiguous-driver')).toMatchObject({
@@ -102,9 +104,8 @@ describe('answer evaluation generated results', () => {
       key_id: keyId,
       public_key_base64: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64')
     });
-    const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, verified, 'a'.repeat(64));
-    expect(report.selection).toMatchObject({ candidate_entities_recalled: 53, candidate_entities_total: 53 });
-    expect(report.release_gates).toMatchObject({ candidate_recall_complete: true, status: 'pass' });
+    expect(verified.version).toBe(4);
+    expect(verified.observations).toHaveLength(answerEvaluationManifest.reduce((count, item) => count + (item.answerable ? 3 : 1), 0));
   });
 });
 

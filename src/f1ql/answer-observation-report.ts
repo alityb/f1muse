@@ -5,10 +5,11 @@ import {
   evaluateAnswerSelection,
   evaluateMetamorphicConsistency
 } from './answer-evaluation';
-import { AnswerObservationArtifact, isVerifiedAnswerObservationArtifact } from './answer-observations';
+import { ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE, AnswerObservationArtifact, isVerifiedAnswerObservationArtifact } from './answer-observations';
 import { ProviderDiagnosticCode } from './translator';
 import { ANSWER_PROVIDER_DIAGNOSTIC_CODES, AnswerProviderDiagnosticCode } from './answer-translator';
 import { ANSWER_TEMPLATE_IDS, AnswerTemplateId } from './answer-templates';
+import { getF1QLProgramHash } from './verified-programs';
 
 const REQUIRED_SOURCES = ['final_driver_standings', 'qualifying_classification', 'race_classification', 'race_date_metadata'] as const;
 const REQUIRED_OPERATIONS = ['aggregate', 'rank', 'event_classification', 'qualifying_classification', 'event_metadata'] as const;
@@ -26,9 +27,9 @@ interface SemanticThresholdResult {
 }
 
 export interface AnswerObservationReport {
-  version: 2;
+  version: 3;
   kind: 'f1ql_answer_observation_report';
-  artifact: { version: 1 | 2 | 3; observations: number; sha256: string; manifest_sha256: string };
+  artifact: { version: AnswerObservationArtifact['version']; observations: number; sha256: string; manifest_sha256: string };
   contract: {
     question_version: string;
     intent_version: string;
@@ -69,6 +70,18 @@ export interface AnswerObservationReport {
     counts: Record<AnswerProviderDiagnosticCode, number>;
   };
   proof_rejections: { observations: number; counts: Record<(typeof PROOF_REJECTION_REASONS)[number], number> };
+  reliability: {
+    required_observations_per_case: typeof ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE;
+    answerable_cases: number;
+    required_observations: number;
+    supplied_observations: number;
+    complete_cases: number;
+    action: { exact_cases: number; drift_cases: number };
+    reason: { exact_cases: number; drift_cases: number };
+    template_id: { exact_cases: number; drift_cases: number };
+    program_hash: { exact_cases: number; drift_cases: number };
+    status: 'pass' | 'fail' | 'insufficient';
+  };
   templates: Record<AnswerTemplateId, { cases: number; non_development_cases: number; exact: number; proof_complete: number }>;
   holdout_thresholds: {
     required_accuracy: 1;
@@ -92,6 +105,9 @@ export interface AnswerObservationReport {
     exact_templates_complete: boolean;
     exact_programs_complete: boolean;
     semantic_proofs_complete: boolean;
+    repetition_completeness: boolean;
+    repeated_exactness: boolean;
+    zero_repetition_drift: boolean;
     status: 'pass' | 'fail' | 'insufficient';
   };
 }
@@ -105,32 +121,37 @@ export function buildAnswerObservationReport(
   if (!/^[a-f0-9]{64}$/.test(artifactSha256)) {
     throw new Error('invalid_answer_observation_artifact_hash');
   }
-  if (artifact.version === 3 && !isVerifiedAnswerObservationArtifact(artifact)) {
+  if ((artifact.version === 3 || artifact.version === 4) && !isVerifiedAnswerObservationArtifact(artifact)) {
     throw new Error('unverified_answer_observation_artifact');
   }
-  const selection = evaluateAnswerSelection(cases, artifact.observations);
-  const metamorphic = evaluateMetamorphicConsistency(groups, artifact.observations);
+  const primaryObservations = artifact.version === 4
+    ? artifact.observations.filter(observation => observation.observation_index === 0)
+    : artifact.observations;
+  const selection = evaluateAnswerSelection(cases, primaryObservations);
+  const metamorphic = evaluateMetamorphicConsistency(groups, primaryObservations);
   const translationLatency = translationLatencyReport(artifact);
   const translationTimeouts = translationTimeoutReport(artifact);
   const providerDiagnostics = providerDiagnosticReport(artifact);
   const proofRejections = proofRejectionReport(artifact);
+  const reliability = reliabilityReport(cases, artifact);
   const templates = templateReport(cases, artifact);
   const holdout = cases.filter(item => item.split !== 'development' && item.expected.action === 'answer');
-  const bySource = thresholdGroups(REQUIRED_SOURCES, holdout, artifact.observations, item => item.expected.reason);
-  const byOperation = thresholdGroups(REQUIRED_OPERATIONS, holdout, artifact.observations, expectedOperation);
+  const bySource = thresholdGroups(REQUIRED_SOURCES, holdout, primaryObservations, item => item.expected.reason);
+  const byOperation = thresholdGroups(REQUIRED_OPERATIONS, holdout, primaryObservations, expectedOperation);
   const sourceStatuses = Object.values(bySource).map(result => result.status);
   const operationStatuses = Object.values(byOperation).map(result => result.status);
   const thresholdStatuses = [...sourceStatuses, ...operationStatuses];
   const forbiddenIds = new Set(cases.filter(item => item.expected.action !== 'answer').map(item => item.id));
   const forbiddenAnswers = artifact.observations.filter(observation => forbiddenIds.has(observation.id) && observation.action === 'answer').length;
+  const repeatedChecks = allObservationChecks(cases, artifact);
   const release = {
     observations_complete: selection.observations_missing === 0,
     actions_correct: selection.action_correct === selection.total,
     reasons_correct: selection.reason_correct === selection.total,
-    unsafe_answers_zero: selection.unsafe_answers === 0,
+    unsafe_answers_zero: repeatedChecks.unsafe_answers_zero,
     forbidden_answers_zero: forbiddenAnswers === 0,
-    candidate_recall_complete: selection.candidate_entities_recalled === selection.candidate_entities_total,
-    canonical_links_complete: selection.complete_links_correct === selection.complete_links_total,
+    candidate_recall_complete: repeatedChecks.candidate_recall_complete,
+    canonical_links_complete: repeatedChecks.canonical_links_complete,
     metamorphic_consistency_complete: metamorphic.groups_complete === metamorphic.groups_total && metamorphic.groups_consistent === metamorphic.groups_total,
     holdout_source_thresholds_pass: sourceStatuses.every(status => status === 'pass'),
     holdout_operation_thresholds_pass: operationStatuses.every(status => status === 'pass'),
@@ -139,14 +160,20 @@ export function buildAnswerObservationReport(
     provider_diagnostics_zero: providerDiagnostics.observations === 0,
     exact_templates_complete: Object.values(templates).every(value => value.exact === value.cases),
     exact_programs_complete: selection.normalized_program_exact === selection.normalized_program_total,
-    semantic_proofs_complete: artifact.version === 3 && Object.values(templates).every(value => value.proof_complete === value.cases)
+    semantic_proofs_complete: (artifact.version === 3 || artifact.version === 4) && Object.values(templates).every(value => value.proof_complete === value.cases),
+    repetition_completeness: artifact.version === 4 && reliability.complete_cases === reliability.answerable_cases && reliability.supplied_observations === reliability.required_observations,
+    repeated_exactness: artifact.version === 4 && [reliability.action, reliability.reason, reliability.template_id, reliability.program_hash]
+      .every(value => value.exact_cases === reliability.answerable_cases),
+    zero_repetition_drift: artifact.version === 4 && [reliability.action, reliability.reason, reliability.template_id, reliability.program_hash]
+      .every(value => value.drift_cases === 0)
   };
   const coreGatesPass = release.observations_complete && release.actions_correct && release.reasons_correct && release.unsafe_answers_zero && release.forbidden_answers_zero &&
     release.candidate_recall_complete && release.canonical_links_complete && release.metamorphic_consistency_complete &&
-    release.provider_diagnostics_zero && release.exact_programs_complete && (artifact.version !== 3 || (release.exact_templates_complete && release.semantic_proofs_complete));
-  const hardenedEvidenceStatus: SemanticThresholdResult['status'] = artifact.version === 3 ? 'pass' : 'insufficient';
+    release.provider_diagnostics_zero && release.exact_programs_complete &&
+    ((artifact.version !== 3 && artifact.version !== 4) || (release.exact_templates_complete && release.semantic_proofs_complete));
+  const hardenedEvidenceStatus: SemanticThresholdResult['status'] = artifact.version === 3 || artifact.version === 4 ? 'pass' : 'insufficient';
   return {
-    version: 2,
+    version: 3,
     kind: 'f1ql_answer_observation_report',
     artifact: { version: artifact.version, observations: artifact.observations.length, sha256: artifactSha256, manifest_sha256: artifact.manifest.sha256 },
     contract: contractReport(artifact),
@@ -158,14 +185,15 @@ export function buildAnswerObservationReport(
     translation_timeouts: translationTimeouts,
     provider_diagnostics: providerDiagnostics,
     proof_rejections: proofRejections,
+    reliability,
     templates,
     holdout_thresholds: { required_accuracy: 1, by_source: bySource, by_operation: byOperation },
-    release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status, translationTimeouts.status, hardenedEvidenceStatus]) }
+    release_gates: { ...release, status: releaseStatus(coreGatesPass, [...thresholdStatuses, translationLatency.status, translationTimeouts.status, hardenedEvidenceStatus, reliability.status]) }
   };
 }
 
 function providerEvidenceReport(artifact: AnswerObservationArtifact): AnswerObservationReport['provider_evidence'] {
-  if (artifact.version !== 3) {
+  if (artifact.version !== 3 && artifact.version !== 4) {
     return { provider: artifact.provider.type, endpoint_sha256: '', reasoning_effort: '', status: 'insufficient' };
   }
   return {
@@ -189,14 +217,14 @@ function proofRejectionReport(artifact: AnswerObservationArtifact): AnswerObserv
 }
 
 function contractReport(artifact: AnswerObservationArtifact): AnswerObservationReport['contract'] {
-  if (artifact.version !== 3) {
+  if (artifact.version !== 3 && artifact.version !== 4) {
     return { question_version: '', intent_version: '', translator_prompt_hash: '', translator_schema_hash: '', template_version: '', template_registry_hash: '', proof_version: '', status: 'insufficient' };
   }
   return { ...artifact.contract, status: 'pass' };
 }
 
 function translationOutcomeReport(artifact: AnswerObservationArtifact): AnswerObservationReport['translation_outcomes'] {
-  if (artifact.version !== 3) {
+  if (artifact.version !== 3 && artifact.version !== 4) {
     return { attempted: artifact.observations.length, deterministic: 0 };
   }
   const attempted = artifact.observations.filter(observation => observation.translation_attempted).length;
@@ -227,16 +255,128 @@ function normalizeDiagnostic(code: ProviderDiagnosticCode | AnswerProviderDiagno
 function templateReport(cases: readonly AnswerEvaluationCase[], artifact: AnswerObservationArtifact): AnswerObservationReport['templates'] {
   return Object.fromEntries(ANSWER_TEMPLATE_IDS.map(templateId => {
     const selected = cases.filter(item => item.expected.template_id === templateId);
-    const ids = new Set(selected.map(item => item.id));
-    const observations = artifact.observations.filter(item => ids.has(item.id));
-    const exact = observations.filter(item => item.action === 'answer' && 'template_id' in item && item.template_id === templateId).length;
-    const proofComplete = observations.filter(item => 'proof_status' in item && item.proof_status === 'passed').length;
+    const exact = selected.filter(item => observationsForCase(artifact, item.id).every(observation => observation.action === 'answer' && 'template_id' in observation && observation.template_id === templateId)).length;
+    const proofComplete = selected.filter(item => observationsForCase(artifact, item.id).every(observation => 'proof_status' in observation && observation.proof_status === 'passed')).length;
     return [templateId, { cases: selected.length, non_development_cases: selected.filter(item => item.split !== 'development').length, exact, proof_complete: proofComplete }];
   })) as AnswerObservationReport['templates'];
 }
 
+function reliabilityReport(cases: readonly AnswerEvaluationCase[], artifact: AnswerObservationArtifact): AnswerObservationReport['reliability'] {
+  const answerable = cases.filter(item => item.answerable);
+  const required = answerable.length * ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE;
+  if (artifact.version !== 4) {
+    return {
+      required_observations_per_case: ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE,
+      answerable_cases: answerable.length,
+      required_observations: required,
+      supplied_observations: answerable.reduce((count, item) => count + observationsForCase(artifact, item.id).length, 0),
+      complete_cases: 0,
+      action: { exact_cases: 0, drift_cases: 0 },
+      reason: { exact_cases: 0, drift_cases: 0 },
+      template_id: { exact_cases: 0, drift_cases: 0 },
+      program_hash: { exact_cases: 0, drift_cases: 0 },
+      status: 'insufficient'
+    };
+  }
+  const fields = {
+    action: { exact_cases: 0, drift_cases: 0 },
+    reason: { exact_cases: 0, drift_cases: 0 },
+    template_id: { exact_cases: 0, drift_cases: 0 },
+    program_hash: { exact_cases: 0, drift_cases: 0 }
+  };
+  let supplied = 0;
+  let complete = 0;
+  let knownWrong = false;
+  for (const item of answerable) {
+    const observations = observationsForCase(artifact, item.id);
+    supplied += observations.length;
+    complete += Number(observations.length === ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE);
+    const acceptableHashes = (item.expected.acceptable_programs ?? []).map(getF1QLProgramHash);
+    const expectations = {
+      action: (value: unknown) => value === item.expected.action,
+      reason: (value: unknown) => value === item.expected.reason,
+      template_id: (value: unknown) => value === item.expected.template_id,
+      program_hash: (value: unknown) => typeof value === 'string' && acceptableHashes.includes(value)
+    };
+    for (const field of Object.keys(fields) as Array<keyof typeof fields>) {
+      const values = observations.map(observation => repeatedField(observation, field));
+      fields[field].exact_cases += Number(values.length === ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE && values.every(expectations[field]));
+      fields[field].drift_cases += Number(new Set(values.map(value => JSON.stringify(value))).size > 1);
+      knownWrong ||= values.some(value => !expectations[field](value));
+    }
+  }
+  const allExact = Object.values(fields).every(value => value.exact_cases === answerable.length);
+  const zeroDrift = Object.values(fields).every(value => value.drift_cases === 0);
+  let status: AnswerObservationReport['reliability']['status'];
+  if (knownWrong || !zeroDrift) {
+    status = 'fail';
+  } else if (complete !== answerable.length || supplied !== required) {
+    status = 'insufficient';
+  } else {
+    status = allExact ? 'pass' : 'fail';
+  }
+  return {
+    required_observations_per_case: ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE,
+    answerable_cases: answerable.length,
+    required_observations: required,
+    supplied_observations: supplied,
+    complete_cases: complete,
+    ...fields,
+    status
+  };
+}
+
+function repeatedField(observation: AnswerObservationArtifact['observations'][number], field: 'action' | 'reason' | 'template_id' | 'program_hash'): unknown {
+  if (field === 'action' || field === 'reason') {
+    return observation[field];
+  }
+  if (field === 'template_id') {
+    return 'template_id' in observation ? observation.template_id : undefined;
+  }
+  return 'program_hash' in observation ? observation.program_hash : undefined;
+}
+
+function allObservationChecks(cases: readonly AnswerEvaluationCase[], artifact: AnswerObservationArtifact): {
+  unsafe_answers_zero: boolean;
+  candidate_recall_complete: boolean;
+  canonical_links_complete: boolean;
+} {
+  let unsafeAnswers = 0;
+  let candidatesComplete = true;
+  let linksComplete = true;
+  for (const item of cases) {
+    for (const observation of observationsForCase(artifact, item.id)) {
+      const acceptableHashes = (item.expected.acceptable_programs ?? []).map(getF1QLProgramHash);
+      const observedHash = observationProgramHash(observation);
+      if (observation.action === 'answer' && (item.expected.action !== 'answer' || observedHash === undefined || !acceptableHashes.includes(observedHash))) {
+        unsafeAnswers++;
+      }
+      candidatesComplete &&= item.canonical_entities.every(entity => observation.entity_candidates.includes(entity));
+      if ((item.acceptable_linked_entities ?? []).length > 0) {
+        linksComplete &&= item.acceptable_linked_entities!.some(expected => sameStringSet(expected, observation.linked_entities));
+      }
+    }
+  }
+  return { unsafe_answers_zero: unsafeAnswers === 0, candidate_recall_complete: candidatesComplete, canonical_links_complete: linksComplete };
+}
+
+function observationProgramHash(observation: AnswerObservationArtifact['observations'][number]): string | undefined {
+  if ('program_hash' in observation && observation.program_hash !== undefined) {
+    return observation.program_hash;
+  }
+  return 'program' in observation && observation.program !== undefined ? getF1QLProgramHash(observation.program) : undefined;
+}
+
+function observationsForCase(artifact: AnswerObservationArtifact, id: string): readonly AnswerObservationArtifact['observations'][number][] {
+  return artifact.observations.filter(observation => observation.id === id);
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  return JSON.stringify([...new Set(left)].sort()) === JSON.stringify([...new Set(right)].sort());
+}
+
 function translationTimeoutReport(artifact: AnswerObservationArtifact): AnswerObservationReport['translation_timeouts'] {
-  const attempted = artifact.version === 3 ? artifact.observations.filter(observation => observation.translation_attempted) : artifact.observations;
+  const attempted = artifact.version === 3 || artifact.version === 4 ? artifact.observations.filter(observation => observation.translation_attempted) : artifact.observations;
   const observed = attempted.filter(observation => observation.translation_timed_out !== undefined);
   const timedOut = observed.filter(observation => observation.translation_timed_out).length;
   let status: AnswerObservationReport['translation_timeouts']['status'] = 'insufficient';
@@ -255,7 +395,7 @@ function translationTimeoutReport(artifact: AnswerObservationArtifact): AnswerOb
 }
 
 function translationLatencyReport(artifact: AnswerObservationArtifact): AnswerObservationReport['translation_latency'] {
-  const attempted = artifact.version === 3 ? artifact.observations.filter(observation => observation.translation_attempted) : artifact.observations;
+  const attempted = artifact.version === 3 || artifact.version === 4 ? artifact.observations.filter(observation => observation.translation_attempted) : artifact.observations;
   const latencies = attempted
     .map(observation => observation.translation_latency_ms)
     .filter((latency): latency is number => latency !== undefined)
