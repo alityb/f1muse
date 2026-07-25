@@ -182,6 +182,8 @@ describe('answer principal least-privilege audit', () => {
     expect(sql).toContain('CREATE ROLE f1ql_answer');
     expect(sql).toContain('NOLOGIN');
     expect(sql).toContain('NOBYPASSRLS');
+    expect(sql).toContain('existing f1ql_answer role attributes do not match the reviewed contract');
+    expect(sql).not.toContain('ALTER ROLE f1ql_answer');
     expect(sql).not.toMatch(/PASSWORD|LOGIN\s*;/);
     for (const relationName of ANSWER_PRINCIPAL_REQUIRED_RELATIONS) expect(sql).toContain(relationName);
     expect((sql.match(/GRANT SELECT ON/g) ?? [])).toHaveLength(1);

@@ -13,18 +13,15 @@ BEGIN
       NOINHERIT
       NOREPLICATION
       NOBYPASSRLS;
+  ELSIF EXISTS (
+    SELECT 1 FROM pg_roles
+    WHERE rolname = 'f1ql_answer'
+      AND (rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'existing f1ql_answer role attributes do not match the reviewed contract';
   END IF;
 END
 $migration$;
-
-ALTER ROLE f1ql_answer
-  NOLOGIN
-  NOSUPERUSER
-  NOCREATEDB
-  NOCREATEROLE
-  NOINHERIT
-  NOREPLICATION
-  NOBYPASSRLS;
 
 DO $migration$
 BEGIN

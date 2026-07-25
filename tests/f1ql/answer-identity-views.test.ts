@@ -7,6 +7,7 @@ import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 let pool: Pool;
 let migration: string;
+let roleMigration: string;
 const role = 'f1ql_answer_view_test';
 
 describe('answer-only identity views', () => {
@@ -15,6 +16,7 @@ describe('answer-only identity views', () => {
     await setupTestDatabase(pool, { seed: false });
     await pool.query('CREATE TABLE driver_aliases (driver_id text, alias text, is_primary boolean)');
     migration = readFileSync(path.resolve(process.cwd(), 'migrations/20260729_f1ql_answer_identity_views.sql'), 'utf8');
+    roleMigration = readFileSync(path.resolve(process.cwd(), 'migrations/20260730_f1ql_answer_role_grants.sql'), 'utf8');
     await pool.query(migration);
     await pool.query(`CREATE ROLE ${role} NOLOGIN; GRANT USAGE ON SCHEMA f1ql TO ${role}; GRANT SELECT ON f1ql.answer_event_identity, f1ql.answer_driver_identity, f1ql.answer_season_participation TO ${role}`);
     await pool.query(`
@@ -78,6 +80,28 @@ describe('answer-only identity views', () => {
     } finally {
       await client.query('RESET ROLE');
       client.release();
+    }
+  });
+
+  it('creates the exact group role idempotently without delegated ALTER ROLE', async () => {
+    try {
+      await pool.query(roleMigration);
+      await pool.query(roleMigration);
+      const attributes = await pool.query(`
+        SELECT rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolinherit, rolreplication, rolbypassrls
+        FROM pg_roles WHERE rolname = 'f1ql_answer'
+      `);
+      expect(attributes.rows).toEqual([{
+        rolcanlogin: false,
+        rolsuper: false,
+        rolcreatedb: false,
+        rolcreaterole: false,
+        rolinherit: false,
+        rolreplication: false,
+        rolbypassrls: false
+      }]);
+    } finally {
+      await pool.query('DROP OWNED BY f1ql_answer; DROP ROLE IF EXISTS f1ql_answer');
     }
   });
 
