@@ -27,20 +27,20 @@ const trustedKey = { key_id: 'authorization-release-key', public_key: keyPair.pu
 const releaseNowMs = Date.parse('2026-07-24T00:01:00.000Z');
 const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAnswerReleaseContext => ({
   release_id: 'test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
+  commit_sha: 'e'.repeat(40),
   audience: 'f1muse-answer', deployment_id: 'test-deployment',
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: hash('7'),
   evidence_hashes: {
     manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
     result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
   },
-  statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
+  statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
   runtime, deployment_template_ids: ['final_standings_leader'], ...overrides
 });
 
 function release(context = activeContext()) {
   const unsigned = {
-    version: 4 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
@@ -78,7 +78,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v7', release_attestation: 4 }
+      active_versions: { authorization: 'answer-authorization-v8', release_attestation: 5 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);

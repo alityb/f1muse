@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v1' as const;
+
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
   // Offsets are an inclusive/exclusive pair measured in Unicode code points.

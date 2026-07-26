@@ -72,14 +72,14 @@ function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly
   const runtime = releaseRuntime(config);
   const activeContext: ActiveAnswerReleaseContext = {
     release_id: 'route-test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-    commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
+    commit_sha: 'e'.repeat(40),
     audience: 'f1muse-answer', deployment_id: 'route-test-deployment', evidence_hashes: releaseEvidence,
     canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryHmacKeySha256,
-    statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
+    statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
     runtime, deployment_template_ids: [...allowedTemplateIds]
   };
   const unsigned = {
-    version: 4 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: releaseKey.key_id, ...buildActiveAnswerReleaseBindings(activeContext)
   };
   return {
@@ -245,7 +245,10 @@ describe('gated answer route', () => {
     assertNoReachableExecution([
       'scripts/collect-answer-evaluation-observations.ts',
       'scripts/report-answer-evaluation-observations.ts',
-      'src/f1ql/answer-observations.ts'
+      'src/f1ql/answer-observations.ts',
+      'scripts/collect-answer-derivation-evidence.ts',
+      'scripts/report-answer-derivation-evidence.ts',
+      'src/f1ql/answer-derivation-evidence.ts'
     ]);
     const source = readFileSync('src/api/routes/program-answer.ts', 'utf8');
     expect(source).not.toContain('eventResolver?:');
@@ -390,7 +393,7 @@ describe('gated answer route', () => {
       useReleaseOverride = true;
       if (failure === 'forged') {
         const valid = createRelease(runtimeConfig);
-        releaseOverride = { ...valid, raw_attestation: { ...(valid.raw_attestation as object), model_id: 'forged-model' } };
+        releaseOverride = { ...valid, raw_attestation: { ...(valid.raw_attestation as object), deterministic_derivation_contract_sha256: hash('f') } };
       } else if (failure === 'prebranded') {
         const valid = createRelease(runtimeConfig);
         releaseOverride = verifyAnswerReleaseAttestation(valid.raw_attestation, valid.trusted_key, valid.active_context, valid.temporal_policy) as unknown as AnswerReleaseVerificationInput;

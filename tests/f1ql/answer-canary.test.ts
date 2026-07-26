@@ -21,18 +21,18 @@ const hmacKeyBase64 = Buffer.alloc(32, 7).toString('base64');
 const hmacKeySha256 = createHash('sha256').update(Buffer.alloc(32, 7)).digest('hex');
 const context: ActiveAnswerReleaseContext = {
   release_id: 'test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'groq', model_id: 'reviewed-model', endpoint_sha256: h('1'), reasoning_effort: 'disabled', audience: 'f1muse-answer', deployment_id: 'test-deployment',
+  commit_sha: 'e'.repeat(40), audience: 'f1muse-answer', deployment_id: 'test-deployment',
   evidence_hashes: {
     manifest_sha256: h('8'), artifact_sha256: h('9'), report_sha256: h('a'), result_fixture_sha256: h('b'),
     principal_audit_sha256: h('c'), production_evidence_sha256: h('d')
   },
-  statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
+  statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
   runtime, deployment_template_ids: ['race-v1'],
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: hmacKeySha256
 };
 const keyPair = generateKeyPairSync('ed25519');
 const key = { key_id: 'canary-release-key', public_key: keyPair.publicKey };
-const unsigned = { version: 4 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(context) };
+const unsigned = { version: 5 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(context) };
 const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
 const attestation = verifyAnswerReleaseAttestation(raw, key, context, {
   now_ms: Date.parse('2026-07-24T00:01:00.000Z'), max_validity_ms: 600_000, max_age_ms: 300_000
@@ -99,7 +99,7 @@ describe('answer canary', () => {
 
   it('fails closed when the live stage or HMAC key is not release-attested', () => {
     const limitedContext = { ...context, maximum_canary_stage: 5 } as ActiveAnswerReleaseContext;
-    const limitedUnsigned = { version: 4 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(limitedContext) };
+    const limitedUnsigned = { version: 5 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(limitedContext) };
     const limitedRaw = { ...limitedUnsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(limitedUnsigned), keyPair.privateKey).toString('base64') };
     const limited = verifyAnswerReleaseAttestation(limitedRaw, key, limitedContext, {
       now_ms: Date.parse('2026-07-24T00:01:00.000Z'), max_validity_ms: 600_000, max_age_ms: 300_000

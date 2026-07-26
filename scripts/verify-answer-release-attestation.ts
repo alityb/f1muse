@@ -3,7 +3,7 @@ import {
   getAnswerReleaseAttestationHash,
   verifyAnswerReleaseAttestation
 } from '../src/f1ql/answer-release-attestation';
-import { loadAnswerReleaseVerificationInput } from '../src/f1ql/answer-release-provider-verification';
+import { loadDeterministicAnswerReleaseVerificationInput } from '../src/f1ql/answer-release-attestation';
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
 
 const MAXIMUM_ATTESTATION_BYTES = 100_000;
@@ -20,7 +20,7 @@ export function verifyAnswerReleaseAttestationFile(
   nowMs: number = Date.now()
 ): AnswerReleaseVerificationResult {
   const raw = readAttestation(path);
-  const loaded = loadAnswerReleaseVerificationInput(getAnswerRuntimeConfig(env), {
+  const loaded = loadDeterministicAnswerReleaseVerificationInput(getAnswerRuntimeConfig(env), {
     ...env,
     F1QL_ANSWER_RELEASE_ATTESTATION: raw
   }, nowMs);

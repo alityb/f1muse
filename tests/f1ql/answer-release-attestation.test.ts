@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { buildAnswerReleaseAttestationFile as buildReleaseAtClock, getAnswerProductionEvidenceSigningPayload } from '../../scripts/build-answer-release-attestation';
 import { getAnswerPrincipalAuditSigningPayload } from '../../scripts/audit-answer-principal';
 import { verifyAnswerReleaseAttestationFile as verifyReleaseAtClock } from '../../scripts/verify-answer-release-attestation';
-import { buildAnswerObservationReport } from '../../src/f1ql/answer-observation-report';
+import { buildAnswerDerivationReport } from '../../src/f1ql/answer-derivation-report';
 import {
-  createAnswerObservationSigningHelper,
-  getAnswerEvaluationManifestHash,
-  signAnswerObservationArtifact,
-  verifyAnswerObservationArtifact
-} from '../../src/f1ql/answer-observations';
+  getAnswerDerivationManifestHash,
+  getAnswerDeterministicDerivationContractSha256,
+  signAnswerDerivationEvidence,
+  verifyAnswerDerivationEvidence
+} from '../../src/f1ql/answer-derivation-evidence';
 import {
   ActiveAnswerReleaseContext,
   AnswerReleaseAttestationError,
@@ -22,19 +22,16 @@ import {
   isVerifiedAnswerReleaseAttestation,
   parseAnswerReleaseAttestation,
   verifyAnswerReleaseAttestation,
-  verifyVerifiedAnswerReleaseAttestationValidity
+  verifyVerifiedAnswerReleaseAttestationValidity,
+  loadDeterministicAnswerReleaseVerificationInput
 } from '../../src/f1ql/answer-release-attestation';
-import { loadAnswerReleaseVerificationInput } from '../../src/f1ql/answer-release-provider-verification';
+import { ANSWER_INTENT_SCHEMA_VERSION } from '../../src/f1ql/answer-intent';
+import { ANSWER_INTENT_DERIVATION_VERSION } from '../../src/f1ql/answer-intent-derivation';
 import {
   ANSWER_QUESTION_CONTRACT_VERSION
 } from '../../src/f1ql/answer-question';
 import { ANSWER_SEMANTIC_PROOF_VERSION } from '../../src/f1ql/answer-semantic-proof';
 import { ANSWER_TEMPLATE_IDS, ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from '../../src/f1ql/answer-templates';
-import {
-  ANSWER_INTENT_CONTRACT_VERSION,
-  ANSWER_TRANSLATOR_PROMPT_SHA256,
-  ANSWER_TRANSLATOR_SCHEMA_SHA256
-} from '../../src/f1ql/answer-translator';
 import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
 
@@ -47,9 +44,8 @@ const evidence = {
   manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
   result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
 };
-const passingStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' } as const;
+const passingStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass' } as const;
 const RELEASE_NOW_MS = Date.parse('2026-07-24T00:01:00.000Z');
-const GROQ_ENDPOINT_HASH = createHash('sha256').update('https://api.groq.com/openai/v1').digest('hex');
 const CANARY_HMAC_KEY = Buffer.alloc(32, 7);
 const CANARY_HMAC_KEY_BASE64 = CANARY_HMAC_KEY.toString('base64');
 const CANARY_HMAC_KEY_SHA256 = createHash('sha256').update(CANARY_HMAC_KEY).digest('hex');
@@ -58,7 +54,7 @@ const buildAnswerReleaseAttestationFile = (paths: Parameters<typeof buildRelease
 const verifyAnswerReleaseAttestationFile = (path: string, env: NodeJS.ProcessEnv) => verifyReleaseAtClock(path, env, RELEASE_NOW_MS);
 const context = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAnswerReleaseContext => ({
   release_id: 'test-release-1', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-  commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
+  commit_sha: 'e'.repeat(40),
   audience: 'f1muse-answer', deployment_id: 'test-deployment', evidence_hashes: evidence,
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256,
   statuses: passingStatuses, runtime, deployment_template_ids: ['final_standings_leader', 'race_date'],
@@ -71,7 +67,7 @@ const trustedKey = { key_id: 'release-key-1', public_key: trusted.publicKey };
 
 function signedFixture(active = context(), privateKey = trusted.privateKey, keyId = trustedKey.key_id) {
   const unsigned = {
-    version: 4 as const,
+    version: 5 as const,
     kind: 'f1ql_answer_release_attestation' as const,
     key_id: keyId,
     ...buildActiveAnswerReleaseBindings(active)
@@ -92,20 +88,17 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(Object.isFrozen(verified)).toBe(true);
     expect(Object.isFrozen(verified.statuses)).toBe(true);
     expect(Object.isFrozen(verified.allowed_template_ids)).toBe(true);
-    expect(verified).toMatchObject({ canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256 });
+    expect(verified).toMatchObject({ derivation_version: ANSWER_INTENT_DERIVATION_VERSION, deterministic_derivation_contract_sha256: getAnswerDeterministicDerivationContractSha256(), canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256 });
     expect(getAnswerReleaseAttestationHash(verified)).toMatch(/^[a-f0-9]{64}$/);
     expect(() => { (verified.statuses as { semantic: string }).semantic = 'fail'; }).toThrow();
   });
 
   it('rejects tampering, a wrong trusted key, and a self-authored artifact', () => {
     const raw = signedFixture();
-    expect(() => verifyAnswerReleaseAttestation({ ...raw, model_id: 'tampered-model' }, trustedKey, context(), temporalPolicy)).toThrowError(
-      expect.objectContaining({ code: 'signature_invalid' })
+    expect(() => verifyAnswerReleaseAttestation({ ...raw, derivation_version: 'tampered-version' }, trustedKey, context(), temporalPolicy)).toThrowError(
+      expect.objectContaining({ code: 'invalid_attestation' })
     );
-    expect(() => verifyAnswerReleaseAttestation({ ...raw, endpoint_sha256: hash('2') }, trustedKey, context(), temporalPolicy)).toThrowError(
-      expect.objectContaining({ code: 'signature_invalid' })
-    );
-    expect(() => verifyAnswerReleaseAttestation({ ...raw, reasoning_effort: 'medium' }, trustedKey, context(), temporalPolicy)).toThrowError(
+    expect(() => verifyAnswerReleaseAttestation({ ...raw, deterministic_derivation_contract_sha256: hash('2') }, trustedKey, context(), temporalPolicy)).toThrowError(
       expect.objectContaining({ code: 'signature_invalid' })
     );
     expect(() => verifyAnswerReleaseAttestation(raw, { ...trustedKey, public_key: other.publicKey }, context(), temporalPolicy)).toThrowError(
@@ -141,9 +134,6 @@ describe('cryptographically rooted answer release attestation', () => {
     for (const changed of [
       context({ commit_sha: 'f'.repeat(40) }),
       context({ release_id: 'other-release' }),
-      context({ model_id: 'other-model' }),
-      context({ endpoint_sha256: hash('2') }),
-      context({ reasoning_effort: 'medium' }),
       context({ audience: 'other-audience' }),
       context({ deployment_id: 'other-deployment' }),
       context({ maximum_canary_stage: 25 }),
@@ -155,9 +145,24 @@ describe('cryptographically rooted answer release attestation', () => {
       expect(() => verifyAnswerReleaseAttestation(raw, trustedKey, changed, temporalPolicy)).toThrowError(expect.objectContaining({ code: 'binding_mismatch' }));
     }
     const bindings = buildActiveAnswerReleaseBindings(context());
-    expect(bindings.prompt_version_sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(bindings.schema_version_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(bindings.derivation_version_sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(bindings.intent_schema_version_sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(bindings.authorization_version_sha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('rejects an independently signed deterministic derivation contract mismatch', () => {
+    const active = context();
+    const unsigned = {
+      version: 5 as const,
+      kind: 'f1ql_answer_release_attestation' as const,
+      key_id: trustedKey.key_id,
+      ...buildActiveAnswerReleaseBindings(active),
+      deterministic_derivation_contract_sha256: hash('f')
+    };
+    const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), trusted.privateKey).toString('base64') };
+    expect(() => verifyAnswerReleaseAttestation(raw, trustedKey, active, temporalPolicy)).toThrowError(
+      expect.objectContaining({ code: 'binding_mismatch' })
+    );
   });
 
   it('enforces signed issuance, expiry, maximum validity, and freshness with an injected clock', () => {
@@ -189,10 +194,11 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), signature: nonCanonicalAlias(signedFixture().signature) })).toThrow(AnswerReleaseAttestationError);
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), signature: `${signedFixture().signature}\n` })).toThrow(AnswerReleaseAttestationError);
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), extra: true })).toThrow(AnswerReleaseAttestationError);
+    expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), version: 4 })).toThrow(AnswerReleaseAttestationError);
   });
 
-  it('loads production verification context from bounded environment values and binds the configured provider/model', () => {
-    const productionContext = context({ provider: 'groq', model_id: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH, reasoning_effort: 'disabled' });
+  it('loads deterministic production context without a provider credential', () => {
+    const productionContext = context();
     const raw = signedFixture(productionContext);
     const env: NodeJS.ProcessEnv = {
       F1QL_ANSWER_RELEASE_ATTESTATION: JSON.stringify(raw),
@@ -205,10 +211,6 @@ describe('cryptographically rooted answer release attestation', () => {
       F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: productionContext.deployment_template_ids.join(','),
       F1QL_ANSWER_CANARY_MAXIMUM_STAGE: String(productionContext.maximum_canary_stage),
       F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
-      F1QL_ANSWER_LLM_PROVIDER: 'groq',
-      F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v1',
-      F1QL_ANSWER_LLM_API_KEY: 'not-printed-or-returned',
-      F1QL_ANSWER_MODEL: productionContext.model_id
     };
     for (const [key, value] of Object.entries(evidence)) {
       env[`F1QL_ANSWER_RELEASE_${key.toUpperCase()}`] = value;
@@ -219,23 +221,13 @@ describe('cryptographically rooted answer release attestation', () => {
       rateLimitWindowMs: runtime.rate_limit_window_ms, statementTimeoutMs: runtime.statement_timeout_ms,
       maxWorkUnits: runtime.max_work_units, maxRows: runtime.max_rows, maxResponseBytes: runtime.max_response_bytes
     };
-    const loaded = loadAnswerReleaseVerificationInput(config, env, RELEASE_NOW_MS);
-    expect(loaded.active_context).toMatchObject({ provider: 'groq', model_id: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH, reasoning_effort: 'disabled' });
-    expect(verifyAnswerReleaseAttestation(loaded.raw_attestation, loaded.trusted_key, loaded.active_context, loaded.temporal_policy).model_id).toBe('openai/gpt-oss-20b');
-    for (const changedEnv of [
-      { ...env, F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v2' },
-      { ...env, F1QL_ANSWER_REASONING_EFFORT: 'none' }
-    ]) {
-      const changed = loadAnswerReleaseVerificationInput(config, changedEnv, RELEASE_NOW_MS);
-      expect(() => verifyAnswerReleaseAttestation(changed.raw_attestation, changed.trusted_key, changed.active_context, changed.temporal_policy)).toThrowError(
-        expect.objectContaining({ code: 'binding_mismatch' })
-      );
-    }
-    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_LLM_API_KEY: undefined })).toThrow();
-    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: `${env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64}\n` })).toThrow();
-    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '10' })).toThrow();
-    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '050' })).toThrow();
-    expect(() => loadAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: `${CANARY_HMAC_KEY_BASE64}\n` })).toThrow();
+    const loaded = loadDeterministicAnswerReleaseVerificationInput(config, env, RELEASE_NOW_MS);
+    expect(loaded.active_context).not.toHaveProperty('provider');
+    expect(verifyAnswerReleaseAttestation(loaded.raw_attestation, loaded.trusted_key, loaded.active_context, loaded.temporal_policy).derivation_version).toBe(ANSWER_INTENT_DERIVATION_VERSION);
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: `${env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64}\n` })).toThrow();
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '10' })).toThrow();
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '050' })).toThrow();
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: `${CANARY_HMAC_KEY_BASE64}\n` })).toThrow();
   });
 });
 
@@ -252,7 +244,7 @@ describe('guarded answer release attestation files', () => {
     });
   });
 
-  it('rejects a failed report and an artifact/report mismatch', () => {
+  it('rejects a failed report, provider report, and artifact/report mismatch', () => {
     const failedArtifact = makePassingArtifact();
     failedArtifact.observations[0] = { ...failedArtifact.observations[0], reason: 'race_classification' };
     withReleaseFiles(failedArtifact, ({ paths, buildEnv }) => {
@@ -260,23 +252,27 @@ describe('guarded answer release attestation files', () => {
     });
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       const report = JSON.parse(readFileSync(paths.report, 'utf8'));
-      report.artifact.sha256 = '0'.repeat(64);
+      report.evidence.artifact_sha256 = '0'.repeat(64);
       writeFileSync(paths.report, `${JSON.stringify(report)}\n`);
       expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_report_mismatch');
     });
+    withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
+      writeFileSync(paths.report, '{"version":3,"kind":"f1ql_answer_observation_report"}\n');
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_report_mismatch');
+    });
     const driftedArtifact = makePassingArtifact();
-    const repeated = driftedArtifact.observations.find((item: any) => item.observation_index === 2 && item.action === 'answer');
-    repeated.program_hash = 'f'.repeat(64);
+    const answer = driftedArtifact.observations.find((item: any) => item.action === 'answer');
+    answer.program_hash = 'f'.repeat(64);
     withReleaseFiles(driftedArtifact, ({ paths, buildEnv }) => {
       expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_report_failed');
     });
   });
 
-  it('rejects a model mismatch and empty evidence', () => {
+  it('rejects provider observation evidence and empty evidence', () => {
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
-      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_MODEL: 'openai/gpt-oss-120b' })).toThrow('answer_release_model_mismatch');
-      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v2' })).toThrow('answer_release_model_mismatch');
-      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_REASONING_EFFORT: 'none' })).toThrow('answer_release_model_mismatch');
+      const providerArtifact = { version: 4, kind: 'f1ql_answer_observations' };
+      writeFileSync(paths.artifact, `${JSON.stringify(providerArtifact)}\n`);
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow();
       writeFileSync(paths.principal_audit, '');
       expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_input_invalid');
     });
@@ -285,13 +281,13 @@ describe('guarded answer release attestation files', () => {
   it('requires a trusted signed evaluation artifact', () => {
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       const artifact = JSON.parse(readFileSync(paths.artifact, 'utf8'));
-      artifact.observations[0].translation_latency_ms = 2;
+      artifact.observations[0].reason = 'race_classification';
       writeFileSync(paths.artifact, `${JSON.stringify(artifact)}\n`);
-      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_observation_signature_invalid');
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_derivation_signature_invalid');
     });
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       const wrong = generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
-      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64: wrong })).toThrow('answer_observation_signature_invalid');
+      expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64: wrong })).toThrow('answer_derivation_signature_invalid');
     });
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
       expect(() => buildAnswerReleaseAttestationFile(paths, { ...buildEnv, F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64: `${buildEnv.F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64}\n` })).toThrow('answer_release_signing_key_invalid');
@@ -299,22 +295,18 @@ describe('guarded answer release attestation files', () => {
     });
   });
 
-  it('refuses signed historical v3 evidence for a new release', () => {
-    const historical = makePassingArtifact();
-    historical.version = 3;
-    delete historical.reliability;
-    historical.observations = historical.observations.filter((item: any) => item.observation_index === 0);
-    for (const observation of historical.observations) delete observation.observation_index;
-    withReleaseFiles(historical, ({ paths, buildEnv }) => {
-      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_observation_artifact_version_unsupported');
+  it('refuses provider observation evidence for a new release', () => {
+    withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
+      writeFileSync(paths.artifact, '{"version":4,"kind":"f1ql_answer_observations"}\n');
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow();
     });
   });
 
-  it('rejects stale provider and principal evidence using explicit max ages and an injected clock', () => {
+  it('rejects stale derivation and principal evidence using explicit max ages and an injected clock', () => {
     const staleArtifact = makePassingArtifact();
-    staleArtifact.provider.collected_at = '2026-07-23T23:00:00.000Z';
+    staleArtifact.collected_at = '2026-07-23T23:00:00.000Z';
     withReleaseFiles(staleArtifact, ({ paths, buildEnv }) => {
-      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_provider_evidence_stale');
+      expect(() => buildAnswerReleaseAttestationFile(paths, buildEnv)).toThrow('answer_release_derivation_evidence_stale');
     });
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv, productionPrivateKey, productionKeyId }) => {
       const staleAudit = passingPrincipalAudit(productionPrivateKey, productionKeyId, { audited_at: '2026-07-23T23:00:00.000Z' });
@@ -426,44 +418,34 @@ describe('guarded answer release attestation files', () => {
 
 function makePassingArtifact(): any {
   return {
-    version: 4,
-    kind: 'f1ql_answer_observations',
-    provider: {
-      type: 'groq', model: 'openai/gpt-oss-20b', endpoint_sha256: GROQ_ENDPOINT_HASH,
-      reasoning_effort: 'disabled', collected_at: '2026-07-24T00:00:00.000Z'
-    },
-    manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) },
-    reliability: { answerable_observations_per_case: 3, non_answerable_observations_per_case: 1 },
+    version: 1,
+    kind: 'f1ql_answer_derivation_evidence',
+    collected_at: '2026-07-24T00:00:00.000Z',
+    manifest: { case_count: answerEvaluationManifest.length, sha256: getAnswerDerivationManifestHash(answerEvaluationManifest) },
     contract: {
       question_version: ANSWER_QUESTION_CONTRACT_VERSION,
-      intent_version: ANSWER_INTENT_CONTRACT_VERSION,
-      translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256,
-      translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256,
+      derivation_version: ANSWER_INTENT_DERIVATION_VERSION,
+      intent_schema_version: ANSWER_INTENT_SCHEMA_VERSION,
       template_version: ANSWER_TEMPLATE_REGISTRY_VERSION,
       template_registry_hash: ANSWER_TEMPLATE_REGISTRY_HASH,
       proof_version: ANSWER_SEMANTIC_PROOF_VERSION
     },
-    observations: answerEvaluationManifest.flatMap(item => Array.from({ length: item.answerable ? 3 : 1 }, (_, observationIndex) => {
+    observations: answerEvaluationManifest.map(item => {
       const answer = item.expected.action === 'answer';
       const program = item.expected.acceptable_programs?.[0];
       return {
         id: item.id,
-        observation_index: observationIndex,
         action: item.expected.action,
         reason: item.expected.reason,
-        translation_attempted: true,
-        translation_latency_ms: 1,
-        translation_timed_out: false,
         ...(answer ? {
           template_id: item.expected.template_id,
-          proof_status: 'passed',
           proof_hash: createHash('sha256').update(`proof:${item.id}`).digest('hex'),
           program_hash: getF1QLProgramHash(program!)
-        } : { proof_status: 'not_applicable' }),
+        } : {}),
         entity_candidates: item.canonical_entities,
         linked_entities: answer ? item.canonical_entities : []
       };
-    }))
+    })
   };
 }
 
@@ -488,19 +470,19 @@ function withReleaseFiles(
       output: join(directory, 'attestation.json')
     };
     const evaluationKeys = generateKeyPairSync('ed25519');
-    const signer = createAnswerObservationSigningHelper(
-      'evaluation-key-1',
-      evaluationKeys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
-    );
-    const signedArtifact = signAnswerObservationArtifact(answerEvaluationManifest, artifactInput, signer);
+    const signer = {
+      key_id: 'evaluation-key-1',
+      private_key_base64: evaluationKeys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
+    };
+    const signedArtifact = signAnswerDerivationEvidence(answerEvaluationManifest, artifactInput, signer);
     const artifactBytes = Buffer.from(`${JSON.stringify(signedArtifact)}\n`);
     writeFileSync(paths.artifact, artifactBytes);
     const evaluationPublicKey = evaluationKeys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
-    const artifact = verifyAnswerObservationArtifact(answerEvaluationManifest, signedArtifact, {
+    const artifact = verifyAnswerDerivationEvidence(answerEvaluationManifest, signedArtifact, {
       key_id: signer.key_id,
       public_key_base64: evaluationPublicKey
     });
-    const report = buildAnswerObservationReport(
+    const report = buildAnswerDerivationReport(
       answerEvaluationManifest,
       answerMetamorphicGroups,
       artifact,
@@ -550,17 +532,13 @@ function withReleaseFiles(
       F1QL_ANSWER_RELEASE_ID: 'test-release-1',
       F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '50',
       F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
-      F1QL_ANSWER_PROVIDER_EVIDENCE_MAX_AGE_MS: '300000',
+      F1QL_ANSWER_DERIVATION_EVIDENCE_MAX_AGE_MS: '300000',
       F1QL_ANSWER_PRINCIPAL_AUDIT_MAX_AGE_MS: '300000',
       F1QL_ANSWER_PRODUCTION_EVIDENCE_KEY_ID: productionKeyId,
       F1QL_ANSWER_PRODUCTION_EVIDENCE_PUBLIC_KEY_BASE64: productionKeys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: 'f1muse-answer',
       F1QL_ANSWER_DEPLOYMENT_ID: 'test-deployment',
-      F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: ANSWER_TEMPLATE_IDS.join(','),
-      F1QL_ANSWER_LLM_PROVIDER: 'groq',
-      F1QL_ANSWER_LLM_BASE_URL: 'https://api.groq.com/openai/v1',
-      F1QL_ANSWER_LLM_API_KEY: 'ephemeral-test-value',
-      F1QL_ANSWER_MODEL: 'openai/gpt-oss-20b'
+      F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: ANSWER_TEMPLATE_IDS.join(',')
     };
     run({
       directory,

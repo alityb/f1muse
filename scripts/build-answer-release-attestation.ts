@@ -22,8 +22,8 @@ import {
   TrustedProductionEvidenceKey,
   verifyAnswerPrincipalAuditReport
 } from './audit-answer-principal';
-import { buildAnswerObservationReport } from '../src/f1ql/answer-observation-report';
-import { getAnswerEvaluationManifestHash, verifyAnswerObservationArtifact } from '../src/f1ql/answer-observations';
+import { buildAnswerDerivationReport } from '../src/f1ql/answer-derivation-report';
+import { getAnswerDerivationManifestHash, verifyAnswerDerivationEvidence } from '../src/f1ql/answer-derivation-evidence';
 import {
   ANSWER_RELEASE_ATTESTATION_VERSION,
   ANSWER_CANARY_POLICY_VERSION,
@@ -40,7 +40,6 @@ import {
 } from '../src/f1ql/answer-release-attestation';
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
 import { ANSWER_TEMPLATE_IDS, AnswerTemplateId } from '../src/f1ql/answer-templates';
-import { getConfiguredAnswerModelIdentity } from '../src/f1ql/answer-translator';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../tests/fixtures/f1ql-answer-evaluation-manifest';
 
 const MAXIMUM_INPUT_BYTES = 5_000_000;
@@ -80,21 +79,13 @@ export function buildAnswerReleaseAttestationFile(
   const principalFile = readBoundedRegularFile(paths.principal_audit);
   const productionFile = readBoundedRegularFile(paths.production_evidence);
 
-  const artifact = verifyAnswerObservationArtifact(answerEvaluationManifest, parseJson(artifactFile.content), {
+  const artifact = verifyAnswerDerivationEvidence(answerEvaluationManifest, parseJson(artifactFile.content), {
     key_id: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_KEY_ID'),
     public_key_base64: requiredEnvironment(env, 'F1QL_ANSWER_EVALUATION_PUBLIC_KEY_BASE64')
   });
-  if (artifact.version !== 4) {
-    throw new Error('answer_release_observation_artifact_version_unsupported');
-  }
-  const model = getConfiguredAnswerModelIdentity(env);
-  if (artifact.provider.type !== model.provider || artifact.provider.model !== model.model_id ||
-      artifact.provider.endpoint_sha256 !== model.endpoint_sha256 || artifact.provider.reasoning_effort !== model.reasoning_effort) {
-    throw new Error('answer_release_model_mismatch');
-  }
-  requireFreshEvidence(artifact.provider.collected_at, requiredAgeLimit(env, 'F1QL_ANSWER_PROVIDER_EVIDENCE_MAX_AGE_MS'), nowMs, 'answer_release_provider_evidence_stale');
+  requireFreshEvidence(artifact.collected_at, requiredAgeLimit(env, 'F1QL_ANSWER_DERIVATION_EVIDENCE_MAX_AGE_MS'), nowMs, 'answer_release_derivation_evidence_stale');
 
-  const expectedReport = buildAnswerObservationReport(
+  const expectedReport = buildAnswerDerivationReport(
     answerEvaluationManifest,
     answerMetamorphicGroups,
     artifact,
@@ -148,25 +139,19 @@ export function buildAnswerReleaseAttestationFile(
     role_grant_migration_sha256: roleGrantMigration.sha256
   });
 
-  const statuses: AnswerReleaseStatuses = {
-    semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass'
-  };
+  const statuses: AnswerReleaseStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass' };
   const activeContext: ActiveAnswerReleaseContext = {
     release_id: releaseId,
     issued_at: new Date(nowMs).toISOString(),
     expires_at: new Date(nowMs + answerReleaseTemporalPolicy(env, nowMs).max_validity_ms).toISOString(),
     commit_sha: commitSha,
-    provider: model.provider,
-    model_id: model.model_id,
-    endpoint_sha256: model.endpoint_sha256,
-    reasoning_effort: model.reasoning_effort,
     audience,
     deployment_id: deploymentId,
     canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
     maximum_canary_stage: parseCanaryMaximumStage(env.F1QL_ANSWER_CANARY_MAXIMUM_STAGE),
     canary_hmac_key_sha256: getAnswerCanaryHmacKeySha256(env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64),
     evidence_hashes: {
-      manifest_sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest),
+      manifest_sha256: getAnswerDerivationManifestHash(answerEvaluationManifest),
       artifact_sha256: artifactFile.sha256,
       report_sha256: reportFile.sha256,
       result_fixture_sha256: resultFile.sha256,
@@ -240,14 +225,10 @@ function parseJson(content: Buffer): unknown {
   return JSON.parse(content.toString('utf8')) as unknown;
 }
 
-function requirePassingReport(report: ReturnType<typeof buildAnswerObservationReport>): void {
+function requirePassingReport(report: ReturnType<typeof buildAnswerDerivationReport>): void {
   const gates = report.release_gates;
   const booleanGates = Object.entries(gates).filter(([key]) => key !== 'status');
-  if (report.contract.status !== 'pass' || report.provider_evidence.status !== 'pass' || gates.status !== 'pass' ||
-      booleanGates.some(([, value]) => value !== true) || report.translation_latency.status !== 'pass' ||
-      report.translation_timeouts.status !== 'pass' || report.provider_diagnostics.observations !== 0 ||
-      Object.values(report.holdout_thresholds.by_source).some(value => value.status !== 'pass') ||
-      Object.values(report.holdout_thresholds.by_operation).some(value => value.status !== 'pass')) {
+  if (gates.status !== 'pass' || booleanGates.some(([, value]) => value !== true)) {
     throw new Error('answer_release_report_failed');
   }
 }

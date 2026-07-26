@@ -123,7 +123,7 @@ async function deterministicTranslation(
     return { type: 'intent_candidate', intent: executableIntent(contract, 'race_classification_driver', inventory) };
   }
   if (item.id === 'iid-empty') return { type: 'intent_candidate', intent: executableIntent(contract, 'race_date', []) };
-  const proofAttackIds = new Set(['attack-round', 'attack-session', 'attack-repeated-driver', 'unicode-homoglyph']);
+  const proofAttackIds = new Set(['attack-session', 'attack-repeated-driver']);
   if (proofAttackIds.has(item.id)) {
     const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 2025);
     const template = item.id === 'attack-session' ? 'race_classification_all'

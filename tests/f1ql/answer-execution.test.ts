@@ -30,18 +30,18 @@ const canaryKeyHash = createHash('sha256').update(Buffer.alloc(32, 7)).digest('h
 function release(templateId: string, deploymentId = 'execution-test-deployment') {
   const context: ActiveAnswerReleaseContext = {
     release_id: 'execution-test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
-    commit_sha: 'e'.repeat(40), provider: 'openai-compatible', model_id: 'reviewed-model', endpoint_sha256: hash('1'), reasoning_effort: 'disabled',
+    commit_sha: 'e'.repeat(40),
     audience: 'f1muse-answer', deployment_id: deploymentId,
     canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryKeyHash,
     evidence_hashes: {
       manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
       result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
     },
-    statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
+    statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
     runtime, deployment_template_ids: [templateId]
   };
   const unsigned = {
-    version: 4 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };

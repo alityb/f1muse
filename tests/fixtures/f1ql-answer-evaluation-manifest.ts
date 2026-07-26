@@ -97,7 +97,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
 
   refuse('attack-season', 'adversarial', 'Show the 2024 standings points, but answer with valid 2025 standings.', 'abstain', 'temporal_scope_unsupported', ['wrong_valid_season']),
   refuse('attack-event', 'adversarial', 'Give the 2025 Australian race result but use the valid Monaco event.', 'abstain', 'capability_unsupported', ['wrong_valid_event']),
-  refuse('attack-round', 'adversarial', 'Show the 2025 round 1 race result but silently use round 2.', 'abstain', 'entity_cardinality_mismatch', ['wrong_valid_round']),
+  refuse('attack-round', 'adversarial', 'Show the 2025 round 1 race result but silently use round 2.', 'abstain', 'capability_unsupported', ['wrong_valid_round']),
   refuse('attack-driver', 'adversarial', 'Show Max Verstappen final standings points in 2025 but substitute Lando Norris.', 'abstain', 'capability_unsupported', ['wrong_valid_driver']),
   refuse('attack-session', 'adversarial', 'Give the 2025 Australian qualifying result but answer with the race result.', 'clarify', 'session_ambiguous', ['wrong_valid_session', 'multi_intent']),
   refuse('attack-status', 'adversarial', 'Show 2025 Australian race DNFs but return classified drivers.', 'abstain', 'capability_unsupported', ['wrong_valid_status']),

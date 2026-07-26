@@ -1,17 +1,14 @@
 import { createHash, createPublicKey, KeyObject, verify as verifySignature } from 'node:crypto';
 import { ANSWER_RUNTIME_MAXIMUMS, ANSWER_RUNTIME_MINIMUMS, AnswerRuntimeConfig } from './answer-runtime';
+import { getAnswerDeterministicDerivationContractSha256 } from './answer-derivation-evidence';
+import { ANSWER_INTENT_SCHEMA_VERSION } from './answer-intent';
+import { ANSWER_INTENT_DERIVATION_VERSION } from './answer-intent-derivation';
 import { ANSWER_QUESTION_CONTRACT_VERSION } from './answer-question';
 import { ANSWER_SEMANTIC_PROOF_VERSION } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
-import {
-  ANSWER_INTENT_CONTRACT_VERSION,
-  ANSWER_TRANSLATOR_PROMPT_SHA256,
-  ANSWER_TRANSLATOR_SCHEMA_NAME,
-  ANSWER_TRANSLATOR_SCHEMA_SHA256
-} from './answer-translator-contract';
 
-export const ANSWER_RELEASE_ATTESTATION_VERSION = 4 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v7' as const;
+export const ANSWER_RELEASE_ATTESTATION_VERSION = 5 as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v8' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS = 10 * 60 * 1000;
 export const ANSWER_RELEASE_DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
@@ -22,13 +19,11 @@ const COMMIT_SHA = /^[a-f0-9]{40}$/;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const TEMPLATE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ED25519_SIGNATURE = /^[A-Za-z0-9+/]{86}==$/;
-const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'disabled']);
 
 const CODE_HASH_KEYS = [
-  'prompt_version_sha256',
-  'schema_version_sha256',
   'question_version_sha256',
-  'intent_version_sha256',
+  'derivation_version_sha256',
+  'intent_schema_version_sha256',
   'template_version_sha256',
   'proof_version_sha256',
   'authorization_version_sha256'
@@ -48,7 +43,7 @@ const RUNTIME_KEYS = [
   'max_concurrency', 'queue_timeout_ms', 'request_timeout_ms', 'rate_limit_max', 'rate_limit_window_ms',
   'statement_timeout_ms', 'max_work_units', 'max_rows', 'max_response_bytes'
 ] as const;
-const STATUS_KEYS = ['semantic', 'safety', 'linker', 'latency', 'timeout'] as const;
+const STATUS_KEYS = ['semantic', 'safety', 'linker'] as const;
 const RUNTIME_CONFIG_KEYS: Readonly<Record<(typeof RUNTIME_KEYS)[number], keyof AnswerRuntimeConfig>> = {
   max_concurrency: 'maxConcurrency', queue_timeout_ms: 'queueTimeoutMs', request_timeout_ms: 'requestTimeoutMs',
   rate_limit_max: 'rateLimitMax', rate_limit_window_ms: 'rateLimitWindowMs', statement_timeout_ms: 'statementTimeoutMs',
@@ -65,10 +60,8 @@ export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHash
   readonly issued_at: string;
   readonly expires_at: string;
   readonly commit_sha: string;
-  readonly provider: string;
-  readonly model_id: string;
-  readonly endpoint_sha256: string;
-  readonly reasoning_effort: string;
+  readonly derivation_version: typeof ANSWER_INTENT_DERIVATION_VERSION;
+  readonly deterministic_derivation_contract_sha256: string;
   readonly audience: string;
   readonly deployment_id: string;
   readonly canary_policy_version: typeof ANSWER_CANARY_POLICY_VERSION;
@@ -94,10 +87,6 @@ export interface ActiveAnswerReleaseContext {
   readonly issued_at: string;
   readonly expires_at: string;
   readonly commit_sha: string;
-  readonly provider: string;
-  readonly model_id: string;
-  readonly endpoint_sha256: string;
-  readonly reasoning_effort: string;
   readonly audience: string;
   readonly deployment_id: string;
   readonly canary_policy_version: typeof ANSWER_CANARY_POLICY_VERSION;
@@ -147,19 +136,16 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
     release_id: context.release_id,
     issued_at: context.issued_at,
     expires_at: context.expires_at,
-    provider: context.provider,
-    model_id: context.model_id,
-    endpoint_sha256: context.endpoint_sha256,
-    reasoning_effort: context.reasoning_effort,
+    derivation_version: ANSWER_INTENT_DERIVATION_VERSION,
+    deterministic_derivation_contract_sha256: getAnswerDeterministicDerivationContractSha256(),
     audience: context.audience,
     deployment_id: context.deployment_id,
     canary_policy_version: context.canary_policy_version,
     maximum_canary_stage: context.maximum_canary_stage,
     canary_hmac_key_sha256: context.canary_hmac_key_sha256,
-    prompt_version_sha256: ANSWER_TRANSLATOR_PROMPT_SHA256,
-    schema_version_sha256: ANSWER_TRANSLATOR_SCHEMA_SHA256,
     question_version_sha256: sha256(ANSWER_QUESTION_CONTRACT_VERSION),
-    intent_version_sha256: sha256(`${ANSWER_INTENT_CONTRACT_VERSION}:${ANSWER_TRANSLATOR_SCHEMA_NAME}:${ANSWER_TRANSLATOR_SCHEMA_SHA256}`),
+    derivation_version_sha256: sha256(ANSWER_INTENT_DERIVATION_VERSION),
+    intent_schema_version_sha256: sha256(ANSWER_INTENT_SCHEMA_VERSION),
     template_version_sha256: sha256(`${ANSWER_TEMPLATE_REGISTRY_VERSION}:${ANSWER_TEMPLATE_REGISTRY_HASH}`),
     proof_version_sha256: sha256(ANSWER_SEMANTIC_PROOF_VERSION),
     authorization_version_sha256: sha256(ANSWER_AUTHORIZATION_CODE_VERSION),
@@ -175,7 +161,7 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
 
 export function parseAnswerReleaseAttestation(input: unknown): AnswerReleaseAttestation {
   const value = strictRecord(input, [
-    'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
+    'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
@@ -316,17 +302,13 @@ export function loadDeterministicAnswerReleaseVerificationInput(
       issued_at: rawAttestation.issued_at,
       expires_at: rawAttestation.expires_at,
       commit_sha: commitSha,
-      provider: rawAttestation.provider,
-      model_id: rawAttestation.model_id,
-      endpoint_sha256: rawAttestation.endpoint_sha256,
-      reasoning_effort: rawAttestation.reasoning_effort,
-      audience,
+       audience,
       deployment_id: deploymentId,
       canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
       maximum_canary_stage: maximumCanaryStage,
       canary_hmac_key_sha256: canaryHmacKeySha256,
       evidence_hashes: evidenceHashes,
-      statuses: { semantic: 'pass', safety: 'pass', linker: 'pass', latency: 'pass', timeout: 'pass' },
+       statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
       runtime: answerRuntimeCeilingsFromConfig(runtimeConfig),
       deployment_template_ids: templateIds
     },
@@ -339,7 +321,7 @@ function parseUnsignedAttestation(input: unknown): UnsignedAnswerReleaseAttestat
     ? Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([key]) => key !== 'signature'))
     : input;
   const value = strictRecord(candidate, [
-    'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'provider', 'model_id', 'endpoint_sha256', 'reasoning_effort', 'audience', 'deployment_id',
+    'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
     ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
   ]);
@@ -354,10 +336,8 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
   if (typeof value.release_id !== 'string' || !IDENTIFIER.test(value.release_id) ||
       typeof value.issued_at !== 'string' || !isIsoDate(value.issued_at) || typeof value.expires_at !== 'string' || !isIsoDate(value.expires_at) ||
       typeof value.commit_sha !== 'string' || !COMMIT_SHA.test(value.commit_sha) ||
-      typeof value.provider !== 'string' || !IDENTIFIER.test(value.provider) ||
-      typeof value.model_id !== 'string' || !IDENTIFIER.test(value.model_id) ||
-      typeof value.endpoint_sha256 !== 'string' || !SHA256.test(value.endpoint_sha256) ||
-      typeof value.reasoning_effort !== 'string' || !REASONING_EFFORTS.has(value.reasoning_effort) ||
+      value.derivation_version !== ANSWER_INTENT_DERIVATION_VERSION ||
+      typeof value.deterministic_derivation_contract_sha256 !== 'string' || !SHA256.test(value.deterministic_derivation_contract_sha256) ||
       typeof value.audience !== 'string' || !IDENTIFIER.test(value.audience) ||
       typeof value.deployment_id !== 'string' || !IDENTIFIER.test(value.deployment_id) ||
       value.canary_policy_version !== ANSWER_CANARY_POLICY_VERSION ||
@@ -372,8 +352,9 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
   }
   return {
     release_id: value.release_id, issued_at: value.issued_at, expires_at: value.expires_at,
-    commit_sha: value.commit_sha, provider: value.provider, model_id: value.model_id,
-    endpoint_sha256: value.endpoint_sha256, reasoning_effort: value.reasoning_effort,
+    commit_sha: value.commit_sha,
+    derivation_version: ANSWER_INTENT_DERIVATION_VERSION,
+    deterministic_derivation_contract_sha256: value.deterministic_derivation_contract_sha256 as string,
     audience: value.audience, deployment_id: value.deployment_id,
     canary_policy_version: ANSWER_CANARY_POLICY_VERSION,
     maximum_canary_stage: value.maximum_canary_stage as number,
@@ -473,8 +454,8 @@ function cloneBindings(value: AnswerReleaseBindings): AnswerReleaseBindings {
 
 function sameBindings(left: AnswerReleaseBindings, right: AnswerReleaseBindings): boolean {
   return left.release_id === right.release_id && left.issued_at === right.issued_at && left.expires_at === right.expires_at &&
-    left.commit_sha === right.commit_sha && left.provider === right.provider && left.model_id === right.model_id &&
-    left.endpoint_sha256 === right.endpoint_sha256 && left.reasoning_effort === right.reasoning_effort &&
+    left.commit_sha === right.commit_sha && left.derivation_version === right.derivation_version &&
+    left.deterministic_derivation_contract_sha256 === right.deterministic_derivation_contract_sha256 &&
     left.audience === right.audience && left.deployment_id === right.deployment_id &&
     left.canary_policy_version === right.canary_policy_version && left.maximum_canary_stage === right.maximum_canary_stage &&
     left.canary_hmac_key_sha256 === right.canary_hmac_key_sha256 &&
