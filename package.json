@@ -83,6 +83,7 @@
     "fetch:pace-v2:official-context-2026": "tsx scripts/fetch-pace-v2-round2-lap-timing-artifact.ts --all-2026-context",
     "fetch:pace-v2:official-inventory-2026": "tsx scripts/fetch-pace-v2-round2-lap-timing-artifact.ts --all-2026-inventory",
     "fetch:pace-v2:fia-r1-history-artifact": "tsx scripts/fetch-pace-v2-fia-r1-history-artifact.ts",
+    "generate:phase8:belgium-2022-pilot": "tsx scripts/generate-phase8-belgium-2022-pilot.ts --write-fixture",
     "import:f1db:safe": "bash f1db-import/import-f1db-safe.sh",
     "etl:pace-metrics": "ts-node src/etl/populate-pace-metrics-2025.ts",
     "validate:teammate-gap": "tsx src/diagnostics/validate-teammate-gap-ingestion.ts",

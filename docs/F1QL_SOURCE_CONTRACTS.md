@@ -215,6 +215,18 @@ not establish complete official timing coverage, historical coverage, or a raw
 lap-window metric, and it does not make lap-window questions parseable or
 execution-eligible.
 
+The Phase 8 Belgian 2022 pilot is a separate evidence-only contract in
+`data/phase8-belgium-2022-pilot.json`. Its three fixed FIA PDFs are bound to
+exact SHA-256 values. Final classification establishes official racing-number
+and printed-name identity plus 790 expected completed-lap keys. Race History
+Chart parsing reconciles exactly 790 unique keys with no gap in either
+direction; `N LAP(S)` is interpreted only as the offset from the chart's leader
+lap column. Five deleted times map uniquely by official racing number and
+printed lap time. The requested cars 1 and 14 laps 3-10 contain 16 rows with no
+missing keys. This does not map those identities to application driver IDs,
+define which raw laps a metric includes, authorize historical ingestion, or add
+an F1QL operation.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain

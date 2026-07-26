@@ -56,6 +56,10 @@ authorities it uses, and where F1QL must extend it.
 6. The Phase 8 lap-number view migration is structural and unapplied. No raw
    lap-window F1QL operation, historical coverage authorization, or answer-route
    capability exists.
+7. A hash-pinned FIA Belgian 2022 pilot now proves complete official
+   racing-number/lap coverage and deleted-time mapping for that event. It is an
+   evidence fixture only; application identity, metric, ingestion, and execution
+   gates remain absent.
 
 ## F1QL v1 Target Delta
 

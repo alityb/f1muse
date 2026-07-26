@@ -32,8 +32,8 @@ export function validateFiaR1RaceHistoryChartUrl(sourceUrl: string): void {
   }
 }
 
-// FIA's chart marks a pit lap as PIT and gives every other field as printed.
-// It does not establish the application eligibility flags or a car-ahead gap.
+// FIA's chart marks a pit lap as PIT and lapped cars as N LAP(S). Neither marker
+// establishes the application eligibility flags or a numeric car-ahead gap.
 export function parseFiaRaceHistoryChartText(content: string): FiaRaceHistoryRow[] {
   const rows: FiaRaceHistoryRow[] = [];
   let columns: Array<{ lapNumber: number; start: number; end: number }> = [];
@@ -49,16 +49,20 @@ export function parseFiaRaceHistoryChartText(content: string): FiaRaceHistoryRow
     }
     for (const column of columns) {
       const fields = line.slice(column.start, column.end).trim().split(/\s+/);
-      if (fields.length < 2 || fields.length > 3 || !/^\d+$/.test(fields[0])) continue;
+      if (fields.length < 2 || fields.length > 4 || !/^\d+$/.test(fields[0])) continue;
       const lapTimeSeconds = timeSeconds(fields.at(-1)!);
       if (lapTimeSeconds === null) continue;
-      const middle = fields.length === 3 ? fields[1] : null;
-      if (middle !== null && middle !== 'PIT' && !/^\d+(?:\.\d+)?$/.test(middle)) continue;
+      const middle = fields.slice(1, -1).join(' ');
+      const numericGap = /^\d+(?:\.\d+)?$/.test(middle) ? Number(middle) : null;
+      const lapsBehind = /^(\d+) LAPS?$/.exec(middle);
+      if (middle && middle !== 'PIT' && numericGap === null && !lapsBehind) continue;
+      const completedLapNumber = column.lapNumber - (lapsBehind ? Number(lapsBehind[1]) : 0);
+      if (completedLapNumber < 1) continue;
       rows.push({
-        lap_number: column.lapNumber,
+        lap_number: completedLapNumber,
         racing_number: fields[0],
         lap_time_seconds: lapTimeSeconds,
-        leader_gap_seconds: middle === null || middle === 'PIT' ? null : Number(middle),
+        leader_gap_seconds: numericGap,
         pit_marker: middle === 'PIT'
       });
     }

@@ -219,6 +219,11 @@ The retained context evidence establishes no rainfall observation in r1/r2/r3/r7
 
 `data/pace-v2-official-2026-coverage-matrix.json` is the compact output-derived coverage matrix from the 2026-07-22 evidence run. It retains source URLs and SHA-256 values, not raw artifacts. Re-run it with:
 
+Its embedded round-1 FIA `parsed_rows: 794` and `pit_marked_rows: 30` are
+historical output from before `N LAP(S)` marker support. They are superseded by
+the 2026-07-26 fresh observation of 1,003 rows and 32 pit markers recorded in
+`PROGRESS.md`; the artifact bytes and SHA-256 are unchanged.
+
 ```bash
 npm run --silent fetch:pace-v2:official-inventory-2026
 ```
@@ -258,3 +263,21 @@ PACE_V2_EVENT_ARTIFACT_ENABLED=true PACE_V2_EVENT_ARTIFACT_TARGET=production \
 ```
 
 It rejects loopback targets, uses one read-only transaction with a five-second local timeout, and returns at most 30 driver medians from the serving `f1ql.lap_pace` selection of active-methodology eligible race laps. A refusal identifies its safe reason; median-query failures additionally name the `eligible_lap_driver_median` predicate and PostgreSQL SQLSTATE. The output is explicitly scoped as `database_observation_only` and states `external_truth: unverified_without_authoritative_artifact`; it is not an independent factual claim. To promote an observation, retain a separate authoritative external artifact and record its source, retrieval UTC time, SHA-256, selected fields, and comparison result alongside this database observation. Do not treat an absent external artifact as validation.
+
+## Historical Raw-Lap Pilot
+
+`npm run generate:phase8:belgium-2022-pilot` fetches exactly three reviewed FIA
+PDF URLs, requires their exact SHA-256 values, retains temporary PDFs with mode
+0600, bounds retrieval and text extraction, and emits
+`data/phase8-belgium-2022-pilot.json` through the real parser. The Belgian 2022
+manifest reconciles 790 unique Race History Chart lap keys against 790 keys
+implied by final classification, in both directions. A chart marker such as
+`1 LAP` shifts the completed-lap identity relative to the leader-lap column; it
+is not a numeric time gap. All five official deleted times map uniquely by
+racing number and printed time.
+
+The pilot retains official number/name identity and the complete cars 1 and 14
+lap 3-10 window. It intentionally computes no median or winner. Application
+identity mapping, safety-car/weather treatment, pit-lap inclusion, a named raw
+metric, ingestion, F1QL syntax, and execution authorization remain separate
+review gates. Clean-air filtered pace remains unsupported by these documents.

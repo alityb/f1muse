@@ -10,12 +10,14 @@ describe('FIA Australian race history chart artifact', () => {
       'LAP 11 GAP TIME',
       '16 1:23.798',
       '1 PIT 1:43.391',
-      '63 1.012 1:23.967'
+      '63 1.012 1:23.967',
+      '22 1 LAP 1:24.100'
     ].join('\n'));
     expect(rows).toEqual([
       { lap_number: 11, racing_number: '16', lap_time_seconds: 83.798, leader_gap_seconds: null, pit_marker: false },
       { lap_number: 11, racing_number: '1', lap_time_seconds: 103.391, leader_gap_seconds: null, pit_marker: true },
-      { lap_number: 11, racing_number: '63', lap_time_seconds: 83.967, leader_gap_seconds: 1.012, pit_marker: false }
+      { lap_number: 11, racing_number: '63', lap_time_seconds: 83.967, leader_gap_seconds: 1.012, pit_marker: false },
+      { lap_number: 10, racing_number: '22', lap_time_seconds: 84.1, leader_gap_seconds: null, pit_marker: false }
     ]);
   });
 

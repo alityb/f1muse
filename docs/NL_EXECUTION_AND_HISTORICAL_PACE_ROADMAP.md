@@ -265,6 +265,16 @@ The FIA's 2022 Belgian Grand Prix event/timing archive provides official race
 lap charts, deleted-lap records, and fastest-lap documents. The official fastest
 lap document establishes individual best laps but not every driver's laps 3-10.
 
+The hash-pinned Phase 8 pilot uses the FIA Race History Chart, final race
+classification, and deleted race lap-time decision. The parser treats an
+`N LAP(S)` history-chart gap as a completed-lap offset rather than a numeric
+gap. It reconciles all 790 classification-implied completed-lap keys in both
+directions, maps all five deleted times uniquely by racing number and printed
+time, and retains the 16 printed rows for cars 1 and 14 over laps 3-10. The
+generated manifest is evidence-eligible for separate review only. It does not
+establish application-canonical driver IDs, a raw comparison metric, historical
+ingestion, clean-air semantics, or execution authorization.
+
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed
 timing streams and that some values need post-processing or educated assignment.
@@ -304,4 +314,7 @@ artifact before making raw-lap factual claims.
 - [Google SRE canarying releases](https://sre.google/workbook/canarying-releases/): representative cohorts, simultaneous controls, staged rollout, and rollback.
 - [FIA 2022 Belgian Grand Prix event and timing information](https://www.fia.com/events/fia-formula-one-world-championship/season-2022/belgian-grand-prix/eventtiming-information): official timing-document archive.
 - [FIA 2022 Belgian Grand Prix race fastest laps](https://www.fia.com/sites/default/files/2022_14_bel_f1_r0_timing_racefastestlaps_v01.pdf): official fastest-lap record.
+- [FIA 2022 Belgian Grand Prix race history chart](https://www.fia.com/sites/default/files/2022_14_bel_f1_r0_timing_racehistorychart_v01.pdf): printed completed-lap times, leader-relative gaps, lapped-car markers, and pit markers.
+- [FIA 2022 Belgian Grand Prix final race classification](https://www.fia.com/sites/default/files/doc_71_-_2022_belgian_grand_prix_-_final_race_classification.pdf): official racing-number/name identity and completed-lap counts.
+- [FIA 2022 Belgian Grand Prix deleted race lap times](https://www.fia.com/sites/default/files/doc_68_-_2022_belgian_grand_prix_-_race_deleted_lap_times.pdf): five official disallowed times used only through unique number/time joins.
 - [FastF1 timing API implementation](https://github.com/theOehrly/Fast-F1/blob/master/fastf1/_api.py): implementation notes on reconstructing lap and stream timing data.

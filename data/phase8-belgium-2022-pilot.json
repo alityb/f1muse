@@ -1,0 +1,316 @@
+{
+  "version": 1,
+  "authority": "FIA",
+  "event": "2022 Belgian Grand Prix",
+  "season": 2022,
+  "round": 14,
+  "session": "race",
+  "assertion_scope": "printed_race_history_lap_times_final_classification_identity_and_deleted_lap_decisions_only",
+  "identities": [
+    {
+      "racing_number": "1",
+      "official_name": "Max VERSTAPPEN",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "3",
+      "official_name": "Daniel RICCIARDO",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "4",
+      "official_name": "Lando NORRIS",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "5",
+      "official_name": "Sebastian VETTEL",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "6",
+      "official_name": "Nicholas LATIFI",
+      "classified_laps": 43
+    },
+    {
+      "racing_number": "10",
+      "official_name": "Pierre GASLY",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "11",
+      "official_name": "Sergio PEREZ",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "14",
+      "official_name": "Fernando ALONSO",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "16",
+      "official_name": "Charles LECLERC",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "18",
+      "official_name": "Lance STROLL",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "20",
+      "official_name": "Kevin MAGNUSSEN",
+      "classified_laps": 43
+    },
+    {
+      "racing_number": "22",
+      "official_name": "Yuki TSUNODA",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "23",
+      "official_name": "Alexander ALBON",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "24",
+      "official_name": "ZHOU Guanyu",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "31",
+      "official_name": "Esteban OCON",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "44",
+      "official_name": "Lewis HAMILTON",
+      "classified_laps": 0
+    },
+    {
+      "racing_number": "47",
+      "official_name": "Mick SCHUMACHER",
+      "classified_laps": 43
+    },
+    {
+      "racing_number": "55",
+      "official_name": "Carlos SAINZ",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "63",
+      "official_name": "George RUSSELL",
+      "classified_laps": 44
+    },
+    {
+      "racing_number": "77",
+      "official_name": "Valtteri BOTTAS",
+      "classified_laps": 1
+    }
+  ],
+  "deleted_laps": [
+    {
+      "racing_number": "6",
+      "official_name": "Nicholas LATIFI",
+      "lap_number": 7,
+      "lap_time_seconds": 115.404
+    },
+    {
+      "racing_number": "10",
+      "official_name": "Pierre GASLY",
+      "lap_number": 8,
+      "lap_time_seconds": 117.112
+    },
+    {
+      "racing_number": "23",
+      "official_name": "Alexander ALBON",
+      "lap_number": 9,
+      "lap_time_seconds": 116.42
+    },
+    {
+      "racing_number": "47",
+      "official_name": "Mick SCHUMACHER",
+      "lap_number": 32,
+      "lap_time_seconds": 112.212
+    },
+    {
+      "racing_number": "5",
+      "official_name": "Sebastian VETTEL",
+      "lap_number": 39,
+      "lap_time_seconds": 112.773
+    }
+  ],
+  "coverage": {
+    "final_classification_completed_lap_keys": 790,
+    "race_history_lap_keys": 790,
+    "final_classification_without_race_history": [],
+    "race_history_without_final_classification": []
+  },
+  "pilot_window": {
+    "lap_start": 3,
+    "lap_end": 10,
+    "official_identities": [
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN"
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO"
+      }
+    ],
+    "missing_lap_keys": [],
+    "rows": [
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 3,
+        "lap_time_seconds": 184.045,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 4,
+        "lap_time_seconds": 176.46,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 5,
+        "lap_time_seconds": 113.951,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 6,
+        "lap_time_seconds": 113.748,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 7,
+        "lap_time_seconds": 111.954,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 8,
+        "lap_time_seconds": 112.641,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 9,
+        "lap_time_seconds": 113.532,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "lap_number": 10,
+        "lap_time_seconds": 113.969,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 3,
+        "lap_time_seconds": 183.757,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 4,
+        "lap_time_seconds": 182.258,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 5,
+        "lap_time_seconds": 114.347,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 6,
+        "lap_time_seconds": 114.275,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 7,
+        "lap_time_seconds": 114.691,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 8,
+        "lap_time_seconds": 115.01,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 9,
+        "lap_time_seconds": 115.459,
+        "pit_marker": false,
+        "deleted_lap": false
+      },
+      {
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "lap_number": 10,
+        "lap_time_seconds": 115.356,
+        "pit_marker": false,
+        "deleted_lap": false
+      }
+    ]
+  },
+  "promotion_status": "eligible_for_separate_review",
+  "refusal_reasons": [],
+  "canonical_raw_lap_window_operation": "unsupported",
+  "clean_air_or_pit_filtered_pace": "unsupported",
+  "row_fingerprint": "742bc6aee656ec04bb5f7248863a0dc09662e26655de1cc934e45f3a9636c27f",
+  "artifacts": {
+    "race_history_chart": {
+      "source_url": "https://www.fia.com/sites/default/files/2022_14_bel_f1_r0_timing_racehistorychart_v01.pdf",
+      "sha256": "30f7db339b437cea5fd73f0a7bf6a3a16783119b3b62d07c5793934e2b26d105",
+      "bytes": 1475524
+    },
+    "final_race_classification": {
+      "source_url": "https://www.fia.com/sites/default/files/doc_71_-_2022_belgian_grand_prix_-_final_race_classification.pdf",
+      "sha256": "85d9d3dc512d95b668377ca2b4167a7fe4218cd35bf30170764435e3f02b74df",
+      "bytes": 525776
+    },
+    "deleted_race_lap_times": {
+      "source_url": "https://www.fia.com/sites/default/files/doc_68_-_2022_belgian_grand_prix_-_race_deleted_lap_times.pdf",
+      "sha256": "112bfb62c955ec88971bf215280a94b500ddcdad02dcd79ebe0a8c07c44c1e52",
+      "bytes": 422958
+    }
+  }
+}
