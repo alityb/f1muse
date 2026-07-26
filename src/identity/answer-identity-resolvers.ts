@@ -23,6 +23,10 @@ interface ParticipationRow {
 
 export const ANSWER_EVENT_IDENTITY_MAX_ROWS = 500;
 export const ANSWER_DRIVER_IDENTITY_MAX_ROWS = 10_000;
+const INACTIVE_NON_DRIVER_LITERALS = new Set([
+  'all', 'date', 'did', 'driver', 'drivers', 'final', 'for', 'give', 'points', 'qualifying',
+  'race', 'result', 'results', 'round', 'show', 'the', 'was', 'what', 'when', 'where', 'who'
+]);
 
 export interface AnswerDriverLiteralMention {
   readonly text: string;
@@ -178,7 +182,9 @@ function inventoryLiteralMentions(question: string, rows: readonly DriverIdentit
       matches.set(key, match);
     }
   }
-  const longestFirst = [...matches.values()].sort((left, right) => (right.end - right.start) - (left.end - left.start) || left.start - right.start || left.text.localeCompare(right.text));
+  const longestFirst = [...matches.values()]
+    .filter(match => match.entrant.size > 0 || match.fallback.size > 0 || !INACTIVE_NON_DRIVER_LITERALS.has(normalizeMatch(match.text)))
+    .sort((left, right) => (right.end - right.start) - (left.end - left.start) || left.start - right.start || left.text.localeCompare(right.text));
   const selected: typeof longestFirst = [];
   for (const match of longestFirst) {
     if (selected.some(existing => match.start < existing.end && existing.start < match.end)) {
