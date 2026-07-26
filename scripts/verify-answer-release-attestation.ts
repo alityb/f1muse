@@ -1,9 +1,9 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import {
   getAnswerReleaseAttestationHash,
-  loadAnswerReleaseVerificationInput,
   verifyAnswerReleaseAttestation
 } from '../src/f1ql/answer-release-attestation';
+import { loadAnswerReleaseVerificationInput } from '../src/f1ql/answer-release-provider-verification';
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
 
 const MAXIMUM_ATTESTATION_BYTES = 100_000;

@@ -7,9 +7,8 @@ import {
   ANSWER_INTENT_CONTRACT_VERSION,
   ANSWER_TRANSLATOR_PROMPT_SHA256,
   ANSWER_TRANSLATOR_SCHEMA_NAME,
-  ANSWER_TRANSLATOR_SCHEMA_SHA256,
-  getConfiguredAnswerModelIdentity
-} from './answer-translator';
+  ANSWER_TRANSLATOR_SCHEMA_SHA256
+} from './answer-translator-contract';
 
 export const ANSWER_RELEASE_ATTESTATION_VERSION = 4 as const;
 export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v7' as const;
@@ -268,7 +267,7 @@ export function getAnswerReleaseAttestationHash(input: VerifiedAnswerReleaseAtte
   return sha256(stableSerialize(input));
 }
 
-export function loadAnswerReleaseVerificationInput(
+export function loadDeterministicAnswerReleaseVerificationInput(
   runtimeConfig: AnswerRuntimeConfig,
   env: NodeJS.ProcessEnv = process.env,
   nowMs: number = Date.now()
@@ -301,7 +300,6 @@ export function loadAnswerReleaseVerificationInput(
   } catch {
     throw new AnswerReleaseAttestationError('release_not_configured');
   }
-  const model = getConfiguredAnswerModelIdentity(env);
   const evidenceHashes = Object.fromEntries(ANSWER_RELEASE_EVIDENCE_HASH_KEYS.map(key => {
     const envKey = `F1QL_ANSWER_RELEASE_${key.toUpperCase()}`;
     const value = env[envKey];
@@ -318,10 +316,10 @@ export function loadAnswerReleaseVerificationInput(
       issued_at: rawAttestation.issued_at,
       expires_at: rawAttestation.expires_at,
       commit_sha: commitSha,
-      provider: model.provider,
-      model_id: model.model_id,
-      endpoint_sha256: model.endpoint_sha256,
-      reasoning_effort: model.reasoning_effort,
+      provider: rawAttestation.provider,
+      model_id: rawAttestation.model_id,
+      endpoint_sha256: rawAttestation.endpoint_sha256,
+      reasoning_effort: rawAttestation.reasoning_effort,
       audience,
       deployment_id: deploymentId,
       canary_policy_version: ANSWER_CANARY_POLICY_VERSION,

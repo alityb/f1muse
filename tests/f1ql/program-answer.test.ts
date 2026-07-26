@@ -6,23 +6,15 @@ import { dirname, resolve } from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { Pool } from 'pg';
 import { createProgramAnswerRoutes } from '../../src/api/routes/program-answer';
-import { AnswerIntentModel, AnswerTranslationResult, translateAnswerQuestion } from '../../src/f1ql/answer-translator';
+import { AnswerIntent } from '../../src/f1ql/answer-intent';
+import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
 import { AnswerRuntimeConfig } from '../../src/f1ql/answer-runtime';
 import { executeAuthorizedAnswer } from '../../src/f1ql/answer-execution';
 import { AnswerBoundError } from '../../src/f1ql/answer-bounds';
-import { F1QLStatementTimeoutError } from '../../src/f1ql/executor';
+import { F1QLRequestDeadlineError, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { ActiveAnswerReleaseContext, AnswerReleaseVerificationInput, buildActiveAnswerReleaseBindings, getAnswerReleaseAttestationSigningPayload, verifyAnswerReleaseAttestation } from '../../src/f1ql/answer-release-attestation';
 import { ANSWER_TEMPLATE_IDS } from '../../src/f1ql/answer-templates';
 import { metrics } from '../../src/observability/metrics';
-
-class StubModel implements AnswerIntentModel {
-  output = '';
-  waitForAbort = false;
-  async complete(_systemPrompt: string, _question: string, signal?: AbortSignal): Promise<string> {
-    if (!this.waitForAbort) return this.output;
-    return new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true }));
-  }
-}
 
 const runtimeConfig: AnswerRuntimeConfig = {
   maxConcurrency: 2,
@@ -41,10 +33,10 @@ const releaseNowMs = Date.parse('2026-07-24T00:01:00.000Z');
 
 let server: ReturnType<ReturnType<typeof express>['listen']>;
 let baseUrl: string;
-let model: StubModel;
-let modelCreations: number;
+let derivationAttempts: number;
 let resolutionAttempts: number;
-let translationOverride: AnswerTranslationResult | undefined;
+let derivationOverride: AnswerIntent | undefined;
+let derivationError: Error | undefined;
 let releaseOverride: AnswerReleaseVerificationInput | undefined;
 let useReleaseOverride: boolean;
 let releaseFailure: boolean;
@@ -125,12 +117,14 @@ const fakeClient = {
 const fakePool = { connect: async () => { connectionAttempts++; return fakeClient; } } as unknown as Pool;
 
 beforeAll(async () => {
-  model = new StubModel();
   const app = express();
   app.use(express.json());
   app.use('/', createProgramAnswerRoutes(fakePool, {
-    modelFactory: () => { modelCreations++; return model; },
-    translate: async (contract, selectedModel, signal) => translationOverride ?? translateAnswerQuestion(contract, selectedModel, signal),
+    derive: async (contract, resolver) => {
+      derivationAttempts++;
+      if (derivationError) throw derivationError;
+      return derivationOverride ?? deriveAnswerIntent(contract, resolver);
+    },
     releaseVerification: () => {
       releaseLoads++;
       if (releaseFailure) throw new Error('release loading failed');
@@ -159,9 +153,10 @@ beforeEach(() => {
   process.env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64 = canaryHmacKeyBase64;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
   delete process.env.F1QL_DEFINITIONS_VERSION;
-  modelCreations = 0;
+  derivationAttempts = 0;
   resolutionAttempts = 0;
-  translationOverride = undefined;
+  derivationOverride = undefined;
+  derivationError = undefined;
   releaseOverride = undefined;
   useReleaseOverride = false;
   releaseFailure = false;
@@ -172,8 +167,6 @@ beforeEach(() => {
   executionAttempts = 0;
   executionError = undefined;
   executedPrincipalClasses = [];
-  model.waitForAbort = false;
-  model.output = JSON.stringify({ intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' } } });
   runtimeConfig.maxWorkUnits = 200;
   metrics.reset();
 });
@@ -216,6 +209,23 @@ function assertNoReachableExecution(entrypoints: readonly string[]): void {
   }
 }
 
+function assertNoReachableProviderDependency(entrypoint: string): void {
+  const pending = [resolve(entrypoint)];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const path = pending.pop() as string;
+    if (visited.has(path) || path.endsWith(`${resolve('src/f1ql')}/answer-execution.ts`)) continue;
+    visited.add(path);
+    const source = readFileSync(path, 'utf8');
+    expect(path).not.toMatch(/answer-translator\.ts$|model-provider|provider-config/);
+    expect(source, path).not.toMatch(/createAnswerIntentModel|getConfiguredAnswerModelIdentity|\bfetch\s*\(/);
+    for (const specifier of localModuleSpecifiers(source)) {
+      const dependency = resolveLocalTypeScriptModule(path, specifier);
+      if (dependency) pending.push(dependency);
+    }
+  }
+}
+
 function localModuleSpecifiers(source: string): string[] {
   const staticImports = [...source.matchAll(/\b(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g)];
   const requires = [...source.matchAll(/\brequire\(['"]([^'"]+)['"]\)/g)];
@@ -242,14 +252,20 @@ describe('gated answer route', () => {
     expect(source).not.toContain('driverResolver?:');
   });
 
-  it('defaults to stage zero before release, model, database identity, bounds, or authorization work', async () => {
+  it('has no reachable translator, model-provider, or network dependency before execution', () => {
+    assertNoReachableProviderDependency('src/api/routes/program-answer.ts');
+    const source = readFileSync('src/api/routes/program-answer.ts', 'utf8');
+    expect(source).not.toMatch(/answer-translator|modelFactory|translate\??:|provider_unavailable|invalid_response/);
+  });
+
+  it('defaults to stage zero before release, derivation, database identity, bounds, or authorization work', async () => {
     delete process.env.F1QL_ANSWER_CANARY_STAGE;
     process.env.F1QL_DEFINITIONS_VERSION = 'inactive';
     useReleaseOverride = true;
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
-    expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 0, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
+    expect({ releaseLoads, connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ releaseLoads: 0, connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
     expect(executionAttempts).toBe(0);
   });
 
@@ -258,7 +274,7 @@ describe('gated answer route', () => {
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'canary_control', mode: 'gated_non_execution' });
-    expect({ releaseLoads, connectionAttempts, modelCreations, resolutionAttempts }).toEqual({ releaseLoads: 1, connectionAttempts: 0, modelCreations: 0, resolutionAttempts: 0 });
+    expect({ releaseLoads, connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ releaseLoads: 1, connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
     expect(executionAttempts).toBe(0);
   });
 
@@ -267,6 +283,7 @@ describe('gated answer route', () => {
     const primary = await ask();
     expect(primary.status).toBe(503);
     await expect(primary.json()).resolves.toMatchObject({ reason: 'canary_control' });
+    expect({ connectionAttempts, derivationAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0 });
     expect(executionAttempts).toBe(0);
 
     const canary = await ask('Who led the 2025 standings?', undefined, internalCanaryToken);
@@ -276,20 +293,20 @@ describe('gated answer route', () => {
     expect(executedPrincipalClasses).toEqual(['internal_canary']);
   });
 
-  it('checks the disabled gate before constructing a model', async () => {
+  it('checks the disabled gate before database acquisition or derivation', async () => {
     process.env.F1QL_ANSWER_ENABLED = 'false';
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ reason: 'answer_disabled' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it('checks the emergency kill switch before constructing a model', async () => {
+  it('checks the emergency kill switch before database acquisition or derivation', async () => {
     process.env.F1QL_ANSWER_KILL_SWITCH = 'true';
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ reason: 'kill_switch_active' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
   it('rechecks an injected live kill switch immediately before authorization', async () => {
@@ -304,10 +321,9 @@ describe('gated answer route', () => {
       releaseVerification: createRelease(runtimeConfig),
       environment: () => liveEnvironment,
       now: () => releaseNowMs,
-      modelFactory: () => model,
-      translate: async () => {
+      derive: async (contract, resolver) => {
         liveEnvironment.F1QL_ANSWER_KILL_SWITCH = 'true';
-        return { type: 'intent_candidate', intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 } } };
+        return deriveAnswerIntent(contract, resolver);
       }
     }));
     const isolated = await new Promise<ReturnType<typeof app.listen>>(resolve => {
@@ -326,10 +342,7 @@ describe('gated answer route', () => {
   });
 
   it('fails closed when the release expires after admission and proof but before authorization', async () => {
-    translationOverride = {
-      type: 'intent_candidate',
-      intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 } }
-    };
+    derivationOverride = { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 12, end: 16 } } as AnswerIntent;
     const originalQuery = fakeClient.query;
     fakeClient.query = async (sql: string) => {
       const result = await originalQuery(sql);
@@ -345,21 +358,21 @@ describe('gated answer route', () => {
     }
   });
 
-  it('rejects invalid input before constructing a model', async () => {
+  it('rejects invalid input before database acquisition or derivation', async () => {
     const response = await fetch(`${baseUrl}/program/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalToken}` }, body: JSON.stringify({ question: '' }) });
     expect(response.status).toBe(400);
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it('requires configured internal authentication before constructing a model', async () => {
+  it('requires configured internal authentication before database acquisition or derivation', async () => {
     delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'answer_auth_not_configured' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it('rejects invalid internal authentication before constructing a model', async () => {
+  it('rejects invalid internal authentication before database acquisition or derivation', async () => {
     const response = await fetch(`${baseUrl}/program/answer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer invalid-token' },
@@ -367,10 +380,10 @@ describe('gated answer route', () => {
     });
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unauthorized', reason: 'answer_authentication_required' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it.each(['missing', 'forged', 'prebranded', 'failed', 'runtime_mismatch'] as const)('rejects a %s release attestation before model or resolver work', async failure => {
+  it.each(['missing', 'forged', 'prebranded', 'failed', 'runtime_mismatch'] as const)('rejects a %s release attestation before derivation or resolver work', async failure => {
     if (failure === 'failed') {
       releaseFailure = true;
     } else {
@@ -388,51 +401,53 @@ describe('gated answer route', () => {
     const response = await ask();
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'release_not_approved' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it('returns model clarification without linking or executing', async () => {
-    model.output = JSON.stringify({ intent: { type: 'clarification', reason: 'metric_ambiguous' } });
+  it('returns a derived clarification without proving or executing', async () => {
+    derivationOverride = { type: 'clarification', reason: 'metric_ambiguous' };
     const response = await ask();
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'metric_ambiguous' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'derivation:clarification:metric_ambiguous': 1 });
   });
 
-  it('returns model abstention without linking or executing', async () => {
-    model.output = JSON.stringify({ intent: { type: 'unsupported', reason: 'grid_source_unsupported' } });
+  it('returns a derived unsupported outcome without proving or executing', async () => {
+    derivationOverride = { type: 'unsupported', reason: 'grid_source_unsupported' };
     const response = await ask();
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason: 'grid_source_unsupported' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'derivation:unsupported:grid_source_unsupported': 1 });
   });
 
-  it('returns provider failure without linking', async () => {
-    model.output = 'not json';
+  it('fails closed when deterministic derivation fails', async () => {
+    derivationError = new Error('derivation failed');
     const response = await ask();
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({ reason: 'invalid_response' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+    await expect(response.json()).resolves.toMatchObject({ reason: 'linking_unavailable' });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
   });
 
-  it('cancels provider work at the answer request deadline', async () => {
-    model.waitForAbort = true;
+  it('maps a deadline reached during derivation', async () => {
+    derivationError = new F1QLRequestDeadlineError();
     const response = await ask();
     expect(response.status).toBe(504);
     await expect(response.json()).resolves.toMatchObject({ reason: 'request_timeout' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
   });
 
   it('returns linking ambiguity without authorization or execution', async () => {
     const question = 'Max in the 2025 Monaco race results';
-    model.output = JSON.stringify({ intent: {
+    derivationOverride = {
       type: 'race_classification_driver', season: 2025,
-      season_reference: { text: '2025' }, event_reference: { text: 'Monaco' }, driver_reference: { text: 'Max' }
-    } });
+      season_reference: { text: '2025', start: 11, end: 15 }, event_reference: { text: 'Monaco', start: 16, end: 22 }, driver_reference: { text: 'Max', start: 0, end: 3 }
+    } as AnswerIntent;
     const response = await ask(question);
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'entity_ambiguous' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 2 });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
   });
 
   it.each([
@@ -473,12 +488,12 @@ describe('gated answer route', () => {
     ['Show three drivers in the final 2025 standings', 'capability_unsupported'],
     ['Show results for 3 drivers in the 2025 Monaco race', 'capability_unsupported'],
     ['Show 3 race results from Monaco in 2025', 'capability_unsupported']
-  ])('authoritatively rejects unsupported cues before model construction: %s', async (question, reason) => {
+  ])('authoritatively rejects unsupported cues before derivation: %s', async (question, reason) => {
     useReleaseOverride = true;
     const response = await ask(question);
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
   it.each([
@@ -487,9 +502,9 @@ describe('gated answer route', () => {
     'Show the 2025 Monaco race results not classified',
     'Show the 2025 race results for round 2',
     'Show the 2025 race results for the second round'
-  ])('admits status, round, and exact leader/champion counterexamples to model inspection: %s', async question => {
+  ])('admits status, round, and exact leader/champion counterexamples to deterministic inspection: %s', async question => {
     await ask(question);
-    expect(modelCreations).toBe(1);
+    expect(derivationAttempts).toBe(1);
   });
 
   it.each([
@@ -501,58 +516,54 @@ describe('gated answer route', () => {
     const response = await ask(question);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
   });
 
   it('fails an event champion closed instead of proving a standings answer', async () => {
     const response = await ask('Who was the final 2025 Monaco champion?');
     expect(response.status).toBe(422);
-    await expect(response.json()).resolves.toEqual({ error: 'capability_unsupported', reason: 'template_mismatch' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 0 });
+    await expect(response.json()).resolves.toEqual({ error: 'capability_unsupported', reason: 'capability_unsupported' });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 1 });
   });
 
   it('hydrates and proves all final standings points through the route', async () => {
     const question = 'Show all final 2025 standings points.';
-    model.output = JSON.stringify({ intent: {
-      type: 'final_standings_points', season: 2025,
-      season_reference: { text: '2025' }, driver_references: []
-    } });
     const response = await ask(question);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
   });
 
-  it('authoritatively clarifies an uncued comparison before model construction', async () => {
+  it('authoritatively clarifies an uncued comparison before derivation', async () => {
     useReleaseOverride = true;
     const response = await ask('Who was better in 2025?');
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'metric_ambiguous' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 0, resolutionAttempts: 0 });
+    expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0 });
   });
 
-  it('authoritatively clarifies a missing season before model construction', async () => {
+  it('authoritatively clarifies a missing season before derivation', async () => {
     useReleaseOverride = true;
     const response = await ask('Show the race results');
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'clarification_required', reason: 'season_missing', question: 'Which season did you mean?' });
-    expect(modelCreations).toBe(0);
+    expect({ connectionAttempts, derivationAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0 });
   });
 
-  it('requires the exact request body shape before model construction', async () => {
+  it('requires the exact request body shape before derivation', async () => {
     const response = await ask('', { question: 'Who led the 2025 standings?', program: {} });
     expect(response.status).toBe(400);
-    expect(modelCreations).toBe(0);
+    expect({ connectionAttempts, derivationAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0 });
   });
 
-  it('reparses injected translation intent spans before semantic proof', async () => {
-    translationOverride = {
-      type: 'intent_candidate',
-      intent: { type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 0, end: 4 } }
-    };
+  it('reparses an injected derivation intent before semantic proof', async () => {
+    derivationOverride = {
+      type: 'final_standings_leader', season: 2025, season_reference: { text: '2025', start: 0, end: 4 }
+    } as AnswerIntent;
     const response = await ask();
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'invalid_response' });
+    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'linking_unavailable' });
+    expect(derivationAttempts).toBe(1);
     expect(resolutionAttempts).toBe(0);
   });
 
@@ -574,16 +585,17 @@ describe('gated answer route', () => {
       const authorized = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalToken}` }, body: JSON.stringify({ question: 'Who led the 2025 standings?' }) });
       expect(authorized.status).toBe(503);
       await expect(authorized.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'answer_database_not_configured' });
+      expect({ connectionAttempts, derivationAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0 });
     } finally {
       await new Promise<void>(resolve => isolated.close(() => resolve()));
     }
   });
 
-  it('clarifies status without an explicit session before model construction', async () => {
+  it('clarifies status without an explicit session before derivation', async () => {
     const response = await ask('Show DNFs in 2025 at Monaco');
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'session_ambiguous' });
-    expect(modelCreations).toBe(0);
+    expect({ connectionAttempts, derivationAttempts }).toEqual({ connectionAttempts: 0, derivationAttempts: 0 });
   });
 
   it('rejects an approved candidate above the deterministic work budget', async () => {
@@ -591,7 +603,7 @@ describe('gated answer route', () => {
     const response = await ask();
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'answer_bound_exceeded', reason: 'work_units' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
     expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'bounds:rejected:work_units': 1 });
   });
 
@@ -600,8 +612,8 @@ describe('gated answer route', () => {
     const response = await ask();
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'answer_failed', reason: 'authorization_envelope_failed' });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
-    expect(databaseStatements[0]).toBe('BEGIN READ ONLY');
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
+    expect(databaseStatements[0]).toBe('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     expect(databaseStatements[1]).toContain("set_config('statement_timeout'");
     expect(databaseStatements.at(-1)).toBe('ROLLBACK');
   });
@@ -612,7 +624,7 @@ describe('gated answer route', () => {
     const requestId = response.headers.get('x-request-id');
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
-    expect({ modelCreations, resolutionAttempts }).toEqual({ modelCreations: 1, resolutionAttempts: 1 });
+    expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
     expect(executionAttempts).toBe(1);
   });
 

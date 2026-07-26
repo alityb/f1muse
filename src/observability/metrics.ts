@@ -202,7 +202,7 @@ class MetricsCollector {
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
-  recordF1QLAnswer(stage: 'gate' | 'input' | 'translation' | 'linking' | 'policy' | 'bounds' | 'execution' | 'formatting', outcome: string, reason: string): void {
+  recordF1QLAnswer(stage: 'gate' | 'input' | 'translation' | 'derivation' | 'linking' | 'policy' | 'bounds' | 'execution' | 'formatting', outcome: string, reason: string): void {
     const key = `${stage}:${outcome}:${reason}`;
     this.f1qlAnswerOutcomes.set(key, (this.f1qlAnswerOutcomes.get(key) || 0) + 1);
   }

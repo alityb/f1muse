@@ -20,11 +20,11 @@ import {
   getAnswerReleaseAttestationHash,
   getAnswerReleaseAttestationSigningPayload,
   isVerifiedAnswerReleaseAttestation,
-  loadAnswerReleaseVerificationInput,
   parseAnswerReleaseAttestation,
   verifyAnswerReleaseAttestation,
   verifyVerifiedAnswerReleaseAttestationValidity
 } from '../../src/f1ql/answer-release-attestation';
+import { loadAnswerReleaseVerificationInput } from '../../src/f1ql/answer-release-provider-verification';
 import {
   ANSWER_QUESTION_CONTRACT_VERSION
 } from '../../src/f1ql/answer-question';

@@ -7,19 +7,18 @@ import { AnswerAuthorizationError, AnswerPrincipalClass, buildAnswerExecutionAut
 import { AnswerBoundError, enforceVerifiedAnswerWorkBudget } from '../../f1ql/answer-bounds';
 import { getAnswerCanaryStage, selectAnswerCanaryCohort, selectAnswerCanarySubjectCohort } from '../../f1ql/answer-canary';
 import { AnswerExecutionResult, executeAuthorizedAnswer } from '../../f1ql/answer-execution';
-import { AnswerReleaseVerificationInput, loadAnswerReleaseVerificationInput, VerifiedAnswerReleaseAttestation, verifyAnswerReleaseAttestation } from '../../f1ql/answer-release-attestation';
+import { deriveAnswerIntent } from '../../f1ql/answer-intent-derivation';
+import { AnswerReleaseVerificationInput, loadDeterministicAnswerReleaseVerificationInput, VerifiedAnswerReleaseAttestation, verifyAnswerReleaseAttestation } from '../../f1ql/answer-release-attestation';
 import { AnswerAdmissionController, AnswerAdmissionError, AnswerRuntimeConfig, getAnswerRuntimeConfig } from '../../f1ql/answer-runtime';
 import { AnswerIntent, parseAnswerIntent } from '../../f1ql/answer-intent';
 import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContract } from '../../f1ql/answer-question';
 import { AnswerSemanticProofError, proveAnswerIntent, VerifiedAnswerSemanticProof } from '../../f1ql/answer-semantic-proof';
-import { AnswerIntentModel, AnswerProviderConfigurationError, AnswerTranslationResult, createAnswerIntentModel, translateAnswerQuestion } from '../../f1ql/answer-translator';
 import { F1QLLinkingError } from '../../f1ql/translation-linking';
 import { F1QLRequestDeadlineError, F1QLResultLimitError, F1QLStatementTimeoutError } from '../../f1ql/executor';
 import { metrics } from '../../observability/metrics';
 
 export interface ProgramAnswerDependencies {
-  modelFactory?: () => AnswerIntentModel;
-  translate?: (contract: AnswerQuestionContract, model: AnswerIntentModel, signal?: AbortSignal) => Promise<AnswerTranslationResult>;
+  derive?: typeof deriveAnswerIntent;
   releaseVerification?: AnswerReleaseVerificationInput | (() => AnswerReleaseVerificationInput | Promise<AnswerReleaseVerificationInput>);
   runtimeConfig?: AnswerRuntimeConfig;
   admission?: AnswerAdmissionController;
@@ -112,36 +111,12 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     try {
       releaseAdmission = await admission.acquire(controller.signal);
 
-      let model: AnswerIntentModel;
+      let inspection: AnswerInspectionResult;
       try {
-        model = (dependencies.modelFactory ?? createAnswerIntentModel)();
-      } catch (error) {
-        return res.status(503).json({ error: 'answer_unavailable', reason: error instanceof AnswerProviderConfigurationError ? 'unsupported_provider' : 'provider_error' });
-      }
-      const translation = await (dependencies.translate ?? translateAnswerQuestion)(contract, model, controller.signal)
-        .catch((): AnswerTranslationResult => ({ type: 'provider_unavailable', reason: 'provider_error' }));
-      if (controller.signal.aborted) {
-        return respondToAbort(timedOut, res);
-      }
-      if (translation.type !== 'intent_candidate') {
-        metrics.recordF1QLAnswer('translation', translation.type, translation.reason);
-        return respondToTranslationOutcome(translation, res);
-      }
-
-      let reparsedIntent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>;
-      try {
-        const parsed = parseAnswerIntent(translation.intent, contract);
-        if (parsed.type === 'clarification' || parsed.type === 'unsupported') {
-          return res.status(503).json({ error: 'answer_unavailable', reason: 'invalid_response' });
-        }
-        reparsedIntent = parsed;
-      } catch {
-        return res.status(503).json({ error: 'answer_unavailable', reason: 'invalid_response' });
-      }
-
-      let proof: VerifiedAnswerSemanticProof;
-      try {
-        proof = await proveWithBounds(pool, contract, reparsedIntent, config.statementTimeoutMs, requestDeadlineMs, now, controller.signal);
+        inspection = await inspectWithBounds(
+          pool, contract, dependencies.derive ?? deriveAnswerIntent,
+          config.statementTimeoutMs, requestDeadlineMs, now, controller.signal
+        );
       } catch (error) {
         if (controller.signal.aborted) {
           return respondToAbort(timedOut, res);
@@ -165,6 +140,11 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
       if (controller.signal.aborted) {
         return respondToAbort(timedOut, res);
       }
+      if (inspection.type === 'clarification' || inspection.type === 'unsupported') {
+        metrics.recordF1QLAnswer('derivation', inspection.type, inspection.reason);
+        return respondToDerivedOutcome(inspection, res);
+      }
+      const proof = inspection.proof;
 
       try {
         enforceVerifiedAnswerWorkBudget(proof, config.maxWorkUnits, config.maxRows);
@@ -318,26 +298,36 @@ function respondToAbort(timedOut: boolean, res: Response): Response | void {
   });
 }
 
-async function proveWithBounds(
+type AnswerInspectionResult =
+  | Extract<AnswerIntent, { type: 'clarification' | 'unsupported' }>
+  | { readonly type: 'proved'; readonly proof: VerifiedAnswerSemanticProof };
+
+async function inspectWithBounds(
   pool: Pool,
   contract: AnswerQuestionContract,
-  intent: Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>,
+  derive: typeof deriveAnswerIntent,
   statementTimeoutMs: number,
   deadlineMs: number,
   now: () => number,
   signal: AbortSignal
-): Promise<VerifiedAnswerSemanticProof> {
+): Promise<AnswerInspectionResult> {
   const client = await acquireClient(pool, signal);
   try {
-    await client.query('BEGIN READ ONLY');
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     const boundedClient = deadlineBoundClient(client, deadlineMs, statementTimeoutMs, now, signal);
-    const proof = await proveAnswerIntent(contract, intent, new AnswerEventIdentityResolver(boundedClient), new AnswerDriverIdentityResolver(boundedClient));
-    await client.query('ROLLBACK');
-    return proof;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw error;
+    const derived = parseAnswerIntent(await derive(contract, new AnswerDriverIdentityResolver(boundedClient)), contract);
+    if (derived.type === 'clarification' || derived.type === 'unsupported') {
+      return derived;
+    }
+    const proof = await proveAnswerIntent(
+      contract,
+      derived,
+      new AnswerEventIdentityResolver(boundedClient),
+      new AnswerDriverIdentityResolver(boundedClient)
+    );
+    return { type: 'proved', proof };
   } finally {
+    await client.query('ROLLBACK').catch(() => undefined);
     client.release();
   }
 }
@@ -376,7 +366,7 @@ async function resolveReleaseAttestation(
   try {
     const verification = typeof configured === 'function'
       ? await configured()
-      : configured ?? loadAnswerReleaseVerificationInput(config, environment);
+      : configured ?? loadDeterministicAnswerReleaseVerificationInput(config, environment);
     const attestation = verifyAnswerReleaseAttestation(
       verification.raw_attestation,
       verification.trusted_key,
@@ -471,14 +461,11 @@ function answerQuestionGuard(req: Request, res: Response, next: NextFunction): R
   next();
 }
 
-function respondToTranslationOutcome(translation: Exclude<AnswerTranslationResult, { type: 'intent_candidate' }>, res: Response): Response {
-  if (translation.type === 'provider_unavailable') {
-    return res.status(503).json({ error: 'answer_unavailable', reason: translation.reason });
+function respondToDerivedOutcome(outcome: Extract<AnswerIntent, { type: 'clarification' | 'unsupported' }>, res: Response): Response {
+  if (outcome.type === 'clarification') {
+    return clarificationResponse(outcome.reason, res);
   }
-  if (translation.type === 'clarification_required') {
-    return clarificationResponse(translation.reason, res);
-  }
-  return res.status(422).json({ error: 'capability_unsupported', reason: translation.reason });
+  return res.status(422).json({ error: 'capability_unsupported', reason: outcome.reason });
 }
 
 function respondToQuestionOutcome(outcome: Exclude<AnswerQuestionContract['outcome'], { type: 'inspection_required' }>, res: Response): Response {
