@@ -239,7 +239,7 @@ The matrix's retirement classification is limited to literal `RETIRED` race-cont
 
 ### Official Validation Layers 1-3
 
-`validate:pace-v2:official-layers:production` binds retained `TimingData.jsonStream` and `DriverList.jsonStream` files to the committed round URL/SHA-256 matrix, then performs one bounded `BEGIN READ ONLY` `laps_normalized_v2` observation with a five-second statement timeout. It requires `PACE_V2_OFFICIAL_LAYERS_ENABLED=true` and `PACE_V2_OFFICIAL_LAYERS_TARGET=production`, rejects loopback, and never writes. It reads the raw v2 facts, rather than the serving `f1ql.lap_pace` view, because the deployed view does not expose lap numbers required for per-lap evidence:
+`validate:pace-v2:official-layers:production` binds retained `TimingData.jsonStream` and `DriverList.jsonStream` files to the committed round URL/SHA-256 matrix, then performs one bounded `BEGIN READ ONLY` `laps_normalized_v2` observation with a five-second statement timeout. It requires `PACE_V2_OFFICIAL_LAYERS_ENABLED=true` and `PACE_V2_OFFICIAL_LAYERS_TARGET=production`, rejects loopback, and never writes. It reads the raw v2 facts because the deployed view does not expose lap numbers required for per-lap evidence. The unapplied Phase 8 migration `20260731_f1ql_lap_pace_lap_number.sql` adds that structural field but does not change this validator or establish official completeness:
 
 ```bash
 PACE_V2_OFFICIAL_LAYERS_ENABLED=true PACE_V2_OFFICIAL_LAYERS_TARGET=production \

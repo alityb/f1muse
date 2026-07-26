@@ -170,6 +170,7 @@ The selection/audit protocol is defined in
 | --- | --- |
 | `season`, `round`, `event_id` | Selected fact season/round and raw `track_id` as `event_id`. |
 | `driver_id` | Selected fact driver ID with underscores changed to hyphens. |
+| `lap_number` | Exact selected source lap number. Migration `20260731_f1ql_lap_pace_lap_number.sql` appends it without changing source precedence; the migration is local and unapplied in production. |
 | `lap_time_seconds` | Raw selected lap time; `NULL` is excluded from F1QL pace calculations. |
 | `is_valid_lap`, `is_pit_lap`, `is_in_lap`, `is_out_lap` | Eligibility flags. F1QL requires valid=true and treats nullable pit/in/out as false for filtering; source nullability is not factual proof of no pit/in/out condition. |
 | `clean_air_flag` | Source methodology flag. It is required only for a `clean_air_only` request; `NULL` does not pass that request. |
@@ -208,6 +209,11 @@ leader-relative gaps, and `PIT` marker; it does not define the missing fields.
 No filtered pace golden may be promoted from a partial overlap or a derived
 car-ahead gap. F1QL currently exposes no unfiltered raw-timing metric, so no
 factual pace golden is eligible under the current product contract.
+
+Exposing selected `lap_number` is structural Phase 8 groundwork only. It does
+not establish complete official timing coverage, historical coverage, or a raw
+lap-window metric, and it does not make lap-window questions parseable or
+execution-eligible.
 
 ## Evidence Maintenance
 

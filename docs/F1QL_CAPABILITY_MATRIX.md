@@ -11,7 +11,7 @@ authorities it uses, and where F1QL must extend it.
 | Race classification | 1950-present, source-dependent | F1DB; Jolpica for current season | Includes finish classification and race points |
 | Official season standings | 1950-present, source-dependent | `season_driver_standing` | Authoritative for championship points and rank |
 | Qualifying classification | historical coverage varies; robust current pipeline | F1DB / FastF1 | Pole is qualifying P1, not necessarily official grid P1 |
-| Lap pace, stints, compounds | 2018-present | FastF1 | No lap-based answer before 2018 |
+| Lap pace, stints, compounds | Observed production serving coverage: 2026 rounds 1-10 | FastF1-derived application fact product | Historical coverage and filtered-pace factual validation remain unsupported |
 | Current-season results and standings | Latest successful sync | Jolpica | Subject to upstream publication and pagination completeness |
 | Current-season laps/qualifying | Latest successful FastF1 ETL | FastF1 | May lag race results |
 
@@ -49,9 +49,13 @@ authorities it uses, and where F1QL must extend it.
    A query can be answerable for results but not for pace.
 4. Raw table identity formats still vary by source (hyphen/underscore driver
    IDs and circuit/grand-prix track IDs).
-5. F1QL pace reads only `laps_normalized_v2`. Legacy rows are not silently
-   backfilled, so pace fails closed until an explicitly reviewed v2 ingestion
-   has supplied the active clean-air methodology version.
+5. F1QL pace reads only the audited `f1ql.lap_pace` selection over v2 original,
+   replacement, and rebuild facts. Legacy rows are not silently backfilled, so
+   pace fails closed until an explicitly reviewed v2 ingestion has supplied the
+   active clean-air methodology version.
+6. The Phase 8 lap-number view migration is structural and unapplied. No raw
+   lap-window F1QL operation, historical coverage authorization, or answer-route
+   capability exists.
 
 ## F1QL v1 Target Delta
 

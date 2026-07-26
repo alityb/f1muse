@@ -44,6 +44,10 @@ export async function setupTestDatabase(
     season_constructor_standing,
     driver_matchup_matrix_2025,
     api_query_cache,
+    pace_v2_rebuild_audit,
+    pace_v2_lap_rebuild,
+    pace_v2_replacement_audit,
+    pace_v2_lap_replacement,
     laps_normalized_v2,
     laps_normalized, 
     pace_metric_summary_driver_track, 
@@ -519,8 +523,9 @@ export async function setupTestDatabase(
       l.clean_air_flag,
       l.compound,
       l.tyre_age_laps,
-      l.session_type,
-      l.methodology_version
+      l.session_type::varchar(5) AS session_type,
+      l.methodology_version,
+      l.lap_number
     FROM selected_laps l;
 
     CREATE OR REPLACE VIEW f1ql.event_classification AS
