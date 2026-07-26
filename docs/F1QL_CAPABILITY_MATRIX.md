@@ -58,8 +58,12 @@ authorities it uses, and where F1QL must extend it.
    capability exists.
 7. A hash-pinned FIA Belgian 2022 pilot now proves complete official
    racing-number/lap coverage and deleted-time mapping for that event. It is an
-   evidence fixture only; application identity, metric, ingestion, and execution
-   gates remain absent.
+   evidence fixture only and does not itself authorize application identity,
+   metric, ingestion, or execution behavior.
+8. The Belgian pilot has a reviewed two-driver canonical identity map and named
+   localhost-only median policy. Facts exist only in an on-commit-drop temporary
+   table; no persistent historical source, F1QL operation, or answer capability
+   exists.
 
 ## F1QL v1 Target Delta
 

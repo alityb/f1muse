@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "emitter": "localhost_temporary_historical_lap_pilot_v1",
+  "staged_fact_count": 16,
+  "staged_fact_fingerprint": "5ae8176b7d30594e304b597068cbdaf1b494f2d4c962eb359e93d2615e16e621",
+  "comparison": {
+    "version": 1,
+    "metric": {
+      "id": "official_non_deleted_non_pit_window_median_v1",
+      "aggregation": "median",
+      "lower_is_faster": true,
+      "deleted_laps": "excluded_when_officially_identified",
+      "pit_laps": "excluded_only_when_fia_history_chart_marks_pit",
+      "safety_car_weather_and_other_context": "included_not_inferred",
+      "minimum_eligible_laps_per_driver": 2,
+      "complete_requested_window_required": true
+    },
+    "scope": {
+      "season": 2022,
+      "round": 14,
+      "event": "2022 Belgian Grand Prix",
+      "session_type": "R",
+      "lap_start": 3,
+      "lap_end": 10
+    },
+    "drivers": [
+      {
+        "driver_id": "max_verstappen",
+        "racing_number": "1",
+        "official_name": "Max VERSTAPPEN",
+        "requested_laps": 8,
+        "eligible_laps": 8,
+        "excluded_deleted_laps": 0,
+        "excluded_pit_marker_laps": 0,
+        "median_lap_time_seconds": 113.8495
+      },
+      {
+        "driver_id": "fernando_alonso",
+        "racing_number": "14",
+        "official_name": "Fernando ALONSO",
+        "requested_laps": 8,
+        "eligible_laps": 8,
+        "excluded_deleted_laps": 0,
+        "excluded_pit_marker_laps": 0,
+        "median_lap_time_seconds": 115.183
+      }
+    ],
+    "winner_driver_id": "max_verstappen",
+    "median_delta_seconds": 1.3335,
+    "caveats": [
+      "Safety-car, weather, traffic, tyre, fuel, and race-state effects are included because no per-lap context contract is retained.",
+      "This is not clean-air pace and must not be compared with F1QL clean_air_gap_2_0s_v1 results."
+    ],
+    "provenance": {
+      "source_manifest_sha256": "616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f",
+      "identity_map_sha256": "f318c49df004111de3f75404147b1b92c55a36a2f3ee791256df3137776b07f3",
+      "race_history_artifact_sha256": "30f7db339b437cea5fd73f0a7bf6a3a16783119b3b62d07c5793934e2b26d105"
+    },
+    "f1ql_operation": "unsupported"
+  }
+}

@@ -275,6 +275,17 @@ generated manifest is evidence-eligible for separate review only. It does not
 establish application-canonical driver IDs, a raw comparison metric, historical
 ingestion, clean-air semantics, or execution authorization.
 
+The first named metric contract is
+`official_non_deleted_non_pit_window_median_v1`: for exactly two reviewed
+drivers and one inclusive race-lap window, require every requested official lap
+identity, exclude only FIA-deleted times and rows explicitly marked `PIT`,
+require at least two remaining laps per driver, take each driver's median, and
+define the lower median as faster. Safety-car, weather, traffic, tyre, fuel, and
+other race-state effects remain included and caveated because no equivalent
+per-lap context contract is retained. The Belgian pilot is staged only in an
+`ON COMMIT DROP` localhost temporary table and has no F1QL operation or
+persistent ingestion path.
+
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed
 timing streams and that some values need post-processing or educated assignment.

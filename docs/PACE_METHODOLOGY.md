@@ -276,8 +276,32 @@ implied by final classification, in both directions. A chart marker such as
 is not a numeric time gap. All five official deleted times map uniquely by
 racing number and printed time.
 
-The pilot retains official number/name identity and the complete cars 1 and 14
-lap 3-10 window. It intentionally computes no median or winner. Application
-identity mapping, safety-car/weather treatment, pit-lap inclusion, a named raw
-metric, ingestion, F1QL syntax, and execution authorization remain separate
-review gates. Clean-air filtered pace remains unsupported by these documents.
+The official-source pilot retains number/name identity and the complete cars 1
+and 14 lap 3-10 window. It does not itself compute a median or winner. The
+separate locally reviewed identity and metric contract below performs that
+calculation without changing F1QL or clean-air filtered pace semantics.
+
+### Named Pilot Metric
+
+The locally reviewed metric is
+`official_non_deleted_non_pit_window_median_v1`. It requires exactly two mapped
+drivers, an inclusive window of at most 50 laps, every requested lap identity
+for each driver, and at least two eligible laps per driver. FIA-deleted times
+and Race History Chart `PIT` rows are excluded. No other outlier or context
+filter is applied. The median is calculated from exact integer milliseconds;
+for an even count it is the arithmetic mean of the two middle values. Lower is
+faster and equal medians are a tie.
+
+Safety-car, weather, traffic, tyre, fuel, and race-state effects are explicitly
+included, not inferred away. Therefore this metric is not comparable to
+`clean_air_gap_2_0s_v1`. For Belgian 2022 laps 3-10, the generated localhost
+fixture reports Max Verstappen at 113.8495 seconds, Fernando Alonso at 115.183
+seconds, and Verstappen lower by 1.3335 seconds. The output SHA-256 is
+`f7375690dfa95f4f159c65ad6c4ae025298d7c2cf2231478c5de9a8a40f1064b`.
+
+`golden:snapshot:phase8-belgium-2022-window` accepts only the exact disposable
+localhost test URI, owns its connection and transaction, applies one-second
+local statement and lock timeouts, validates canonical identities from the
+local driver relation, and stages 16 facts in an `ON COMMIT DROP` temporary
+table. It rehydrates and exactly compares the staged rows before calculating
+the metric. It creates no persistent relation and exposes no F1QL operation.

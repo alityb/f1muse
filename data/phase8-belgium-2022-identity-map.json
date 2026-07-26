@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "mapping": "fia_official_identity_to_canonical_driver_v1",
+  "event": "2022 Belgian Grand Prix",
+  "season": 2022,
+  "round": 14,
+  "source_manifest_sha256": "616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f",
+  "mappings": [
+    {
+      "racing_number": "1",
+      "official_name": "Max VERSTAPPEN",
+      "driver_id": "max_verstappen",
+      "canonical_full_name": "Max Verstappen"
+    },
+    {
+      "racing_number": "14",
+      "official_name": "Fernando ALONSO",
+      "driver_id": "fernando_alonso",
+      "canonical_full_name": "Fernando Alonso"
+    }
+  ]
+}

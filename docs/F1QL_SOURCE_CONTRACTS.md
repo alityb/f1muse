@@ -223,9 +223,28 @@ Chart parsing reconciles exactly 790 unique keys with no gap in either
 direction; `N LAP(S)` is interpreted only as the offset from the chart's leader
 lap column. Five deleted times map uniquely by official racing number and
 printed lap time. The requested cars 1 and 14 laps 3-10 contain 16 rows with no
-missing keys. This does not map those identities to application driver IDs,
-define which raw laps a metric includes, authorize historical ingestion, or add
-an F1QL operation.
+missing keys. The source manifest itself does not map those identities to
+application driver IDs, define which raw laps a metric includes, authorize
+historical ingestion, or add an F1QL operation.
+
+The separate reviewed identity map binds only FIA car 1 / Max Verstappen to
+canonical `max_verstappen` and car 14 / Fernando Alonso to canonical
+`fernando_alonso`. Its exact file SHA-256 is
+`f318c49df004111de3f75404147b1b92c55a36a2f3ee791256df3137776b07f3`;
+the loader additionally requires exact canonical full names from the localhost
+driver relation. Verified source and identity bytes produce deeply frozen facts.
+Only the localhost snapshot emitter can stage them, using a self-owned exact
+test-database connection, transaction-local one-second statement/lock timeouts,
+and an `ON COMMIT DROP` temporary table. The metric is computed only after the
+PostgreSQL rows are rehydrated and exactly matched to the verified facts.
+
+`official_non_deleted_non_pit_window_median_v1` requires complete inclusive
+window coverage for both reviewed drivers, excludes official deleted and
+explicit `PIT` rows, requires at least two eligible laps each, and treats the
+lower median as faster. It does not infer or exclude safety-car, weather,
+traffic, tyre, fuel, or other race-state context. It is not clean-air pace.
+There is still no persistent historical relation, F1QL source/operation,
+compiler path, answer capability, or production authorization.
 
 ## Evidence Maintenance
 
