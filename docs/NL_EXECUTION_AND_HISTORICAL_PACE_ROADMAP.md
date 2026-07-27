@@ -270,10 +270,9 @@ classification, and deleted race lap-time decision. The parser treats an
 `N LAP(S)` history-chart gap as a completed-lap offset rather than a numeric
 gap. It reconciles all 790 classification-implied completed-lap keys in both
 directions, maps all five deleted times uniquely by racing number and printed
-time, and retains the 16 printed rows for cars 1 and 14 over laps 3-10. The
-generated manifest is evidence-eligible for separate review only. It does not
-establish application-canonical driver IDs, a raw comparison metric, historical
-ingestion, clean-air semantics, or execution authorization.
+time, and retains all 790 printed completed-lap rows. A separate hash-bound map
+covers all 20 official identities, including a reviewed canonical-name-order
+bridge. The 16 rows for cars 1 and 14 over laps 3-10 remain a derived subset.
 
 The first named metric contract is
 `official_non_deleted_non_pit_window_median_v1`: for exactly two reviewed
@@ -282,9 +281,11 @@ identity, exclude only FIA-deleted times and rows explicitly marked `PIT`,
 require at least two remaining laps per driver, take each driver's median, and
 define the lower median as faster. Safety-car, weather, traffic, tyre, fuel, and
 other race-state effects remain included and caveated because no equivalent
-per-lap context contract is retained. The Belgian pilot is staged only in an
-`ON COMMIT DROP` localhost temporary table and has no F1QL operation or
-persistent ingestion path.
+per-lap context contract is retained. A private, unapplied `official_timing`
+migration and seal-last scope-serialized writer now prove persistent localhost
+ingestion of all 790 facts with immutable artifacts, identities, and coverage.
+This storage has no F1QL view, runtime role grant, operation, answer capability,
+production application, or production ingestion authorization.
 
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed

@@ -98,12 +98,13 @@ describe('Phase 8 Belgian 2022 pilot evidence', () => {
 
   it('retains an exact nonempty real-emitter fixture with complete official coverage', () => {
     const content = fs.readFileSync(path.resolve('data/phase8-belgium-2022-pilot.json'));
-    expect(createHash('sha256').update(content).digest('hex')).toBe('616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab');
     const fixture = JSON.parse(content.toString('utf8')) as {
       promotion_status: string;
       refusal_reasons: string[];
-      row_fingerprint: string;
+      parser_row_fingerprint: string;
       coverage: { final_classification_completed_lap_keys: number; race_history_lap_keys: number; final_classification_without_race_history: string[]; race_history_without_final_classification: string[] };
+      completed_laps: { row_count: number; row_fingerprint: string; rows: Array<{ racing_number: string; official_name: string; lap_number: number; leader_gap_seconds: number | null; pit_marker: boolean; deleted_lap: boolean }> };
       pilot_window: { missing_lap_keys: string[]; rows: Array<{ racing_number: string; official_name: string; lap_number: number }> };
       deleted_laps: unknown[];
       artifacts: Record<string, { sha256: string; bytes: number }>;
@@ -114,11 +115,17 @@ describe('Phase 8 Belgian 2022 pilot evidence', () => {
     expect(fixture.coverage.race_history_without_final_classification).toEqual([]);
     expect(fixture.coverage.final_classification_completed_lap_keys).toBe(790);
     expect(fixture.coverage.race_history_lap_keys).toBe(790);
+    expect(fixture.completed_laps.row_count).toBe(790);
+    expect(fixture.completed_laps.rows).toHaveLength(790);
+    expect(new Set(fixture.completed_laps.rows.map(row => `${row.racing_number}:${row.lap_number}`)).size).toBe(790);
+    expect(fixture.completed_laps.rows.filter(row => row.deleted_lap)).toHaveLength(5);
+    expect(fixture.completed_laps.rows.some(row => row.leader_gap_seconds !== null)).toBe(true);
+    expect(fixture.completed_laps.row_fingerprint).toBe(createHash('sha256').update(JSON.stringify(fixture.completed_laps.rows)).digest('hex'));
     expect(fixture.pilot_window.missing_lap_keys).toEqual([]);
     expect(fixture.pilot_window.rows).toHaveLength(16);
     expect(new Set(fixture.pilot_window.rows.map((row) => `${row.racing_number}:${row.official_name}`))).toEqual(new Set(['1:Max VERSTAPPEN', '14:Fernando ALONSO']));
     expect(fixture.deleted_laps).toHaveLength(5);
-    expect(fixture.row_fingerprint).toBe('742bc6aee656ec04bb5f7248863a0dc09662e26655de1cc934e45f3a9636c27f');
+    expect(fixture.parser_row_fingerprint).toBe('742bc6aee656ec04bb5f7248863a0dc09662e26655de1cc934e45f3a9636c27f');
     expect(Object.values(fixture.artifacts)).toHaveLength(3);
     expect(Object.fromEntries(Object.entries(fixture.artifacts).map(([name, artifact]) => [name, artifact.sha256]))).toEqual(Object.fromEntries(
       Object.entries(BELGIUM_2022_ARTIFACTS).map(([name, artifact]) => [name, artifact.sha256])

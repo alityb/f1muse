@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "emitter": "localhost_persistent_historical_lap_event_v1",
+  "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+  "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
+  "identity_map_sha256": "1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd",
+  "identity_fingerprint": "edc4d51451b2cd2cdaf87f9a0d8ee65a55cc10502345d7642731b389057682f3",
+  "fact_fingerprint": "f31adb2eebb906017b9aaea2a63329e142012da7ed312cdfe26d19c7dce30d8f",
+  "committed": {
+    "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+    "status": "committed",
+    "identity_count": 20,
+    "fact_count": 790
+  },
+  "replay": {
+    "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+    "status": "already_committed",
+    "identity_count": 20,
+    "fact_count": 790
+  },
+  "stored": {
+    "persistence": "p",
+    "identity_count": 20,
+    "fact_count": 790,
+    "artifact_count": 3,
+    "coverage_count": 3,
+    "f1ql_view_count": 0
+  },
+  "f1ql_operation": "unsupported"
+}

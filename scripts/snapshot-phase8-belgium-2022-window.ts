@@ -33,6 +33,7 @@ async function stageHistoricalLapPilotInTemporaryTable(client: PoolClient, datas
       official_name text NOT NULL,
       lap_number integer NOT NULL CHECK (lap_number > 0),
       lap_time_seconds numeric(10, 3) NOT NULL CHECK (lap_time_seconds > 0),
+      leader_gap_seconds numeric(10, 3),
       official_deleted_lap boolean NOT NULL,
       official_pit_marker boolean NOT NULL,
       source_manifest_sha256 text NOT NULL,
@@ -42,15 +43,15 @@ async function stageHistoricalLapPilotInTemporaryTable(client: PoolClient, datas
   `);
   const values = dataset.facts.flatMap(fact => [
     fact.season, fact.round, fact.session_type, fact.event, fact.driver_id, fact.racing_number, fact.official_name,
-    fact.lap_number, fact.lap_time_seconds, fact.official_deleted_lap, fact.official_pit_marker,
+    fact.lap_number, fact.lap_time_seconds, fact.leader_gap_seconds, fact.official_deleted_lap, fact.official_pit_marker,
     fact.source_manifest_sha256, fact.source_artifact_sha256
   ]);
-  const columns = 13;
+  const columns = 14;
   const placeholders = dataset.facts.map((_, row) => `(${Array.from({ length: columns }, (__, column) => `$${row * columns + column + 1}`).join(', ')})`);
   await client.query(`
     INSERT INTO phase8_historical_lap_pilot
       (season, round, session_type, event, driver_id, racing_number, official_name, lap_number,
-       lap_time_seconds, official_deleted_lap, official_pit_marker, source_manifest_sha256, source_artifact_sha256)
+       lap_time_seconds, leader_gap_seconds, official_deleted_lap, official_pit_marker, source_manifest_sha256, source_artifact_sha256)
     VALUES ${placeholders.join(', ')}
   `, values);
 }
@@ -62,12 +63,14 @@ async function emitWithClient(client: PoolClient, sourceContent: Buffer, identit
   if (target.rows.length !== 1 || target.rows[0].database_name !== 'f1muse_test') {
     throw new Error('FAIL_CLOSED: Phase 8 emitter connected to an unexpected database');
   }
+  const reviewedIdentities = JSON.parse(identityContent.toString('utf8')) as { mappings?: Array<{ driver_id?: unknown }> };
+  const reviewedDriverIds = reviewedIdentities.mappings?.map(mapping => mapping.driver_id).filter((value): value is string => typeof value === 'string') ?? [];
   const canonical = await client.query<{ driver_id: string; full_name: string }>(`
     SELECT id AS driver_id, full_name
     FROM driver
     WHERE id = ANY($1::text[])
     ORDER BY id
-  `, [['max_verstappen', 'fernando_alonso']]);
+  `, [reviewedDriverIds]);
   const dataset = loadHistoricalLapPilot(sourceContent, identityContent, canonical.rows);
   await stageHistoricalLapPilotInTemporaryTable(client, dataset);
   const staged = await client.query<{
@@ -80,13 +83,14 @@ async function emitWithClient(client: PoolClient, sourceContent: Buffer, identit
     official_name: string;
     lap_number: number;
     lap_time_seconds: string;
+    leader_gap_seconds: string | null;
     official_deleted_lap: boolean;
     official_pit_marker: boolean;
     source_manifest_sha256: string;
     source_artifact_sha256: string;
   }>(`
     SELECT season, round, session_type, event, driver_id, racing_number, official_name, lap_number,
-      lap_time_seconds::text, official_deleted_lap, official_pit_marker,
+      lap_time_seconds::text, leader_gap_seconds::text, official_deleted_lap, official_pit_marker,
       source_manifest_sha256, source_artifact_sha256
     FROM phase8_historical_lap_pilot
     ORDER BY driver_id, lap_number
@@ -106,8 +110,12 @@ async function emitWithClient(client: PoolClient, sourceContent: Buffer, identit
     lap_end: 10
   });
   return {
-    version: 1 as const,
-    emitter: 'localhost_temporary_historical_lap_pilot_v1' as const,
+    version: 2 as const,
+    emitter: 'localhost_temporary_historical_lap_event_v1' as const,
+    reviewed_identity_count: dataset.identities.length,
+    fact_bearing_driver_count: new Set(dataset.facts.map(fact => fact.driver_id)).size,
+    deleted_fact_count: dataset.facts.filter(fact => fact.official_deleted_lap).length,
+    pit_fact_count: dataset.facts.filter(fact => fact.official_pit_marker).length,
     staged_fact_count: staged.rows.length,
     staged_fact_fingerprint: sha256(JSON.stringify(staged.rows)),
     comparison

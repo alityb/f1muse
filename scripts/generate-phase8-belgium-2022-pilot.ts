@@ -157,18 +157,27 @@ export function createBelgium2022PilotManifestFromText(historyText: string, clas
     };
   });
   const deletedKeys = new Set(deletedLaps.map((row) => lapKey(row.racing_number, row.lap_number)));
-  const pilotNumbers = new Set(['1', '14']);
-  const pilotRows = historyRows
-    .filter((row) => pilotNumbers.has(row.racing_number) && row.lap_number >= 3 && row.lap_number <= 10)
+  const completedLapRows = [...historyRows]
     .sort((left, right) => Number(left.racing_number) - Number(right.racing_number) || left.lap_number - right.lap_number)
-    .map((row) => ({
-      racing_number: row.racing_number,
-      official_name: identitiesByNumber.get(row.racing_number)!.official_name,
-      lap_number: row.lap_number,
-      lap_time_seconds: row.lap_time_seconds,
-      pit_marker: row.pit_marker,
-      deleted_lap: deletedKeys.has(lapKey(row.racing_number, row.lap_number))
-    }));
+    .map((row) => {
+      const identity = identitiesByNumber.get(row.racing_number);
+      if (!identity) {
+        throw new Error(`FAIL_CLOSED: Race History Chart identity is not classified for racing number ${row.racing_number}`);
+      }
+      return {
+        racing_number: row.racing_number,
+        official_name: identity.official_name,
+        lap_number: row.lap_number,
+        lap_time_seconds: row.lap_time_seconds,
+        leader_gap_seconds: row.leader_gap_seconds,
+        pit_marker: row.pit_marker,
+        deleted_lap: deletedKeys.has(lapKey(row.racing_number, row.lap_number))
+      };
+    });
+  const pilotNumbers = new Set(['1', '14']);
+  const pilotRows = completedLapRows
+    .filter((row) => pilotNumbers.has(row.racing_number) && row.lap_number >= 3 && row.lap_number <= 10)
+    .map(({ leader_gap_seconds: _leaderGapSeconds, ...row }) => row);
   const requestedPilotKeys = new Set([...pilotNumbers].flatMap((number) => Array.from(
     { length: 8 },
     (_, index) => lapKey(number, index + 3)
@@ -181,7 +190,7 @@ export function createBelgium2022PilotManifestFromText(historyText: string, clas
   ];
 
   return {
-    version: 1 as const,
+    version: 2 as const,
     authority: 'FIA' as const,
     event: EVENT,
     season: 2022,
@@ -195,6 +204,11 @@ export function createBelgium2022PilotManifestFromText(historyText: string, clas
       race_history_lap_keys: historyKeys.size,
       final_classification_without_race_history: classificationWithoutHistory,
       race_history_without_final_classification: historyWithoutClassification
+    },
+    completed_laps: {
+      row_count: completedLapRows.length,
+      rows: completedLapRows,
+      row_fingerprint: sha256(JSON.stringify(completedLapRows))
     },
     pilot_window: {
       lap_start: 3,
@@ -210,7 +224,7 @@ export function createBelgium2022PilotManifestFromText(historyText: string, clas
     refusal_reasons: refusalReasons,
     canonical_raw_lap_window_operation: 'unsupported' as const,
     clean_air_or_pit_filtered_pace: 'unsupported' as const,
-    row_fingerprint: sha256(JSON.stringify(historyRows))
+    parser_row_fingerprint: sha256(JSON.stringify(historyRows))
   };
 }
 
@@ -264,7 +278,7 @@ function main(): void {
   const serialized = `${JSON.stringify(manifest, null, 2)}\n`;
   if (process.argv.includes('--write-fixture')) {
     fs.writeFileSync(FIXTURE_PATH, serialized, { mode: 0o644 });
-    process.stdout.write(`${JSON.stringify({ status: 'written', fixture: path.relative(process.cwd(), FIXTURE_PATH), sha256: sha256(serialized), rows: manifest.pilot_window.rows.length, promotion_status: manifest.promotion_status })}\n`);
+    process.stdout.write(`${JSON.stringify({ status: 'written', fixture: path.relative(process.cwd(), FIXTURE_PATH), sha256: sha256(serialized), rows: manifest.completed_laps.rows.length, promotion_status: manifest.promotion_status })}\n`);
     return;
   }
   process.stdout.write(serialized);

@@ -1,10 +1,10 @@
 {
-  "version": 1,
-  "mapping": "fia_official_identity_to_canonical_driver_v1",
+  "version": 2,
+  "mapping": "fia_official_identity_to_canonical_driver_v2",
   "event": "2022 Belgian Grand Prix",
   "season": 2022,
   "round": 14,
-  "source_manifest_sha256": "616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f",
+  "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
   "mappings": [
     {
       "racing_number": "1",
@@ -13,10 +13,118 @@
       "canonical_full_name": "Max Verstappen"
     },
     {
+      "racing_number": "3",
+      "official_name": "Daniel RICCIARDO",
+      "driver_id": "daniel_ricciardo",
+      "canonical_full_name": "Daniel Ricciardo"
+    },
+    {
+      "racing_number": "4",
+      "official_name": "Lando NORRIS",
+      "driver_id": "lando_norris",
+      "canonical_full_name": "Lando Norris"
+    },
+    {
+      "racing_number": "5",
+      "official_name": "Sebastian VETTEL",
+      "driver_id": "sebastian_vettel",
+      "canonical_full_name": "Sebastian Vettel"
+    },
+    {
+      "racing_number": "6",
+      "official_name": "Nicholas LATIFI",
+      "driver_id": "nicholas_latifi",
+      "canonical_full_name": "Nicholas Latifi"
+    },
+    {
+      "racing_number": "10",
+      "official_name": "Pierre GASLY",
+      "driver_id": "pierre_gasly",
+      "canonical_full_name": "Pierre Gasly"
+    },
+    {
+      "racing_number": "11",
+      "official_name": "Sergio PEREZ",
+      "driver_id": "sergio_perez",
+      "canonical_full_name": "Sergio Perez"
+    },
+    {
       "racing_number": "14",
       "official_name": "Fernando ALONSO",
       "driver_id": "fernando_alonso",
       "canonical_full_name": "Fernando Alonso"
+    },
+    {
+      "racing_number": "16",
+      "official_name": "Charles LECLERC",
+      "driver_id": "charles_leclerc",
+      "canonical_full_name": "Charles Leclerc"
+    },
+    {
+      "racing_number": "18",
+      "official_name": "Lance STROLL",
+      "driver_id": "lance_stroll",
+      "canonical_full_name": "Lance Stroll"
+    },
+    {
+      "racing_number": "20",
+      "official_name": "Kevin MAGNUSSEN",
+      "driver_id": "kevin_magnussen",
+      "canonical_full_name": "Kevin Magnussen"
+    },
+    {
+      "racing_number": "22",
+      "official_name": "Yuki TSUNODA",
+      "driver_id": "yuki_tsunoda",
+      "canonical_full_name": "Yuki Tsunoda"
+    },
+    {
+      "racing_number": "23",
+      "official_name": "Alexander ALBON",
+      "driver_id": "alexander_albon",
+      "canonical_full_name": "Alexander Albon"
+    },
+    {
+      "racing_number": "24",
+      "official_name": "ZHOU Guanyu",
+      "driver_id": "guanyu_zhou",
+      "canonical_full_name": "Guanyu Zhou"
+    },
+    {
+      "racing_number": "31",
+      "official_name": "Esteban OCON",
+      "driver_id": "esteban_ocon",
+      "canonical_full_name": "Esteban Ocon"
+    },
+    {
+      "racing_number": "44",
+      "official_name": "Lewis HAMILTON",
+      "driver_id": "lewis_hamilton",
+      "canonical_full_name": "Lewis Hamilton"
+    },
+    {
+      "racing_number": "47",
+      "official_name": "Mick SCHUMACHER",
+      "driver_id": "mick_schumacher",
+      "canonical_full_name": "Mick Schumacher"
+    },
+    {
+      "racing_number": "55",
+      "official_name": "Carlos SAINZ",
+      "driver_id": "carlos_sainz",
+      "canonical_full_name": "Carlos Sainz"
+    },
+    {
+      "racing_number": "63",
+      "official_name": "George RUSSELL",
+      "driver_id": "george_russell",
+      "canonical_full_name": "George Russell"
+    },
+    {
+      "racing_number": "77",
+      "official_name": "Valtteri BOTTAS",
+      "driver_id": "valtteri_bottas",
+      "canonical_full_name": "Valtteri Bottas"
     }
   ]
 }

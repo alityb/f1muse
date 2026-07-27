@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 
-export const HISTORICAL_LAP_PILOT_SOURCE_SHA256 = '616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f';
-export const HISTORICAL_LAP_PILOT_IDENTITY_SHA256 = 'f318c49df004111de3f75404147b1b92c55a36a2f3ee791256df3137776b07f3';
+export const HISTORICAL_LAP_PILOT_SOURCE_SHA256 = '491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab';
+export const HISTORICAL_LAP_PILOT_IDENTITY_SHA256 = '1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd';
 export const HISTORICAL_LAP_WINDOW_METRIC_ID = 'official_non_deleted_non_pit_window_median_v1';
 
 const EVENT = '2022 Belgian Grand Prix';
@@ -25,6 +25,7 @@ export interface HistoricalLapFact {
   readonly official_name: string;
   readonly lap_number: number;
   readonly lap_time_seconds: number;
+  readonly leader_gap_seconds: number | null;
   readonly official_deleted_lap: boolean;
   readonly official_pit_marker: boolean;
   readonly source_manifest_sha256: string;
@@ -32,17 +33,43 @@ export interface HistoricalLapFact {
 }
 
 export interface HistoricalLapDataset {
-  readonly version: 1;
-  readonly ingestion_contract: 'immutable_official_lap_pilot_v1';
+  readonly version: 2;
+  readonly ingestion_contract: 'immutable_official_lap_event_v1';
+  readonly dataset_sha256: string;
+  readonly source_manifest_sha256: string;
+  readonly identity_map_sha256: string;
+  readonly identity_fingerprint: string;
+  readonly fact_fingerprint: string;
+  readonly artifacts: readonly HistoricalLapArtifact[];
+  readonly coverage: readonly HistoricalLapCoverage[];
+  readonly identities: readonly HistoricalLapIdentity[];
   readonly facts: readonly HistoricalLapFact[];
 }
 
-type IdentityMapping = {
+export type HistoricalLapArtifact = {
+  artifact_name: string;
+  source_url: string;
+  artifact_sha256: string;
+  bytes: number;
+};
+
+export type HistoricalLapCoverage = {
+  coverage_kind: string;
+  expected_count: number;
+  actual_count: number;
+  missing_keys: readonly string[];
+  unexpected_keys: readonly string[];
+};
+
+export type HistoricalLapIdentity = {
   racing_number: string;
   official_name: string;
   driver_id: string;
   canonical_full_name: string;
+  classified_laps: number;
 };
+
+type IdentityMapping = Omit<HistoricalLapIdentity, 'classified_laps'>;
 
 function sha256(content: Buffer | string): string {
   return createHash('sha256').update(content).digest('hex');
@@ -67,14 +94,14 @@ function parseIdentityMap(content: Buffer): IdentityMapping[] {
     throw new Error('FAIL_CLOSED: historical identity-map hash mismatch');
   }
   const manifest = objectValue(JSON.parse(content.toString('utf8')), 'identity map');
-  if (manifest.version !== 1 || manifest.season !== 2022 || manifest.round !== 14 ||
+  if (manifest.version !== 2 || manifest.season !== 2022 || manifest.round !== 14 ||
       manifest.source_manifest_sha256 !== HISTORICAL_LAP_PILOT_SOURCE_SHA256) {
     throw new Error('FAIL_CLOSED: historical identity map has an unsupported scope');
   }
-  exactString(manifest.mapping, 'fia_official_identity_to_canonical_driver_v1', 'identity mapping method');
+  exactString(manifest.mapping, 'fia_official_identity_to_canonical_driver_v2', 'identity mapping method');
   exactString(manifest.event, EVENT, 'identity event');
-  if (!Array.isArray(manifest.mappings) || manifest.mappings.length !== 2) {
-    throw new Error('FAIL_CLOSED: historical identity map must contain exactly two pilot mappings');
+  if (!Array.isArray(manifest.mappings) || manifest.mappings.length !== 20) {
+    throw new Error('FAIL_CLOSED: historical identity map must contain all 20 official identities');
   }
   const mappings = manifest.mappings.map((value) => {
     const mapping = objectValue(value, 'identity mapping');
@@ -99,28 +126,33 @@ function validateCanonicalIdentities(mappings: IdentityMapping[], canonicalDrive
   }
   for (const mapping of mappings) {
     const candidates = canonicalDrivers.filter(driver => driver.driver_id === mapping.driver_id);
-    if (candidates.length !== 1 || candidates[0].full_name !== mapping.canonical_full_name ||
-        candidates[0].full_name.toLowerCase() !== mapping.official_name.toLowerCase()) {
+    if (candidates.length !== 1 || candidates[0].full_name !== mapping.canonical_full_name) {
       throw new Error(`FAIL_CLOSED: canonical identity mismatch for racing number ${mapping.racing_number}`);
     }
   }
 }
 
 // One strict boundary validates every retained source field before facts become trusted.
+// eslint-disable-next-line max-lines-per-function
 // eslint-disable-next-line complexity
-function parseSourceRows(content: Buffer): Array<{
+function parseSourceRows(content: Buffer): {
+  identities: Array<{ racing_number: string; official_name: string; classified_laps: number }>;
+  artifacts: HistoricalLapArtifact[];
+  coverage: HistoricalLapCoverage[];
+  rows: Array<{
   racing_number: string;
   official_name: string;
   lap_number: number;
   lap_time_seconds: number;
+  leader_gap_seconds: number | null;
   pit_marker: boolean;
   deleted_lap: boolean;
-}> {
+}> } {
   if (sha256(content) !== HISTORICAL_LAP_PILOT_SOURCE_SHA256) {
     throw new Error('FAIL_CLOSED: historical source-manifest hash mismatch');
   }
   const manifest = objectValue(JSON.parse(content.toString('utf8')), 'source manifest');
-  if (manifest.version !== 1 || manifest.authority !== 'FIA' || manifest.event !== EVENT || manifest.season !== 2022 ||
+  if (manifest.version !== 2 || manifest.authority !== 'FIA' || manifest.event !== EVENT || manifest.season !== 2022 ||
       manifest.round !== 14 || manifest.session !== 'race' || manifest.promotion_status !== 'eligible_for_separate_review' ||
       manifest.canonical_raw_lap_window_operation !== 'unsupported') {
     throw new Error('FAIL_CLOSED: historical source manifest has an unsupported scope or status');
@@ -134,26 +166,88 @@ function parseSourceRows(content: Buffer): Array<{
   const artifacts = objectValue(manifest.artifacts, 'source artifacts');
   const historyArtifact = objectValue(artifacts.race_history_chart, 'race history artifact');
   exactString(historyArtifact.sha256, HISTORY_ARTIFACT_SHA256, 'race history artifact hash');
-  const pilotWindow = objectValue(manifest.pilot_window, 'pilot window');
-  if (pilotWindow.lap_start !== 3 || pilotWindow.lap_end !== 10 || !Array.isArray(pilotWindow.missing_lap_keys) ||
-      pilotWindow.missing_lap_keys.length || !Array.isArray(pilotWindow.rows) || pilotWindow.rows.length !== 16) {
-    throw new Error('FAIL_CLOSED: historical pilot window is incomplete');
+  const parsedArtifacts = ['race_history_chart', 'final_race_classification', 'deleted_race_lap_times'].map((artifactName) => {
+    const artifact = objectValue(artifacts[artifactName], `${artifactName} artifact`);
+    if (typeof artifact.source_url !== 'string' || !artifact.source_url.startsWith('https://www.fia.com/') ||
+        typeof artifact.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(artifact.sha256) ||
+        !Number.isInteger(artifact.bytes) || Number(artifact.bytes) <= 0) {
+      throw new Error(`FAIL_CLOSED: historical ${artifactName} artifact has an unsupported shape`);
+    }
+    return {
+      artifact_name: artifactName,
+      source_url: artifact.source_url,
+      artifact_sha256: artifact.sha256,
+      bytes: Number(artifact.bytes)
+    };
+  });
+  if (!Array.isArray(manifest.identities) || manifest.identities.length !== 20) {
+    throw new Error('FAIL_CLOSED: historical source identity coverage is incomplete');
   }
-  return pilotWindow.rows.map((value) => {
-    const row = objectValue(value, 'pilot lap');
+  const identities = manifest.identities.map((value) => {
+    const identity = objectValue(value, 'official identity');
+    if (typeof identity.racing_number !== 'string' || !identity.racing_number || typeof identity.official_name !== 'string' ||
+        !identity.official_name || !Number.isInteger(identity.classified_laps) || Number(identity.classified_laps) < 0) {
+      throw new Error('FAIL_CLOSED: historical official identity has an unsupported shape');
+    }
+    return identity as { racing_number: string; official_name: string; classified_laps: number };
+  });
+  const completedLaps = objectValue(manifest.completed_laps, 'completed laps');
+  if (completedLaps.row_count !== 790 || !Array.isArray(completedLaps.rows) || completedLaps.rows.length !== 790 ||
+      typeof completedLaps.row_fingerprint !== 'string' || sha256(JSON.stringify(completedLaps.rows)) !== completedLaps.row_fingerprint) {
+    throw new Error('FAIL_CLOSED: historical completed-lap coverage or fingerprint is invalid');
+  }
+  // eslint-disable-next-line complexity
+  const rows = completedLaps.rows.map((value) => {
+    const row = objectValue(value, 'completed lap');
     if (typeof row.racing_number !== 'string' || typeof row.official_name !== 'string' || !Number.isInteger(row.lap_number) ||
         typeof row.lap_time_seconds !== 'number' || !Number.isFinite(row.lap_time_seconds) || row.lap_time_seconds <= 0 ||
+        !(row.leader_gap_seconds === null || (typeof row.leader_gap_seconds === 'number' && Number.isFinite(row.leader_gap_seconds) && row.leader_gap_seconds >= 0)) ||
         typeof row.pit_marker !== 'boolean' || typeof row.deleted_lap !== 'boolean') {
-      throw new Error('FAIL_CLOSED: historical pilot lap has an unsupported shape');
+      throw new Error('FAIL_CLOSED: historical completed lap has an unsupported shape');
     }
     const milliseconds = row.lap_time_seconds * 1000;
     if (Math.abs(milliseconds - Math.round(milliseconds)) > 1e-6) {
       throw new Error('FAIL_CLOSED: historical lap time is not millisecond-exact');
     }
-    return row as { racing_number: string; official_name: string; lap_number: number; lap_time_seconds: number; pit_marker: boolean; deleted_lap: boolean };
+    return row as { racing_number: string; official_name: string; lap_number: number; lap_time_seconds: number; leader_gap_seconds: number | null; pit_marker: boolean; deleted_lap: boolean };
   });
+  const identityByNumber = new Map(identities.map(identity => [identity.racing_number, identity]));
+  if (identityByNumber.size !== identities.length || rows.filter(row => row.deleted_lap).length !== 5) {
+    throw new Error('FAIL_CLOSED: historical official identities or deleted laps are inconsistent');
+  }
+  for (const identity of identities) {
+    const identityRows = rows.filter(row => row.racing_number === identity.racing_number && row.official_name === identity.official_name);
+    if (identityRows.length !== identity.classified_laps) {
+      throw new Error(`FAIL_CLOSED: historical completed-lap count differs for racing number ${identity.racing_number}`);
+    }
+  }
+  if (rows.some(row => !identityByNumber.has(row.racing_number))) {
+    throw new Error('FAIL_CLOSED: historical completed lap has no official identity');
+  }
+  return {
+    identities,
+    artifacts: parsedArtifacts,
+    coverage: [
+      {
+        coverage_kind: 'final_classification_to_race_history',
+        expected_count: 790,
+        actual_count: 790,
+        missing_keys: coverage.final_classification_without_race_history as string[],
+        unexpected_keys: []
+      },
+      {
+        coverage_kind: 'race_history_to_final_classification',
+        expected_count: 790,
+        actual_count: 790,
+        missing_keys: [],
+        unexpected_keys: coverage.race_history_without_final_classification as string[]
+      }
+    ],
+    rows
+  };
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function loadHistoricalLapPilot(
   sourceContent: Buffer,
   identityContent: Buffer,
@@ -161,8 +255,20 @@ export function loadHistoricalLapPilot(
 ): HistoricalLapDataset {
   const mappings = parseIdentityMap(identityContent);
   validateCanonicalIdentities(mappings, canonicalDrivers);
+  const source = parseSourceRows(sourceContent);
+  const sourceIdentities = new Map(source.identities.map(identity => [identity.racing_number, identity]));
+  if (mappings.length !== source.identities.length || mappings.some(mapping => {
+    const sourceIdentity = sourceIdentities.get(mapping.racing_number);
+    return !sourceIdentity || sourceIdentity.official_name !== mapping.official_name;
+  })) {
+    throw new Error('FAIL_CLOSED: historical identity map does not exactly cover official identities');
+  }
   const mappingsByNumber = new Map(mappings.map(mapping => [mapping.racing_number, mapping]));
-  const facts = parseSourceRows(sourceContent).map((row): HistoricalLapFact => {
+  const identities = mappings.map((mapping): HistoricalLapIdentity => ({
+    ...mapping,
+    classified_laps: sourceIdentities.get(mapping.racing_number)!.classified_laps
+  })).sort((left, right) => Number(left.racing_number) - Number(right.racing_number));
+  const facts = source.rows.map((row): HistoricalLapFact => {
     const mapping = mappingsByNumber.get(row.racing_number);
     if (!mapping || mapping.official_name !== row.official_name) {
       throw new Error(`FAIL_CLOSED: source identity is not mapped for racing number ${row.racing_number}`);
@@ -177,6 +283,7 @@ export function loadHistoricalLapPilot(
       official_name: row.official_name,
       lap_number: row.lap_number,
       lap_time_seconds: row.lap_time_seconds,
+      leader_gap_seconds: row.leader_gap_seconds,
       official_deleted_lap: row.deleted_lap,
       official_pit_marker: row.pit_marker,
       source_manifest_sha256: HISTORICAL_LAP_PILOT_SOURCE_SHA256,
@@ -187,7 +294,42 @@ export function loadHistoricalLapPilot(
   if (new Set(keys).size !== facts.length) {
     throw new Error('FAIL_CLOSED: historical facts contain duplicate lap identity');
   }
-  const dataset = deepFreeze({ version: 1 as const, ingestion_contract: 'immutable_official_lap_pilot_v1' as const, facts });
+  const identityFingerprint = sha256(JSON.stringify(identities));
+  const factFingerprint = sha256(JSON.stringify(facts));
+  const coverage = [...source.coverage, {
+    coverage_kind: 'official_identity_to_canonical_driver',
+    expected_count: source.identities.length,
+    actual_count: identities.length,
+    missing_keys: [],
+    unexpected_keys: []
+  }].sort((left, right) => left.coverage_kind.localeCompare(right.coverage_kind));
+  const datasetSha256 = sha256(JSON.stringify({
+    version: 2,
+    ingestion_contract: 'immutable_official_lap_event_v1',
+    season: 2022,
+    round: 14,
+    session_type: 'R',
+    event: EVENT,
+    source_manifest_sha256: HISTORICAL_LAP_PILOT_SOURCE_SHA256,
+    identity_map_sha256: HISTORICAL_LAP_PILOT_IDENTITY_SHA256,
+    identity_fingerprint: identityFingerprint,
+    fact_fingerprint: factFingerprint,
+    artifacts: source.artifacts,
+    coverage
+  }));
+  const dataset = deepFreeze({
+    version: 2 as const,
+    ingestion_contract: 'immutable_official_lap_event_v1' as const,
+    dataset_sha256: datasetSha256,
+    source_manifest_sha256: HISTORICAL_LAP_PILOT_SOURCE_SHA256,
+    identity_map_sha256: HISTORICAL_LAP_PILOT_IDENTITY_SHA256,
+    identity_fingerprint: identityFingerprint,
+    fact_fingerprint: factFingerprint,
+    artifacts: source.artifacts,
+    coverage,
+    identities,
+    facts
+  });
   verifiedDatasets.add(dataset);
   return dataset;
 }
@@ -240,6 +382,14 @@ export function compareHistoricalLapWindow(
     },
     f1ql_operation: 'unsupported' as const
   });
+}
+
+export function assertVerifiedHistoricalLapDataset(dataset: HistoricalLapDataset): void {
+  if (!verifiedDatasets.has(dataset as object) || !Object.isFrozen(dataset) || !Object.isFrozen(dataset.facts) ||
+      !Object.isFrozen(dataset.identities) || dataset.facts.some(fact => !Object.isFrozen(fact)) ||
+      dataset.identities.some(identity => !Object.isFrozen(identity))) {
+    throw new Error('FAIL_CLOSED: historical lap dataset is not verified immutable input');
+  }
 }
 
 export function summarizeHistoricalLapWindowFacts(
@@ -298,6 +448,7 @@ export function rehydrateHistoricalLapPilot(dataset: HistoricalLapDataset, stage
       official_name: row.official_name,
       lap_number: Number(row.lap_number),
       lap_time_seconds: Number(row.lap_time_seconds),
+      leader_gap_seconds: row.leader_gap_seconds === null ? null : Number(row.leader_gap_seconds),
       official_deleted_lap: row.official_deleted_lap,
       official_pit_marker: row.official_pit_marker,
       source_manifest_sha256: row.source_manifest_sha256,
@@ -305,7 +456,8 @@ export function rehydrateHistoricalLapPilot(dataset: HistoricalLapDataset, stage
     };
     if (fact.season !== 2022 || fact.round !== 14 || fact.session_type !== 'R' || fact.event !== EVENT || typeof fact.driver_id !== 'string' ||
         typeof fact.racing_number !== 'string' || typeof fact.official_name !== 'string' || !Number.isInteger(fact.lap_number) ||
-        !Number.isFinite(fact.lap_time_seconds) || fact.lap_time_seconds <= 0 || typeof fact.official_deleted_lap !== 'boolean' ||
+        !Number.isFinite(fact.lap_time_seconds) || fact.lap_time_seconds <= 0 || !(fact.leader_gap_seconds === null ||
+        (Number.isFinite(fact.leader_gap_seconds) && fact.leader_gap_seconds >= 0)) || typeof fact.official_deleted_lap !== 'boolean' ||
         typeof fact.official_pit_marker !== 'boolean' || typeof fact.source_manifest_sha256 !== 'string' ||
         typeof fact.source_artifact_sha256 !== 'string') {
       throw new Error('FAIL_CLOSED: staged historical lap has an unsupported shape');
@@ -315,7 +467,7 @@ export function rehydrateHistoricalLapPilot(dataset: HistoricalLapDataset, stage
   if (JSON.stringify(facts) !== JSON.stringify(dataset.facts)) {
     throw new Error('FAIL_CLOSED: staged historical facts differ from verified immutable input');
   }
-  const rehydrated = deepFreeze({ version: 1 as const, ingestion_contract: 'immutable_official_lap_pilot_v1' as const, facts });
+  const rehydrated = deepFreeze({ ...dataset, facts });
   verifiedDatasets.add(rehydrated);
   return rehydrated;
 }

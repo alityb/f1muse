@@ -215,36 +215,43 @@ not establish complete official timing coverage, historical coverage, or a raw
 lap-window metric, and it does not make lap-window questions parseable or
 execution-eligible.
 
-The Phase 8 Belgian 2022 pilot is a separate evidence-only contract in
+The Phase 8 Belgian 2022 source is a separate evidence contract in
 `data/phase8-belgium-2022-pilot.json`. Its three fixed FIA PDFs are bound to
 exact SHA-256 values. Final classification establishes official racing-number
 and printed-name identity plus 790 expected completed-lap keys. Race History
 Chart parsing reconciles exactly 790 unique keys with no gap in either
 direction; `N LAP(S)` is interpreted only as the offset from the chart's leader
 lap column. Five deleted times map uniquely by official racing number and
-printed lap time. The requested cars 1 and 14 laps 3-10 contain 16 rows with no
-missing keys. The source manifest itself does not map those identities to
-application driver IDs, define which raw laps a metric includes, authorize
-historical ingestion, or add an F1QL operation.
+printed lap time. Version 2 retains all 790 parser-emitted completed-lap rows,
+including printed leader gap and `PIT` state; the requested cars 1 and 14 laps
+3-10 remain a derived 16-row subset with no missing keys. Source fixture
+SHA-256 is `491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab`.
 
-The separate reviewed identity map binds only FIA car 1 / Max Verstappen to
-canonical `max_verstappen` and car 14 / Fernando Alonso to canonical
-`fernando_alonso`. Its exact file SHA-256 is
-`f318c49df004111de3f75404147b1b92c55a36a2f3ee791256df3137776b07f3`;
-the loader additionally requires exact canonical full names from the localhost
-driver relation. Verified source and identity bytes produce deeply frozen facts.
-Only the localhost snapshot emitter can stage them, using a self-owned exact
-test-database connection, transaction-local one-second statement/lock timeouts,
-and an `ON COMMIT DROP` temporary table. The metric is computed only after the
-PostgreSQL rows are rehydrated and exactly matched to the verified facts.
+The separate reviewed identity map covers all 20 final-classification
+identities, including the zero-completed-lap Hamilton identity and the explicit
+`ZHOU Guanyu` to `guanyu_zhou` / `Guanyu Zhou` bridge. Its exact file SHA-256 is
+`1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd`;
+the loader additionally requires each exact canonical full name from the
+localhost driver relation. Verified source and identity bytes produce 790
+deeply frozen facts over 19 fact-bearing drivers. The temporary emitter now
+round-trips all 790 facts before computing the still two-driver-only metric.
 
 `official_non_deleted_non_pit_window_median_v1` requires complete inclusive
 window coverage for both reviewed drivers, excludes official deleted and
 explicit `PIT` rows, requires at least two eligible laps each, and treats the
 lower median as faster. It does not infer or exclude safety-car, weather,
 traffic, tyre, fuel, or other race-state context. It is not clean-air pace.
-There is still no persistent historical relation, F1QL source/operation,
-compiler path, answer capability, or production authorization.
+Unapplied migration `20260801_official_timing_historical_laps.sql` defines a
+private, PUBLIC-revoked `official_timing` schema with immutable dataset,
+artifact, identity, lap-fact, and coverage relations. A bounded scope-serialized
+writer inserts children under deferred keys, verifies exact readback, and seals
+the dataset last; exact replay is idempotent while scope replacement and every
+post-seal insert/update/delete/truncate fail closed. Local generated evidence is
+`data/phase8-belgium-2022-persistent-result.json` with SHA-256
+`e5f909436c0e69aadac42d5428c34d93cf2c111b1b5a1b7528d4c4b27faf8c04`.
+The schema has no F1QL view or runtime grant. There is still no F1QL
+source/operation, compiler path, answer capability, production migration, or
+production ingestion authorization.
 
 ## Evidence Maintenance
 

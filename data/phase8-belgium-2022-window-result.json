@@ -1,8 +1,12 @@
 {
-  "version": 1,
-  "emitter": "localhost_temporary_historical_lap_pilot_v1",
-  "staged_fact_count": 16,
-  "staged_fact_fingerprint": "5ae8176b7d30594e304b597068cbdaf1b494f2d4c962eb359e93d2615e16e621",
+  "version": 2,
+  "emitter": "localhost_temporary_historical_lap_event_v1",
+  "reviewed_identity_count": 20,
+  "fact_bearing_driver_count": 19,
+  "deleted_fact_count": 5,
+  "pit_fact_count": 38,
+  "staged_fact_count": 790,
+  "staged_fact_fingerprint": "898c864da43baae80e920818eac42a9380d3138f08c928087f82aff336bd75f0",
   "comparison": {
     "version": 1,
     "metric": {
@@ -52,8 +56,8 @@
       "This is not clean-air pace and must not be compared with F1QL clean_air_gap_2_0s_v1 results."
     ],
     "provenance": {
-      "source_manifest_sha256": "616470e9948d8377f55c95ffc41c705fa6f6bb9a5cf4d36aa592fa675dfd9c0f",
-      "identity_map_sha256": "f318c49df004111de3f75404147b1b92c55a36a2f3ee791256df3137776b07f3",
+      "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
+      "identity_map_sha256": "1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd",
       "race_history_artifact_sha256": "30f7db339b437cea5fd73f0a7bf6a3a16783119b3b62d07c5793934e2b26d105"
     },
     "f1ql_operation": "unsupported"

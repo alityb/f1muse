@@ -912,6 +912,23 @@ async function insertTestData(pool: Pool): Promise<void> {
     );
   }
 
+  // Complete the reviewed 2022 Belgian identity set used by the Phase 8 full-event fixture.
+  await pool.query(`
+    INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation) VALUES
+      ('daniel_ricciardo', 'Ricciardo', 'Daniel Ricciardo', 'Daniel', 'Ricciardo', 'RIC'),
+      ('sebastian_vettel', 'Vettel', 'Sebastian Vettel', 'Sebastian', 'Vettel', 'VET'),
+      ('nicholas_latifi', 'Latifi', 'Nicholas Latifi', 'Nicholas', 'Latifi', 'LAT'),
+      ('pierre_gasly', 'Gasly', 'Pierre Gasly', 'Pierre', 'Gasly', 'GAS'),
+      ('lance_stroll', 'Stroll', 'Lance Stroll', 'Lance', 'Stroll', 'STR'),
+      ('kevin_magnussen', 'Magnussen', 'Kevin Magnussen', 'Kevin', 'Magnussen', 'MAG'),
+      ('yuki_tsunoda', 'Tsunoda', 'Yuki Tsunoda', 'Yuki', 'Tsunoda', 'TSU'),
+      ('alexander_albon', 'Albon', 'Alexander Albon', 'Alexander', 'Albon', 'ALB'),
+      ('guanyu_zhou', 'Zhou', 'Guanyu Zhou', 'Guanyu', 'Zhou', 'ZHO'),
+      ('esteban_ocon', 'Ocon', 'Esteban Ocon', 'Esteban', 'Ocon', 'OCO'),
+      ('valtteri_bottas', 'Bottas', 'Valtteri Bottas', 'Valtteri', 'Bottas', 'BOT')
+    ON CONFLICT DO NOTHING
+  `);
+
   // Circuits
   await pool.query(`
     INSERT INTO circuit (id, name, full_name, previous_names) VALUES
