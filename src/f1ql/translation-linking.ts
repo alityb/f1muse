@@ -68,6 +68,19 @@ async function canonicalizeEvent(candidate: F1QLProgramCandidate, resolver: { re
     throw new F1QLLinkingError('event_ambiguous', resolution.candidates.map(event => `${event.season} round ${event.round}`));
   }
   const root = candidate.root;
+  if (root.op === 'official_event_mean_compare') {
+    return parseF1QLProgram({
+      version: 1,
+      root: {
+        op: root.op,
+        metric: root.metric,
+        season: root.season,
+        round: resolution.round,
+        driver_a_id: root.driver_a_id,
+        driver_b_id: root.driver_b_id
+      }
+    });
+  }
   if (root.op === 'official_lap_window_median_compare') {
     return parseF1QLProgram({
       version: 1,
@@ -111,7 +124,7 @@ function driverResolutionScope(program: F1QLProgram): { ids: string[]; season?: 
   if (root.op === 'pace_delta') {
     return { ids: [root.driver_a_id, root.driver_b_id], season: root.scope.season };
   }
-  if (root.op === 'official_lap_window_median_compare') {
+  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare') {
     return { ids: [root.driver_a_id, root.driver_b_id], season: root.season };
   }
   if (root.op === 'pace_summary') {
@@ -148,7 +161,7 @@ function applyResolvedDriverIds(program: F1QLProgram, resolved: Map<string, stri
   if (root.op === 'pace_delta') {
     return { ...program, root: { ...root, driver_a_id: resolved.get(root.driver_a_id)!, driver_b_id: resolved.get(root.driver_b_id)! } };
   }
-  if (root.op === 'official_lap_window_median_compare') {
+  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare') {
     return { ...program, root: { ...root, driver_a_id: resolved.get(root.driver_a_id)!, driver_b_id: resolved.get(root.driver_b_id)! } };
   }
   if (root.op === 'pace_summary') {

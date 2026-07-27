@@ -38,7 +38,7 @@ describe('constrained F1QL translation', () => {
     await translateF1QLQuestion('Who led the final standings?', model);
 
     const examples = [...model.systemPrompt.matchAll(/^Required [^:\n]+ program: (.+)$/gm)];
-    expect(examples).toHaveLength(8);
+    expect(examples).toHaveLength(9);
     for (const example of examples) {
       expect(() => parseF1QLProgramCandidate(JSON.parse(example[1]))).not.toThrow();
     }
@@ -49,6 +49,8 @@ describe('constrained F1QL translation', () => {
     expect(model.systemPrompt).toContain('"op":"event_metadata"');
     expect(model.systemPrompt).toContain('"op":"official_lap_window_median_compare"');
     expect(model.systemPrompt).toContain('"metric":"official_non_deleted_non_pit_window_median_v1"');
+    expect(model.systemPrompt).toContain('"op":"official_event_mean_compare"');
+    expect(model.systemPrompt).toContain('"metric":"official_non_deleted_non_pit_event_mean_v1"');
     expect(model.systemPrompt).toContain('The deterministic linker and policy own identity ambiguity and authorization decisions.');
   });
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { F1QLProgram } from './ast';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
+import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { f1qlProgramSchema } from './schema';
 
 const season = z.number().int().min(1950).max(2100);
@@ -48,9 +49,22 @@ const namedOfficialLapWindowRootSchema = z.object({
   }
 });
 
+const namedOfficialEventMeanRootSchema = z.object({
+  op: z.literal('official_event_mean_compare'),
+  metric: z.literal(OFFICIAL_EVENT_MEAN_METRIC_ID),
+  season,
+  event_name: z.string().min(1).max(200),
+  driver_a_id: z.string().min(1),
+  driver_b_id: z.string().min(1)
+}).strict().superRefine((root, context) => {
+  if (root.driver_a_id === root.driver_b_id) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'official event-mean comparison requires two different driver references' });
+  }
+});
+
 const namedEventProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([namedEventRootSchema, namedOfficialLapWindowRootSchema])
+  root: z.union([namedEventRootSchema, namedOfficialLapWindowRootSchema, namedOfficialEventMeanRootSchema])
 }).strict();
 
 export type NamedEventProgramCandidate = z.infer<typeof namedEventProgramSchema>;

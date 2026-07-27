@@ -10,7 +10,7 @@ import { interpretOfficialEventMeanProgram, interpretOfficialLapWindowProgram, t
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from '../../src/f1ql/official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from '../../src/f1ql/official-lap-window';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
-import { emitOfficialLapWindowF1QL } from '../../scripts/snapshot-phase8-belgium-2022-f1ql';
+import { emitOfficialEventMeanF1QL, emitOfficialLapWindowF1QL } from '../../scripts/snapshot-phase8-belgium-2022-f1ql';
 
 const storageMigration = fs.readFileSync(path.resolve('migrations/20260801_official_timing_historical_laps.sql'), 'utf8');
 const servingMigration = fs.readFileSync(path.resolve('migrations/20260802_f1ql_official_lap_timing.sql'), 'utf8');
@@ -488,5 +488,26 @@ describe('sealed official lap timing serving contract', () => {
       rows: [{ metric_id: OFFICIAL_LAP_WINDOW_METRIC_ID, median_delta_seconds: 1.3335, winner_driver_id: 'max-verstappen' }]
     });
     await expect(emitOfficialLapWindowF1QL(getTestDatabaseUrl())).resolves.toEqual(expected);
+  });
+
+  it('regenerates the complete nonempty event-mean F1QL result with answer access denied', async () => {
+    const content = fs.readFileSync('data/phase9-belgium-2022-event-mean-result.json');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('674f7fbf73aaf5b374d0b08366e9f6fb475fddcefe8dbd9303cd6de877794ca0');
+    const expected = JSON.parse(content.toString('utf8'));
+    expect(expected).toMatchObject({
+      emitter: 'localhost_sealed_official_event_mean_f1ql_v1',
+      definitions_version: 'v4',
+      compiler_version: 'core-v3',
+      fact_space_version: 'source-views-v2',
+      answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
+      rows: [{
+        metric_id: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        driver_a_eligible_laps: 42,
+        driver_b_eligible_laps: 42,
+        mean_delta_seconds: 1.6425,
+        winner_driver_id: 'max-verstappen'
+      }]
+    });
+    await expect(emitOfficialEventMeanF1QL(getTestDatabaseUrl())).resolves.toEqual(expected);
   });
 });

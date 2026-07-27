@@ -16,6 +16,7 @@ import {
 } from './nl-query-errors';
 import { LLMUnavailableError } from '../llm/concurrency-limiter';
 import { nlQueryRateLimiter, MAX_NL_QUERY_LENGTH } from '../middleware/rate-limiter';
+import { legacyFasterQuestionRefusal } from '../f1ql/faster-question';
 
 /**
  * Natural Language Query Endpoint
@@ -89,6 +90,12 @@ export function createNLQueryRouter(pool: Pool, cachePool?: Pool): Router {
         null,
         { suggestion: 'Shorten your question', details: { max_length: MAX_NL_QUERY_LENGTH, actual_length: question.length } }
       );
+      return res.status(getStatusCode(error.error_type)).json(error);
+    }
+
+    const semanticRefusal = legacyFasterQuestionRefusal(question);
+    if (semanticRefusal) {
+      const error = buildErrorResponse(requestId, semanticRefusal.code, semanticRefusal.reason, null, { suggestion: semanticRefusal.suggestion });
       return res.status(getStatusCode(error.error_type)).json(error);
     }
 

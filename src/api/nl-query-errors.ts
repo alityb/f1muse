@@ -142,6 +142,9 @@ export function classifyError(errorCode: string): NLQueryErrorType {
     'llm_parsing_failed',
     'llm_translation_failed',
     'llm_not_configured',
+    'semantic_clarification_required',
+    'semantic_route_required',
+    'semantic_capability_unsupported',
   ];
 
   const llmUnavailableErrors = [

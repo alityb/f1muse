@@ -4,6 +4,7 @@ import { createF1QLTextModel, F1QLTextModel, F1QLTranslationResult, translateF1Q
 import { F1QLLinkingError, linkF1QLCandidate } from '../../f1ql/translation-linking';
 import { F1QLValidationError, validateF1QLProgram, validateParticipation } from '../../f1ql/validation';
 import { metrics } from '../../observability/metrics';
+import { fasterCandidateMatchesQuestion, inspectFasterQuestion } from '../../f1ql/faster-question';
 
 export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, _executor?: () => never): Router {
   const router = Router();
@@ -21,10 +22,24 @@ export function createProgramTranslateRoutes(pool: Pool, model?: F1QLTextModel, 
       return res.status(503).json({ error: 'translation_unavailable', reason: 'shadow mode is not enabled' });
     }
 
+    const fasterContract = inspectFasterQuestion(question);
+    if (fasterContract.type === 'clarification') {
+      recordOutcome('unsupported', fasterContract.reason, Date.now() - startedAt);
+      return res.status(422).json({ error: 'clarification_required', reason: fasterContract.reason, question: fasterContract.question, options: fasterContract.options });
+    }
+    if (fasterContract.type === 'unsupported') {
+      recordOutcome('unsupported', fasterContract.reason, Date.now() - startedAt);
+      return res.status(422).json({ error: 'program_unsupported', reason: fasterContract.reason });
+    }
+
     try {
       const translation = await translateF1QLQuestion(question, translator);
       if (translation.type !== 'program_candidate') {
         return respondToTranslationOutcome(translation, res, startedAt);
+      }
+      if (!fasterCandidateMatchesQuestion(fasterContract, question, translation.program)) {
+        recordOutcome('unsupported', 'program_invalid', Date.now() - startedAt);
+        return res.status(400).json({ error: 'program_unsupported', reason: 'program_invalid' });
       }
       const resolved = await linkF1QLCandidate(pool, translation.program);
       validateF1QLProgram(resolved);

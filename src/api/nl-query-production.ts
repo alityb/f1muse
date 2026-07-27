@@ -19,6 +19,7 @@ import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { ClaudeClient, getClaudeClient } from '../llm/claude-client';
 import { buildDeterministicIntent } from '../llm/deterministic-intent';
+import { legacyFasterQuestionRefusal } from '../f1ql/faster-question';
 import { QueryIntent } from '../types/query-intent';
 import { QueryExecutor } from '../execution/query-executor';
 import { buildInterpretationResponse } from '../presentation/interpretation-builder';
@@ -134,8 +135,6 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
     nlQueryCounters.incrementTotal();
 
     try {
-      await initialize();
-
       const { question, session_id } = req.body as NLQueryRequest;
 
       // Validate input
@@ -165,6 +164,15 @@ export function createProductionNLQueryRouter(pool: Pool, cachePool?: Pool): Rou
         );
         return res.status(getStatusCode(error.error_type)).json(error);
       }
+
+      const semanticRefusal = legacyFasterQuestionRefusal(question);
+      if (semanticRefusal) {
+        metrics.decrementConcurrentRequests();
+        const error = buildErrorResponse(requestId, semanticRefusal.code, semanticRefusal.reason, null, { suggestion: semanticRefusal.suggestion });
+        return res.status(getStatusCode(error.error_type)).json(error);
+      }
+
+      await initialize();
 
       const llmStartTime = Date.now();
       const deterministicIntent = buildDeterministicIntent(question);

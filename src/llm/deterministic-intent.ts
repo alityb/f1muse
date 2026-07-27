@@ -1,4 +1,5 @@
 import { QueryIntent } from '../types/query-intent';
+import { inspectFasterQuestion } from '../f1ql/faster-question';
 
 const YEAR_PATTERN = /\b(19|20)\d{2}\b/;
 
@@ -59,6 +60,10 @@ function extractTrackAfter(question: string, patterns: RegExp[]): string | null 
  * Claude remains the fallback for ambiguous or unusual phrasing.
  */
 export function buildDeterministicIntent(question: string): QueryIntent | null {
+  const semantics = inspectFasterQuestion(question);
+  if (semantics.type !== 'none' && semantics.type !== 'classification') {
+    return null;
+  }
   const lower = question.toLowerCase();
   const common = baseIntent(question);
 
@@ -85,17 +90,6 @@ export function buildDeterministicIntent(question: string): QueryIntent | null {
     ]);
     if (!track) {return null;}
     return withPaceDefaults({ ...common, kind: 'qualifying_results_summary', track_id: track, clean_air_only: false }, question);
-  }
-
-  if (/\b(fastest drivers at|fastest driver at|fastest at|who was fastest at)\b/i.test(question)) {
-    const track = extractTrackAfter(question, [
-      /fastest drivers at\s+(.+)$/i,
-      /fastest driver at\s+(.+)$/i,
-      /fastest at\s+(.+)$/i,
-      /who was fastest at\s+(.+)$/i,
-    ]);
-    if (!track) {return null;}
-    return withPaceDefaults({ ...common, kind: 'track_fastest_drivers', track_id: track }, question);
   }
 
   if (/\b(wins by circuit|where has .+ won|circuit victories|track victories)\b/i.test(question)) {

@@ -5,6 +5,7 @@ import { loadHistoricalLapPilot } from '../src/etl/historical-lap-window-pilot';
 import { authorizeAnswerProgram } from '../src/f1ql/answer-policy';
 import { executeF1QL } from '../src/f1ql/executor';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from '../src/f1ql/official-lap-window';
+import { OFFICIAL_EVENT_MEAN_METRIC_ID } from '../src/f1ql/official-event-mean';
 import { F1QL_DEFINITIONS_VERSION } from '../src/f1ql/validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION } from '../src/f1ql/verified-programs';
 import { getTestDatabaseUrl, setupTestDatabase } from '../src/test/setup';
@@ -13,6 +14,14 @@ const EXPECTED_TEST_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:543
 const OUTPUT_PATH = 'data/phase8-belgium-2022-f1ql-result.json';
 
 export async function emitOfficialLapWindowF1QL(databaseUrl: string) {
+  return emitOfficialF1QL(databaseUrl, 'window_median');
+}
+
+export async function emitOfficialEventMeanF1QL(databaseUrl: string) {
+  return emitOfficialF1QL(databaseUrl, 'event_mean');
+}
+
+async function emitOfficialF1QL(databaseUrl: string, metric: 'window_median' | 'event_mean') {
   if (databaseUrl !== EXPECTED_TEST_DATABASE_URL) {
     throw new Error('FAIL_CLOSED: F1QL Phase 8 snapshot requires the exact disposable localhost test database');
   }
@@ -33,7 +42,7 @@ export async function emitOfficialLapWindowF1QL(databaseUrl: string) {
       (2022, 'phase8-red-bull', 'RBR', 'max_verstappen', false),
       (2022, 'phase8-alpine', 'ALP', 'fernando_alonso', false)
       ON CONFLICT DO NOTHING`);
-    const program = {
+    const program = metric === 'window_median' ? {
       version: 1 as const,
       root: {
         op: 'official_lap_window_median_compare' as const,
@@ -45,11 +54,21 @@ export async function emitOfficialLapWindowF1QL(databaseUrl: string) {
         lap_start: 3,
         lap_end: 10
       }
+    } : {
+      version: 1 as const,
+      root: {
+        op: 'official_event_mean_compare' as const,
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2022,
+        round: 14,
+        driver_a_id: 'max-verstappen',
+        driver_b_id: 'fernando-alonso'
+      }
     };
     const executed = await executeF1QL(pool, program, { statementTimeoutMs: 1000, maxRows: 1 });
     return {
       version: 1,
-      emitter: 'localhost_sealed_official_lap_f1ql_v1',
+      emitter: metric === 'window_median' ? 'localhost_sealed_official_lap_f1ql_v1' : 'localhost_sealed_official_event_mean_f1ql_v1',
       definitions_version: F1QL_DEFINITIONS_VERSION,
       compiler_version: F1QL_COMPILER_VERSION,
       fact_space_version: F1QL_FACT_SPACE_VERSION,

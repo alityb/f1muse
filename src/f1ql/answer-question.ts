@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v12' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v13' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
@@ -130,7 +130,7 @@ const UNSUPPORTED_PATTERNS: readonly CuePattern<Exclude<AnswerQuestionUnsupporte
   { value: 'sprint', pattern: /\bsprint\b/giu },
   { value: 'grid', pattern: /\bstarting\s+grid\b|\bgrid\s+(?:position|positions|order)\b/giu },
   { value: 'constructor', pattern: /\bconstructor(?:s|'s)?\b/giu },
-  { value: 'pace', pattern: /\bpace\b|\blap\s+time(?:s)?\b/giu },
+  { value: 'pace', pattern: /\bpace\b|\blap\s+time(?:s)?\b|\b(?:faster|fastest|quicker|quickest|speed)\b/giu },
   { value: 'team', pattern: /\bteam(?:s|'s)?\b/giu },
   { value: 'team', pattern: TEAM_NAME_PATTERN },
   { value: 'capability', pattern: UNSUPPORTED_ORDER_CARDINALITY_PATTERN },

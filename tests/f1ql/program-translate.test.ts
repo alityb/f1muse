@@ -125,7 +125,7 @@ describe('shadow F1QL translation', () => {
       op: 'official_lap_window_median_compare', metric: 'official_non_deleted_non_pit_window_median_v1', season: 2025,
       event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'VER', lap_start: 1, lap_end: 3
     } } }));
-    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Compare Max Verstappen and VER' }) });
+    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Who had the lower median over laps 1-3 at Belgium 2025, Max Verstappen or VER?' }) });
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
   });
@@ -147,7 +147,7 @@ describe('shadow F1QL translation', () => {
         }
       }
     }));
-    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Compare a historical lap window' }) });
+    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Who had the lower median over laps 1-3 at Belgium 2025, Max Verstappen or BSM?' }) });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       mode: 'shadow',
@@ -180,7 +180,9 @@ describe('shadow F1QL translation', () => {
     };
     const request = async (overrides: Record<string, unknown>) => {
       model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: { ...root, ...overrides } } }));
-      return fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Historical lap window' }) });
+      const requested = { ...root, ...overrides };
+      const question = `Who had the lower median over laps ${requested.lap_start}-${requested.lap_end} at ${requested.event_name} ${requested.season}, ${requested.driver_a_id} or ${requested.driver_b_id}?`;
+      return fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) });
     };
 
     const ambiguousEvent = await request({ event_name: 'Ambiguous GP' });
@@ -210,6 +212,97 @@ describe('shadow F1QL translation', () => {
     await expect(unsupportedMetric.json()).resolves.toMatchObject({ reason: 'program_invalid' });
   });
 
+  it('maps event-level faster wording only to the official event mean', async () => {
+    model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: {
+      op: 'official_event_mean_compare', metric: 'official_non_deleted_non_pit_event_mean_v1', season: 2025,
+      event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'BSM'
+    } } }));
+    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      question: 'Who was faster at Belgium 2025, Max Verstappen or BSM?'
+    }) });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ mode: 'shadow', program: { root: {
+      op: 'official_event_mean_compare', metric: 'official_non_deleted_non_pit_event_mean_v1', season: 2025, round: 7,
+      driver_a_id: 'max-verstappen', driver_b_id: 'bob-smith'
+    } } });
+  });
+
+  it('rejects invented or substituted faster-question semantics before execution', async () => {
+    const request = async (question: string, root: Record<string, unknown>) => {
+      model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root } }));
+      return fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) });
+    };
+    const mean = {
+      op: 'official_event_mean_compare', metric: 'official_non_deleted_non_pit_event_mean_v1', season: 2025,
+      event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'BSM'
+    };
+    for (const [question, root] of [
+      ['Who was faster at Belgium 2025, Max Verstappen or BSM?', { op: 'event_classification', season: 2025, event_name: 'Belgium', limit: 30 }],
+      ['Who was faster at Belgium 2025, Max Verstappen or BSM?', { ...mean, season: 2024 }],
+      ['Who was faster at Belgium 2025, Max Verstappen or BSM?', { ...mean, driver_b_id: 'Alex Smith' }],
+      ['Who was faster at Belgium 2025, Max Verstappen or BSM?', {
+        op: 'official_lap_window_median_compare', metric: 'official_non_deleted_non_pit_window_median_v1', season: 2025,
+        event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'BSM', lap_start: 1, lap_end: 3
+      }],
+      ['Who had the lower median over laps 1-3 at Belgium 2025, Max Verstappen or BSM?', {
+        op: 'official_lap_window_median_compare', metric: 'official_non_deleted_non_pit_window_median_v1', season: 2025,
+        event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'BSM', lap_start: 2, lap_end: 4
+      }]
+    ] as const) {
+      const response = await request(question, root);
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ reason: 'program_invalid' });
+    }
+
+    for (const question of [
+      'Who was faster in 2025, Max Verstappen or BSM?',
+      'Who was faster over laps 1-3 at Belgium 2025, Max Verstappen or BSM?',
+      'Who was quickest at Belgium 2025, Max Verstappen or BSM?',
+      'Who was faster at Belgium or Monaco in 2025, Max Verstappen or BSM?',
+      'Who was faster at Belgium 2025, Max Verstappen, BSM, or Alex Smith?',
+      'Who was faster at Belgium 2025?',
+      'Compare Max Verstappen and BSM lap times at Belgium 2025',
+      'Compare Max Verstappen and BSM pace at Belgium 2025'
+    ]) {
+      const response = await request(question, mean);
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required' });
+    }
+
+    const unrelatedAverage = await request('What were the average points at Belgium 2025?', mean);
+    expect(unrelatedAverage.status).toBe(400);
+    await expect(unrelatedAverage.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
+
+    for (const question of [
+      'Who set the fastest lap at Belgium 2025?',
+      'Who was faster in the sprint at Belgium 2025, Max Verstappen or BSM?',
+      'Did Max Verstappen have a faster lap at Belgium 2025 than BSM?',
+      'Was Max Verstappen faster on the final lap at Belgium 2025 than BSM?',
+      'Who was faster in quali at Belgium 2025, Max Verstappen or BSM?',
+      'On lap number 10 at Belgium 2025, who was faster, Max Verstappen or BSM?'
+    ]) {
+      const response = await request(question, mean);
+      expect(response.status).toBe(422);
+      await expect(response.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'capability_unsupported' });
+    }
+
+    const wrongClassificationSession = await request('Who finished ahead at Belgium 2025?', {
+      op: 'qualifying_classification', season: 2025, event_name: 'Belgium', limit: 30
+    });
+    expect(wrongClassificationSession.status).toBe(400);
+    await expect(wrongClassificationSession.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
+    const wrongQ2Session = await request('Who was ahead in Q2 at Belgium 2025?', {
+      op: 'event_classification', season: 2025, event_name: 'Belgium', limit: 30
+    });
+    expect(wrongQ2Session.status).toBe(400);
+    await expect(wrongQ2Session.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
+    const wrongClassificationScope = await request('Who finished ahead at Belgium 2025?', {
+      op: 'event_classification', season: 2024, event_name: 'Monaco', limit: 30
+    });
+    expect(wrongClassificationScope.status).toBe(400);
+    await expect(wrongClassificationScope.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
+  });
+
   it('logs typed participation rejections', async () => {
     model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2024 } } } }));
     const missing = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Max pace in 2024' }) });
@@ -219,10 +312,18 @@ describe('shadow F1QL translation', () => {
 
   it('records typed shadow outcomes', () => {
     expect(metrics.toJSON().f1ql.translation_outcomes).toMatchObject({
-      succeeded: 5, invalid: 2, unavailable: 2, identity_miss: 3, unsupported: 11
+      succeeded: 6, invalid: 2, unavailable: 2, identity_miss: 3, unsupported: 34
     });
-    expect(metrics.toJSON().f1ql.translation_reasons).toMatchObject({ participation_missing: 1 });
-    expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 5');
+    expect(metrics.toJSON().f1ql.translation_reasons).toMatchObject({
+      program_invalid: 11,
+      event_ambiguous: 4,
+      entity_ambiguous: 5,
+      metric_ambiguous: 5,
+      source_coverage_missing: 2,
+      capability_unsupported: 6,
+      participation_missing: 1
+    });
+    expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 6');
   });
 
   it('never invokes the injected executor in shadow mode', () => {
