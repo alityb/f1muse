@@ -9,9 +9,13 @@ import { metrics } from '../../src/observability/metrics';
 let pool: Pool;
 let server: ReturnType<ReturnType<typeof express>['listen']>;
 let baseUrl: string;
+const previousLLMEnvironment = {
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY
+};
 
 beforeAll(async () => {
   process.env.F1QL_ENABLED = 'true';
+  process.env.ANTHROPIC_API_KEY = 'in-process-placeholder-key';
   delete process.env.F1QL_ANSWER_ENABLED;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
   metrics.reset();
@@ -35,9 +39,20 @@ afterAll(async () => {
     server.close((error) => error ? reject(error) : resolve());
   });
   await pool.end();
+  restoreEnvironment('ANTHROPIC_API_KEY', previousLLMEnvironment.anthropicApiKey);
 });
 
 describe('in-process API routes', () => {
+  it('retains the legacy natural-language route for its supported Anthropic configuration', async () => {
+    const response = await fetch(`${baseUrl}/nl-query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error_type: 'routing_error' });
+  });
+
   it('registers the independently disabled answer route without constructing a provider', async () => {
     const response = await fetch(`${baseUrl}/program/answer`, {
       method: 'POST',
@@ -267,3 +282,8 @@ describe('in-process API routes', () => {
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_requests_total{operation="pace_delta"} 1');
   });
 });
+
+function restoreEnvironment(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}

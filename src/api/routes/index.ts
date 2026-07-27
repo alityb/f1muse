@@ -12,7 +12,6 @@ import { createShareRoutes } from './share';
 import { createProgramRoutes } from './program';
 import { createProgramTranslateRoutes } from './program-translate';
 import { createProgramAnswerRoutes } from './program-answer';
-import { isLLMConfigured } from '../../llm/claude-client';
 
 export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): Router {
   const router = Router();
@@ -20,10 +19,13 @@ export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): R
   const logger = new QueryLogger();
 
   const hasLocalLLM = process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID;
-  if (hasLocalLLM) {
+  const hasAnthropicLLM = Boolean(process.env.ANTHROPIC_API_KEY);
+  if (hasAnthropicLLM || hasLocalLLM) {
     const nlQueryRouter = createNLQueryRouter(pool, cachePool);
     router.use('/', nlQueryRouter);
-    console.log('[NL Query] Using LLM backend: mistral-rs (deprecated - use ANTHROPIC_API_KEY instead)');
+    if (hasLocalLLM) {
+      console.log('[NL Query] Using LLM backend: mistral-rs (deprecated - use ANTHROPIC_API_KEY instead)');
+    }
   }
 
   router.use('/', createHealthRoutes(pool));
@@ -87,15 +89,13 @@ function buildEndpointList(): Record<string, string> {
     endpoints['GET /debug/coverage/teammate-gap'] = 'Teammate gap coverage introspection (dev only)';
   }
 
-  const llmConfigured = isLLMConfigured() ||
-                        (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID);
+  const llmConfigured = Boolean(process.env.ANTHROPIC_API_KEY) ||
+                        Boolean(process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID);
 
   if (llmConfigured) {
     let backend = 'Claude';
     if (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID) {
       backend = 'Mistral-RS';
-    } else if (process.env.LLM_PROVIDER === 'openai-compatible') {
-      backend = 'compatible inference provider';
     }
     endpoints['POST /nl-query'] = `Natural language query (powered by ${backend})`;
   }
