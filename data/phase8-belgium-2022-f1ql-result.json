@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "emitter": "localhost_sealed_official_lap_f1ql_v1",
+  "definitions_version": "v3",
+  "compiler_version": "core-v2",
+  "fact_space_version": "source-views-v2",
+  "answer_policy": {
+    "type": "rejected",
+    "reason": "capability_unsupported"
+  },
+  "program": {
+    "version": 1,
+    "root": {
+      "op": "official_lap_window_median_compare",
+      "metric": "official_non_deleted_non_pit_window_median_v1",
+      "season": 2022,
+      "round": 14,
+      "driver_a_id": "max-verstappen",
+      "driver_b_id": "fernando-alonso",
+      "lap_start": 3,
+      "lap_end": 10
+    }
+  },
+  "core_program": {
+    "version": 1,
+    "root": {
+      "op": "delta",
+      "input": {
+        "op": "compare",
+        "input": {
+          "op": "join",
+          "left": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "official_lap_timing"
+              },
+              "where": {
+                "season": 2022,
+                "round": 14,
+                "session_type": "R",
+                "driver_id": "max-verstappen",
+                "lap_start": 3,
+                "lap_end": 10,
+                "complete_requested_window": true,
+                "official_deleted_lap": false,
+                "official_pit_marker": false
+              }
+            },
+            "group_by": [],
+            "measures": [
+              {
+                "as": "eligible_laps",
+                "function": "count"
+              },
+              {
+                "as": "median_lap_time_seconds",
+                "function": "median",
+                "field": "lap_time_seconds"
+              }
+            ],
+            "minimum_rows": 2
+          },
+          "right": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "official_lap_timing"
+              },
+              "where": {
+                "season": 2022,
+                "round": 14,
+                "session_type": "R",
+                "driver_id": "fernando-alonso",
+                "lap_start": 3,
+                "lap_end": 10,
+                "complete_requested_window": true,
+                "official_deleted_lap": false,
+                "official_pit_marker": false
+              }
+            },
+            "group_by": [],
+            "measures": [
+              {
+                "as": "eligible_laps",
+                "function": "count"
+              },
+              {
+                "as": "median_lap_time_seconds",
+                "function": "median",
+                "field": "lap_time_seconds"
+              }
+            ],
+            "minimum_rows": 2
+          },
+          "on": [],
+          "type": "inner"
+        },
+        "left": {
+          "field": "median_lap_time_seconds",
+          "as": "driver_a_median_lap_time_seconds"
+        },
+        "right": {
+          "field": "median_lap_time_seconds",
+          "as": "driver_b_median_lap_time_seconds"
+        }
+      },
+      "left_id": "max-verstappen",
+      "right_id": "fernando-alonso",
+      "metric_id": "official_non_deleted_non_pit_window_median_v1",
+      "lower_is_better": true
+    }
+  },
+  "rendering": "Official non-deleted, non-PIT race-lap median; max-verstappen versus fernando-alonso; season 2022; round 14; laps 3-10; complete window required; safety-car, weather, traffic, tyre, fuel, and race-state effects included.",
+  "rows": [
+    {
+      "driver_a_id": "max-verstappen",
+      "driver_b_id": "fernando-alonso",
+      "metric_id": "official_non_deleted_non_pit_window_median_v1",
+      "season": 2022,
+      "round": 14,
+      "session_type": "R",
+      "event_name": "2022 Belgian Grand Prix",
+      "lap_start": 3,
+      "lap_end": 10,
+      "requested_laps_per_driver": 8,
+      "driver_a_eligible_laps": 8,
+      "driver_b_eligible_laps": 8,
+      "driver_a_excluded_deleted_laps": 0,
+      "driver_b_excluded_deleted_laps": 0,
+      "driver_a_excluded_pit_marker_laps": 0,
+      "driver_b_excluded_pit_marker_laps": 0,
+      "driver_a_median_lap_time_seconds": 113.8495,
+      "driver_b_median_lap_time_seconds": 115.183,
+      "median_delta_seconds": 1.3335,
+      "winner_driver_id": "max-verstappen",
+      "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+      "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
+      "identity_map_sha256": "1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd",
+      "fact_fingerprint": "f31adb2eebb906017b9aaea2a63329e142012da7ed312cdfe26d19c7dce30d8f"
+    }
+  ]
+}

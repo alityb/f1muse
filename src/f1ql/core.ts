@@ -2,7 +2,7 @@ import { AggregateMeasure, StandingsFilter } from './ast';
 
 export interface CoreSourceNode {
   op: 'source';
-  source: 'standings' | 'event_classification' | 'qualifying_classification' | 'event_metadata' | 'lap_pace';
+  source: 'standings' | 'event_classification' | 'qualifying_classification' | 'event_metadata' | 'lap_pace' | 'official_lap_timing';
 }
 
 export interface CoreEventClassificationFilter {
@@ -24,6 +24,18 @@ export interface CoreLapPaceFilter {
   is_out_lap: false;
   clean_air_only: boolean;
   compound?: string;
+}
+
+export interface CoreOfficialLapTimingFilter {
+  season: number;
+  round: number;
+  session_type: 'R';
+  driver_id: string;
+  lap_start: number;
+  lap_end: number;
+  complete_requested_window: true;
+  official_deleted_lap: false;
+  official_pit_marker: false;
 }
 
 export interface CoreQualifyingClassificationFilter {
@@ -58,6 +70,12 @@ export interface CoreLapPaceFilterNode {
   where: CoreLapPaceFilter;
 }
 
+export interface CoreOfficialLapTimingFilterNode {
+  op: 'filter';
+  input: CorePipelineNode;
+  where: CoreOfficialLapTimingFilter;
+}
+
 export interface CoreQualifyingClassificationFilterNode {
   op: 'filter';
   input: CorePipelineNode;
@@ -70,7 +88,7 @@ export interface CoreEventMetadataFilterNode {
   where: CoreEventMetadataFilter;
 }
 
-export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreQualifyingClassificationFilterNode | CoreEventMetadataFilterNode | CoreLapPaceFilterNode;
+export type CoreFilterNode = CoreStandingsFilterNode | CoreEventClassificationFilterNode | CoreQualifyingClassificationFilterNode | CoreEventMetadataFilterNode | CoreLapPaceFilterNode | CoreOfficialLapTimingFilterNode;
 
 export type CoreAggregateMeasure = AggregateMeasure | {
   as: string;
@@ -122,6 +140,8 @@ export interface CoreDeltaNode {
   input: CoreCompareNode;
   left_id: string;
   right_id: string;
+  metric_id?: 'official_non_deleted_non_pit_window_median_v1';
+  lower_is_better?: true;
 }
 
 export interface CoreProgram {

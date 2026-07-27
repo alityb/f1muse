@@ -207,13 +207,12 @@ validity, pit, in-lap, out-lap, and numeric car-ahead-gap semantics. FIA's 2026
 Australian Race History Chart is retained only for its printed raw lap times,
 leader-relative gaps, and `PIT` marker; it does not define the missing fields.
 No filtered pace golden may be promoted from a partial overlap or a derived
-car-ahead gap. F1QL currently exposes no unfiltered raw-timing metric, so no
-factual pace golden is eligible under the current product contract.
+car-ahead gap. The separate official raw-lap operation described below is not
+the `clean_air_gap_2_0s_v1` pace product and does not validate it.
 
-Exposing selected `lap_number` is structural Phase 8 groundwork only. It does
-not establish complete official timing coverage, historical coverage, or a raw
-lap-window metric, and it does not make lap-window questions parseable or
-execution-eligible.
+Exposing selected `lap_number` on `f1ql.lap_pace` remains structural Phase 8
+groundwork only. The historical raw-lap operation uses a separate sealed
+official-timing source and does not upgrade the clean-air pace view.
 
 The Phase 8 Belgian 2022 source is a separate evidence contract in
 `data/phase8-belgium-2022-pilot.json`. Its three fixed FIA PDFs are bound to
@@ -249,9 +248,23 @@ the dataset last; exact replay is idempotent while scope replacement and every
 post-seal insert/update/delete/truncate fail closed. Local generated evidence is
 `data/phase8-belgium-2022-persistent-result.json` with SHA-256
 `e5f909436c0e69aadac42d5428c34d93cf2c111b1b5a1b7528d4c4b27faf8c04`.
-The schema has no F1QL view or runtime grant. There is still no F1QL
-source/operation, compiler path, answer capability, production migration, or
-production ingestion authorization.
+Unapplied migration `20260802_f1ql_official_lap_timing.sql` adds a
+PUBLIC-revoked security-barrier view. It exposes rows only when the seal's
+identity and fact counts, every per-driver classified-lap sequence, the exact
+three FIA artifacts, every fact's Race History Chart provenance, and all three
+required coverage assertions reconcile exactly. The closed
+`official_lap_window_median_compare` operation requires the metric identifier,
+one season/round race, two distinct drivers, and an inclusive window of at most
+50 laps. Its compiler checks complete raw coverage before excluding only
+officially deleted and explicit `PIT` rows, requires two eligible laps per
+driver, and returns no row for partial evidence.
+
+Local generated F1QL evidence is
+`data/phase8-belgium-2022-f1ql-result.json` with SHA-256
+`a7b82d2986743750393c1850d85a455e2c218cea57d6572d0195a0ca4390f29b`.
+No persistent runtime role or production grant exists. The answer policy
+explicitly rejects this operation, and neither migration has been applied nor
+has historical data been ingested in production.
 
 ## Evidence Maintenance
 

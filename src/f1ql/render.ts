@@ -16,6 +16,9 @@ export function renderF1QL(program: F1QLProgram): string {
   if (program.root.op === 'event_metadata') {
     return `Event metadata; season ${program.root.season}; round ${program.root.round}; ${program.root.session_scope ?? 'race'} session.`;
   }
+  if (program.root.op === 'official_lap_window_median_compare') {
+    return `Official non-deleted, non-PIT race-lap median; ${program.root.driver_a_id} versus ${program.root.driver_b_id}; season ${program.root.season}; round ${program.root.round}; laps ${program.root.lap_start}-${program.root.lap_end}; complete window required; safety-car, weather, traffic, tyre, fuel, and race-state effects included.`;
+  }
   return renderStandings(program);
 }
 
@@ -33,8 +36,9 @@ function renderPaceSummary(node: PaceSummaryNode): string {
   return `Median valid race-lap pace per event, then mean; ${node.driver_id}; season ${node.scope.season}; rounds ${rounds}${cleanAir}${compound}.`;
 }
 
+// eslint-disable-next-line complexity
 function renderStandings(program: F1QLProgram): string {
-  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata') {
+  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare') {
     throw new Error('renderStandings does not accept pace programs');
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;

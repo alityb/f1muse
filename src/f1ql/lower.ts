@@ -1,9 +1,35 @@
 import { AggregateNode, F1QLProgram } from './ast';
-import { CoreAggregateNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS } from './official-lap-window';
 
 export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
 
+// eslint-disable-next-line max-lines-per-function
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
+  if (program.root.op === 'official_lap_window_median_compare') {
+    return {
+      version: 1,
+      root: {
+        op: 'delta',
+        input: {
+          op: 'compare',
+          input: {
+            op: 'join',
+            left: lowerOfficialLapWindowMedian(program.root.driver_a_id, program.root),
+            right: lowerOfficialLapWindowMedian(program.root.driver_b_id, program.root),
+            on: [],
+            type: 'inner'
+          },
+          left: { field: 'median_lap_time_seconds', as: 'driver_a_median_lap_time_seconds' },
+          right: { field: 'median_lap_time_seconds', as: 'driver_b_median_lap_time_seconds' }
+        },
+        left_id: program.root.driver_a_id,
+        right_id: program.root.driver_b_id,
+        metric_id: program.root.metric,
+        lower_is_better: true
+      }
+    };
+  }
   if (program.root.op === 'pace_delta') {
     const filters = program.root.filters ?? {};
     return {
@@ -57,6 +83,33 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   }
 
   return { version: 1, root: coreAggregate };
+}
+
+function lowerOfficialLapWindowMedian(
+  driverId: string,
+  scope: Extract<F1QLProgram['root'], { op: 'official_lap_window_median_compare' }>
+): CoreAggregateNode {
+  const where: CoreOfficialLapTimingFilter = {
+    season: scope.season,
+    round: scope.round,
+    session_type: 'R',
+    driver_id: driverId,
+    lap_start: scope.lap_start,
+    lap_end: scope.lap_end,
+    complete_requested_window: true,
+    official_deleted_lap: false,
+    official_pit_marker: false
+  };
+  return {
+    op: 'aggregate',
+    input: { op: 'filter', input: { op: 'source', source: 'official_lap_timing' }, where },
+    group_by: [],
+    measures: [
+      { as: 'eligible_laps', function: 'count' },
+      { as: 'median_lap_time_seconds', function: 'median', field: 'lap_time_seconds' }
+    ],
+    minimum_rows: MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS
+  };
 }
 
 function lowerPaceSummary(driverId: string, scope: { season: number; rounds?: number[] }, filters: { clean_air_only?: boolean; compound?: string }): CoreAggregateNode {

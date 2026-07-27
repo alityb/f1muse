@@ -98,9 +98,18 @@ export interface EventMetadataNode extends EventFilter {
   session_scope?: 'race' | 'qualifying';
 }
 
+export interface OfficialLapWindowMedianCompareNode extends EventFilter {
+  op: 'official_lap_window_median_compare';
+  metric: 'official_non_deleted_non_pit_window_median_v1';
+  driver_a_id: string;
+  driver_b_id: string;
+  lap_start: number;
+  lap_end: number;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode;
 }
 
 export interface F1QLResult {

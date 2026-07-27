@@ -279,7 +279,7 @@ racing number and printed time.
 The official-source fixture retains all 790 completed-lap rows and the complete
 cars 1 and 14 lap 3-10 window. It does not itself compute a median or winner. The
 separate locally reviewed identity and metric contract below performs that
-calculation without changing F1QL or clean-air filtered pace semantics.
+calculation without changing clean-air filtered pace semantics.
 
 ### Named Pilot Metric
 
@@ -310,6 +310,14 @@ calculating the still two-driver-only metric.
 unapplied private `official_timing` migration and exercises the scope-serialized
 seal-last writer. Its generated evidence proves a persistent relation, exact
 idempotent replay, 20 identities, 790 facts, three source artifacts, three
-complete coverage assertions, and zero F1QL views. The migration and writer
-remain localhost-only and have no runtime grant, F1QL operation, answer
-capability, production application, or production ingestion authorization.
+complete coverage assertions, and zero F1QL views at that storage milestone.
+
+`golden:snapshot:phase8-belgium-2022-f1ql` additionally applies the separate
+unapplied sealed-serving migration and executes the closed canonical
+`official_lap_window_median_compare` program through the real parser,
+validation, participation, lowering, core validation, compiler, read-only
+statement-timeout, and row-bound path. Its generated result SHA-256 is
+`a7b82d2986743750393c1850d85a455e2c218cea57d6572d0195a0ca4390f29b` and
+matches the temporary reference values exactly. The answer policy rejects the
+operation. Both migrations remain localhost-only with no persistent runtime
+grant, production application, or production ingestion authorization.

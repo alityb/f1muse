@@ -12,6 +12,7 @@ authorities it uses, and where F1QL must extend it.
 | Official season standings | 1950-present, source-dependent | `season_driver_standing` | Authoritative for championship points and rank |
 | Qualifying classification | historical coverage varies; robust current pipeline | F1DB / FastF1 | Pole is qualifying P1, not necessarily official grid P1 |
 | Lap pace, stints, compounds | Observed production serving coverage: 2026 rounds 1-10 | FastF1-derived application fact product | Historical coverage and filtered-pace factual validation remain unsupported |
+| Official raw lap windows | Local sealed Belgian 2022 fixture only | FIA Race History Chart, classification, and deleted-lap decision | Fixed two-driver median metric; not clean-air pace; no production data or grant |
 | Current-season results and standings | Latest successful sync | Jolpica | Subject to upstream publication and pagination completeness |
 | Current-season laps/qualifying | Latest successful FastF1 ETL | FastF1 | May lag race results |
 
@@ -53,15 +54,17 @@ authorities it uses, and where F1QL must extend it.
    replacement, and rebuild facts. Legacy rows are not silently backfilled, so
    pace fails closed until an explicitly reviewed v2 ingestion has supplied the
    active clean-air methodology version.
-6. The Phase 8 lap-number view migration is structural and unapplied. No raw
-   lap-window F1QL operation, historical coverage authorization, or answer-route
+6. The Phase 8 `f1ql.lap_pace` lap-number migration remains structural and
+   unapplied. A separate local-only sealed official-timing view and closed raw
+   lap-window operation now exist; no production application or answer-route
    capability exists.
 7. The hash-pinned FIA Belgian 2022 fixture retains all 790 reconciled completed
    laps, all 20 reviewed canonical identities, and the five deleted-time mappings.
-8. An unapplied private `official_timing` migration and localhost writer prove
-   append-only persistent storage, exact replay, rollback, and complete coverage.
-   No F1QL view, operation, runtime grant, answer capability, production migration,
-   or production ingestion exists.
+8. Unapplied private-storage and sealed-serving migrations plus a localhost
+   writer prove append-only persistence, exact replay, rollback, complete
+   coverage, least-privilege view reads, and exact compiler/reference metric
+   equivalence. No persistent runtime grant, answer capability, production
+   migration application, or production ingestion exists.
 
 ## F1QL v1 Target Delta
 

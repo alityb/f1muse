@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { F1QLValidationError, validateCoreProgram, validateF1QLProgram } from '../../src/f1ql/validation';
 import { lowerF1QL } from '../../src/f1ql/lower';
+import { parseF1QLProgram } from '../../src/f1ql/schema';
 
 describe('F1QL validation gates', () => {
   const program = { version: 1 as const, root: { op: 'pace_summary' as const, driver_id: 'max-verstappen', scope: { season: 2025 } } };
@@ -62,5 +63,38 @@ describe('F1QL validation gates', () => {
     }
     core.root.input.left.field = 'lap_time_seconds';
     expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+  });
+  it('validates the closed official lap-window surface and lowered core contract', () => {
+    const official = {
+      version: 1,
+      root: {
+        op: 'official_lap_window_median_compare',
+        metric: 'official_non_deleted_non_pit_window_median_v1',
+        season: 2022,
+        round: 14,
+        driver_a_id: 'max-verstappen',
+        driver_b_id: 'fernando-alonso',
+        lap_start: 3,
+        lap_end: 10
+      }
+    };
+    const parsed = parseF1QLProgram(official);
+    expect(() => validateF1QLProgram(parsed)).not.toThrow();
+    const core = lowerF1QL(parsed);
+    expect(() => validateCoreProgram(core)).not.toThrow();
+    if (core.root.op !== 'delta') throw new Error('Expected official lap delta');
+    core.root.metric_id = undefined;
+    expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+
+    const mutated = lowerF1QL(parsed);
+    if (mutated.root.op !== 'delta' || mutated.root.input.input.left.op !== 'aggregate' || mutated.root.input.input.left.input.op !== 'filter') {
+      throw new Error('Expected filtered official lap aggregate');
+    }
+    (mutated.root.input.input.left.input.where as { complete_requested_window: boolean }).complete_requested_window = false;
+    expect(() => validateCoreProgram(mutated)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, driver_b_id: 'max-verstappen' } })).toThrow('requires two different drivers');
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, lap_end: 53 } })).toThrow('at most 50 laps');
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, metric: 'clean_air' } })).toThrow();
   });
 });

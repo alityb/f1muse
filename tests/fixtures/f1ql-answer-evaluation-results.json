@@ -70,9 +70,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 3
@@ -145,9 +145,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -199,9 +199,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -275,9 +275,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
@@ -357,9 +357,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 3
@@ -432,9 +432,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -507,9 +507,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -638,9 +638,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 6
@@ -769,9 +769,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 6
@@ -823,9 +823,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -877,9 +877,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -933,9 +933,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -989,9 +989,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1078,9 +1078,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 3
@@ -1167,9 +1167,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 3
@@ -1223,9 +1223,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1279,9 +1279,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1337,9 +1337,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1395,9 +1395,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1446,9 +1446,9 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1497,9 +1497,9 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1573,9 +1573,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
@@ -1638,9 +1638,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2024; drivers charles-leclerc.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1713,9 +1713,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2024; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1780,9 +1780,9 @@
       "rendering": "Official race classification; season 2024; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
@@ -1834,9 +1834,9 @@
       "rendering": "Official race classification; season 2025; round 2; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1890,9 +1890,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -1946,9 +1946,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2002,9 +2002,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2058,9 +2058,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2114,9 +2114,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2185,9 +2185,9 @@
       "rendering": "Official qualifying classification; season 2024; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
@@ -2241,9 +2241,9 @@
       "rendering": "Official qualifying classification; season 2025; round 2; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2299,9 +2299,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2357,9 +2357,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2408,9 +2408,9 @@
       "rendering": "Event metadata; season 2024; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2473,9 +2473,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers max-verstappen.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2548,9 +2548,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2602,9 +2602,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2653,9 +2653,9 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2784,9 +2784,9 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 6
@@ -2860,9 +2860,9 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 2
@@ -2916,9 +2916,9 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1
@@ -2991,9 +2991,9 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v2",
-        "compiler_version": "core-v1",
-        "fact_space_version": "source-views-v1",
+        "definitions_version": "v3",
+        "compiler_version": "core-v2",
+        "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
           "rows_returned": 1

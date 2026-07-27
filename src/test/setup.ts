@@ -35,6 +35,7 @@ export async function setupTestDatabase(
   pool: Pool,
   options: TestDatabaseOptions = {}
 ): Promise<void> {
+  await pool.query('DROP SCHEMA IF EXISTS official_timing CASCADE');
   await pool.query(`
     DROP TABLE IF EXISTS driver_season_entries, 
     race_data,

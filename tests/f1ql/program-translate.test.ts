@@ -127,6 +127,28 @@ describe('shadow F1QL translation', () => {
     await expect(response.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
   });
 
+  it('may validate the canonical historical operation in shadow mode but never executes it', async () => {
+    model.setOutput(JSON.stringify({
+      type: 'program_candidate',
+      program: {
+        version: 1,
+        root: {
+          op: 'official_lap_window_median_compare',
+          metric: 'official_non_deleted_non_pit_window_median_v1',
+          season: 2025,
+          round: 1,
+          driver_a_id: 'max-verstappen',
+          driver_b_id: 'bob-smith',
+          lap_start: 1,
+          lap_end: 3
+        }
+      }
+    }));
+    const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Compare a historical lap window' }) });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ mode: 'shadow', program: { root: { op: 'official_lap_window_median_compare' } } });
+  });
+
   it('logs typed participation rejections', async () => {
     model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: { op: 'pace_summary', driver_id: 'Max Verstappen', scope: { season: 2024 } } } }));
     const missing = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Max pace in 2024' }) });
@@ -136,10 +158,10 @@ describe('shadow F1QL translation', () => {
 
   it('records typed shadow outcomes', () => {
     expect(metrics.toJSON().f1ql.translation_outcomes).toMatchObject({
-      succeeded: 4, invalid: 2, unavailable: 2, identity_miss: 1, unsupported: 6
+      succeeded: 5, invalid: 2, unavailable: 2, identity_miss: 1, unsupported: 6
     });
     expect(metrics.toJSON().f1ql.translation_reasons).toMatchObject({ participation_missing: 1 });
-    expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 4');
+    expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 5');
   });
 
   it('never invokes the injected executor in shadow mode', () => {

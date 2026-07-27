@@ -17,7 +17,7 @@ describe('verified F1QL programs', () => {
     expect(getF1QLProgramHash(baseProgram)).toBe(getF1QLProgramHash(reordered));
     expect(getF1QLCacheKey(baseProgram)).toBe(getF1QLCacheKey(reordered));
     expect(getF1QLProgramHash(baseProgram)).toBe('5a348036618a52658766148bda67053a65826661ab7e9f4b137bf231f6eb6617');
-    expect(getF1QLCacheKey(baseProgram)).toBe('534f3d81f17158adcbec4c3fb9d3e2ff8d66fc9824e19f0862e3db66d9ca9b56');
+    expect(getF1QLCacheKey(baseProgram)).toBe('cce443596df4cb13afc7da481fa4c2009fb3310987076ec405ff30c61000f880');
   });
 
   it('changes hashes for semantic changes', () => {

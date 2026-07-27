@@ -62,6 +62,23 @@ describe('Phase 7 answer capability policy', () => {
       program: { version: 1, root: { op: 'pace_delta', driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris', scope: { season: 2025 } } } as F1QLProgram,
       reason: 'pace_source_disabled'
     },
+    {
+      name: 'official lap-window comparison',
+      program: {
+        version: 1,
+        root: {
+          op: 'official_lap_window_median_compare',
+          metric: 'official_non_deleted_non_pit_window_median_v1',
+          season: 2022,
+          round: 14,
+          driver_a_id: 'max-verstappen',
+          driver_b_id: 'fernando-alonso',
+          lap_start: 3,
+          lap_end: 10
+        }
+      } as F1QLProgram,
+      reason: 'capability_unsupported'
+    },
     { name: 'unscoped standings', program: standingsAggregate(undefined), reason: 'temporal_scope_unsupported' },
     { name: 'multi-season standings', program: standingsAggregate([2024, 2025]), reason: 'temporal_scope_unsupported' },
     { name: 'ongoing standings', program: standingsAggregate(2026), reason: 'interim_standings_unsupported' },

@@ -69,9 +69,9 @@ export function createProgramRoutes(pool: Pool): Router {
   return router;
 }
 
-function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'event_classification' | 'invalid' {
+function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'event_classification' | 'official_lap_window_median_compare' | 'invalid' {
   const operation = (body as { root?: { op?: unknown } })?.root?.op;
-  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary' || operation === 'event_classification'
+  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary' || operation === 'event_classification' || operation === 'official_lap_window_median_compare'
     ? operation
     : 'invalid';
 }

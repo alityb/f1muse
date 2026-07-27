@@ -36,6 +36,9 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
   if (root.op === 'pace_summary' || root.op === 'pace_delta') {
     return { type: 'rejected', reason: 'pace_source_disabled' };
   }
+  if (root.op === 'official_lap_window_median_compare') {
+    return { type: 'rejected', reason: 'capability_unsupported' };
+  }
   if (root.op === 'event_classification') {
     return authorizeClassification(root, 'race_classification');
   }

@@ -1,5 +1,6 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
 export interface StandingsRow {
   season: number;
@@ -54,6 +55,100 @@ export interface EventMetadataRow {
   event_name: string;
   circuit_id: string | null;
   date: string | null;
+}
+
+export interface OfficialLapTimingRow {
+  dataset_sha256: string;
+  season: number;
+  round: number;
+  session_type: string;
+  event_name: string;
+  source_manifest_sha256: string;
+  identity_map_sha256: string;
+  fact_fingerprint: string;
+  driver_id: string;
+  lap_number: number;
+  lap_time_seconds: number;
+  official_deleted_lap: boolean;
+  official_pit_marker: boolean;
+}
+
+// eslint-disable-next-line complexity,max-lines-per-function
+export function interpretOfficialLapWindowProgram(program: CoreProgram, rows: OfficialLapTimingRow[]): Array<Record<string, unknown>> {
+  if (program.root.op !== 'delta' || program.root.metric_id !== OFFICIAL_LAP_WINDOW_METRIC_ID) {
+    throw new Error('Expected an official lap-window comparison');
+  }
+  const leftFilter = officialLapFilter(program.root.input.input.left);
+  const rightFilter = officialLapFilter(program.root.input.input.right);
+  const requestedLaps = leftFilter.lap_end - leftFilter.lap_start + 1;
+  const summarize = (filter: CoreOfficialLapTimingFilter) => {
+    const raw = rows.filter(row => row.season === filter.season && row.round === filter.round && row.session_type === 'R' &&
+      row.driver_id === filter.driver_id && row.lap_number >= filter.lap_start && row.lap_number <= filter.lap_end);
+    if (raw.length !== requestedLaps || new Set(raw.map(row => row.lap_number)).size !== requestedLaps) {
+      return null;
+    }
+    const eligible = raw.filter(row => !row.official_deleted_lap && !row.official_pit_marker);
+    if (eligible.length < 2) {
+      return null;
+    }
+    return {
+      raw,
+      eligible_laps: eligible.length,
+      excluded_deleted_laps: raw.filter(row => row.official_deleted_lap).length,
+      excluded_pit_marker_laps: raw.filter(row => row.official_pit_marker).length,
+      median_lap_time_seconds: median(eligible.map(row => Math.round(row.lap_time_seconds * 1000))) / 1000
+    };
+  };
+  const left = summarize(leftFilter);
+  const right = summarize(rightFilter);
+  if (!left || !right) {
+    return [];
+  }
+  const metadataRows = [...left.raw, ...right.raw];
+  if (new Set(metadataRows.map(row => row.dataset_sha256)).size !== 1) {
+    return [];
+  }
+  const metadata = metadataRows[0];
+  const delta = Math.round(Math.abs(left.median_lap_time_seconds - right.median_lap_time_seconds) * 10_000) / 10_000;
+  let winner: string | null = null;
+  if (left.median_lap_time_seconds < right.median_lap_time_seconds) {
+    winner = program.root.left_id;
+  } else if (right.median_lap_time_seconds < left.median_lap_time_seconds) {
+    winner = program.root.right_id;
+  }
+  return [{
+    driver_a_id: program.root.left_id,
+    driver_b_id: program.root.right_id,
+    metric_id: OFFICIAL_LAP_WINDOW_METRIC_ID,
+    season: leftFilter.season,
+    round: leftFilter.round,
+    session_type: 'R',
+    event_name: metadata.event_name,
+    lap_start: leftFilter.lap_start,
+    lap_end: leftFilter.lap_end,
+    requested_laps_per_driver: requestedLaps,
+    driver_a_eligible_laps: left.eligible_laps,
+    driver_b_eligible_laps: right.eligible_laps,
+    driver_a_excluded_deleted_laps: left.excluded_deleted_laps,
+    driver_b_excluded_deleted_laps: right.excluded_deleted_laps,
+    driver_a_excluded_pit_marker_laps: left.excluded_pit_marker_laps,
+    driver_b_excluded_pit_marker_laps: right.excluded_pit_marker_laps,
+    driver_a_median_lap_time_seconds: left.median_lap_time_seconds,
+    driver_b_median_lap_time_seconds: right.median_lap_time_seconds,
+    median_delta_seconds: delta,
+    winner_driver_id: winner,
+    dataset_sha256: metadata.dataset_sha256,
+    source_manifest_sha256: metadata.source_manifest_sha256,
+    identity_map_sha256: metadata.identity_map_sha256,
+    fact_fingerprint: metadata.fact_fingerprint
+  }];
+}
+
+function officialLapFilter(node: CorePipelineNode): CoreOfficialLapTimingFilter {
+  if (node.op !== 'aggregate' || node.input.op !== 'filter') {
+    throw new Error('Expected an official lap aggregate');
+  }
+  return node.input.where as CoreOfficialLapTimingFilter;
 }
 
 export function interpretEventClassification(program: CoreProgram, rows: EventClassificationRow[]): Array<Record<string, unknown>> {

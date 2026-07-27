@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { F1QLProgram } from './ast';
+import { MAX_OFFICIAL_LAP_WINDOW_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
 const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
@@ -122,9 +123,29 @@ export const eventMetadataNodeSchema = z.object({
   session_scope: z.enum(['race', 'qualifying']).optional()
 }).strict();
 
+export const officialLapWindowMedianCompareNodeSchema = z.object({
+  op: z.literal('official_lap_window_median_compare'),
+  metric: z.literal(OFFICIAL_LAP_WINDOW_METRIC_ID),
+  season,
+  round: z.number().int().min(1).max(30),
+  driver_a_id: z.string().min(1),
+  driver_b_id: z.string().min(1),
+  lap_start: z.number().int().min(1),
+  lap_end: z.number().int().min(1)
+}).strict().superRefine((node, context) => {
+  if (node.driver_a_id === node.driver_b_id) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'official lap-window comparison requires two different drivers' });
+  }
+  if (node.lap_end < node.lap_start) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'lap_end must not precede lap_start' });
+  } else if (node.lap_end - node.lap_start + 1 > MAX_OFFICIAL_LAP_WINDOW_LAPS) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: `official lap window may contain at most ${MAX_OFFICIAL_LAP_WINDOW_LAPS} laps` });
+  }
+});
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

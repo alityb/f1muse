@@ -284,8 +284,14 @@ other race-state effects remain included and caveated because no equivalent
 per-lap context contract is retained. A private, unapplied `official_timing`
 migration and seal-last scope-serialized writer now prove persistent localhost
 ingestion of all 790 facts with immutable artifacts, identities, and coverage.
-This storage has no F1QL view, runtime role grant, operation, answer capability,
-production application, or production ingestion authorization.
+A separate unapplied security-barrier view re-proves exact seal counts,
+per-driver lap continuity, the three source artifacts, Race History Chart fact
+provenance, and all required coverage assertions before exposing rows. The
+closed `official_lap_window_median_compare` surface/core/compiler path implements
+the named metric with a 50-lap cap and returns no partial result. Its generated
+Belgian 2022 result exactly matches the independently verified reference. The
+answer policy remains denied; there is no persistent runtime grant, production
+migration application, or production ingestion authorization.
 
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed

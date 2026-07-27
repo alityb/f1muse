@@ -1,13 +1,13 @@
 import { createHash } from 'crypto';
+import { MAX_OFFICIAL_LAP_WINDOW_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from '../f1ql/official-lap-window';
 
 export const HISTORICAL_LAP_PILOT_SOURCE_SHA256 = '491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab';
 export const HISTORICAL_LAP_PILOT_IDENTITY_SHA256 = '1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd';
-export const HISTORICAL_LAP_WINDOW_METRIC_ID = 'official_non_deleted_non_pit_window_median_v1';
+export const HISTORICAL_LAP_WINDOW_METRIC_ID = OFFICIAL_LAP_WINDOW_METRIC_ID;
 
 const EVENT = '2022 Belgian Grand Prix';
 const HISTORY_ARTIFACT_SHA256 = '30f7db339b437cea5fd73f0a7bf6a3a16783119b3b62d07c5793934e2b26d105';
 const EXPECTED_DRIVER_IDS = ['max_verstappen', 'fernando_alonso'] as const;
-const MAX_WINDOW_LAPS = 50;
 const verifiedDatasets = new WeakSet<object>();
 
 export interface CanonicalDriverIdentity {
@@ -397,7 +397,7 @@ export function summarizeHistoricalLapWindowFacts(
   request: { driver_ids: readonly [string, string]; lap_start: number; lap_end: number }
 ) {
   if (!Number.isInteger(request.lap_start) || !Number.isInteger(request.lap_end) || request.lap_start < 1 ||
-      request.lap_end < request.lap_start || request.lap_end - request.lap_start + 1 > MAX_WINDOW_LAPS) {
+      request.lap_end < request.lap_start || request.lap_end - request.lap_start + 1 > MAX_OFFICIAL_LAP_WINDOW_LAPS) {
     throw new Error('FAIL_CLOSED: historical lap window is invalid or over budget');
   }
   if (!Array.isArray(request.driver_ids) || request.driver_ids.length !== 2 || request.driver_ids.some(driverId => typeof driverId !== 'string') ||

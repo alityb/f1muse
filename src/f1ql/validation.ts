@@ -1,14 +1,19 @@
 import { Pool, PoolClient } from 'pg';
 import { F1QLProgram } from './ast';
-import { CoreDeltaNode, CoreFilterNode, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreFilterNode, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
+import { MAX_OFFICIAL_LAP_WINDOW_LAPS, MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
-export const F1QL_DEFINITIONS_VERSION = 'v2';
+export const F1QL_DEFINITIONS_VERSION = 'v3';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
   event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'event_classification'] },
   qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'qualifying_classification'] },
-  event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'event_metadata'] }
+  event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'event_metadata'] },
+  official_lap_timing: {
+    fields: ['season', 'round', 'session_type', 'driver_id', 'lap_start', 'lap_end', 'complete_requested_window', 'official_deleted_lap', 'official_pit_marker', 'lap_time_seconds'],
+    operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'official_lap_window_median_compare']
+  }
 } as const;
 
 export type F1QLValidationCode = 'definitions_version_mismatch' | 'complexity_exceeded' | 'coverage_unsupported' | 'participation_missing' | 'signature_invalid';
@@ -55,10 +60,14 @@ async function validateParticipationFrom(queryable: Pick<Pool, 'query'>, program
   }
 }
 
+// eslint-disable-next-line complexity
 function getParticipationScope(program: F1QLProgram): { season?: number; drivers: string[] } {
   const root = program.root;
   if (root.op === 'pace_delta') {
     return { season: root.scope.season, drivers: [root.driver_a_id, root.driver_b_id] };
+  }
+  if (root.op === 'official_lap_window_median_compare') {
+    return { season: root.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
   if (root.op === 'pace_summary') {
     return { season: root.scope.season, drivers: [root.driver_id] };
@@ -89,7 +98,7 @@ export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidatio
     throw new F1QLValidationError('complexity_exceeded', `Program exceeds the ${maxNodes}-node complexity budget`);
   }
   validateSignature(program);
-  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata') && program.root.round > 30) {
+  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare') && program.root.round > 30) {
     throw new F1QLValidationError('coverage_unsupported', 'Round is outside supported event coverage');
   }
 }
@@ -146,6 +155,10 @@ function validateDelta(node: CoreDeltaNode): void {
   const { left, right } = node.input.input;
   const leftSource = validatePipeline(left);
   const rightSource = validatePipeline(right);
+  if (leftSource === 'official_lap_timing' || rightSource === 'official_lap_timing') {
+    validateOfficialLapDelta(node, leftSource, rightSource);
+    return;
+  }
   if (leftSource !== 'lap_pace' || rightSource !== 'lap_pace' || node.input.input.on.length !== 1 || node.input.input.on[0] !== 'round') {
     throw new F1QLValidationError('signature_invalid', 'Delta requires lap pace inputs joined on round');
   }
@@ -155,6 +168,45 @@ function validateDelta(node: CoreDeltaNode): void {
   assertSignature('lap_pace', 'join', []);
   assertSignature('lap_pace', 'compare', []);
   assertSignature('lap_pace', 'delta', []);
+}
+
+// eslint-disable-next-line complexity
+function validateOfficialLapDelta(node: CoreDeltaNode, leftSource: CoreSourceNode['source'], rightSource: CoreSourceNode['source']): void {
+  if (leftSource !== 'official_lap_timing' || rightSource !== 'official_lap_timing' || node.input.input.on.length !== 0 ||
+      node.metric_id !== OFFICIAL_LAP_WINDOW_METRIC_ID || node.lower_is_better !== true || node.left_id === node.right_id ||
+      node.input.left.field !== 'median_lap_time_seconds' || node.input.right.field !== 'median_lap_time_seconds') {
+    throw new F1QLValidationError('signature_invalid', 'Official lap delta requires the fixed complete-window median comparison');
+  }
+  const left = officialLapAggregate(node.input.input.left);
+  const right = officialLapAggregate(node.input.input.right);
+  const leftFilter = left.input.where as CoreOfficialLapTimingFilter;
+  const rightFilter = right.input.where as CoreOfficialLapTimingFilter;
+  const windowWidth = leftFilter.lap_end - leftFilter.lap_start + 1;
+  const sharedLeft = { ...leftFilter, driver_id: undefined };
+  const sharedRight = { ...rightFilter, driver_id: undefined };
+  if (!Number.isInteger(leftFilter.season) || leftFilter.season < 1950 || leftFilter.season > 2100 ||
+      !Number.isInteger(leftFilter.round) || leftFilter.round < 1 || leftFilter.round > 30 ||
+      !Number.isInteger(leftFilter.lap_start) || leftFilter.lap_start < 1 || !Number.isInteger(leftFilter.lap_end) ||
+      windowWidth < 1 || windowWidth > MAX_OFFICIAL_LAP_WINDOW_LAPS || leftFilter.session_type !== 'R' || leftFilter.complete_requested_window !== true ||
+      leftFilter.official_deleted_lap !== false || leftFilter.official_pit_marker !== false ||
+      leftFilter.driver_id !== node.left_id || rightFilter.driver_id !== node.right_id || JSON.stringify(sharedLeft) !== JSON.stringify(sharedRight) ||
+      left.minimum_rows !== MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS || right.minimum_rows !== MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS ||
+      JSON.stringify(left.measures) !== JSON.stringify(right.measures) || JSON.stringify(left.measures) !== JSON.stringify([
+        { as: 'eligible_laps', function: 'count' },
+        { as: 'median_lap_time_seconds', function: 'median', field: 'lap_time_seconds' }
+      ])) {
+    throw new F1QLValidationError('signature_invalid', 'Official lap delta inputs must share the fixed eligibility and aggregation contract');
+  }
+  assertSignature('official_lap_timing', 'join', []);
+  assertSignature('official_lap_timing', 'compare', []);
+  assertSignature('official_lap_timing', 'delta', []);
+}
+
+function officialLapAggregate(node: CorePipelineNode): CoreAggregateNode & { input: CoreFilterNode } {
+  if (node.op !== 'aggregate' || node.group_by.length !== 0 || node.input.op !== 'filter' || node.input.input.op !== 'source' || node.input.input.source !== 'official_lap_timing') {
+    throw new F1QLValidationError('signature_invalid', 'Official lap comparison requires filtered scalar aggregates');
+  }
+  return node as CoreAggregateNode & { input: CoreFilterNode };
 }
 
 function signatureFieldsForFilter(source: CoreSourceNode['source'], node: CoreFilterNode): string[] {
@@ -187,6 +239,13 @@ function validateSignature(program: F1QLProgram): void {
   if (root.op === 'pace_summary' || root.op === 'pace_delta') {
     const fields = ['driver_id', 'lap_time_seconds', ...Object.keys(root.filters ?? {}).map((field) => field === 'clean_air_only' ? 'clean_air_flag' : field)];
     assertSignature('lap_pace', root.op, fields);
+    return;
+  }
+  if (root.op === 'official_lap_window_median_compare') {
+    assertSignature('official_lap_timing', root.op, [
+      'season', 'round', 'session_type', 'driver_id', 'lap_start', 'lap_end', 'complete_requested_window',
+      'official_deleted_lap', 'official_pit_marker', 'lap_time_seconds'
+    ]);
     return;
   }
   if (isClassificationRoot(root)) {
