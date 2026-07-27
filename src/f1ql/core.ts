@@ -38,6 +38,16 @@ export interface CoreOfficialLapTimingFilter {
   official_pit_marker: false;
 }
 
+export interface CoreOfficialEventMeanFilter {
+  season: number;
+  round: number;
+  session_type: 'R';
+  driver_id: string;
+  complete_event: true;
+  official_deleted_lap: false;
+  official_pit_marker: false;
+}
+
 export interface CoreQualifyingClassificationFilter {
   season?: number;
   round?: number;
@@ -73,7 +83,7 @@ export interface CoreLapPaceFilterNode {
 export interface CoreOfficialLapTimingFilterNode {
   op: 'filter';
   input: CorePipelineNode;
-  where: CoreOfficialLapTimingFilter;
+  where: CoreOfficialLapTimingFilter | CoreOfficialEventMeanFilter;
 }
 
 export interface CoreQualifyingClassificationFilterNode {
@@ -140,7 +150,7 @@ export interface CoreDeltaNode {
   input: CoreCompareNode;
   left_id: string;
   right_id: string;
-  metric_id?: 'official_non_deleted_non_pit_window_median_v1';
+  metric_id?: 'official_non_deleted_non_pit_window_median_v1' | 'official_non_deleted_non_pit_event_mean_v1';
   lower_is_better?: true;
 }
 

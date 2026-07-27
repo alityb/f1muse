@@ -1,5 +1,6 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
 export interface StandingsRow {
@@ -71,6 +72,80 @@ export interface OfficialLapTimingRow {
   lap_time_seconds: number;
   official_deleted_lap: boolean;
   official_pit_marker: boolean;
+}
+
+export function interpretOfficialEventMeanProgram(program: CoreProgram, rows: OfficialLapTimingRow[]): Array<Record<string, unknown>> {
+  if (program.root.op !== 'delta' || program.root.metric_id !== OFFICIAL_EVENT_MEAN_METRIC_ID) {
+    throw new Error('Expected an official event-mean comparison');
+  }
+  const leftFilter = officialEventMeanFilter(program.root.input.input.left);
+  const rightFilter = officialEventMeanFilter(program.root.input.input.right);
+  const summarize = (filter: CoreOfficialEventMeanFilter) => {
+    const raw = rows.filter(row => row.season === filter.season && row.round === filter.round && row.session_type === 'R' && row.driver_id === filter.driver_id);
+    const eligible = raw.filter(row => !row.official_deleted_lap && !row.official_pit_marker);
+    if (eligible.length < 2) {
+      return null;
+    }
+    return {
+      raw,
+      completed_laps: raw.length,
+      eligible_laps: eligible.length,
+      excluded_deleted_laps: raw.filter(row => row.official_deleted_lap).length,
+      excluded_pit_marker_laps: raw.filter(row => row.official_pit_marker).length,
+      mean_lap_time_ticks: roundedTenthMillisecondTicks(
+        eligible.reduce((sum, row) => sum + Math.round(row.lap_time_seconds * 1000), 0),
+        eligible.length
+      )
+    };
+  };
+  const left = summarize(leftFilter);
+  const right = summarize(rightFilter);
+  if (!left || !right) {
+    return [];
+  }
+  const metadataRows = [...left.raw, ...right.raw];
+  const provenance = new Set(metadataRows.map(row => JSON.stringify([
+    row.dataset_sha256,
+    row.event_name,
+    row.source_manifest_sha256,
+    row.identity_map_sha256,
+    row.fact_fingerprint
+  ])));
+  if (provenance.size !== 1) {
+    return [];
+  }
+  const metadata = metadataRows[0];
+  let winner: string | null = null;
+  if (left.mean_lap_time_ticks < right.mean_lap_time_ticks) {
+    winner = program.root.left_id;
+  } else if (right.mean_lap_time_ticks < left.mean_lap_time_ticks) {
+    winner = program.root.right_id;
+  }
+  return [{
+    driver_a_id: program.root.left_id,
+    driver_b_id: program.root.right_id,
+    metric_id: OFFICIAL_EVENT_MEAN_METRIC_ID,
+    season: leftFilter.season,
+    round: leftFilter.round,
+    session_type: 'R',
+    event_name: metadata.event_name,
+    driver_a_completed_laps: left.completed_laps,
+    driver_b_completed_laps: right.completed_laps,
+    driver_a_eligible_laps: left.eligible_laps,
+    driver_b_eligible_laps: right.eligible_laps,
+    driver_a_excluded_deleted_laps: left.excluded_deleted_laps,
+    driver_b_excluded_deleted_laps: right.excluded_deleted_laps,
+    driver_a_excluded_pit_marker_laps: left.excluded_pit_marker_laps,
+    driver_b_excluded_pit_marker_laps: right.excluded_pit_marker_laps,
+    driver_a_mean_lap_time_seconds: left.mean_lap_time_ticks / 10_000,
+    driver_b_mean_lap_time_seconds: right.mean_lap_time_ticks / 10_000,
+    mean_delta_seconds: Math.abs(left.mean_lap_time_ticks - right.mean_lap_time_ticks) / 10_000,
+    winner_driver_id: winner,
+    dataset_sha256: metadata.dataset_sha256,
+    source_manifest_sha256: metadata.source_manifest_sha256,
+    identity_map_sha256: metadata.identity_map_sha256,
+    fact_fingerprint: metadata.fact_fingerprint
+  }];
 }
 
 // eslint-disable-next-line complexity,max-lines-per-function
@@ -149,6 +224,17 @@ function officialLapFilter(node: CorePipelineNode): CoreOfficialLapTimingFilter 
     throw new Error('Expected an official lap aggregate');
   }
   return node.input.where as CoreOfficialLapTimingFilter;
+}
+
+function officialEventMeanFilter(node: CorePipelineNode): CoreOfficialEventMeanFilter {
+  if (node.op !== 'aggregate' || node.input.op !== 'filter') {
+    throw new Error('Expected an official event-mean aggregate');
+  }
+  return node.input.where as CoreOfficialEventMeanFilter;
+}
+
+function roundedTenthMillisecondTicks(sumMilliseconds: number, count: number): number {
+  return Math.floor((sumMilliseconds * 20 + count) / (count * 2));
 }
 
 export function interpretEventClassification(program: CoreProgram, rows: EventClassificationRow[]): Array<Record<string, unknown>> {

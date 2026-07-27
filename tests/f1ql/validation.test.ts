@@ -97,4 +97,38 @@ describe('F1QL validation gates', () => {
     expect(() => parseF1QLProgram({ ...official, root: { ...official.root, lap_end: 53 } })).toThrow('at most 50 laps');
     expect(() => parseF1QLProgram({ ...official, root: { ...official.root, metric: 'clean_air' } })).toThrow();
   });
+  it('validates the closed official event-mean surface and every lowered invariant', () => {
+    const official = {
+      version: 1,
+      root: {
+        op: 'official_event_mean_compare',
+        metric: 'official_non_deleted_non_pit_event_mean_v1',
+        season: 2022,
+        round: 14,
+        driver_a_id: 'max-verstappen',
+        driver_b_id: 'fernando-alonso'
+      }
+    };
+    const parsed = parseF1QLProgram(official);
+    expect(() => validateF1QLProgram(parsed)).not.toThrow();
+    expect(() => validateCoreProgram(lowerF1QL(parsed))).not.toThrow();
+
+    const mutate = (change: (core: any) => void) => {
+      const core = lowerF1QL(parsed);
+      change(core);
+      expect(() => validateCoreProgram(core)).toThrow(expect.objectContaining({ code: 'signature_invalid' }));
+    };
+    mutate(core => { core.version = 2; });
+    mutate(core => { core.root.input.op = 'unknown'; });
+    mutate(core => { core.root.input.input.op = 'unknown'; });
+    mutate(core => { core.root.input.input.type = 'left'; });
+    mutate(core => { core.root.input.left.as = 'wrong'; });
+    mutate(core => { core.root.input.right.field = 'median_lap_time_seconds'; });
+    mutate(core => { core.root.input.input.left.input.where.complete_event = false; });
+    mutate(core => { core.root.input.input.right.minimum_rows = 1; });
+
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, driver_b_id: 'max-verstappen' } })).toThrow('requires two different drivers');
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, metric: 'official_non_deleted_non_pit_window_median_v1' } })).toThrow();
+    expect(() => parseF1QLProgram({ ...official, root: { ...official.root, extra: true } })).toThrow();
+  });
 });

@@ -6,7 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ingestHistoricalLapDataset } from '../../src/etl/historical-lap-ingestion';
 import { compareHistoricalLapWindow, type HistoricalLapDataset, loadHistoricalLapPilot } from '../../src/etl/historical-lap-window-pilot';
 import { executeF1QL } from '../../src/f1ql/executor';
-import { interpretOfficialLapWindowProgram, type OfficialLapTimingRow } from '../../src/f1ql/interpreter';
+import { interpretOfficialEventMeanProgram, interpretOfficialLapWindowProgram, type OfficialLapTimingRow } from '../../src/f1ql/interpreter';
+import { OFFICIAL_EVENT_MEAN_METRIC_ID } from '../../src/f1ql/official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from '../../src/f1ql/official-lap-window';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { emitOfficialLapWindowF1QL } from '../../scripts/snapshot-phase8-belgium-2022-f1ql';
@@ -26,7 +27,11 @@ function syntheticHash(label: string): string {
   return createHash('sha256').update(label).digest('hex');
 }
 
-async function insertSyntheticSealedDataset(season: number, classifiedLaps: number, laps: SyntheticLap[]): Promise<string> {
+async function insertSyntheticSealedDataset(
+  season: number,
+  classifiedLaps: number | { driver_one: number; driver_two: number },
+  laps: SyntheticLap[]
+): Promise<string> {
   const datasetHash = syntheticHash(`dataset-${season}`);
   const historyHash = syntheticHash(`history-${season}`);
   await pool.query('BEGIN');
@@ -44,7 +49,11 @@ async function insertSyntheticSealedDataset(season: number, classifiedLaps: numb
     await pool.query(`INSERT INTO official_timing.driver_identity
       (dataset_sha256, racing_number, official_name, driver_id, canonical_full_name, classified_laps) VALUES
       ($1, '1', 'Driver One', 'driver_one', 'Driver One', $2),
-      ($1, '2', 'Driver Two', 'driver_two', 'Driver Two', $2)`, [datasetHash, classifiedLaps]);
+      ($1, '2', 'Driver Two', 'driver_two', 'Driver Two', $3)`, [
+      datasetHash,
+      typeof classifiedLaps === 'number' ? classifiedLaps : classifiedLaps.driver_one,
+      typeof classifiedLaps === 'number' ? classifiedLaps : classifiedLaps.driver_two
+    ]);
     for (const lap of laps) {
       await pool.query(`INSERT INTO official_timing.lap_fact
         (dataset_sha256, racing_number, driver_id, lap_number, lap_time_seconds, leader_gap_seconds,
@@ -245,6 +254,164 @@ describe('sealed official lap timing serving contract', () => {
     }] });
   });
 
+  it('keeps the all-event arithmetic mean distinct from the window median', async () => {
+    await insertSyntheticSealedDataset(2018, 5, [
+      { driver: 'driver_one', lap: 1, time: 80 },
+      { driver: 'driver_one', lap: 2, time: 92 },
+      { driver: 'driver_one', lap: 3, time: 92 },
+      { driver: 'driver_one', lap: 4, time: 92 },
+      { driver: 'driver_one', lap: 5, time: 92 },
+      { driver: 'driver_two', lap: 1, time: 90 },
+      { driver: 'driver_two', lap: 2, time: 90 },
+      { driver: 'driver_two', lap: 3, time: 90 },
+      { driver: 'driver_two', lap: 4, time: 90 },
+      { driver: 'driver_two', lap: 5, time: 90 }
+    ]);
+    await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2018, 'mean-one', 'ONE', 'driver_one', false),
+      (2018, 'mean-two', 'TWO', 'driver_two', false) ON CONFLICT DO NOTHING`);
+    const meanProgram = {
+      version: 1 as const,
+      root: {
+        op: 'official_event_mean_compare' as const,
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2018,
+        round: 1,
+        driver_a_id: 'driver-one',
+        driver_b_id: 'driver-two'
+      }
+    };
+    const meanResult = await executeF1QL(pool, meanProgram, { maxRows: 1 });
+    expect(meanResult.rendering).toContain('arithmetic mean');
+    expect(meanResult.rows).toEqual([expect.objectContaining({
+      driver_a_completed_laps: 5,
+      driver_b_completed_laps: 5,
+      driver_a_mean_lap_time_seconds: 89.6,
+      driver_b_mean_lap_time_seconds: 90,
+      mean_delta_seconds: 0.4,
+      winner_driver_id: 'driver-one'
+    })]);
+
+    const medianResult = await executeF1QL(pool, {
+      ...program,
+      root: {
+        ...program.root,
+        season: 2018,
+        round: 1,
+        driver_a_id: 'driver-one',
+        driver_b_id: 'driver-two',
+        lap_start: 1,
+        lap_end: 5
+      }
+    }, { maxRows: 1 });
+    expect(medianResult.rows).toEqual([expect.objectContaining({
+      driver_a_median_lap_time_seconds: 92,
+      driver_b_median_lap_time_seconds: 90,
+      winner_driver_id: 'driver-two'
+    })]);
+
+    const sourceRows = await pool.query<OfficialLapTimingRow>('SELECT * FROM f1ql.official_lap_timing WHERE season = 2018 AND round = 1');
+    expect(interpretOfficialEventMeanProgram(meanResult.core_program, sourceRows.rows.map(row => ({
+      ...row,
+      lap_number: Number(row.lap_number),
+      lap_time_seconds: Number(row.lap_time_seconds)
+    })))).toEqual(meanResult.rows);
+
+    const malformedProvenance = sourceRows.rows.map((row, index) => ({
+      ...row,
+      lap_number: Number(row.lap_number),
+      lap_time_seconds: Number(row.lap_time_seconds),
+      source_manifest_sha256: index === 0 ? syntheticHash('wrong-manifest') : row.source_manifest_sha256
+    }));
+    expect(interpretOfficialEventMeanProgram(meanResult.core_program, malformedProvenance)).toEqual([]);
+  });
+
+  it('rounds event means from integer milliseconds exactly like PostgreSQL', async () => {
+    const driverOne = Array.from({ length: 20 }, (_, index): SyntheticLap => ({
+      driver: 'driver_one', lap: index + 1, time: index === 19 ? 50.009 : 50
+    }));
+    const driverTwo = Array.from({ length: 20 }, (_, index): SyntheticLap => ({
+      driver: 'driver_two', lap: index + 1, time: index === 19 ? 50.011 : 50
+    }));
+    await insertSyntheticSealedDataset(2017, 20, [...driverOne, ...driverTwo]);
+    await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2017, 'round-one', 'ONE', 'driver_one', false),
+      (2017, 'round-two', 'TWO', 'driver_two', false) ON CONFLICT DO NOTHING`);
+    const roundingProgram = {
+      version: 1 as const,
+      root: {
+        op: 'official_event_mean_compare' as const,
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2017,
+        round: 1,
+        driver_a_id: 'driver-one',
+        driver_b_id: 'driver-two'
+      }
+    };
+    const result = await executeF1QL(pool, roundingProgram, { maxRows: 1 });
+    expect(result.rows).toEqual([expect.objectContaining({
+      driver_a_mean_lap_time_seconds: 50.0005,
+      driver_b_mean_lap_time_seconds: 50.0006,
+      mean_delta_seconds: 0.0001,
+      winner_driver_id: 'driver-one'
+    })]);
+    const sourceRows = await pool.query<OfficialLapTimingRow>('SELECT * FROM f1ql.official_lap_timing WHERE season = 2017');
+    expect(interpretOfficialEventMeanProgram(result.core_program, sourceRows.rows.map(row => ({
+      ...row,
+      lap_number: Number(row.lap_number),
+      lap_time_seconds: Number(row.lap_time_seconds)
+    })))).toEqual(result.rows);
+  });
+
+  it('reports asymmetric completed coverage, applies exclusions, and returns no partial mean', async () => {
+    await insertSyntheticSealedDataset(2016, { driver_one: 3, driver_two: 5 }, [
+      { driver: 'driver_one', lap: 1, time: 90 },
+      { driver: 'driver_one', lap: 2, time: 91, deleted: true },
+      { driver: 'driver_one', lap: 3, time: 92 },
+      { driver: 'driver_two', lap: 1, time: 93 },
+      { driver: 'driver_two', lap: 2, time: 94 },
+      { driver: 'driver_two', lap: 3, time: 95, pit: true },
+      { driver: 'driver_two', lap: 4, time: 96 },
+      { driver: 'driver_two', lap: 5, time: 97 }
+    ]);
+    await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2016, 'coverage-one', 'ONE', 'driver_one', false),
+      (2016, 'coverage-two', 'TWO', 'driver_two', false) ON CONFLICT DO NOTHING`);
+    const coverageProgram = {
+      version: 1 as const,
+      root: {
+        op: 'official_event_mean_compare' as const,
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2016,
+        round: 1,
+        driver_a_id: 'driver-one',
+        driver_b_id: 'driver-two'
+      }
+    };
+    await expect(executeF1QL(pool, coverageProgram, { maxRows: 1 })).resolves.toMatchObject({ rows: [expect.objectContaining({
+      driver_a_completed_laps: 3,
+      driver_b_completed_laps: 5,
+      driver_a_eligible_laps: 2,
+      driver_b_eligible_laps: 4,
+      driver_a_excluded_deleted_laps: 1,
+      driver_b_excluded_pit_marker_laps: 1
+    })] });
+
+    await insertSyntheticSealedDataset(2015, 2, [
+      { driver: 'driver_one', lap: 1, time: 90 },
+      { driver: 'driver_one', lap: 2, time: 91, pit: true },
+      { driver: 'driver_two', lap: 1, time: 92 },
+      { driver: 'driver_two', lap: 2, time: 93 }
+    ]);
+    await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2015, 'partial-one', 'ONE', 'driver_one', false),
+      (2015, 'partial-two', 'TWO', 'driver_two', false) ON CONFLICT DO NOTHING`);
+    await expect(executeF1QL(pool, { ...coverageProgram, root: { ...coverageProgram.root, season: 2015 } }, { maxRows: 1 }))
+      .resolves.toMatchObject({ rows: [] });
+    await expect(executeF1QL(pool, { ...coverageProgram, root: { ...coverageProgram.root, driver_b_id: 'missing-driver' } }, { maxRows: 1 }))
+      .rejects.toMatchObject({ code: 'participation_missing' });
+  });
+
   it('executes the closed metric with exact equivalence to the verified reference', async () => {
     const reference = compareHistoricalLapWindow(dataset, {
       driver_ids: ['max_verstappen', 'fernando_alonso'],
@@ -310,12 +477,12 @@ describe('sealed official lap timing serving contract', () => {
 
   it('regenerates the complete nonempty bounded F1QL result with answer access denied', async () => {
     const content = fs.readFileSync('data/phase8-belgium-2022-f1ql-result.json');
-    expect(createHash('sha256').update(content).digest('hex')).toBe('a7b82d2986743750393c1850d85a455e2c218cea57d6572d0195a0ca4390f29b');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('d0dfc64f38d6d081562d206273d1322559bb4fdc034fa944a6af9967330ca865');
     const expected = JSON.parse(content.toString('utf8'));
     expect(expected).toMatchObject({
       emitter: 'localhost_sealed_official_lap_f1ql_v1',
-      definitions_version: 'v3',
-      compiler_version: 'core-v2',
+      definitions_version: 'v4',
+      compiler_version: 'core-v3',
       fact_space_version: 'source-views-v2',
       answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
       rows: [{ metric_id: OFFICIAL_LAP_WINDOW_METRIC_ID, median_delta_seconds: 1.3335, winner_driver_id: 'max-verstappen' }]

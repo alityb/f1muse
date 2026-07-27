@@ -107,9 +107,16 @@ export interface OfficialLapWindowMedianCompareNode extends EventFilter {
   lap_end: number;
 }
 
+export interface OfficialEventMeanCompareNode extends EventFilter {
+  op: 'official_event_mean_compare';
+  metric: 'official_non_deleted_non_pit_event_mean_v1';
+  driver_a_id: string;
+  driver_b_id: string;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode;
 }
 
 export interface F1QLResult {

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "emitter": "localhost_sealed_official_lap_f1ql_v1",
-  "definitions_version": "v3",
-  "compiler_version": "core-v2",
+  "definitions_version": "v4",
+  "compiler_version": "core-v3",
   "fact_space_version": "source-views-v2",
   "answer_policy": {
     "type": "rejected",

@@ -1,6 +1,7 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 import { MINIMUM_ELIGIBLE_LAPS_PER_EVENT } from './lower';
+import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
@@ -12,7 +13,9 @@ export interface CompiledF1QL {
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
   if (getSource(program.root as CorePipelineNode | CoreDeltaNode).source === 'official_lap_timing') {
-    return compileOfficialLapWindow(program.root);
+    return program.root.op === 'delta' && program.root.metric_id === OFFICIAL_EVENT_MEAN_METRIC_ID
+      ? compileOfficialEventMean(program.root)
+      : compileOfficialLapWindow(program.root);
   }
   if (getSource(program.root as CorePipelineNode | CoreDeltaNode).source === 'lap_pace') {
     return compileLapPace(program.root);
@@ -44,6 +47,90 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
       ${whereSql}
       GROUP BY driver_id
       ${rankSql}
+    `,
+    params
+  };
+}
+
+function compileOfficialEventMean(node: CoreProgram['root']): CompiledF1QL {
+  if (node.op !== 'delta' || node.metric_id !== OFFICIAL_EVENT_MEAN_METRIC_ID || node.lower_is_better !== true) {
+    throw new Error('Expected an official event-mean delta');
+  }
+  const left = getOfficialEventMeanFilter(node.input.input.left);
+  const right = getOfficialEventMeanFilter(node.input.input.right);
+  if (left.season !== right.season || left.round !== right.round || left.driver_id !== node.left_id || right.driver_id !== node.right_id) {
+    throw new Error('Official event-mean inputs must share scope and match comparison drivers');
+  }
+  const params = [left.season, left.round, node.left_id, node.right_id];
+  return {
+    sql: `
+      WITH event_laps AS (
+        SELECT *
+        FROM f1ql.official_lap_timing
+        WHERE season = $1 AND round = $2 AND session_type = 'R' AND driver_id IN ($3, $4)
+      ),
+      driver_summaries AS (
+        SELECT
+          dataset_sha256, event_name, source_manifest_sha256, identity_map_sha256, fact_fingerprint, driver_id,
+          count(*)::integer AS completed_laps,
+          count(*) FILTER (WHERE NOT official_deleted_lap AND NOT official_pit_marker)::integer AS eligible_laps,
+          count(*) FILTER (WHERE official_deleted_lap)::integer AS excluded_deleted_laps,
+          count(*) FILTER (WHERE official_pit_marker)::integer AS excluded_pit_marker_laps,
+          round((avg((lap_time_seconds * 1000)::integer) FILTER (WHERE NOT official_deleted_lap AND NOT official_pit_marker) / 1000.0)::numeric, 4)::double precision AS mean_lap_time_seconds
+        FROM event_laps
+        GROUP BY dataset_sha256, event_name, source_manifest_sha256, identity_map_sha256, fact_fingerprint, driver_id
+        HAVING count(*) FILTER (WHERE NOT official_deleted_lap AND NOT official_pit_marker) >= ${MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS}
+      ),
+      comparison AS (
+        SELECT
+          max(dataset_sha256) AS dataset_sha256,
+          max(event_name) AS event_name,
+          max(source_manifest_sha256) AS source_manifest_sha256,
+          max(identity_map_sha256) AS identity_map_sha256,
+          max(fact_fingerprint) AS fact_fingerprint,
+          max(completed_laps) FILTER (WHERE driver_id = $3)::integer AS driver_a_completed_laps,
+          max(completed_laps) FILTER (WHERE driver_id = $4)::integer AS driver_b_completed_laps,
+          max(eligible_laps) FILTER (WHERE driver_id = $3)::integer AS driver_a_eligible_laps,
+          max(eligible_laps) FILTER (WHERE driver_id = $4)::integer AS driver_b_eligible_laps,
+          max(excluded_deleted_laps) FILTER (WHERE driver_id = $3)::integer AS driver_a_excluded_deleted_laps,
+          max(excluded_deleted_laps) FILTER (WHERE driver_id = $4)::integer AS driver_b_excluded_deleted_laps,
+          max(excluded_pit_marker_laps) FILTER (WHERE driver_id = $3)::integer AS driver_a_excluded_pit_marker_laps,
+          max(excluded_pit_marker_laps) FILTER (WHERE driver_id = $4)::integer AS driver_b_excluded_pit_marker_laps,
+          max(mean_lap_time_seconds) FILTER (WHERE driver_id = $3) AS driver_a_mean_lap_time_seconds,
+          max(mean_lap_time_seconds) FILTER (WHERE driver_id = $4) AS driver_b_mean_lap_time_seconds
+        FROM driver_summaries
+        HAVING count(*) = 2 AND count(DISTINCT driver_id) = 2 AND count(DISTINCT dataset_sha256) = 1
+      )
+      SELECT
+        $3::text AS driver_a_id,
+        $4::text AS driver_b_id,
+        '${OFFICIAL_EVENT_MEAN_METRIC_ID}'::text AS metric_id,
+        $1::integer AS season,
+        $2::integer AS round,
+        'R'::text AS session_type,
+        event_name,
+        driver_a_completed_laps,
+        driver_b_completed_laps,
+        driver_a_eligible_laps,
+        driver_b_eligible_laps,
+        driver_a_excluded_deleted_laps,
+        driver_b_excluded_deleted_laps,
+        driver_a_excluded_pit_marker_laps,
+        driver_b_excluded_pit_marker_laps,
+        driver_a_mean_lap_time_seconds,
+        driver_b_mean_lap_time_seconds,
+        round(abs(driver_a_mean_lap_time_seconds - driver_b_mean_lap_time_seconds)::numeric, 4)::double precision AS mean_delta_seconds,
+        CASE
+          WHEN driver_a_mean_lap_time_seconds < driver_b_mean_lap_time_seconds THEN $3::text
+          WHEN driver_b_mean_lap_time_seconds < driver_a_mean_lap_time_seconds THEN $4::text
+          ELSE NULL
+        END AS winner_driver_id,
+        dataset_sha256,
+        source_manifest_sha256,
+        identity_map_sha256,
+        fact_fingerprint
+      FROM comparison
+      WHERE driver_a_mean_lap_time_seconds IS NOT NULL AND driver_b_mean_lap_time_seconds IS NOT NULL
     `,
     params
   };
@@ -155,6 +242,13 @@ function getOfficialLapFilter(node: CorePipelineNode): CoreOfficialLapTimingFilt
     throw new Error('Expected a filtered official lap timing aggregate');
   }
   return node.input.where as CoreOfficialLapTimingFilter;
+}
+
+function getOfficialEventMeanFilter(node: CorePipelineNode): CoreOfficialEventMeanFilter {
+  if (node.op !== 'aggregate' || node.input.op !== 'filter' || node.input.input.op !== 'source' || node.input.input.source !== 'official_lap_timing') {
+    throw new Error('Expected a filtered official event-mean aggregate');
+  }
+  return node.input.where as CoreOfficialEventMeanFilter;
 }
 
 function getAggregateRoot(program: CoreProgram): CoreAggregateNode {

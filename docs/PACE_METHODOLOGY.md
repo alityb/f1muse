@@ -317,7 +317,20 @@ unapplied sealed-serving migration and executes the closed canonical
 `official_lap_window_median_compare` program through the real parser,
 validation, participation, lowering, core validation, compiler, read-only
 statement-timeout, and row-bound path. Its generated result SHA-256 is
-`a7b82d2986743750393c1850d85a455e2c218cea57d6572d0195a0ca4390f29b` and
+`d0dfc64f38d6d081562d206273d1322559bb4fdc034fa944a6af9967330ca865` and
 matches the temporary reference values exactly. The answer policy rejects the
 operation. Both migrations remain localhost-only with no persistent runtime
 grant, production application, or production ingestion authorization.
+
+### Official Event Mean
+
+`official_non_deleted_non_pit_event_mean_v1` is a separate all-event arithmetic
+mean over each driver's eligible official completed laps. It excludes only
+officially deleted and explicit `PIT` rows, requires two eligible laps per
+driver, rounds from integer milliseconds to four decimal places, and reports
+each driver's completed and eligible counts. Different completed-lap counts are
+allowed and disclosed. Safety-car, weather, traffic, tyre, fuel, strategy, and
+other race-state effects remain included. The canonical
+`official_event_mean_compare` compiler and reference interpreter are
+differentially tested with data where mean and median select opposite drivers.
+The complete contract is `docs/OFFICIAL_EVENT_MEAN_METRIC.md`.

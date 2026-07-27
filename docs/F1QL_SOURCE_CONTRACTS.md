@@ -259,11 +259,20 @@ one season/round race, two distinct drivers, and an inclusive window of at most
 officially deleted and explicit `PIT` rows, requires two eligible laps per
 driver, and returns no row for partial evidence.
 
+The separate `official_non_deleted_non_pit_event_mean_v1` contract compares the
+arithmetic mean of all eligible official completed laps for each of exactly two
+drivers in one event. It uses integer milliseconds, excludes only officially
+deleted and explicit `PIT` rows, reports asymmetric completed/eligible counts,
+and requires at least two eligible laps each. It is implemented by the closed
+`official_event_mean_compare` operation and is not an alias for classification,
+fastest lap, legacy filtered pace, or the explicit median-window metric. Full
+semantics are in `docs/OFFICIAL_EVENT_MEAN_METRIC.md`.
+
 Local generated F1QL evidence is
 `data/phase8-belgium-2022-f1ql-result.json` with SHA-256
-`a7b82d2986743750393c1850d85a455e2c218cea57d6572d0195a0ca4390f29b`.
+`d0dfc64f38d6d081562d206273d1322559bb4fdc034fa944a6af9967330ca865`.
 No persistent runtime role or production grant exists. The answer policy
-explicitly rejects this operation, and neither migration has been applied nor
+explicitly rejects both official timing operations, and neither migration has been applied nor
 has historical data been ingested in production.
 
 ## Evidence Maintenance
