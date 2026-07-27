@@ -16,6 +16,7 @@ Supported root operations only:
 - event_classification for an official race result by season and round
 - qualifying_classification for an official qualifying result by season and round
 - event_metadata for an official race or qualifying date by season and round
+- official_lap_window_median_compare for exactly two drivers over one inclusive official race-lap window; only metric official_non_deleted_non_pit_window_median_v1 is supported
 Required final-standings points program: {"version":1,"root":{"op":"aggregate","input":{"op":"filter","input":{"op":"source","source":"standings"},"where":{"season":2025,"driver_id":["lando-norris","oscar-piastri"]}},"group_by":["driver_id"],"measures":[{"as":"points","function":"max","field":"points"}]}}
 Required final-standings leader program: {"version":1,"root":{"op":"rank","input":{"op":"aggregate","input":{"op":"filter","input":{"op":"source","source":"standings"},"where":{"season":2025}},"group_by":["driver_id"],"measures":[{"as":"championship_position","function":"min","field":"championship_position"},{"as":"points","function":"max","field":"points"}]},"by":"championship_position","direction":"asc","limit":1}}
 Required named race-classification program: {"version":1,"root":{"op":"event_classification","season":2025,"event_name":"Australian Grand Prix","limit":30,"filters":{"driver_id":"max-verstappen"}}}
@@ -23,6 +24,7 @@ Required named qualifying-classification program: {"version":1,"root":{"op":"qua
 Required named race-date program: {"version":1,"root":{"op":"event_metadata","season":2025,"event_name":"Australian Grand Prix","session_scope":"race"}}
 Required pace_summary program: {"version":1,"root":{"op":"pace_summary","driver_id":"max-verstappen","scope":{"season":2025}}}
 Required pace_delta program: {"version":1,"root":{"op":"pace_delta","driver_a_id":"max-verstappen","driver_b_id":"lando-norris","scope":{"season":2025}}}
+Required named official lap-window program: {"version":1,"root":{"op":"official_lap_window_median_compare","metric":"official_non_deleted_non_pit_window_median_v1","season":2022,"event_name":"Belgian Grand Prix","driver_a_id":"max-verstappen","driver_b_id":"fernando-alonso","lap_start":3,"lap_end":10}}
 Use championship_position ascending, never points descending, to identify the official final standings leader.
 Always include a season filter in standings programs. Use a driver_id array when comparing named drivers.
 Emit a structurally valid program_candidate for representable requests even if pace, an interim season, a team filter, or the requested entity count may be rejected later by deterministic policy. The deterministic linker and policy own identity ambiguity and authorization decisions.

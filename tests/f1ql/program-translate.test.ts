@@ -121,13 +121,16 @@ describe('shadow F1QL translation', () => {
   });
 
   it('reparses linked aliases and rejects a collapsed two-driver comparison', async () => {
-    model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: { op: 'pace_delta', driver_a_id: 'Max Verstappen', driver_b_id: 'VER', scope: { season: 2025 } } } }));
+    model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: {
+      op: 'official_lap_window_median_compare', metric: 'official_non_deleted_non_pit_window_median_v1', season: 2025,
+      event_name: 'Belgium', driver_a_id: 'Max Verstappen', driver_b_id: 'VER', lap_start: 1, lap_end: 3
+    } } }));
     const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Compare Max Verstappen and VER' }) });
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ error: 'program_unsupported', reason: 'program_invalid' });
   });
 
-  it('may validate the canonical historical operation in shadow mode but never executes it', async () => {
+  it('links a named historical event and both driver aliases without executing it', async () => {
     model.setOutput(JSON.stringify({
       type: 'program_candidate',
       program: {
@@ -136,9 +139,9 @@ describe('shadow F1QL translation', () => {
           op: 'official_lap_window_median_compare',
           metric: 'official_non_deleted_non_pit_window_median_v1',
           season: 2025,
-          round: 1,
-          driver_a_id: 'max-verstappen',
-          driver_b_id: 'bob-smith',
+          event_name: 'Belgium',
+          driver_a_id: 'Max Verstappen',
+          driver_b_id: 'BSM',
           lap_start: 1,
           lap_end: 3
         }
@@ -146,7 +149,65 @@ describe('shadow F1QL translation', () => {
     }));
     const response = await fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Compare a historical lap window' }) });
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ mode: 'shadow', program: { root: { op: 'official_lap_window_median_compare' } } });
+    await expect(response.json()).resolves.toEqual({
+      mode: 'shadow',
+      program: {
+        version: 1,
+        root: {
+          op: 'official_lap_window_median_compare',
+          metric: 'official_non_deleted_non_pit_window_median_v1',
+          season: 2025,
+          round: 7,
+          driver_a_id: 'max-verstappen',
+          driver_b_id: 'bob-smith',
+          lap_start: 1,
+          lap_end: 3
+        }
+      }
+    });
+  });
+
+  it('fails closed for historical event and driver resolution failures', async () => {
+    const root = {
+      op: 'official_lap_window_median_compare',
+      metric: 'official_non_deleted_non_pit_window_median_v1',
+      season: 2025,
+      event_name: 'Belgium',
+      driver_a_id: 'Max Verstappen',
+      driver_b_id: 'BSM',
+      lap_start: 1,
+      lap_end: 3
+    };
+    const request = async (overrides: Record<string, unknown>) => {
+      model.setOutput(JSON.stringify({ type: 'program_candidate', program: { version: 1, root: { ...root, ...overrides } } }));
+      return fetch(`${baseUrl}/program/translate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'Historical lap window' }) });
+    };
+
+    const ambiguousEvent = await request({ event_name: 'Ambiguous GP' });
+    expect(ambiguousEvent.status).toBe(422);
+    await expect(ambiguousEvent.json()).resolves.toMatchObject({ reason: 'event_ambiguous', options: ['2025 round 8', '2025 round 9'] });
+
+    const missingEvent = await request({ event_name: 'Missing GP' });
+    expect(missingEvent.status).toBe(422);
+    await expect(missingEvent.json()).resolves.toMatchObject({ reason: 'source_coverage_missing' });
+
+    const ambiguousDriver = await request({ driver_a_id: 'Smith' });
+    expect(ambiguousDriver.status).toBe(422);
+    await expect(ambiguousDriver.json()).resolves.toMatchObject({ reason: 'entity_ambiguous', options: ['alex-smith', 'bob-smith'] });
+
+    const ambiguousSecondDriver = await request({ driver_b_id: 'Smith' });
+    expect(ambiguousSecondDriver.status).toBe(422);
+    await expect(ambiguousSecondDriver.json()).resolves.toMatchObject({ reason: 'entity_ambiguous', options: ['alex-smith', 'bob-smith'] });
+
+    for (const overrides of [{ driver_a_id: 'Missing Driver' }, { driver_b_id: 'Missing Driver' }]) {
+      const missingDriver = await request(overrides);
+      expect(missingDriver.status).toBe(422);
+      await expect(missingDriver.json()).resolves.toMatchObject({ error: 'identity_unresolved' });
+    }
+
+    const unsupportedMetric = await request({ metric: 'clean_air_gap_2_0s_v1' });
+    expect(unsupportedMetric.status).toBe(422);
+    await expect(unsupportedMetric.json()).resolves.toMatchObject({ reason: 'program_invalid' });
   });
 
   it('logs typed participation rejections', async () => {
@@ -158,7 +219,7 @@ describe('shadow F1QL translation', () => {
 
   it('records typed shadow outcomes', () => {
     expect(metrics.toJSON().f1ql.translation_outcomes).toMatchObject({
-      succeeded: 5, invalid: 2, unavailable: 2, identity_miss: 1, unsupported: 6
+      succeeded: 5, invalid: 2, unavailable: 2, identity_miss: 3, unsupported: 11
     });
     expect(metrics.toJSON().f1ql.translation_reasons).toMatchObject({ participation_missing: 1 });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_translation_outcomes_total{outcome="succeeded"} 5');

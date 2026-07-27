@@ -38,7 +38,7 @@ describe('constrained F1QL translation', () => {
     await translateF1QLQuestion('Who led the final standings?', model);
 
     const examples = [...model.systemPrompt.matchAll(/^Required [^:\n]+ program: (.+)$/gm)];
-    expect(examples).toHaveLength(7);
+    expect(examples).toHaveLength(8);
     for (const example of examples) {
       expect(() => parseF1QLProgramCandidate(JSON.parse(example[1]))).not.toThrow();
     }
@@ -47,6 +47,8 @@ describe('constrained F1QL translation', () => {
     expect(model.systemPrompt).toContain('"op":"event_classification"');
     expect(model.systemPrompt).toContain('"op":"qualifying_classification"');
     expect(model.systemPrompt).toContain('"op":"event_metadata"');
+    expect(model.systemPrompt).toContain('"op":"official_lap_window_median_compare"');
+    expect(model.systemPrompt).toContain('"metric":"official_non_deleted_non_pit_window_median_v1"');
     expect(model.systemPrompt).toContain('The deterministic linker and policy own identity ambiguity and authorization decisions.');
   });
 
@@ -59,6 +61,36 @@ describe('constrained F1QL translation', () => {
       type: 'program_candidate',
       program: { version: 1, root: { op: 'event_classification', season: 2021, round: 12, event_name: 'Belgian Grand Prix', limit: 30 } }
     })))).resolves.toEqual({ type: 'unsupported', reason: 'program_invalid' });
+  });
+
+  it('accepts only the closed translation-only named official lap-window shape', async () => {
+    const program = {
+      version: 1,
+      root: {
+        op: 'official_lap_window_median_compare',
+        metric: 'official_non_deleted_non_pit_window_median_v1',
+        season: 2022,
+        event_name: 'Belgian Grand Prix',
+        driver_a_id: 'Max Verstappen',
+        driver_b_id: 'Fernando Alonso',
+        lap_start: 3,
+        lap_end: 10
+      }
+    };
+    await expect(translateF1QLQuestion('Belgium laps 3-10', new StubModel(JSON.stringify({ type: 'program_candidate', program }))))
+      .resolves.toMatchObject({ type: 'program_candidate', program: { root: { event_name: 'Belgian Grand Prix' } } });
+
+    for (const root of [
+      { ...program.root, round: 14 },
+      { ...program.root, metric: 'clean_air_gap_2_0s_v1' },
+      { ...program.root, lap_start: 0 },
+      { ...program.root, lap_start: 10, lap_end: 9 },
+      { ...program.root, lap_start: 1, lap_end: 51 }
+    ]) {
+      await expect(translateF1QLQuestion('invalid historical window', new StubModel(JSON.stringify({
+        type: 'program_candidate', program: { version: 1, root }
+      })))).resolves.toEqual({ type: 'unsupported', reason: 'program_invalid' });
+    }
   });
 
   it('returns provider_unavailable for non-JSON output without a fallback execution path', async () => {

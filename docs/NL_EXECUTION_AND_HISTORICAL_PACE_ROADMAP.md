@@ -293,6 +293,16 @@ Belgian 2022 result exactly matches the independently verified reference. The
 answer policy remains denied; there is no persistent runtime grant, production
 migration application, or production ingestion authorization.
 
+The shadow translator now accepts a strict named-event candidate for this
+operation, resolves the event within its season, resolves both driver references
+without discarding ambiguity, and reparses the resulting canonical program.
+Missing or ambiguous identities, aliases that collapse to one driver, unsupported
+metrics, and invalid windows fail closed. This completes Phase 8 locally without
+changing definitions `v3`, compiler `core-v2`, or fact space `source-views-v2`.
+The shadow route still never executes translated programs, and the answer policy
+still rejects this operation. Production migration, ingestion, grants, deployment,
+provider evaluation, and answer authorization are separate release decisions.
+
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed
 timing streams and that some values need post-processing or educated assignment.
