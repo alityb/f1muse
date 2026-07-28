@@ -23,6 +23,7 @@ describe('F1QL launch capability migration', () => {
       ['career-summary', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary'],
       ['profile-replacement', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'],
       ['current-standings', 'Show the latest recorded 2026 driver standings.', 'current_standings'],
+      ['race-h2h', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'],
       ['race-winner', 'Who won the 2025 Australian Grand Prix?', 'race_result_selection'],
       ['race-podium', 'Show the podium for the 2025 Australian Grand Prix.', 'race_result_selection'],
       ['race-top-five', 'Show the top five finishers at the 2025 Australian Grand Prix.', 'race_result_selection'],
@@ -63,7 +64,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'current-standings', 'profile-replacement', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = ['career-summary', 'current-standings', 'profile-replacement', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));
@@ -72,11 +73,11 @@ describe('F1QL launch capability migration', () => {
       expect(evaluation).toMatchObject({ answerable: true, expected: { action: 'answer', proof_outcome: 'passed' } });
       const contract = createAnswerQuestionContract(parityCase.question);
       const inventory = {
-        inventoryMentions: async (question: string) => ['Max Verstappen', 'Lewis Hamilton', 'Lando Norris'].filter(name => question.includes(name)).map(name => ({
+        inventoryMentions: async (question: string) => ['Max Verstappen', 'Lewis Hamilton', 'Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name)).map(name => ({
           text: name, start: Array.from(question.slice(0, question.indexOf(name))).length,
           end: Array.from(question.slice(0, question.indexOf(name))).length + Array.from(name).length,
-          candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : 'lando_norris'],
-          active_candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : 'lando_norris']
+          candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' ? 'oscar_piastri' : 'lando_norris'],
+          active_candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' ? 'oscar_piastri' : 'lando_norris']
         }))
       };
       const intent = await deriveAnswerIntent(contract, inventory);

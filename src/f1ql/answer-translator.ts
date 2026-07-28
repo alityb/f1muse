@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v6';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v9' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v7';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v10' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -32,6 +32,10 @@ const seasonProperties = {
   season: { type: 'integer', minimum: 1950, maximum: 2100 },
   season_reference: referenceSchema
 } as const;
+const finalSeasonProperties = {
+  season: { type: 'integer', minimum: 1950, maximum: 2025 },
+  season_reference: referenceSchema
+} as const;
 const eventProperties = { event_reference: referenceSchema } as const;
 const selectionProperties = { selection_reference: referenceSchema } as const;
 const positionProperty = { position: { type: 'integer', minimum: 1, maximum: 30 } } as const;
@@ -57,6 +61,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('current_standings', seasonProperties, ['season', 'season_reference']),
         closedIntent('driver_season_official_summary', { ...seasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
         closedIntent('driver_career_official_summary', { driver_reference: referenceSchema }, ['driver_reference']),
+        closedIntent('race_season_finishing_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('race_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('race_classification_driver', { ...seasonProperties, ...eventProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'driver_reference']),
         closedIntent('race_classification_status', { ...seasonProperties, ...eventProperties, status: { enum: ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'] }, status_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'status', 'status_reference']),
@@ -86,6 +91,7 @@ Decision table (follow literal wording):
 - current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
 - driver_season_official_summary: literal official final-season summary for exactly one named driver, including the closed "official <year> driver summary" alias; this means recorded championship position and points, never a broader profile, pace, or a cross-source composite.
 - driver_career_official_summary: literal official career summary for exactly one named driver; this means best recorded final championship position and count of recorded final standings rows through 2025, never a distinct-season claim, pace, or a cross-source composite.
+- race_season_finishing_position_h2h: only the literal closed wording "Who finished ahead more often in <year>, <driver A> or <driver B>?" or "In <year>, who finished ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares race finishing positions only on shared events where both have recorded numeric positions.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
 - race_classification_status: race classification filtered by exactly one literal supported status.
@@ -109,6 +115,8 @@ Question: Show Lando Norris official 2025 driver summary.
 {"intent":{"type":"driver_season_official_summary","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Lando Norris"}}}
 Question: Show Lewis Hamilton official career summary.
 {"intent":{"type":"driver_career_official_summary","driver_reference":{"text":"Lewis Hamilton"}}}
+Question: Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?
+{"intent":{"type":"race_season_finishing_position_h2h","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Lando Norris"},{"text":"Oscar Piastri"}]}}
 Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying

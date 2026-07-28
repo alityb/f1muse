@@ -21,6 +21,46 @@ const standings: F1QLProgram = {
 };
 
 describe('deterministic answer formatting', () => {
+  const h2h = materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+  const h2hRow = {
+    metric_id: 'official_race_finishing_position_shared_events_v1', season: 2025,
+    driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri', driver_a_ahead: 1, driver_b_ahead: 1, ties: 1,
+    shared_events: 3, driver_a_source_rows: 6, driver_b_source_rows: 4, distinct_source_keys: 10,
+    duplicate_source_rows: 0, source_presence_ok: true, source_unique_keys_ok: true, source_integrity_ok: true
+  };
+
+  it('formats race H2H with explicit shared-position methodology', () => {
+    expect(formatAnswerRows(h2h, approved(h2h), [h2hRow])).toEqual({
+      answer: {
+        headline: 'lando-norris and oscar-piastri finished ahead equally often. Final 2025 race finishing-position H2H.',
+        facts: [{ subject: 'lando-norris vs oscar-piastri', values: { driver_a_ahead: '1', driver_b_ahead: '1', ties: '1', shared_events: '3' } }]
+      },
+      coverage: 'sufficient', caveats: ['shared_events_require_both_recorded_numeric_finishing_positions', 'null_or_one_sided_events_excluded']
+    });
+  });
+
+  it('accepts a valid 24-round H2H result with 48 distinct source keys', () => {
+    expect(formatAnswerRows(h2h, approved(h2h), [{
+      ...h2hRow, driver_a_ahead: 12, driver_b_ahead: 10, ties: 2, shared_events: 24,
+      driver_a_source_rows: 24, driver_b_source_rows: 24, distinct_source_keys: 48
+    }])).toMatchObject({
+      coverage: 'sufficient',
+      answer: { headline: 'lando-norris finished ahead more often. Final 2025 race finishing-position H2H.' }
+    });
+  });
+
+  it('fails closed for malformed or integrity-failed race H2H data', () => {
+    expect(() => formatAnswerRows(h2h, approved(h2h), [])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(h2h, approved(h2h), [h2hRow, h2hRow])).toThrow(AnswerFormatError);
+    for (const mutation of [
+      { metric_id: 'other' }, { driver_a_id: 'other' }, { source_integrity_ok: false }, { source_presence_ok: false },
+      { source_unique_keys_ok: false }, { duplicate_source_rows: 1 }, { driver_a_source_rows: 0 }, { shared_events: 0 },
+      { driver_a_ahead: 31 }, { ties: -1 }, { shared_events: 4 }, { distinct_source_keys: 9 }, { distinct_source_keys: 61 },
+      { driver_a_source_rows: 31, distinct_source_keys: 35 }, { driver_a_source_rows: 2, distinct_source_keys: 6 }
+    ]) {
+      expect(() => formatAnswerRows(h2h, approved(h2h), [{ ...h2hRow, ...mutation }])).toThrow(AnswerFormatError);
+    }
+  });
   it('sorts unranked standings and normalizes numeric strings without changing raw rows', () => {
     const rows = [{ driver_id: 'norris', points: '357.000' }, { driver_id: 'leclerc', points: null }];
     const envelope = buildAnswerEnvelope(standings, approved(standings), rows);

@@ -45,6 +45,10 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
   await pool.query(`INSERT INTO race (id, year, round, circuit_id, grand_prix_id, official_name, date) VALUES
     (1, 2025, 1, 'albert-park', 'australian_grand_prix', 'Formula 1 Australian Grand Prix', '2025-03-16'),
     (2, 2025, 2, 'monaco', 'monaco_grand_prix', 'Formula 1 Monaco Grand Prix', '2025-05-25'),
+    (3, 2025, 3, 'fixture-three', NULL, 'Formula 1 Fixture Three Grand Prix', '2025-06-01'),
+    (4, 2025, 4, 'fixture-four', NULL, 'Formula 1 Fixture Four Grand Prix', '2025-06-08'),
+    (5, 2025, 5, 'fixture-five', NULL, 'Formula 1 Fixture Five Grand Prix', '2025-06-15'),
+    (6, 2025, 6, 'fixture-six', NULL, 'Formula 1 Fixture Six Grand Prix', '2025-06-22'),
     (101, 2024, 1, 'albert-park', 'australian_grand_prix', 'Formula 1 Australian Grand Prix', '2024-03-24'),
     (8, 2025, 8, 'ambiguous-one', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-01'),
     (9, 2025, 9, 'ambiguous-two', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-08'),
@@ -63,6 +67,13 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (1, 'RACE_RESULT', 'status_withdrawn', 'sample', NULL, 'W', 0, 'Withdrawn'),
     (2, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 1, '1', 25, NULL),
     (2, 'RACE_RESULT', 'lando_norris', 'mclaren', 2, '2', 18, NULL),
+    (3, 'RACE_RESULT', 'lando_norris', 'mclaren', 4, '4', 12, NULL),
+    (3, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 1, '1', 25, NULL),
+    (4, 'RACE_RESULT', 'lando_norris', 'mclaren', 2, '2', 18, NULL),
+    (4, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 2, '2', 18, NULL),
+    (5, 'RACE_RESULT', 'lando_norris', 'mclaren', NULL, 'R', 0, 'Engine'),
+    (5, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 3, '3', 15, NULL),
+    (6, 'RACE_RESULT', 'lando_norris', 'mclaren', 1, '1', 25, NULL),
     (101, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
     (101, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 2, '2', 18, NULL)`);
   await pool.query(`INSERT INTO qualifying_results

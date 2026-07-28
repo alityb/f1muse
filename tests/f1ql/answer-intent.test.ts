@@ -100,6 +100,26 @@ describe('answer-specific intent contract', () => {
     }, createAnswerQuestionContract(text))).toThrow();
   });
 
+  it('hydrates exactly two ordered literal race H2H drivers', () => {
+    const text = 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?';
+    expect(hydrateAndParseAnswerIntent({
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: { text: '2025' },
+      driver_references: [{ text: 'Lando Norris' }, { text: 'Oscar Piastri' }]
+    }, createAnswerQuestionContract(text))).toEqual({
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: reference(text, '2025'),
+      driver_references: [reference(text, 'Lando Norris'), reference(text, 'Oscar Piastri')]
+    });
+    for (const driver_references of [[{ text: 'Lando Norris' }], [{ text: 'Lando Norris' }, { text: 'Oscar Piastri' }, { text: '2025' }]]) {
+      expect(() => parseUntrustedAnswerIntentCandidate({
+        type: 'race_season_finishing_position_h2h', season: 2025, season_reference: { text: '2025' }, driver_references
+      })).toThrow();
+    }
+    expect(() => hydrateAndParseAnswerIntent({
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: { text: '2025' },
+      driver_references: [{ text: 'Oscar Piastri' }, { text: 'Lando Norris' }]
+    }, createAnswerQuestionContract(text))).toThrow();
+  });
+
   it('hydrates a trusted result-selection reference without accepting position arrays', () => {
     const text = 'Show the top five finishers at the 2025 Australian Grand Prix.';
     expect(hydrateAndParseAnswerIntent({

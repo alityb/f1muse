@@ -2,8 +2,9 @@ import { createHash } from 'crypto';
 import { z } from 'zod';
 import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './verified-programs';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v6' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v7' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -22,6 +23,7 @@ export type AnswerTemplateId =
   | 'final_standings_points' | 'final_standings_leader' | 'current_standings'
   | 'driver_season_official_summary'
   | 'driver_career_official_summary'
+  | 'race_season_finishing_position_h2h'
   | 'race_classification_all' | 'race_classification_driver' | 'race_classification_status'
   | 'qualifying_classification_all' | 'qualifying_classification_driver' | 'qualifying_classification_status'
   | 'race_classification_position' | 'qualifying_classification_position'
@@ -69,6 +71,10 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
     variables: { driver_id: driverIdConstraint },
     semantic: 'one canonical driver across the explicit 1950-2025 final standings set; minimum recorded championship position and count recorded final standings rows'
   },
+  race_season_finishing_position_h2h: {
+    variables: { season: finalSeasonConstraint, driver_a_id: driverIdConstraint, driver_b_id: driverIdConstraint },
+    semantic: 'ordered two-driver final-season race finishing-position comparison over shared events with two recorded numeric positions'
+  },
   race_classification_all: {
     variables: { season: allClassificationSeasonConstraint, round: roundConstraint },
     semantic: 'race event classification for one event; no entity filter; fixed limit 30'
@@ -113,6 +119,8 @@ const variableSchemas = {
   current_standings: z.object({ season: currentStandingsSeason }).strict(),
   driver_season_official_summary: z.object({ season: finalSeason, driver_id: resolvedDriverId }).strict(),
   driver_career_official_summary: z.object({ driver_id: resolvedDriverId }).strict(),
+  race_season_finishing_position_h2h: z.object({ season: finalSeason, driver_a_id: resolvedDriverId, driver_b_id: resolvedDriverId }).strict()
+    .refine(value => value.driver_a_id !== value.driver_b_id, 'Resolved driver IDs must be different'),
   race_classification_all: z.object({ season: allClassificationSeason, round }).strict(),
   race_classification_driver: z.object({ season, round, driver_id: resolvedDriverId }).strict(),
   race_classification_status: z.object({ season, round, status: raceStatus }).strict(),
@@ -136,6 +144,8 @@ interface ScopedVariables {
   round?: number;
   driver_id?: string;
   driver_ids?: string[];
+  driver_a_id?: string;
+  driver_b_id?: string;
   status?: string;
   positions?: number[];
 }
@@ -182,6 +192,11 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
         { as: 'recorded_final_standings_rows', function: 'count' }
       ]
     };
+  } else if (templateId === 'race_season_finishing_position_h2h') {
+    root = {
+      op: 'race_season_finishing_position_h2h', metric: RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID,
+      season: scoped.season, driver_a_id: scoped.driver_a_id as string, driver_b_id: scoped.driver_b_id as string
+    };
   } else if (templateId === 'final_standings_leader' || templateId === 'current_standings') {
     root = {
       op: 'rank',
@@ -221,6 +236,7 @@ const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> 
   current_standings: [{ season: CURRENT_STANDINGS_SEASON }],
   driver_season_official_summary: [{ season: 2025, driver_id: 'sentinel-driver' }],
   driver_career_official_summary: [{ driver_id: 'sentinel-driver' }],
+  race_season_finishing_position_h2h: [{ season: 2025, driver_a_id: 'sentinel-driver', driver_b_id: 'second-driver' }],
   race_classification_all: [{ season: 2025, round: 7 }],
   race_classification_driver: [{ season: 2025, round: 7, driver_id: 'sentinel-driver' }],
   race_classification_status: [{ season: 2025, round: 7, status: 'dsq' }],

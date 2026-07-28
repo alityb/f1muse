@@ -60,6 +60,12 @@ export function formatAnswerRows(
   capability: AnswerCapability,
   rows: Array<Record<string, unknown>>
 ): { answer: FormattedAnswer; coverage: AnswerCoverageStatus; caveats: string[] } {
+  if (program.root.op === 'race_season_finishing_position_h2h') {
+    if (capability.source !== 'race_classification' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Race H2H capability did not match program');
+    }
+    return formatRaceSeasonH2H(program.root, rows);
+  }
   if (rows.length === 0) {
     const root = program.root;
     const positionSelected = (root.op === 'event_classification' && root.filters?.finishing_position !== undefined)
@@ -86,6 +92,49 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+function formatRaceSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'race_season_finishing_position_h2h' }>, rows: Array<Record<string, unknown>>) {
+  if (rows.length !== 1) {
+    throw new AnswerFormatError('Race H2H rows were invalid');
+  }
+  const row = rows[0];
+  if (row.metric_id !== root.metric || row.season !== root.season || row.driver_a_id !== root.driver_a_id || row.driver_b_id !== root.driver_b_id ||
+      row.source_integrity_ok !== true || row.source_presence_ok !== true || row.source_unique_keys_ok !== true) {
+    throw new AnswerFormatError('Race H2H rows were invalid');
+  }
+  const driverAAhead = requiredBoundedCount(row.driver_a_ahead, 'driver_a_ahead');
+  const driverBAhead = requiredBoundedCount(row.driver_b_ahead, 'driver_b_ahead');
+  const ties = requiredBoundedCount(row.ties, 'ties');
+  const sharedEvents = requiredBoundedCount(row.shared_events, 'shared_events');
+  const driverASourceRows = requiredBoundedCount(row.driver_a_source_rows, 'driver_a_source_rows');
+  const driverBSourceRows = requiredBoundedCount(row.driver_b_source_rows, 'driver_b_source_rows');
+  const distinctSourceKeys = requiredBoundedCount(row.distinct_source_keys, 'distinct_source_keys', 60);
+  const duplicateSourceRows = requiredBoundedCount(row.duplicate_source_rows, 'duplicate_source_rows');
+  if (sharedEvents === 0 || driverASourceRows === 0 || driverBSourceRows === 0 || duplicateSourceRows !== 0 ||
+      distinctSourceKeys !== driverASourceRows + driverBSourceRows || sharedEvents > Math.min(driverASourceRows, driverBSourceRows) ||
+      driverAAhead + driverBAhead + ties !== sharedEvents) {
+    throw new AnswerFormatError('Race H2H rows were invalid');
+  }
+  let outcome = `${root.driver_a_id} and ${root.driver_b_id} finished ahead equally often.`;
+  if (driverAAhead > driverBAhead) {
+    outcome = `${root.driver_a_id} finished ahead more often.`;
+  } else if (driverBAhead > driverAAhead) {
+    outcome = `${root.driver_b_id} finished ahead more often.`;
+  }
+  return {
+    answer: {
+      headline: `${outcome} Final ${root.season} race finishing-position H2H.`,
+      facts: [{
+        subject: `${root.driver_a_id} vs ${root.driver_b_id}`,
+        values: {
+          driver_a_ahead: String(driverAAhead), driver_b_ahead: String(driverBAhead), ties: String(ties), shared_events: String(sharedEvents)
+        }
+      }]
+    },
+    coverage: 'sufficient' as const,
+    caveats: ['shared_events_require_both_recorded_numeric_finishing_positions', 'null_or_one_sided_events_excluded']
+  };
 }
 
 function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknown>>, current: boolean) {
@@ -213,6 +262,14 @@ function requiredPosition(value: unknown, field: string): number {
 function requiredPositiveInteger(value: unknown, field: string): number {
   const integer = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
   if (typeof integer !== 'number' || !Number.isSafeInteger(integer) || integer < 1) {
+    throw new AnswerFormatError(`Invalid ${field} value`);
+  }
+  return integer;
+}
+
+function requiredBoundedCount(value: unknown, field: string, maximum = 30): number {
+  const integer = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
+  if (typeof integer !== 'number' || !Number.isSafeInteger(integer) || integer < 0 || integer > maximum) {
     throw new AnswerFormatError(`Invalid ${field} value`);
   }
   return integer;

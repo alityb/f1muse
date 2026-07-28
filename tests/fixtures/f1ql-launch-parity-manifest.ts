@@ -15,7 +15,7 @@ export const launchParityManifest: readonly LaunchParityCase[] = [
   contracted('career-summary', 'driver_career_summary', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary'),
   contracted('profile-replacement', 'driver_profile_summary', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'),
   abstain('trend-retired', 'driver_trend_summary', 'Is Charles Leclerc improving across recent seasons?', 'official_trend_source_required'),
-  answer('race-h2h', 'driver_head_to_head_count', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'),
+  contracted('race-h2h', 'driver_head_to_head_count', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'),
   abstain('vector-retired', 'driver_performance_vector', 'Show Oscar Piastri performance vector in 2025.', 'performance_vector_source_required'),
   answer('multi-ranking-replacement', 'driver_multi_comparison', 'Rank Verstappen, Norris, and Piastri by final 2025 championship position.', 'official_multi_driver_ranking'),
   answer('matchup-replacement', 'driver_matchup_lookup', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'classification_head_to_head'),

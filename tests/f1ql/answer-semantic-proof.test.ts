@@ -15,10 +15,10 @@ const events: AnswerProofEventResolver = {
 };
 const drivers: AnswerProofDriverResolver = {
   inventoryMentions: async question => {
-    const mentions = ['Max', 'Lando Norris', 'Lewis Hamilton'].filter(name => question.includes(name));
+    const mentions = ['Max', 'Lando Norris', 'Oscar Piastri', 'Lewis Hamilton'].filter(name => question.includes(name));
     return mentions.map(text => {
       const reference = span(question, text);
-      const driver = text === 'Max' ? 'max_verstappen' : text === 'Lewis Hamilton' ? 'lewis_hamilton' : 'lando_norris';
+      const driver = text === 'Max' ? 'max_verstappen' : text === 'Lewis Hamilton' ? 'lewis_hamilton' : text === 'Oscar Piastri' ? 'oscar_piastri' : 'lando_norris';
       return { ...reference, candidates: [driver], active_candidates: [driver] };
     });
   }
@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v9', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v11', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v9',
+      version: 'answer-semantic-proof-v11',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -160,6 +160,40 @@ describe('independent answer semantic proof', () => {
       template_variables: { driver_id: 'lewis-hamilton' },
       program: { root: { op: 'aggregate', input: { where: { driver_id: 'lewis-hamilton' } } } }
     });
+  });
+
+  it('independently proves literal order and exact whole-question race H2H semantics', async () => {
+    const question = 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: span(question, '2025'),
+      driver_references: [span(question, 'Lando Norris'), span(question, 'Oscar Piastri')]
+    }, events, drivers);
+    expect(proof).toMatchObject({
+      template_id: 'race_season_finishing_position_h2h',
+      template_variables: { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' },
+      program: { root: { op: 'race_season_finishing_position_h2h', driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' } }
+    });
+    const broader = 'Compare who finished ahead more often in 2025, Lando Norris or Oscar Piastri?';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(broader), {
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: span(broader, '2025'),
+      driver_references: [span(broader, 'Lando Norris'), span(broader, 'Oscar Piastri')]
+    }, events, drivers)).rejects.toMatchObject({ reason: 'metric_mismatch' });
+  });
+
+  it('maps H2H IDs to intent spans when the resolver returns mentions in reverse order', async () => {
+    const question = 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?';
+    const reversedDrivers: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [
+        { ...span(question, 'Oscar Piastri'), candidates: ['oscar_piastri'], active_candidates: ['oscar_piastri'] },
+        { ...span(question, 'Lando Norris'), candidates: ['lando_norris'], active_candidates: ['lando_norris'] }
+      ]
+    };
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_season_finishing_position_h2h', season: 2025, season_reference: span(question, '2025'),
+      driver_references: [span(question, 'Lando Norris'), span(question, 'Oscar Piastri')]
+    }, events, reversedDrivers);
+    expect(proof.template_variables).toEqual({ season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+    expect(proof.program.root).toMatchObject({ driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
   });
 
   it.each([

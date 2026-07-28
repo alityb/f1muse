@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v6' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v7' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -81,11 +81,31 @@ function selectIntent(
   const sessions = new Set(contract.session_cues.map(cue => cue.value));
   const metrics = new Set(contract.metric_cues.map(cue => cue.value));
   return seasonSummaryIntent(contract, seasonFields, drivers, sources, sessions, metrics)
+    ?? raceH2HIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? standingsIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? dateIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? resultPositionIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? classificationSelection(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? unsupported;
+}
+
+function raceH2HIntent(
+  contract: AnswerQuestionContract,
+  seasonFields: { season: number; season_reference: LiteralMentionReference },
+  drivers: LiteralMentionReference[],
+  sources: ReadonlySet<AnswerQuestionContract['source_cues'][number]['value']>,
+  sessions: ReadonlySet<AnswerQuestionContract['session_cues'][number]['value']>,
+  metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
+): unknown | undefined {
+  if (!metrics.has('race_finishing_position_h2h')) {
+    return undefined;
+  }
+  const valid = seasonFields.season <= 2025 && drivers.length === 2 && drivers[0].text !== drivers[1].text
+    && sources.size === 0 && sessions.size === 0 && only(metrics, 'race_finishing_position_h2h')
+    && contract.event_cues.length === 0 && contract.rounds.length === 0 && contract.status_cues.length === 0
+    && contract.action_cues.length === 0 && contract.result_cues.length === 0
+    && matchesRaceH2HQuestion(contract.normalized_question, drivers);
+  return valid ? { type: 'race_season_finishing_position_h2h', ...seasonFields, driver_references: drivers } : unsupported;
 }
 
 function seasonSummaryIntent(
@@ -321,6 +341,15 @@ function matchesCareerSummaryQuestion(question: string, driver: LiteralMentionRe
   const points = Array.from(question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
   return /^(?:show <driver> official career summary|give the official career summary for <driver>)\.?$/iu.test(masked);
+}
+
+function matchesRaceH2HQuestion(question: string, drivers: readonly LiteralMentionReference[]): boolean {
+  const points = Array.from(question);
+  const masked = [...points];
+  for (const [index, driver] of [...drivers].map((driver, index) => [index, driver] as const).sort((left, right) => right[1].start - left[1].start)) {
+    masked.splice(driver.start, driver.end - driver.start, `<driver_${index === 0 ? 'a' : 'b'}>`);
+  }
+  return /^(?:who finished ahead more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who finished ahead more often, <driver_a> or <driver_b>)\?$/iu.test(masked.join(''));
 }
 
 function containsGreekOrCyrillicLetter(value: string): boolean {

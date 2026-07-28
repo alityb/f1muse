@@ -1,5 +1,6 @@
 import { AggregateNode, F1QLProgram } from './ast';
 import { ANSWER_FINAL_STANDINGS_SEASONS } from './answer-templates';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -41,6 +42,9 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
   if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare') {
     return { type: 'rejected', reason: 'capability_unsupported' };
   }
+  if (root.op === 'race_season_finishing_position_h2h') {
+    return authorizeRaceSeasonH2H(root);
+  }
   if (root.op === 'event_classification') {
     return authorizeClassification(root, 'race_classification');
   }
@@ -63,6 +67,21 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
     return authorizeStandings(root.input, root.op, root);
   }
   return { type: 'rejected', reason: 'capability_unsupported' };
+}
+
+function authorizeRaceSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'race_season_finishing_position_h2h' }>): AnswerPolicyDecision {
+  if (Object.keys(root).sort().join(',') !== 'driver_a_id,driver_b_id,metric,op,season' ||
+      root.metric !== RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID || !Number.isSafeInteger(root.season) ||
+      root.season < 1950 || root.season > FINAL_STANDINGS_THROUGH_SEASON ||
+      typeof root.driver_a_id !== 'string' || typeof root.driver_b_id !== 'string' ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(root.driver_a_id) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(root.driver_b_id) ||
+      root.driver_a_id.length > 100 || root.driver_b_id.length > 100 || root.driver_a_id === root.driver_b_id) {
+    return { type: 'rejected', reason: 'capability_unsupported' };
+  }
+  return {
+    type: 'approved',
+    capability: { source: 'race_classification', operation: root.op, season: root.season, filters: ['driver'] }
+  };
 }
 
 function authorizeClassification(

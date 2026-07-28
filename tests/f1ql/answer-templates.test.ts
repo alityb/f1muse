@@ -9,6 +9,7 @@ describe('answer template registry', () => {
     ['current_standings', { season: 2026 }, 'rank'],
     ['driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }, 'aggregate'],
     ['driver_career_official_summary', { driver_id: 'lewis-hamilton' }, 'aggregate'],
+    ['race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'race_season_finishing_position_h2h'],
     ['race_classification_all', { season: 2025, round: 7 }, 'event_classification'],
     ['race_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'event_classification'],
     ['race_classification_status', { season: 2025, round: 7, status: 'dsq' }, 'event_classification'],
@@ -21,8 +22,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v6', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(14);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v7', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(15);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);
@@ -102,6 +103,15 @@ describe('answer template registry', () => {
     });
     if (root.op !== 'aggregate' || root.input.op !== 'filter') throw new Error('fixture must filter');
     expect(root.input.where.season).toEqual(Array.from({ length: 76 }, (_, index) => 1950 + index));
+  });
+
+  it('owns the exact ordered final-season race H2H root', () => {
+    expect(materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }).root).toEqual({
+      op: 'race_season_finishing_position_h2h', metric: 'official_race_finishing_position_shared_events_v1', season: 2025,
+      driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri'
+    });
+    expect(() => materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2026, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' })).toThrow();
+    expect(() => materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'lando-norris' })).toThrow();
   });
 
   it('materializes all final standings points without a driver filter', () => {

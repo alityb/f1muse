@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v9' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v11' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -114,6 +114,7 @@ export async function proveAnswerIntent(
   const inventory = rawInventory.filter(mention => !isSummaryStructureMention(contract, mention));
   proveDriverReferenceInventory(driverReferences, inventory);
   const driverIds: string[] = [];
+  const resolvedDriverIds = new Map<string, string>();
   for (const mention of inventory) {
     const candidates = mention.candidates.map(canonicalDriverId).sort();
     const active = mention.active_candidates.map(canonicalDriverId).sort();
@@ -130,6 +131,7 @@ export async function proveAnswerIntent(
     }
     const selected = active[0];
     driverIds.push(selected);
+    resolvedDriverIds.set(referenceKey(mention), selected);
     mentions.push(proofMention('driver', mention, candidates, selected));
   }
   if (new Set(driverIds).size !== driverIds.length) {
@@ -141,10 +143,15 @@ export async function proveAnswerIntent(
     variables.round = round;
   }
   if ('driver_reference' in intent) {
-    variables.driver_id = driverIds[0];
+    variables.driver_id = resolvedDriverId(intent.driver_reference, resolvedDriverIds);
   }
   if ('driver_references' in intent && driverIds.length > 0) {
-    variables.driver_ids = driverIds;
+    if (intent.type === 'race_season_finishing_position_h2h') {
+      variables.driver_a_id = resolvedDriverId(intent.driver_references[0], resolvedDriverIds);
+      variables.driver_b_id = resolvedDriverId(intent.driver_references[1], resolvedDriverIds);
+    } else {
+      variables.driver_ids = driverIds;
+    }
   }
   if ('status' in intent) {
     variables.status = intent.status;
@@ -308,6 +315,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('official_career_summary') && intent.type !== 'driver_career_official_summary') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('race_finishing_position_h2h') && intent.type !== 'race_season_finishing_position_h2h') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('date') && intent.type !== 'race_date') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -324,6 +334,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'driver_career_official_summary' && (!metrics.has('official_career_summary') || !matchesCareerSummaryQuestion(contract, intent.driver_reference))) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'race_season_finishing_position_h2h' && (!metrics.has('race_finishing_position_h2h') || !matchesRaceH2HQuestion(contract, intent.driver_references))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'current_standings' && /\bfinal\b/iu.test(contract.normalized_question)) {
@@ -380,6 +393,9 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
   if (intent.type.startsWith('final_standings') || intent.type === 'current_standings' || intent.type === 'driver_season_official_summary' || intent.type === 'driver_career_official_summary') {
     return 'standings';
   }
+  if (intent.type === 'race_season_finishing_position_h2h') {
+    return 'race_classification';
+  }
   if (intent.type.startsWith('race_classification')) {
     return 'race_classification';
   }
@@ -415,6 +431,15 @@ function matchesCareerSummaryQuestion(contract: AnswerQuestionContract, driver: 
   const points = Array.from(contract.normalized_question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
   return /^(?:show <driver> official career summary|give the official career summary for <driver>)\.?$/iu.test(masked);
+}
+
+function matchesRaceH2HQuestion(contract: AnswerQuestionContract, drivers: readonly LiteralMentionReference[]): boolean {
+  const points = Array.from(contract.normalized_question);
+  const masked = [...points];
+  for (const [index, driver] of [...drivers].map((driver, index) => [index, driver] as const).sort((left, right) => right[1].start - left[1].start)) {
+    masked.splice(driver.start, driver.end - driver.start, `<driver_${index === 0 ? 'a' : 'b'}>`);
+  }
+  return /^(?:who finished ahead more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who finished ahead more often, <driver_a> or <driver_b>)\?$/iu.test(masked.join(''));
 }
 
 function positionsForIntent(intent: Extract<ExecutableAnswerIntent, { selection_reference: LiteralMentionReference }>): number[] {
@@ -480,6 +505,14 @@ function compareReferences(left: LiteralMentionReference, right: LiteralMentionR
 
 function referenceKey(reference: LiteralMentionReference): string {
   return stableSerialize({ end: reference.end, start: reference.start, text: reference.text });
+}
+
+function resolvedDriverId(reference: LiteralMentionReference, resolved: ReadonlyMap<string, string>): string {
+  const driverId = resolved.get(referenceKey(reference));
+  if (driverId === undefined) {
+    throw new AnswerSemanticProofError('entity_cardinality_mismatch');
+  }
+  return driverId;
 }
 
 function compareText(left: string, right: string): number {

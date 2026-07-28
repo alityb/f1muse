@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v18' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v19' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
 export type AnswerQuestionSourceCue = 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date';
 export type AnswerQuestionSessionCue = 'race' | 'qualifying' | 'sprint';
-export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'date';
+export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'race_finishing_position_h2h' | 'date';
 export type AnswerQuestionActionCue = 'all';
 export type AnswerQuestionStatusCue = 'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn';
 export type AnswerQuestionResultCue = 'race_winner' | 'race_podium' | 'race_top_n' | 'race_exact_position' | 'qualifying_pole' | 'qualifying_top_n' | 'qualifying_exact_position';
@@ -82,6 +82,7 @@ const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'latest_recorded', pattern: /\blatest\s+recorded\b/giu },
   { value: 'official_season_summary', pattern: /\bofficial\s+(?:19[5-9]\d|20\d{2}|2100)\s+(?:season|driver)\s+summary\b/giu },
   { value: 'official_career_summary', pattern: /\bofficial\s+career\s+summary\b/giu },
+  { value: 'race_finishing_position_h2h', pattern: /\bfinished\s+ahead\s+more\s+often\b/giu },
   { value: 'date', pattern: /\b(?:date|what\s+day|when\s+(?:was|is|did))\b/giu }
 ];
 
@@ -280,7 +281,7 @@ function determineOutcome(
   if (sessionSet.has('race') && sessionSet.has('qualifying')) {
     return { type: 'clarification_required', reason: 'session_ambiguous' };
   }
-  if ((sources.length > 0 || results.length > 0) && years.length === 0) {
+  if ((sources.length > 0 || results.length > 0 || metrics.some(metric => metric.value === 'race_finishing_position_h2h')) && years.length === 0) {
     return { type: 'clarification_required', reason: 'season_missing' };
   }
   const classificationSource = sources.some(cue => cue.value === 'race_classification' || cue.value === 'qualifying_classification');

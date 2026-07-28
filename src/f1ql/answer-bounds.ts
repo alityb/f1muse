@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 
-export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v2';
+export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v3';
 
 export class AnswerBoundError extends Error {
   constructor(readonly bound: 'work_units' | 'rows' | 'response_bytes', readonly actual: number, readonly maximum: number) {
@@ -32,6 +32,9 @@ export function estimateAnswerWork(program: F1QLProgram, capability: AnswerCapab
   if ((capability.source === 'race_classification' && root.op === 'event_classification') ||
       (capability.source === 'qualifying_classification' && root.op === 'qualifying_classification')) {
     return estimate(10 + root.limit, root.limit);
+  }
+  if (capability.source === 'race_classification' && root.op === 'race_season_finishing_position_h2h') {
+    return estimate(60, 1);
   }
   if ((capability.source === 'final_driver_standings' || capability.source === 'current_driver_standings') && (root.op === 'aggregate' || root.op === 'rank')) {
     const aggregate = root.op === 'rank' ? root.input : root;

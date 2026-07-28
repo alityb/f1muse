@@ -3,10 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { ANSWER_QUESTION_MAX_CHARS, AnswerQuestionError, createAnswerQuestionContract, parseRoundReference } from '../../src/f1ql/answer-question';
 
 describe('answer question contract', () => {
+  it('records only the trusted race finishing-position H2H cue', () => {
+    const contract = createAnswerQuestionContract('Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?');
+    expect(contract.metric_cues).toEqual([expect.objectContaining({ value: 'race_finishing_position_h2h', text: 'finished ahead more often' })]);
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+    expect(createAnswerQuestionContract('Who finished ahead more often, Lando Norris or Oscar Piastri?').outcome).toEqual({ type: 'clarification_required', reason: 'season_missing' });
+  });
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v18');
+    expect(contract.version).toBe('answer-question-v19');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);

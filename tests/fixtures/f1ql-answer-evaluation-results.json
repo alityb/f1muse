@@ -4226,6 +4226,136 @@
     }
   },
   {
+    "id": "launch-race-h2h",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "race_season_finishing_position_h2h",
+          "metric": "official_race_finishing_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri"
+        }
+      },
+      "program_hash": "d8a749e0da9fc0bae9ef32cb9a047f30f2584b07455a78a7b55965662874779b",
+      "answer": {
+        "headline": "lando-norris and oscar-piastri finished ahead equally often. Final 2025 race finishing-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs oscar-piastri",
+            "values": {
+              "driver_a_ahead": "1",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_race_finishing_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri",
+          "driver_a_ahead": 1,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 3,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 4,
+          "distinct_source_keys": 10,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official race finishing-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position finishes ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v5",
+        "compiler_version": "core-v4",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_finishing_positions",
+          "null_or_one_sided_events_excluded"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-race-h2h",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "race_season_finishing_position_h2h",
+          "metric": "official_race_finishing_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri"
+        }
+      },
+      "program_hash": "d8a749e0da9fc0bae9ef32cb9a047f30f2584b07455a78a7b55965662874779b",
+      "answer": {
+        "headline": "lando-norris and oscar-piastri finished ahead equally often. Final 2025 race finishing-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs oscar-piastri",
+            "values": {
+              "driver_a_ahead": "1",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_race_finishing_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri",
+          "driver_a_ahead": 1,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 3,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 4,
+          "distinct_source_keys": 10,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official race finishing-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position finishes ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v5",
+        "compiler_version": "core-v4",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_finishing_positions",
+          "null_or_one_sided_events_excluded"
+        ]
+      }
+    }
+  },
+  {
     "id": "unicode-astral",
     "envelope": {
       "mode": "gated_execution",

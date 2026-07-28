@@ -33,6 +33,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'final_driver_standings'
     },
     {
+      name: 'final-season race finishing-position H2H',
+      program: materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
+      source: 'race_classification'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'
@@ -194,5 +199,16 @@ describe('Phase 7 answer capability policy', () => {
     expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, input: { op: 'source', source: 'other' } } } } as never)).toEqual({
       type: 'rejected', reason: 'temporal_scope_unsupported'
     });
+  });
+
+  it('authorizes only the exact race H2H root shape', () => {
+    const h2h = materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+    const root = h2h.root;
+    if (root.op !== 'race_season_finishing_position_h2h') throw new Error('fixture must be H2H');
+    for (const mutated of [
+      { ...root, season: 2026 }, { ...root, driver_b_id: root.driver_a_id }, { ...root, driver_a_id: 'Lando Norris' }, { ...root, metric: 'other' }, { ...root, round: 1 }
+    ]) {
+      expect(authorizeAnswerProgram({ version: 1, root: mutated } as unknown as F1QLProgram)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+    }
   });
 });
