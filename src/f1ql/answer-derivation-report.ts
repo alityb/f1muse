@@ -76,8 +76,8 @@ export function buildAnswerDerivationReport(
   };
   const gates = {
     observations_complete: counts.missing_observations === 0 && artifact.observations.length === cases.length,
-    actions_and_reasons_exact: counts.actions_correct === 100 && counts.reasons_correct === 100 && counts.cases === 100,
-    templates_programs_and_proofs_exact: counts.templates_exact === 65 && counts.programs_exact === 65 && counts.programs_required === 65 && counts.proofs_complete === 65,
+    actions_and_reasons_exact: counts.actions_correct === 102 && counts.reasons_correct === 102 && counts.cases === 102,
+    templates_programs_and_proofs_exact: counts.templates_exact === 67 && counts.programs_exact === 67 && counts.programs_required === 67 && counts.proofs_complete === 67,
     candidate_recall_complete: counts.candidates_recalled === counts.candidates_required,
     canonical_links_complete: counts.canonical_links_correct === counts.canonical_links_required,
     metamorphic_groups_complete: metamorphic.groups_complete === metamorphic.groups_total && counts.metamorphic_groups_consistent === counts.metamorphic_groups_required,

@@ -158,7 +158,7 @@ async function deterministicTranslation(
 
 function executableIntent(contract: AnswerQuestionContract, template: string, inventory: readonly { text: string; start: number; end: number }[]): Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }> {
   const references = inventory.map(mention => ({ text: mention.text, start: mention.start, end: mention.end }));
-  if (template === 'driver_career_official_summary') return { type: template, driver_reference: references[0] };
+  if (template === 'driver_career_official_summary' || template === 'driver_career_wins_by_circuit') return { type: template, driver_reference: references[0] };
   const seasonMention = contract.years[0];
   const season = seasonMention.value;
   const season_reference = { text: seasonMention.text, start: seasonMention.start, end: seasonMention.end };

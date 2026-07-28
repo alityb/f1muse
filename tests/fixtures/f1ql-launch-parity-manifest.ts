@@ -20,7 +20,7 @@ export const launchParityManifest: readonly LaunchParityCase[] = [
   answer('multi-ranking-replacement', 'driver_multi_comparison', 'Rank Verstappen, Norris, and Piastri by final 2025 championship position.', 'official_multi_driver_ranking'),
   contracted('matchup-replacement', 'driver_matchup_lookup', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'),
   answer('comprehensive-replacement', 'driver_vs_driver_comprehensive', 'Compare the official 2025 results of Norris and Piastri.', 'official_driver_comparison'),
-  answer('career-wins', 'driver_career_wins_by_circuit', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit'),
+  contracted('career-wins', 'driver_career_wins_by_circuit', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit'),
   clarify('teammate-career-replacement', 'teammate_comparison_career', 'Compare Hamilton and Russell over their teammate seasons.', 'classification_head_to_head'),
   clarify('season-pace-replacement', 'season_driver_vs_driver', 'Compare Verstappen and Norris in 2025.', 'classification_head_to_head'),
   answer('event-pace-replacement', 'cross_team_track_scoped_driver_comparison', 'Who finished ahead, Verstappen or Norris, at Silverstone 2025?', 'explicit_event_classification_comparison'),

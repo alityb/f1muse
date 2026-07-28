@@ -118,7 +118,10 @@ describe('canonical driver career race wins by circuit foundation', () => {
     expect(() => parseF1QLProgram({ ...program(), root: { ...program().root, driver_id: 'Lewis Hamilton' } })).toThrow();
     expect(() => parseF1QLProgram({ ...program(), root: { ...program().root, round: 1 } })).toThrow();
     expect(() => parseF1QLProgramCandidate(program())).toThrow();
-    expect(authorizeAnswerProgram(parsed)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+    expect(authorizeAnswerProgram(parsed)).toEqual({
+      type: 'approved',
+      capability: { source: 'race_classification_event_metadata', operation: 'driver_career_wins_by_circuit', season: DRIVER_CAREER_WIN_SEASONS, filters: ['driver'] }
+    });
   });
 
   it('lowers through generic filters, left join, and aggregate with fail-closed integrity', () => {

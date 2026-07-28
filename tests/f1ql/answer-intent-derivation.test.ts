@@ -50,7 +50,9 @@ describe('provider-free answer intent derivation', () => {
     ['Show Lando Norris official 2025 driver summary.', inventory('Lando Norris', 'driver'), 'driver_season_official_summary'],
     ['Give the official 2025 driver summary for Lando Norris.', inventory('Lando Norris', 'driver'), 'driver_season_official_summary'],
     ['Show Lewis Hamilton official career summary.', inventory('Lewis Hamilton'), 'driver_career_official_summary'],
-    ['Give the official career summary for Lewis Hamilton.', inventory('Lewis Hamilton'), 'driver_career_official_summary']
+    ['Give the official career summary for Lewis Hamilton.', inventory('Lewis Hamilton'), 'driver_career_official_summary'],
+    ['At which circuits has Lewis Hamilton won races?', inventory('Lewis Hamilton'), 'driver_career_wins_by_circuit'],
+    ['Which circuits has Lewis Hamilton won races at?', inventory('Lewis Hamilton'), 'driver_career_wins_by_circuit']
     ,['Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'race_season_finishing_position_h2h']
     ,['In 2025, who finished ahead more often, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'race_season_finishing_position_h2h']
     ,['Who outqualified whom more often in 2025, Norris or Piastri?', inventory('Norris', 'Piastri'), 'qualifying_season_position_h2h']
@@ -63,7 +65,21 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v8');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v9');
+  });
+
+  it.each([
+    'At which venues has Lewis Hamilton won races?',
+    'At which circuits has Lewis Hamilton won races in 2025?',
+    'At which circuits has Lewis Hamilton won races at Monaco?',
+    'At which circuits has Lewis Hamilton currently won races?',
+    'At which circuits has Lewis Hamilton won sprint races?',
+    'At which circuits has Lewis Hamilton won poles?',
+    'At which circuits has Lewis Hamilton won races and how many?',
+    'Where has Lewis Hamilton won races?'
+  ])('does not broaden career circuit-win wording: %s', async question => {
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory('Lewis Hamilton'));
+    expect(intent.type).toMatch(/unsupported|clarification/u);
   });
 
   it.each([

@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v12' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v13' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -263,7 +263,7 @@ function proveEventReference(contract: AnswerQuestionContract, reference: Litera
 
 function proveSeason(contract: AnswerQuestionContract, intent: ExecutableAnswerIntent): void {
   const seasons = new Set(contract.years.map(cue => cue.value));
-  if (intent.type === 'driver_career_official_summary') {
+  if (intent.type === 'driver_career_official_summary' || intent.type === 'driver_career_wins_by_circuit') {
     if (seasons.size !== 0) {
       throw new AnswerSemanticProofError('season_mismatch');
     }
@@ -294,7 +294,7 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('session_mismatch');
   }
   if (contract.status_cues.length > 0 && source !== 'standings') {
-    const explicitClassification = explicitSources.has(source);
+    const explicitClassification = (source === 'race_classification' || source === 'qualifying_classification') && explicitSources.has(source);
     if (!explicitClassification && (!expectedSession || !sessions.has(expectedSession))) {
       throw new AnswerSemanticProofError('session_mismatch');
     }
@@ -313,6 +313,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (metrics.has('official_career_summary') && intent.type !== 'driver_career_official_summary') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (metrics.has('career_circuit_wins') && intent.type !== 'driver_career_wins_by_circuit') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (metrics.has('race_finishing_position_h2h') && intent.type !== 'race_season_finishing_position_h2h') {
@@ -337,6 +340,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'driver_career_official_summary' && (!metrics.has('official_career_summary') || !matchesCareerSummaryQuestion(contract, intent.driver_reference))) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'driver_career_wins_by_circuit' && (!metrics.has('career_circuit_wins') || !matchesCareerCircuitWinsQuestion(contract, intent.driver_reference))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'race_season_finishing_position_h2h' && (!metrics.has('race_finishing_position_h2h') || !matchesRaceH2HQuestion(contract, intent.driver_references))) {
@@ -395,12 +401,15 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
   }
 }
 
-function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date' {
+function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'race_classification_event_metadata' | 'qualifying_classification' | 'race_date' {
   if (intent.type.startsWith('final_standings') || intent.type === 'current_standings' || intent.type === 'driver_season_official_summary' || intent.type === 'driver_career_official_summary') {
     return 'standings';
   }
   if (intent.type === 'race_season_finishing_position_h2h') {
     return 'race_classification';
+  }
+  if (intent.type === 'driver_career_wins_by_circuit') {
+    return 'race_classification_event_metadata';
   }
   if (intent.type === 'qualifying_season_position_h2h') {
     return 'qualifying_classification';
@@ -440,6 +449,12 @@ function matchesCareerSummaryQuestion(contract: AnswerQuestionContract, driver: 
   const points = Array.from(contract.normalized_question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
   return /^(?:show <driver> official career summary|give the official career summary for <driver>)\.?$/iu.test(masked);
+}
+
+function matchesCareerCircuitWinsQuestion(contract: AnswerQuestionContract, driver: LiteralMentionReference): boolean {
+  const points = Array.from(contract.normalized_question);
+  const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
+  return /^(?:at which circuits has <driver> won races|which circuits has <driver> won races at)\?$/iu.test(masked);
 }
 
 function matchesRaceH2HQuestion(contract: AnswerQuestionContract, drivers: readonly LiteralMentionReference[]): boolean {

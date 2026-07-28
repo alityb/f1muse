@@ -53,7 +53,11 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (8, 2025, 8, 'ambiguous-one', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-01'),
     (9, 2025, 9, 'ambiguous-two', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-08'),
     (18, 2025, 18, 'spa-one', 'belgian_grand_prix', 'Formula 1 Belgian Grand Prix', '2025-07-20'),
-    (19, 2025, 19, 'spa-two', 'belgian_grand_prix', 'Formula 1 Belgian Grand Prix', '2025-07-27')`);
+    (19, 2025, 19, 'spa-two', 'belgian_grand_prix', 'Formula 1 Belgian Grand Prix', '2025-07-27'),
+    (201, 2020, 4, 'silverstone', NULL, 'Formula 1 British Grand Prix', '2020-08-02'),
+    (202, 2021, 10, 'silverstone', NULL, 'Formula 1 British Grand Prix', '2021-07-18'),
+    (203, 2022, 16, 'monza', NULL, 'Formula 1 Italian Grand Prix', '2022-09-11'),
+    (204, 2026, 2, 'future-fixture', NULL, 'Formula 1 Future Grand Prix', '2026-04-01')`);
   await pool.query(`INSERT INTO race_data (race_id, type, driver_id, constructor_id, position_number, position_text, race_points, race_reason_retired) VALUES
     (1, 'RACE_RESULT', 'max_verstappen', 'red-bull', 1, '1', 25, NULL),
     (1, 'RACE_RESULT', 'lando_norris', 'mclaren', 2, '2', 18, NULL),
@@ -75,7 +79,11 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (5, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 3, '3', 15, NULL),
     (6, 'RACE_RESULT', 'lando_norris', 'mclaren', 1, '1', 25, NULL),
     (101, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
-    (101, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 2, '2', 18, NULL)`);
+    (101, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 2, '2', 18, NULL),
+    (201, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
+    (202, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
+    (203, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
+    (204, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL)`);
   await pool.query(`INSERT INTO qualifying_results
     (season, round, driver_id, team_id, qualifying_position, best_time_ms, best_session, is_dnf, is_dns) VALUES
     (2025, 1, 'lando_norris', 'mclaren', 1, 80000, 'Q3', false, false),

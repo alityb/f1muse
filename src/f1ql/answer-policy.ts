@@ -2,6 +2,7 @@ import { AggregateNode, F1QLProgram } from './ast';
 import { ANSWER_FINAL_STANDINGS_SEASONS } from './answer-templates';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -10,6 +11,7 @@ export type AnswerCapabilitySource =
   | 'final_driver_standings'
   | 'current_driver_standings'
   | 'race_classification'
+  | 'race_classification_event_metadata'
   | 'qualifying_classification'
   | 'race_date_metadata';
 
@@ -44,7 +46,10 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
     return { type: 'rejected', reason: 'capability_unsupported' };
   }
   if (root.op === 'driver_career_wins_by_circuit') {
-    return { type: 'rejected', reason: 'capability_unsupported' };
+    const valid = Object.keys(root).sort().join(',') === 'driver_id,metric,op,seasons' && root.metric === DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID &&
+      JSON.stringify(root.seasons) === JSON.stringify(DRIVER_CAREER_WIN_SEASONS) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(root.driver_id) && root.driver_id.length <= 100;
+    return valid ? { type: 'approved', capability: { source: 'race_classification_event_metadata', operation: root.op, season: root.seasons, filters: ['driver'] } }
+      : { type: 'rejected', reason: 'capability_unsupported' };
   }
   if (root.op === 'race_season_finishing_position_h2h') {
     return authorizeRaceSeasonH2H(root);

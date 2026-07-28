@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 
-export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v4';
+export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v5';
 
 export class AnswerBoundError extends Error {
   constructor(readonly bound: 'work_units' | 'rows' | 'response_bytes', readonly actual: number, readonly maximum: number) {
@@ -20,6 +20,7 @@ export interface AnswerWorkEstimate {
   requested_rows: number;
 }
 
+// eslint-disable-next-line complexity
 export function estimateAnswerWork(program: F1QLProgram, capability: AnswerCapability): AnswerWorkEstimate {
   const decision = authorizeAnswerProgram(program);
   if (decision.type !== 'approved' || JSON.stringify(decision.capability) !== JSON.stringify(capability)) {
@@ -35,6 +36,9 @@ export function estimateAnswerWork(program: F1QLProgram, capability: AnswerCapab
   }
   if (capability.source === 'race_classification' && root.op === 'race_season_finishing_position_h2h') {
     return estimate(60, 1);
+  }
+  if (capability.source === 'race_classification_event_metadata' && root.op === 'driver_career_wins_by_circuit') {
+    return estimate(172, MAX_F1QL_RESPONSE_ROWS);
   }
   if (capability.source === 'qualifying_classification' && root.op === 'qualifying_season_position_h2h') {
     return estimate(60, 1);

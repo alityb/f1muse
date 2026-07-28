@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v8';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v11' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v9';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v12' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -61,6 +61,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('current_standings', seasonProperties, ['season', 'season_reference']),
         closedIntent('driver_season_official_summary', { ...seasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
         closedIntent('driver_career_official_summary', { driver_reference: referenceSchema }, ['driver_reference']),
+        closedIntent('driver_career_wins_by_circuit', { driver_reference: referenceSchema }, ['driver_reference']),
         closedIntent('race_season_finishing_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('qualifying_season_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('race_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
@@ -92,6 +93,7 @@ Decision table (follow literal wording):
 - current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
 - driver_season_official_summary: literal official final-season summary for exactly one named driver, including the closed "official <year> driver summary" alias; this means recorded championship position and points, never a broader profile, pace, or a cross-source composite.
 - driver_career_official_summary: literal official career summary for exactly one named driver; this means best recorded final championship position and count of recorded final standings rows through 2025, never a distinct-season claim, pace, or a cross-source composite.
+- driver_career_wins_by_circuit: only the literal closed wording "At which circuits has <driver> won races?" or "Which circuits has <driver> won races at?" for exactly one named driver; this means official race P1 classifications through 2025 grouped by canonical circuit ID, never venue aliases, a selected season, current results, sprints, poles, podiums, or other win concepts.
 - race_season_finishing_position_h2h: only the literal closed wording "Who finished ahead more often in <year>, <driver A> or <driver B>?" or "In <year>, who finished ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares race finishing positions only on shared events where both have recorded numeric positions.
 - qualifying_season_position_h2h: only the literal closed wording "Who outqualified whom more often in <year>, <driver A> or <driver B>?", "In <year>, who outqualified whom more often, <driver A> or <driver B>?", "Who qualified ahead more often in <year>, <driver A> or <driver B>?", or "In <year>, who qualified ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares qualifying positions only on shared events where both have recorded numeric positions, never qualifying-time gaps or teammate identity.
 - race_classification_all: literal full/all race classification.
@@ -104,7 +106,7 @@ Decision table (follow literal wording):
 - qualifying_pole, qualifying_top_n, qualifying_exact_position: literal qualifying result selection; top_n and exact_position carry the literal bounded number as position.
 - race_date: literal race/Grand Prix date request.
 
-Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. The driver career summary is the only supported intent that does not require a year. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when a year-required intent has no year; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
+Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. The driver career summary and career circuit-wins intents are the only supported intents that do not require a year. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when a year-required intent has no year; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
 
 Valid examples:
 Question: Who led the 2025 standings?
@@ -117,6 +119,8 @@ Question: Show Lando Norris official 2025 driver summary.
 {"intent":{"type":"driver_season_official_summary","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Lando Norris"}}}
 Question: Show Lewis Hamilton official career summary.
 {"intent":{"type":"driver_career_official_summary","driver_reference":{"text":"Lewis Hamilton"}}}
+Question: At which circuits has Lewis Hamilton won races?
+{"intent":{"type":"driver_career_wins_by_circuit","driver_reference":{"text":"Lewis Hamilton"}}}
 Question: Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?
 {"intent":{"type":"race_season_finishing_position_h2h","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Lando Norris"},{"text":"Oscar Piastri"}]}}
 Question: Who outqualified whom more often in 2025, Norris or Piastri?

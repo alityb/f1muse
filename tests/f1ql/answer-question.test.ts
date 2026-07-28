@@ -12,7 +12,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v20');
+    expect(contract.version).toBe('answer-question-v21');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);

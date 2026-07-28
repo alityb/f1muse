@@ -12,6 +12,7 @@ const programs = {
   seasonSummary: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }),
   profileReplacement: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'lando-norris' }),
   careerSummary: materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' }),
+  careerWins: materializeAnswerTemplate('driver_career_wins_by_circuit', { driver_id: 'lewis-hamilton' }),
   raceH2H: materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
   qualifyingH2HTeammates: materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
   qualifyingH2HDrivers: materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'max-verstappen' }),
@@ -50,6 +51,7 @@ const programs = {
 function answer(id: string, split: AnswerEvaluationCase['split'], question: string, templateId: AnswerTemplateId, program: F1QLProgram, risks: string[]): AnswerEvaluationCase {
   const entities = canonicalProgramEntities(program);
   const reason = templateId.startsWith('final_') || templateId === 'driver_season_official_summary' || templateId === 'driver_career_official_summary' ? 'final_driver_standings'
+    : templateId === 'driver_career_wins_by_circuit' ? 'race_classification_event_metadata'
     : templateId === 'current_standings' ? 'current_driver_standings'
     : templateId.startsWith('race_classification') || templateId === 'race_season_finishing_position_h2h' ? 'race_classification'
     : templateId.startsWith('qualifying_') ? 'qualifying_classification' : 'race_date_metadata';
@@ -124,6 +126,8 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('holdout-profile-replacement', 'temporal_entity_holdout', 'Give the official 2025 driver summary for Lando Norris.', 'driver_season_official_summary', programs.profileReplacement, ['official_position', 'source_authority', 'profile_replacement', 'word_order']),
   answer('launch-career-summary', 'iid_holdout', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary', programs.careerSummary, ['official_position', 'source_authority', 'summary_scope', 'career_cutoff']),
   answer('holdout-career-summary', 'temporal_entity_holdout', 'Give the official career summary for Lewis Hamilton.', 'driver_career_official_summary', programs.careerSummary, ['official_position', 'source_authority', 'summary_scope', 'word_order']),
+  answer('launch-career-wins', 'iid_holdout', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit', programs.careerWins, ['source_authority', 'career_cutoff', 'circuit_identity', 'source_integrity']),
+  answer('holdout-career-wins', 'temporal_entity_holdout', 'Which circuits has Lewis Hamilton won races at?', 'driver_career_wins_by_circuit', programs.careerWins, ['source_authority', 'career_cutoff', 'circuit_identity', 'word_order']),
   answer('launch-race-h2h', 'iid_holdout', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'race_season_finishing_position_h2h', programs.raceH2H, ['ordered_drivers', 'shared_numeric_positions', 'null_exclusion', 'source_integrity']),
   answer('holdout-race-h2h', 'temporal_entity_holdout', 'In 2025, who finished ahead more often, Lando Norris or Oscar Piastri?', 'race_season_finishing_position_h2h', programs.raceH2H, ['ordered_drivers', 'shared_numeric_positions', 'word_order', 'source_integrity']),
   answer('launch-qualifying-h2h-teammates', 'iid_holdout', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h', programs.qualifyingH2HTeammates, ['ordered_drivers', 'shared_numeric_positions', 'null_exclusion', 'source_integrity']),

@@ -45,6 +45,9 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
   if (templateId === 'driver_career_official_summary' && root.op === 'aggregate' && root.input.op === 'filter' && typeof root.input.where.driver_id === 'string') {
     return { driver_id: root.input.where.driver_id };
   }
+  if (templateId === 'driver_career_wins_by_circuit' && root.op === 'driver_career_wins_by_circuit') {
+    return { driver_id: root.driver_id };
+  }
   if ((templateId === 'race_season_finishing_position_h2h' && root.op === 'race_season_finishing_position_h2h') ||
       (templateId === 'qualifying_season_position_h2h' && root.op === 'qualifying_season_position_h2h')) {
     return { season: root.season, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };

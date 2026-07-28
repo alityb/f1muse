@@ -34,6 +34,50 @@ describe('deterministic answer formatting', () => {
     driver_a_ahead: 2, driver_b_ahead: 1, ties: 1, shared_events: 4,
     driver_a_source_rows: 6, driver_b_source_rows: 5, distinct_source_keys: 11
   };
+  const careerWins = materializeAnswerTemplate('driver_career_wins_by_circuit', { driver_id: 'lewis-hamilton' });
+  const careerWinSentinels = {
+    metric_id: 'official_race_p1_by_circuit_1950_2025_v1', driver_id: 'lewis-hamilton',
+    winner_source_rows: 4, distinct_winner_event_keys: 4, duplicate_winner_rows: 0,
+    metadata_source_rows: 4, distinct_metadata_event_keys: 4, missing_event_metadata_rows: 0,
+    duplicate_event_metadata_rows: 0, missing_circuit_id_rows: 0, source_presence_ok: true, source_integrity_ok: true
+  };
+
+  it('formats canonical ordered career wins grouped by circuit ID', () => {
+    expect(formatAnswerRows(careerWins, approved(careerWins), [
+      { ...careerWinSentinels, circuit_id: 'silverstone', wins: 2 },
+      { ...careerWinSentinels, circuit_id: 'albert-park', wins: 1 },
+      { ...careerWinSentinels, circuit_id: 'monza', wins: 1 }
+    ])).toEqual({
+      answer: {
+        headline: 'Official race wins by circuit through 2025 for lewis-hamilton.',
+        facts: [
+          { subject: 'silverstone', values: { wins: '2' } },
+          { subject: 'albert-park', values: { wins: '1' } },
+          { subject: 'monza', values: { wins: '1' } }
+        ]
+      },
+      coverage: 'sufficient', caveats: ['completed_seasons_1950_2025_only', 'canonical_circuit_ids']
+    });
+  });
+
+  it('fails closed for malformed, inconsistent, duplicated, or misordered career wins', () => {
+    const valid = [
+      { ...careerWinSentinels, circuit_id: 'silverstone', wins: 2 },
+      { ...careerWinSentinels, circuit_id: 'albert-park', wins: 1 },
+      { ...careerWinSentinels, circuit_id: 'monza', wins: 1 }
+    ];
+    for (const rows of [
+      [{ ...valid[0], source_integrity_ok: false }],
+      [{ ...valid[0], duplicate_winner_rows: 1 }],
+      [{ ...valid[0], wins: 3 }],
+      [valid[0], { ...valid[1], winner_source_rows: 5 }, valid[2]],
+      [valid[0], valid[1], { ...valid[2], circuit_id: 'albert-park' }],
+      [valid[1], valid[0], valid[2]],
+      [valid[0], valid[2], valid[1]]
+    ]) {
+      expect(() => formatAnswerRows(careerWins, approved(careerWins), rows)).toThrow(AnswerFormatError);
+    }
+  });
 
   it('formats race H2H with explicit shared-position methodology', () => {
     expect(formatAnswerRows(h2h, approved(h2h), [h2hRow])).toEqual({

@@ -72,6 +72,12 @@ export function formatAnswerRows(
     }
     return formatQualifyingSeasonH2H(program.root, rows);
   }
+  if (program.root.op === 'driver_career_wins_by_circuit') {
+    if (capability.source !== 'race_classification_event_metadata' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Driver career wins capability did not match program');
+    }
+    return formatDriverCareerWinsByCircuit(program.root, rows);
+  }
   if (rows.length === 0) {
     const root = program.root;
     const positionSelected = (root.op === 'event_classification' && root.filters?.finishing_position !== undefined)
@@ -98,6 +104,67 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+// eslint-disable-next-line complexity
+function formatDriverCareerWinsByCircuit(
+  root: Extract<F1QLProgram['root'], { op: 'driver_career_wins_by_circuit' }>,
+  rows: Array<Record<string, unknown>>
+) {
+  if (rows.length === 0) {
+    return {
+      answer: { headline: `No recorded official race wins through 2025 for ${root.driver_id}.`, facts: [] },
+      coverage: 'empty' as const,
+      caveats: ['empty_result_is_not_zero']
+    };
+  }
+  const first = rows[0];
+  const sentinels = {
+    winnerSourceRows: requiredBoundedCount(first.winner_source_rows, 'winner_source_rows', 4560, 1),
+    distinctWinnerEventKeys: requiredBoundedCount(first.distinct_winner_event_keys, 'distinct_winner_event_keys', 4560, 1),
+    duplicateWinnerRows: requiredBoundedCount(first.duplicate_winner_rows, 'duplicate_winner_rows', 4560),
+    metadataSourceRows: requiredBoundedCount(first.metadata_source_rows, 'metadata_source_rows', 4560, 1),
+    distinctMetadataEventKeys: requiredBoundedCount(first.distinct_metadata_event_keys, 'distinct_metadata_event_keys', 4560, 1),
+    missingEventMetadataRows: requiredBoundedCount(first.missing_event_metadata_rows, 'missing_event_metadata_rows', 4560),
+    duplicateEventMetadataRows: requiredBoundedCount(first.duplicate_event_metadata_rows, 'duplicate_event_metadata_rows', 4560),
+    missingCircuitIdRows: requiredBoundedCount(first.missing_circuit_id_rows, 'missing_circuit_id_rows', 4560)
+  };
+  const sentinelFields = [
+    'winner_source_rows', 'distinct_winner_event_keys', 'duplicate_winner_rows', 'metadata_source_rows',
+    'distinct_metadata_event_keys', 'missing_event_metadata_rows', 'duplicate_event_metadata_rows', 'missing_circuit_id_rows'
+  ] as const;
+  if (first.metric_id !== root.metric || first.driver_id !== root.driver_id || first.source_presence_ok !== true || first.source_integrity_ok !== true ||
+      sentinels.duplicateWinnerRows !== 0 || sentinels.missingEventMetadataRows !== 0 || sentinels.duplicateEventMetadataRows !== 0 || sentinels.missingCircuitIdRows !== 0 ||
+      sentinels.winnerSourceRows !== sentinels.distinctWinnerEventKeys || sentinels.metadataSourceRows !== sentinels.distinctMetadataEventKeys ||
+      sentinels.distinctWinnerEventKeys !== sentinels.distinctMetadataEventKeys) {
+    throw new AnswerFormatError('Driver career wins rows were invalid');
+  }
+  const seen = new Set<string>();
+  let totalWins = 0;
+  const facts = rows.map((row, index) => {
+    if (row.metric_id !== root.metric || row.driver_id !== root.driver_id || row.source_presence_ok !== true || row.source_integrity_ok !== true ||
+        sentinelFields.some(field => row[field] !== first[field])) {
+      throw new AnswerFormatError('Driver career wins rows were invalid');
+    }
+    const circuitId = requiredString(row.circuit_id, 'circuit_id');
+    const wins = requiredBoundedCount(row.wins, 'wins', 4560, 1);
+    if (circuitId.trim().length === 0 || seen.has(circuitId) ||
+        (index > 0 && (wins > requiredBoundedCount(rows[index - 1].wins, 'wins', 4560, 1) ||
+          (wins === rows[index - 1].wins && Buffer.compare(Buffer.from(requiredString(rows[index - 1].circuit_id, 'circuit_id'), 'utf8'), Buffer.from(circuitId, 'utf8')) >= 0)))) {
+      throw new AnswerFormatError('Driver career wins rows were invalid');
+    }
+    seen.add(circuitId);
+    totalWins += wins;
+    return { subject: circuitId, values: { wins: String(wins) } };
+  });
+  if (totalWins !== sentinels.winnerSourceRows) {
+    throw new AnswerFormatError('Driver career wins rows were invalid');
+  }
+  return {
+    answer: { headline: `Official race wins by circuit through 2025 for ${root.driver_id}.`, facts },
+    coverage: 'sufficient' as const,
+    caveats: ['completed_seasons_1950_2025_only', 'canonical_circuit_ids']
+  };
 }
 
 function formatQualifyingSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'qualifying_season_position_h2h' }>, rows: Array<Record<string, unknown>>) {

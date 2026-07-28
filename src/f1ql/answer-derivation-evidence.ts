@@ -11,7 +11,7 @@ const hashSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const keyIdSchema = z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const entitySchema = z.string().min(1).max(100).regex(/^(driver:[a-z0-9]+(?:-[a-z0-9]+)*|event:\d{4}:\d+)$/);
 const reasonSchema = z.enum([
-  'final_driver_standings', 'current_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata',
+  'final_driver_standings', 'current_driver_standings', 'race_classification', 'race_classification_event_metadata', 'qualifying_classification', 'race_date_metadata',
   'metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous',
   'pace_source_disabled', 'interim_standings_unsupported', 'temporal_scope_unsupported',
   'team_filter_unsupported', 'session_scope_unsupported', 'entity_set_too_large',
@@ -21,7 +21,7 @@ const reasonSchema = z.enum([
   'question_invalid', 'season_mismatch', 'event_mismatch', 'session_mismatch', 'metric_mismatch',
   'status_mismatch', 'entity_cardinality_mismatch', 'template_mismatch'
 ]);
-const answerReasons = new Set(['final_driver_standings', 'current_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata']);
+const answerReasons = new Set(['final_driver_standings', 'current_driver_standings', 'race_classification', 'race_classification_event_metadata', 'qualifying_classification', 'race_date_metadata']);
 const clarificationReasons = new Set(['metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous']);
 
 const observationSchema = z.object({

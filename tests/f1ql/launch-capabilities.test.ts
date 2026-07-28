@@ -21,6 +21,7 @@ describe('F1QL launch capability migration', () => {
     const requiredCases = [
       ['season-summary', 'Show Max Verstappen official 2025 season summary.', 'driver_season_official_summary'],
       ['career-summary', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary'],
+      ['career-wins', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit'],
       ['profile-replacement', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'],
       ['current-standings', 'Show the latest recorded 2026 driver standings.', 'current_standings'],
       ['race-h2h', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'],
@@ -67,7 +68,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'current-standings', 'matchup-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = ['career-summary', 'career-wins', 'current-standings', 'matchup-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));

@@ -292,7 +292,10 @@ function programComponents(input: F1QLProgram): Record<AnswerProgramComponent, u
 }
 
 function programSource(op: F1QLProgram['root']['op']): string {
-  if (op === 'event_classification' || op === 'race_season_finishing_position_h2h' || op === 'driver_career_wins_by_circuit') {
+  if (op === 'driver_career_wins_by_circuit') {
+    return 'race_classification_event_metadata';
+  }
+  if (op === 'event_classification' || op === 'race_season_finishing_position_h2h') {
     return 'race_classification';
   }
   if (op === 'qualifying_classification') {
