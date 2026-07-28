@@ -4,12 +4,12 @@ import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSu
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS, MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
-export const F1QL_DEFINITIONS_VERSION = 'v5';
+export const F1QL_DEFINITIONS_VERSION = 'v6';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
   event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'event_classification', 'race_season_finishing_position_h2h'] },
-  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'qualifying_classification'] },
+  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'qualifying_classification', 'qualifying_season_position_h2h'] },
   event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'event_metadata'] },
   official_lap_timing: {
     fields: ['season', 'round', 'session_type', 'driver_id', 'lap_start', 'lap_end', 'complete_requested_window', 'complete_event', 'official_deleted_lap', 'official_pit_marker', 'lap_time_seconds'],
@@ -67,7 +67,7 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'pace_delta') {
     return { season: root.scope.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
-  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h') {
+  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
     return { season: root.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
   if (root.op === 'pace_summary') {
@@ -146,6 +146,9 @@ function validateComparisonSummary(node: CoreComparisonSummaryNode): void {
   const signature = CORE_COMPARISON_SUMMARY_SIGNATURES[left.source];
   if (!signature.comparison_fields.includes(leftComparison.field as never) || !signature.comparison_fields.includes(rightComparison.field as never)) {
     throw new F1QLValidationError('signature_invalid', 'Comparison field is not covered by the classification summary signature');
+  }
+  if (leftComparison.as !== signature.comparison_aliases[0] || rightComparison.as !== signature.comparison_aliases[1]) {
+    throw new F1QLValidationError('signature_invalid', 'Comparison aliases do not match the classification summary signature');
   }
   validatePipeline(join.left as CorePipelineNode);
   validatePipeline(join.right as CorePipelineNode);
@@ -357,6 +360,10 @@ function validateSignature(program: F1QLProgram): void {
   }
   if (root.op === 'race_season_finishing_position_h2h') {
     assertSignature('event_classification', root.op, ['season', 'round', 'driver_id', 'finishing_position']);
+    return;
+  }
+  if (root.op === 'qualifying_season_position_h2h') {
+    assertSignature('qualifying_classification', root.op, ['season', 'round', 'driver_id', 'qualifying_position']);
     return;
   }
   if (isClassificationRoot(root)) {

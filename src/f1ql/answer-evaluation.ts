@@ -298,6 +298,9 @@ function programSource(op: F1QLProgram['root']['op']): string {
   if (op === 'qualifying_classification') {
     return 'qualifying_classification';
   }
+  if (op === 'qualifying_season_position_h2h') {
+    return 'qualifying_classification';
+  }
   if (op === 'event_metadata') {
     return 'race_date_metadata';
   }
@@ -308,7 +311,7 @@ function programScope(root: Exclude<F1QLProgram['root'], { op: 'aggregate' | 'ra
   if (root.op === 'pace_delta' || root.op === 'pace_summary') {
     return root.scope;
   }
-  if (root.op === 'race_season_finishing_position_h2h') {
+  if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
     return { season: root.season };
   }
   return { season: root.season, round: root.round, session_scope: root.op === 'event_metadata' ? root.session_scope : undefined };
@@ -321,7 +324,7 @@ function programEntities(root: Exclude<F1QLProgram['root'], { op: 'aggregate' | 
   if (root.op === 'pace_summary') {
     return { driver_id: root.driver_id };
   }
-  if (root.op === 'race_season_finishing_position_h2h') {
+  if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
     return { driver_id: [root.driver_a_id, root.driver_b_id] };
   }
   return { driver_id: filters.driver_id };

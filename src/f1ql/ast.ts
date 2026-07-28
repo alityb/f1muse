@@ -124,9 +124,17 @@ export interface RaceSeasonFinishingPositionH2HNode {
   driver_b_id: string;
 }
 
+export interface QualifyingSeasonPositionH2HNode {
+  op: 'qualifying_season_position_h2h';
+  metric: 'official_qualifying_position_shared_events_v1';
+  season: number;
+  driver_a_id: string;
+  driver_b_id: string;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode | QualifyingSeasonPositionH2HNode;
 }
 
 export interface F1QLResult {

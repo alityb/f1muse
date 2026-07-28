@@ -3,6 +3,7 @@ import { F1QLProgram } from './ast';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 
 const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
@@ -185,9 +186,21 @@ export const raceSeasonFinishingPositionH2HNodeSchema = z.object({
   }
 });
 
+export const qualifyingSeasonPositionH2HNodeSchema = z.object({
+  op: z.literal('qualifying_season_position_h2h'),
+  metric: z.literal(QUALIFYING_SEASON_POSITION_H2H_METRIC_ID),
+  season: season.max(2025),
+  driver_a_id: z.string().min(1),
+  driver_b_id: z.string().min(1)
+}).strict().superRefine((node, context) => {
+  if (node.driver_a_id === node.driver_b_id) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'qualifying season position H2H requires two different drivers' });
+  }
+});
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, qualifyingSeasonPositionH2HNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

@@ -138,24 +138,32 @@ interface ComparisonSummaryPlan {
 // eslint-disable-next-line complexity
 function comparisonSummaryPlan(node: CoreComparisonSummaryNode): ComparisonSummaryPlan {
   const { left, right } = node.input.input;
-  if (left.op !== 'filter' || right.op !== 'filter' ||
+  if (node.input.op !== 'compare' || node.input.input.op !== 'join' || node.input.input.type !== 'inner' ||
+      JSON.stringify(node.input.input.on) !== JSON.stringify(['season', 'round']) ||
+      node.require_unique_source_keys !== true || node.require_source_presence !== true || typeof node.lower_is_better !== 'boolean' ||
+      !/^[a-z][a-z0-9_]{0,99}$/.test(node.metric_id) || left.op !== 'filter' || right.op !== 'filter' ||
       left.input.op !== 'source' || right.input.op !== 'source' || left.input.source !== right.input.source ||
       !Object.prototype.hasOwnProperty.call(COMPARISON_SUMMARY_SQL_SOURCES, left.input.source)) {
     throw new Error('Expected filtered covered comparison-summary branches');
   }
   const source = left.input.source as keyof typeof COMPARISON_SUMMARY_SQL_SOURCES;
   const sqlSource = COMPARISON_SUMMARY_SQL_SOURCES[source];
-  if (node.input.left.field !== sqlSource.field || node.input.right.field !== sqlSource.field) {
+  const signature = CORE_COMPARISON_SUMMARY_SIGNATURES[source];
+  if (node.input.left.field !== sqlSource.field || node.input.right.field !== sqlSource.field ||
+      node.input.left.as !== signature.comparison_aliases[0] || node.input.right.as !== signature.comparison_aliases[1]) {
     throw new Error('Expected a covered comparison-summary field');
   }
   const leftWhere = left.where as { season?: number; driver_id?: string };
   const rightWhere = right.where as { season?: number; driver_id?: string };
-  if (typeof leftWhere.season !== 'number' || leftWhere.season !== rightWhere.season ||
-      typeof leftWhere.driver_id !== 'string' || typeof rightWhere.driver_id !== 'string') {
+  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+      !Number.isInteger(leftWhere.season) || leftWhere.season! < 1950 || leftWhere.season! > 2100 || leftWhere.season !== rightWhere.season ||
+      typeof leftWhere.driver_id !== 'string' || leftWhere.driver_id.trim().length === 0 ||
+      typeof rightWhere.driver_id !== 'string' || rightWhere.driver_id.trim().length === 0 || leftWhere.driver_id === rightWhere.driver_id) {
     throw new Error('Expected shared season and ordered driver filters');
   }
   return {
-    season: leftWhere.season,
+    season: leftWhere.season!,
     leftId: leftWhere.driver_id,
     rightId: rightWhere.driver_id,
     table: sqlSource.table,

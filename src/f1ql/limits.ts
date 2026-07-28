@@ -3,7 +3,9 @@ import { MAX_OFFICIAL_LAP_WINDOW_LAPS } from './official-lap-window';
 
 const MAX_REQUESTED_ROUNDS = 24;
 export const MAX_F1QL_SOURCE_ROUND_BRANCHES = 60;
-export const RACE_SEASON_H2H_SOURCE_ROUND_BRANCHES = 30 * 2;
+export const SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES = 30 * 2;
+export const RACE_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
+export const QUALIFYING_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
 export const MAX_F1QL_RESPONSE_ROWS = 100;
 
 export class F1QLCostLimitError extends Error {}
@@ -18,8 +20,8 @@ export interface F1QLCostLimitOptions {
 
 export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   const root = program.root;
-  if (root.op === 'race_season_finishing_position_h2h') {
-    return { source_round_branches: RACE_SEASON_H2H_SOURCE_ROUND_BRANCHES };
+  if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
+    return { source_round_branches: SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES };
   }
   if (root.op === 'pace_delta' || root.op === 'pace_summary') {
     const rounds = root.scope.rounds?.length ?? MAX_REQUESTED_ROUNDS;

@@ -148,8 +148,8 @@ export interface CoreCompareNode {
 }
 
 export const CORE_COMPARISON_SUMMARY_SIGNATURES = {
-  event_classification: { comparison_fields: ['finishing_position'] },
-  qualifying_classification: { comparison_fields: ['qualifying_position'] }
+  event_classification: { comparison_fields: ['finishing_position'], comparison_aliases: ['driver_a_position', 'driver_b_position'] },
+  qualifying_classification: { comparison_fields: ['qualifying_position'], comparison_aliases: ['driver_a_position', 'driver_b_position'] }
 } as const;
 
 export interface CoreDeltaNode {
