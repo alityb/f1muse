@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v9';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v12' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v10';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v13' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -58,6 +58,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
       anyOf: [
         closedIntent('final_standings_points', { ...seasonProperties, driver_references: { type: 'array', maxItems: 4, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('final_standings_leader', seasonProperties, ['season', 'season_reference']),
+        closedIntent('final_standings_driver_ranking', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 3, maxItems: 3, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('current_standings', seasonProperties, ['season', 'season_reference']),
         closedIntent('driver_season_official_summary', { ...seasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
         closedIntent('driver_career_official_summary', { driver_reference: referenceSchema }, ['driver_reference']),
@@ -90,6 +91,7 @@ export const ANSWER_TRANSLATOR_SYSTEM_PROMPT = `Return exactly { "intent": <Answ
 Decision table (follow literal wording):
 - final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
 - final_standings_leader: final driver standings champion/leader.
+- final_standings_driver_ranking: only the exact pinned wording "Rank Verstappen, Norris, and Piastri by final 2025 championship position." or the exact holdout wording "Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings." with those three literal driver references in that order; this uses official final championship positions, never points, pace, race results, current standings, another season, another driver set, or a caller-selected limit.
 - current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
 - driver_season_official_summary: literal official final-season summary for exactly one named driver, including the closed "official <year> driver summary" alias; this means recorded championship position and points, never a broader profile, pace, or a cross-source composite.
 - driver_career_official_summary: literal official career summary for exactly one named driver; this means best recorded final championship position and count of recorded final standings rows through 2025, never a distinct-season claim, pace, or a cross-source composite.
@@ -111,6 +113,8 @@ Rules: final standings are supported. Literal latest-recorded standings are also
 Valid examples:
 Question: Who led the 2025 standings?
 {"intent":{"type":"final_standings_leader","season":2025,"season_reference":{"text":"2025"}}}
+Question: Rank Verstappen, Norris, and Piastri by final 2025 championship position.
+{"intent":{"type":"final_standings_driver_ranking","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Verstappen"},{"text":"Norris"},{"text":"Piastri"}]}}
 Question: Show the latest recorded 2026 driver standings.
 {"intent":{"type":"current_standings","season":2026,"season_reference":{"text":"2026"}}}
 Question: Show Max Verstappen official 2025 season summary.

@@ -6,7 +6,7 @@ import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-fini
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v9' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v10' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -23,6 +23,7 @@ const QUALIFYING_STATUSES = ['classified', 'dnf', 'dns'] as const;
 
 export type AnswerTemplateId =
   | 'final_standings_points' | 'final_standings_leader' | 'current_standings'
+  | 'final_standings_driver_ranking'
   | 'driver_season_official_summary'
   | 'driver_career_official_summary'
   | 'driver_career_wins_by_circuit'
@@ -62,6 +63,10 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
   final_standings_leader: {
     variables: { season: finalSeasonConstraint },
     semantic: 'standings filtered to one final season; min official championship_position and max points grouped by driver_id; ascending official position limit 1'
+  },
+  final_standings_driver_ranking: {
+    variables: { season: finalSeasonConstraint, driver_ids: { type: 'array', item: driverIdConstraint, minimum_items: 3, maximum_items: 3, unique: true } },
+    semantic: 'exactly three canonical drivers in one final season; official championship position grouped by driver_id with one source-row integrity sentinel; ascending official position limit 3'
   },
   current_standings: {
     variables: { season: currentStandingsSeasonConstraint },
@@ -128,6 +133,7 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
 const variableSchemas = {
   final_standings_points: z.object({ season: finalSeason, driver_ids: z.array(resolvedDriverId).min(1).max(4).refine(ids => new Set(ids).size === ids.length, 'Resolved driver IDs must be unique').optional() }).strict(),
   final_standings_leader: z.object({ season: finalSeason }).strict(),
+  final_standings_driver_ranking: z.object({ season: finalSeason, driver_ids: z.array(resolvedDriverId).length(3).refine(ids => new Set(ids).size === ids.length, 'Resolved driver IDs must be unique') }).strict(),
   current_standings: z.object({ season: currentStandingsSeason }).strict(),
   driver_season_official_summary: z.object({ season: finalSeason, driver_id: resolvedDriverId }).strict(),
   driver_career_official_summary: z.object({ driver_id: resolvedDriverId }).strict(),
@@ -219,6 +225,15 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
       op: 'qualifying_season_position_h2h', metric: QUALIFYING_SEASON_POSITION_H2H_METRIC_ID,
       season: scoped.season, driver_a_id: scoped.driver_a_id as string, driver_b_id: scoped.driver_b_id as string
     };
+  } else if (templateId === 'final_standings_driver_ranking') {
+    root = {
+      op: 'rank',
+      input: {
+        op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: scoped.season, driver_id: scoped.driver_ids as string[] } }, group_by: ['driver_id'],
+        measures: [{ as: 'championship_position', function: 'min', field: 'championship_position' }, { as: 'standing_rows', function: 'count' }]
+      },
+      by: 'championship_position', direction: 'asc', limit: 3
+    };
   } else if (templateId === 'final_standings_leader' || templateId === 'current_standings') {
     root = {
       op: 'rank',
@@ -255,6 +270,7 @@ type AnswerTemplateMaterializer = (templateId: AnswerTemplateId, variables: unkn
 const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> = Object.freeze({
   final_standings_points: [{ season: 2025 }, { season: 2025, driver_ids: ['sentinel-driver', 'second-driver'] }],
   final_standings_leader: [{ season: 2025 }],
+  final_standings_driver_ranking: [{ season: 2025, driver_ids: ['sentinel-driver', 'second-driver', 'third-driver'] }],
   current_standings: [{ season: CURRENT_STANDINGS_SEASON }],
   driver_season_official_summary: [{ season: 2025, driver_id: 'sentinel-driver' }],
   driver_career_official_summary: [{ driver_id: 'sentinel-driver' }],

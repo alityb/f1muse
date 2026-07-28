@@ -15,7 +15,7 @@ import { F1QLProgram } from './ast';
 import { refreshF1QLDefinitionsVersion, validateF1QLProgram } from './validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION, getF1QLProgramHash, normalizeF1QLProgram } from './verified-programs';
 
-export const ANSWER_AUTHORIZATION_VERSION = 8 as const;
+export const ANSWER_AUTHORIZATION_VERSION = 9 as const;
 export const ANSWER_AUTHORIZATION_TTL_MS = 5_000;
 export type AnswerPrincipalClass = 'internal' | 'internal_canary';
 type AuthorizedAnswerCapability = Readonly<Omit<AnswerCapability, 'filters'>> & {

@@ -30,6 +30,8 @@ describe('provider-free answer intent derivation', () => {
   const templates = [
     ['Final 2025 standings points for Lando Norris.', inventory('Lando Norris'), 'final_standings_points'],
     ['Who was the final 2025 standings leader?', inventory(), 'final_standings_leader'],
+    ['Rank Verstappen, Norris, and Piastri by final 2025 championship position.', inventory('Verstappen', 'Norris', 'Piastri'), 'final_standings_driver_ranking'],
+    ['Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings.', inventory('Verstappen', 'Norris', 'Piastri'), 'final_standings_driver_ranking'],
     ['Show all 2025 Monaco race results.', inventory(), 'race_classification_all'],
     ['Where did Max Verstappen finish in the 2025 Monaco race?', inventory('Max Verstappen'), 'race_classification_driver'],
     ['Show DNFs in the 2025 Monaco race results.', inventory(), 'race_classification_status'],
@@ -65,7 +67,22 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v9');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v10');
+  });
+
+  it.each([
+    'Rank Norris, Verstappen, and Piastri by final 2025 championship position.',
+    'Rank Verstappen, Norris, and Piastri by final 2024 championship position.',
+    'Rank Verstappen, Norris, and Piastri by final 2025 championship points.',
+    'Rank Verstappen, Norris, and Piastri by current 2026 championship position.',
+    'Rank Verstappen and Norris by final 2025 championship position.',
+    'Rank Verstappen, Norris, Piastri, and Leclerc by final 2025 championship position.',
+    'Rank Verstappen, Norris, and Piastri by 2025 championship position.',
+    'Show the top three of Verstappen, Norris, and Piastri in the final 2025 standings.'
+  ])('does not broaden the pinned multi-driver ranking: %s', async question => {
+    const names = ['Verstappen', 'Norris', 'Piastri', 'Leclerc'].filter(name => question.includes(name));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).not.toBe('final_standings_driver_ranking');
   });
 
   it.each([

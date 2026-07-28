@@ -163,6 +163,12 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
   if (typeof aggregate.input.where.season !== 'number') {
     return { type: 'rejected', reason: 'temporal_scope_unsupported' };
   }
+  if (isFinalDriverRanking(aggregate, operation, rank)) {
+    return {
+      type: 'approved',
+      capability: { source: 'final_driver_standings', operation, season: aggregate.input.where.season, filters: ['driver'] }
+    };
+  }
   if (aggregate.input.where.season > FINAL_STANDINGS_THROUGH_SEASON) {
     if (isCurrentStandings(aggregate, rank)) {
       return {
@@ -194,6 +200,21 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
       filters: driverCount === 0 ? [] : ['driver']
     }
   };
+}
+
+function isFinalDriverRanking(aggregate: AggregateNode, operation: 'aggregate' | 'rank', rank: Extract<F1QLProgram['root'], { op: 'rank' }> | undefined): boolean {
+  const driverIds = aggregate.input.op === 'filter' ? aggregate.input.where.driver_id : undefined;
+  const rankingSeason = aggregate.input.op === 'filter' ? aggregate.input.where.season : undefined;
+  if (operation !== 'rank' || !rank || aggregate.input.op !== 'filter' || aggregate.input.input.op !== 'source' || aggregate.input.input.source !== 'standings' ||
+      typeof rankingSeason !== 'number' || !ANSWER_FINAL_STANDINGS_SEASONS.includes(rankingSeason) ||
+      !Array.isArray(driverIds) || driverIds.length !== 3 || new Set(driverIds).size !== 3 || driverIds.some(id => id.length > 100 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(id)) ||
+      Object.keys(aggregate.input.where).length !== 2 ||
+      aggregate.group_by.length !== 1 || aggregate.group_by[0] !== 'driver_id' || rank.by !== 'championship_position' || rank.direction !== 'asc' || rank.limit !== 3) {
+    return false;
+  }
+  return aggregate.measures.length === 2
+    && aggregate.measures[0].as === 'championship_position' && aggregate.measures[0].function === 'min' && aggregate.measures[0].field === 'championship_position'
+    && aggregate.measures[1].as === 'standing_rows' && aggregate.measures[1].function === 'count' && aggregate.measures[1].field === undefined;
 }
 
 function isDriverCareerOfficialSummary(aggregate: AggregateNode, operation: 'aggregate' | 'rank'): boolean {

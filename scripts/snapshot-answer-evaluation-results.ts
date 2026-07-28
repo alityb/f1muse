@@ -35,6 +35,9 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
   if ((templateId === 'final_standings_leader' || templateId === 'current_standings') && root.op === 'rank' && root.input.input.op === 'filter') {
     return { season: root.input.input.where.season };
   }
+  if (templateId === 'final_standings_driver_ranking' && root.op === 'rank' && root.input.input.op === 'filter' && Array.isArray(root.input.input.where.driver_id)) {
+    return { season: root.input.input.where.season, driver_ids: root.input.input.where.driver_id };
+  }
   if (templateId === 'final_standings_points' && root.op === 'aggregate' && root.input.op === 'filter') {
     const drivers = root.input.where.driver_id;
     return { season: root.input.where.season, ...(drivers ? { driver_ids: Array.isArray(drivers) ? drivers : [drivers] } : {}) };

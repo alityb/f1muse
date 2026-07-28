@@ -1,4 +1,5 @@
 import { AnswerCapability } from './answer-policy';
+import { ANSWER_FINAL_STANDINGS_SEASONS } from './answer-templates';
 import { F1QLProgram } from './ast';
 import { renderF1QL } from './render';
 import { F1QL_DEFINITIONS_VERSION } from './validation';
@@ -78,6 +79,12 @@ export function formatAnswerRows(
     }
     return formatDriverCareerWinsByCircuit(program.root, rows);
   }
+  if (program.root.op === 'rank' && program.root.input.measures.some(measure => measure.as === 'standing_rows')) {
+    if (capability.source !== 'final_driver_standings' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Final driver ranking capability did not match program');
+    }
+    return formatFinalDriverRanking(program.root, rows);
+  }
   if (rows.length === 0) {
     const root = program.root;
     const positionSelected = (root.op === 'event_classification' && root.filters?.finishing_position !== undefined)
@@ -104,6 +111,39 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+function formatFinalDriverRanking(root: Extract<F1QLProgram['root'], { op: 'rank' }>, rows: Array<Record<string, unknown>>) {
+  const input = root.input.input;
+  const requested = input.op === 'filter' && Array.isArray(input.where.driver_id) ? input.where.driver_id : [];
+  if (requested.length !== 3 || rows.length !== 3) {
+    throw new AnswerFormatError('Final driver ranking rows were invalid');
+  }
+  const requestedIds = new Set(requested);
+  const returnedIds = new Set<string>();
+  let previousPosition = 0;
+  const facts = rows.map(row => {
+    const driverId = requiredString(row.driver_id, 'driver_id');
+    const position = requiredPositiveInteger(row.championship_position, 'championship_position');
+    if (!requestedIds.has(driverId) || returnedIds.has(driverId) || requiredPositiveInteger(row.standing_rows, 'standing_rows') !== 1 || position <= previousPosition) {
+      throw new AnswerFormatError('Final driver ranking rows were invalid');
+    }
+    returnedIds.add(driverId);
+    previousPosition = position;
+    return { subject: driverId, values: { championship_position: String(position) } };
+  });
+  if (returnedIds.size !== requestedIds.size) {
+    throw new AnswerFormatError('Final driver ranking rows were invalid');
+  }
+  const season = input.op === 'filter' ? input.where.season : undefined;
+  if (typeof season !== 'number' || !ANSWER_FINAL_STANDINGS_SEASONS.includes(season)) {
+    throw new AnswerFormatError('Final driver ranking rows were invalid');
+  }
+  return {
+    answer: { headline: `Final ${season} championship-position ranking for the requested drivers.`, facts },
+    coverage: 'sufficient' as const,
+    caveats: ['official_final_championship_positions']
+  };
 }
 
 // eslint-disable-next-line complexity

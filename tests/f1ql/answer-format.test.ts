@@ -41,6 +41,67 @@ describe('deterministic answer formatting', () => {
     metadata_source_rows: 4, distinct_metadata_event_keys: 4, missing_event_metadata_rows: 0,
     duplicate_event_metadata_rows: 0, missing_circuit_id_rows: 0, source_presence_ok: true, source_integrity_ok: true
   };
+  const finalDriverRanking = materializeAnswerTemplate('final_standings_driver_ranking', {
+    season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri']
+  });
+
+  it('formats the complete requested driver set by strict official championship position', () => {
+    expect(formatAnswerRows(finalDriverRanking, approved(finalDriverRanking), [
+      { driver_id: 'oscar-piastri', championship_position: 1, standing_rows: 1 },
+      { driver_id: 'lando-norris', championship_position: 2, standing_rows: 1 },
+      { driver_id: 'max-verstappen', championship_position: 3, standing_rows: 1 }
+    ])).toEqual({
+      answer: {
+        headline: 'Final 2025 championship-position ranking for the requested drivers.',
+        facts: [
+          { subject: 'oscar-piastri', values: { championship_position: '1' } },
+          { subject: 'lando-norris', values: { championship_position: '2' } },
+          { subject: 'max-verstappen', values: { championship_position: '3' } }
+        ]
+      },
+      coverage: 'sufficient', caveats: ['official_final_championship_positions']
+    });
+  });
+
+  it('fails closed for incomplete, substituted, duplicate, nonunique, or misordered ranking rows', () => {
+    const valid = [
+      { driver_id: 'oscar-piastri', championship_position: 1, standing_rows: 1 },
+      { driver_id: 'lando-norris', championship_position: 2, standing_rows: 1 },
+      { driver_id: 'max-verstappen', championship_position: 3, standing_rows: 1 }
+    ];
+    for (const rows of [
+      [], valid.slice(0, 2), [...valid, valid[0]],
+      [valid[0], valid[1], { ...valid[2], driver_id: 'charles-leclerc' }],
+      [valid[0], valid[1], { ...valid[2], driver_id: 'lando-norris' }],
+      [valid[0], { ...valid[1], standing_rows: 2 }, valid[2]],
+      [valid[0], { ...valid[1], championship_position: 1 }, valid[2]],
+      [valid[1], valid[0], valid[2]]
+    ]) {
+      expect(() => formatAnswerRows(finalDriverRanking, approved(finalDriverRanking), rows)).toThrow(AnswerFormatError);
+    }
+  });
+
+  it('fails closed for a ranking program outside the final standings season range', () => {
+    if (finalDriverRanking.root.op !== 'rank' || finalDriverRanking.root.input.input.op !== 'filter') throw new Error('ranking fixture shape changed');
+    const malformed = {
+      ...finalDriverRanking,
+      root: {
+        ...finalDriverRanking.root,
+        input: {
+          ...finalDriverRanking.root.input,
+          input: {
+            ...finalDriverRanking.root.input.input,
+            where: { ...finalDriverRanking.root.input.input.where, season: 1949 }
+          }
+        }
+      }
+    } as F1QLProgram;
+    expect(() => formatAnswerRows(malformed, approved(finalDriverRanking), [
+      { driver_id: 'oscar-piastri', championship_position: 1, standing_rows: 1 },
+      { driver_id: 'lando-norris', championship_position: 2, standing_rows: 1 },
+      { driver_id: 'max-verstappen', championship_position: 3, standing_rows: 1 }
+    ])).toThrow(AnswerFormatError);
+  });
 
   it('formats canonical ordered career wins grouped by circuit ID', () => {
     expect(formatAnswerRows(careerWins, approved(careerWins), [

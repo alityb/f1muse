@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 
-export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v5';
+export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v6';
 
 export class AnswerBoundError extends Error {
   constructor(readonly bound: 'work_units' | 'rows' | 'response_bytes', readonly actual: number, readonly maximum: number) {

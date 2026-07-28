@@ -6,6 +6,7 @@ describe('answer template registry', () => {
   const cases = [
     ['final_standings_points', { season: 2025, driver_ids: ['lando-norris'] }, 'aggregate'],
     ['final_standings_leader', { season: 2025 }, 'rank'],
+    ['final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] }, 'rank'],
     ['current_standings', { season: 2026 }, 'rank'],
     ['driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }, 'aggregate'],
     ['driver_career_official_summary', { driver_id: 'lewis-hamilton' }, 'aggregate'],
@@ -24,8 +25,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v9', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(17);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v10', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(18);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);

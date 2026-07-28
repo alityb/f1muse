@@ -3517,6 +3517,210 @@
     }
   },
   {
+    "id": "launch-multi-ranking",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025,
+                "driver_id": [
+                  "lando-norris",
+                  "max-verstappen",
+                  "oscar-piastri"
+                ]
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "standing_rows",
+                "function": "count"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 3
+        }
+      },
+      "program_hash": "28d5a2894c02575be1eb79e2e9db15d5da5b9e7dd52e601e1efad0a51d99ec7b",
+      "answer": {
+        "headline": "Final 2025 championship-position ranking for the requested drivers.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "standing_rows": 1
+        },
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "standing_rows": 1
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 2025; drivers lando-norris, max-verstappen, oscar-piastri; rank by championship_position asc, top 3.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v7",
+        "compiler_version": "core-v6",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": [
+          "official_final_championship_positions"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-multi-ranking",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025,
+                "driver_id": [
+                  "lando-norris",
+                  "max-verstappen",
+                  "oscar-piastri"
+                ]
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "standing_rows",
+                "function": "count"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 3
+        }
+      },
+      "program_hash": "28d5a2894c02575be1eb79e2e9db15d5da5b9e7dd52e601e1efad0a51d99ec7b",
+      "answer": {
+        "headline": "Final 2025 championship-position ranking for the requested drivers.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "standing_rows": 1
+        },
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "standing_rows": 1
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 2025; drivers lando-norris, max-verstappen, oscar-piastri; rank by championship_position asc, top 3.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v7",
+        "compiler_version": "core-v6",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": [
+          "official_final_championship_positions"
+        ]
+      }
+    }
+  },
+  {
     "id": "holdout-current-standings",
     "envelope": {
       "mode": "gated_execution",

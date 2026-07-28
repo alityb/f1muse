@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v21' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v22' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
 export type AnswerQuestionSourceCue = 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date';
 export type AnswerQuestionSessionCue = 'race' | 'qualifying' | 'sprint';
-export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'career_circuit_wins' | 'race_finishing_position_h2h' | 'qualifying_position_h2h' | 'date';
+export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'official_driver_ranking' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'career_circuit_wins' | 'race_finishing_position_h2h' | 'qualifying_position_h2h' | 'date';
 export type AnswerQuestionActionCue = 'all';
 export type AnswerQuestionStatusCue = 'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn';
 export type AnswerQuestionResultCue = 'race_winner' | 'race_podium' | 'race_top_n' | 'race_exact_position' | 'qualifying_pole' | 'qualifying_top_n' | 'qualifying_exact_position';
@@ -79,6 +79,7 @@ const SESSION_PATTERNS: readonly CuePattern<AnswerQuestionSessionCue>[] = [
 const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'points', pattern: /\bpoints?\b/giu },
   { value: 'official_leader', pattern: /\b(?:championship|standings)\s+(?:champion|leader)\b|\bdriver\s+champion\b|\bwho\b[^.?!]{0,80}\bchampion\b|\bwho\s+(?:led|won)\s+(?:the\s+)?(?:(?:19[5-9]\d|20\d{2}|2100)\s+)?(?:driver\s+)?(?:championship|standings)\b/giu },
+  { value: 'official_driver_ranking', pattern: /\brank\b[^.?!]{1,240}\bby\s+(?:final\s+(?:19[5-9]\d|20\d{2}|2100)\s+championship\s+position|championship\s+position\s+in\s+the\s+final\s+(?:19[5-9]\d|20\d{2}|2100)\s+standings)\b/giu },
   { value: 'latest_recorded', pattern: /\blatest\s+recorded\b/giu },
   { value: 'official_season_summary', pattern: /\bofficial\s+(?:19[5-9]\d|20\d{2}|2100)\s+(?:season|driver)\s+summary\b/giu },
   { value: 'official_career_summary', pattern: /\bofficial\s+career\s+summary\b/giu },

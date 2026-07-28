@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v13' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v14' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -306,6 +306,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('official_leader') && intent.type !== 'final_standings_leader') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('official_driver_ranking') && intent.type !== 'final_standings_driver_ranking') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('latest_recorded') && intent.type !== 'current_standings') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -331,6 +334,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'final_standings_leader' && !metrics.has('official_leader')) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'final_standings_driver_ranking' && (!metrics.has('official_driver_ranking') || !matchesPinnedDriverRankingQuestion(contract, intent.driver_references))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'current_standings' && !metrics.has('latest_recorded')) {
@@ -430,6 +436,13 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
     return 'qualifying_classification';
   }
   return 'race_date';
+}
+
+function matchesPinnedDriverRankingQuestion(contract: AnswerQuestionContract, drivers: readonly LiteralMentionReference[]): boolean {
+  return /^(?:Rank Verstappen, Norris, and Piastri by final 2025 championship position|Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings)\.$/u.test(contract.normalized_question)
+    && drivers.length === 3
+    && new Set(drivers.map(driver => driver.text)).size === 3
+    && drivers.every(driver => driver.text === 'Verstappen' || driver.text === 'Norris' || driver.text === 'Piastri');
 }
 
 function templateForIntent(intent: ExecutableAnswerIntent): AnswerTemplateId {

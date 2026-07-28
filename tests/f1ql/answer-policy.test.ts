@@ -33,6 +33,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'final_driver_standings'
     },
     {
+      name: 'pinned final championship-position ranking',
+      program: materializeAnswerTemplate('final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] }),
+      source: 'final_driver_standings'
+    },
+    {
       name: 'final-season race finishing-position H2H',
       program: materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
       source: 'race_classification'
@@ -75,6 +80,24 @@ describe('Phase 7 answer capability policy', () => {
   ])('approves $name', ({ program, source }) => {
     const decision = authorizeAnswerProgram(program);
     expect(decision).toMatchObject({ type: 'approved', capability: { source } });
+  });
+
+  it('rejects mutations of the final championship-position ranking', () => {
+    const program = materializeAnswerTemplate('final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] });
+    if (program.root.op !== 'rank' || program.root.input.input.op !== 'filter') throw new Error('ranking fixture shape changed');
+    for (const root of [
+      { ...program.root, direction: 'desc' as const },
+      { ...program.root, limit: 2 },
+      { ...program.root, by: 'standing_rows' },
+      { ...program.root, input: { ...program.root.input, measures: program.root.input.measures.slice(0, 1) } },
+      { ...program.root, input: { ...program.root.input, input: { ...program.root.input.input, where: { ...program.root.input.input.where, season: 2026 } } } },
+      { ...program.root, input: { ...program.root.input, input: { ...program.root.input.input, where: { ...program.root.input.input.where, season: 1949 } } } },
+      { ...program.root, input: { ...program.root.input, input: { ...program.root.input.input, where: { ...program.root.input.input.where, season: 2024.5 } } } },
+      { ...program.root, input: { ...program.root.input, input: { ...program.root.input.input, where: { ...program.root.input.input.where, season: Number.NaN } } } },
+      { ...program.root, input: { ...program.root.input, input: { ...program.root.input.input, where: { ...program.root.input.input.where, driver_id: ['max-verstappen', 'lando-norris'] } } } }
+    ]) {
+      expect(authorizeAnswerProgram({ version: 1, root } as F1QLProgram).type).toBe('rejected');
+    }
   });
 
   it.each([

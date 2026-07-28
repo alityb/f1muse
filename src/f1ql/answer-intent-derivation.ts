@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v9' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v10' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -45,7 +45,7 @@ export async function deriveAnswerIntent(
   }
   const seasonFields = { season: seasonMention.value, season_reference: copyReference(seasonMention) };
   const inventory = await resolver.inventoryMentions(contract.normalized_question, seasonMention.value);
-  const drivers = inventory.filter(mention => !isSummaryStructureMention(contract, mention)).map(copyReference);
+  const drivers = inventory.filter(mention => !isSummaryStructureMention(contract, mention)).map(copyReference).sort(compareReferenceSpans);
   return parseAnswerIntent(selectIntent(contract, seasonFields, drivers), contract);
 }
 
@@ -205,6 +205,11 @@ function standingsIntent(
       && /^(?:show the latest recorded 2026 driver standings|give the latest recorded driver standings for 2026)\.?$/iu.test(contract.normalized_question);
     return unfiltered ? { type: 'current_standings', ...seasonFields } : unsupported;
   }
+  if (only(metrics, 'official_driver_ranking')) {
+    const valid = seasonFields.season === 2025 && drivers.length === 3 && contract.status_cues.length === 0 && contract.action_cues.length === 0
+      && contract.result_cues.length === 0 && matchesPinnedDriverRankingQuestion(contract.normalized_question);
+    return valid ? { type: 'final_standings_driver_ranking', ...seasonFields, driver_references: drivers } : unsupported;
+  }
   if (isPointsSelection(contract, drivers, metrics)) {
     return { type: 'final_standings_points', ...seasonFields, driver_references: drivers };
   }
@@ -212,6 +217,10 @@ function standingsIntent(
     return { type: 'final_standings_leader', ...seasonFields };
   }
   return unsupported;
+}
+
+function matchesPinnedDriverRankingQuestion(question: string): boolean {
+  return /^(?:Rank Verstappen, Norris, and Piastri by final 2025 championship position|Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings)\.$/u.test(question);
 }
 
 function isStandingsContext(
@@ -229,7 +238,7 @@ function isPointsSelection(
   metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
 ): boolean {
   const actionCompatible = contract.action_cues.length === 0 || drivers.length === 0;
-  return only(metrics, 'points') && drivers.length <= 4 && contract.status_cues.length === 0
+  return only(metrics, 'points') && drivers.length <= 4 && contract.status_cues.length === 0 && !/\brank\b/iu.test(contract.normalized_question)
     && contract.action_cues.length <= 1 && actionCompatible;
 }
 
@@ -356,6 +365,10 @@ function only<T>(values: ReadonlySet<T>, expected: T): boolean {
 
 function copyReference(mention: Pick<AnswerQuestionMention<string | number>, 'text' | 'start' | 'end'>): LiteralMentionReference {
   return { text: mention.text, start: mention.start, end: mention.end };
+}
+
+function compareReferenceSpans(left: LiteralMentionReference, right: LiteralMentionReference): number {
+  return left.start - right.start || left.end - right.end;
 }
 
 function isSummaryStructureMention(contract: AnswerQuestionContract, mention: DriverInventoryMention): boolean {

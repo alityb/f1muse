@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v13', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v14', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v13',
+      version: 'answer-semantic-proof-v14',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
