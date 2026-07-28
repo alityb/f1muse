@@ -121,4 +121,16 @@ describe('Phase 7 answer capability policy', () => {
   ])('rejects $name', ({ program, reason }) => {
     expect(authorizeAnswerProgram(program)).toEqual({ type: 'rejected', reason });
   });
+
+  it('approves isolated position selection and rejects position composites', () => {
+    expect(authorizeAnswerProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 3, filters: { finishing_position: [1, 2, 3] } } })).toMatchObject({
+      type: 'approved', capability: { source: 'race_classification', filters: ['position'] }
+    });
+    expect(authorizeAnswerProgram({ version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { qualifying_position: [2], driver_id: 'lando-norris' } } })).toEqual({
+      type: 'rejected', reason: 'classification_filter_combination_unsupported'
+    });
+    expect(authorizeAnswerProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { finishing_position: [1, 2, 3] } } })).toEqual({
+      type: 'rejected', reason: 'classification_filter_combination_unsupported'
+    });
+  });
 });

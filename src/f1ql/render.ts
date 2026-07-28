@@ -8,10 +8,10 @@ export function renderF1QL(program: F1QLProgram): string {
     return renderPaceSummary(program.root);
   }
   if (program.root.op === 'event_classification') {
-    return `Official race classification; season ${program.root.season}; round ${program.root.round}; top ${program.root.limit}.`;
+    return `Official race classification; season ${program.root.season}; round ${program.root.round}; ${classificationSelection(program.root.filters?.finishing_position, program.root.limit)}.`;
   }
   if (program.root.op === 'qualifying_classification') {
-    return `Official qualifying classification; season ${program.root.season}; round ${program.root.round}; top ${program.root.limit}.`;
+    return `Official qualifying classification; season ${program.root.season}; round ${program.root.round}; ${classificationSelection(program.root.filters?.qualifying_position, program.root.limit)}.`;
   }
   if (program.root.op === 'event_metadata') {
     return `Event metadata; season ${program.root.season}; round ${program.root.round}; ${program.root.session_scope ?? 'race'} session.`;
@@ -23,6 +23,19 @@ export function renderF1QL(program: F1QLProgram): string {
     return `Official non-deleted, non-PIT completed race-lap arithmetic mean; ${program.root.driver_a_id} versus ${program.root.driver_b_id}; season ${program.root.season}; round ${program.root.round}; all completed laps per driver; safety-car, weather, traffic, tyre, fuel, and race-state effects included.`;
   }
   return renderStandings(program);
+}
+
+function classificationSelection(positions: number[] | undefined, limit: number): string {
+  if (positions === undefined) {
+    return `top ${limit}`;
+  }
+  if (positions.length === 1) {
+    return `position ${positions[0]}`;
+  }
+  if (positions.every((position, index) => position === index + 1)) {
+    return `top ${positions.length}`;
+  }
+  return `positions ${positions.join(', ')}`;
 }
 
 function renderPaceDelta(node: PaceDeltaNode): string {

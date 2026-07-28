@@ -115,7 +115,10 @@ function formatClassification(program: F1QLProgram, rows: Array<Record<string, u
     subject: requiredString(row.driver_id, 'driver_id'),
     values: Object.fromEntries(keys.map(key => [key, isNumericClassificationField(key) ? displayNumeric(row[key], key) : displayText(row[key], key)]))
   }));
-  const possiblyTruncated = root.filters?.driver_id === undefined && rows.length === root.limit;
+  const positionSelected = root.op === 'event_classification'
+    ? root.filters?.finishing_position !== undefined
+    : root.filters?.qualifying_position !== undefined;
+  const possiblyTruncated = root.filters?.driver_id === undefined && !positionSelected && rows.length === root.limit;
   return {
     answer: { headline: `${kind === 'race' ? 'Race' : 'Qualifying'} classification for ${root.season} round ${root.round}.`, facts },
     coverage: possiblyTruncated ? 'possibly_truncated' as const : 'sufficient' as const,

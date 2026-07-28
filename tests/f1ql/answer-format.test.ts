@@ -43,6 +43,12 @@ describe('deterministic answer formatting', () => {
     });
   });
 
+  it('treats a complete position selection as sufficient', () => {
+    const program: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { finishing_position: [2] } } };
+    expect(formatAnswerRows(program, approved(program), [{ driver_id: 'piastri', finishing_position: 2, points: '18', classification_status: 'classified', status_reason: null }]))
+      .toMatchObject({ coverage: 'sufficient', caveats: [] });
+  });
+
   it('formats qualifying and metadata source contracts', () => {
     const qualifying: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 2, limit: 30, filters: { driver_id: 'piastri' } } };
     expect(formatAnswerRows(qualifying, approved(qualifying), [{ driver_id: 'piastri', qualifying_position: 1, best_time_ms: '90250', best_session: 'q3', eliminated_in_round: null, classification_status: 'classified' }]).answer.facts[0])

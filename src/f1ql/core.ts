@@ -11,6 +11,7 @@ export interface CoreEventClassificationFilter {
   classification_status?: string[];
   driver_id?: string;
   team_id?: string;
+  finishing_position?: number[];
 }
 
 export interface CoreLapPaceFilter {
@@ -54,6 +55,7 @@ export interface CoreQualifyingClassificationFilter {
   classification_status?: string[];
   driver_id?: string;
   team_id?: string;
+  qualifying_position?: number[];
 }
 
 export interface CoreEventMetadataFilter {

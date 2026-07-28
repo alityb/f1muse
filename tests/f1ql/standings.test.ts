@@ -418,6 +418,13 @@ describe('F1QL standings vertical slice', () => {
     ];
     expect(filteredExecuted.rows.map((row) => ({ ...row, points: Number(row.points) })))
       .toEqual(interpretEventClassification(filteredCore, referenceRows));
+
+    const selected: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 9, limit: 1, filters: { finishing_position: [2] } } };
+    const selectedCompiled = compileF1QL(lowerF1QL(selected));
+    expect(selectedCompiled.params).toEqual([2025, 9, [2]]);
+    expect(selectedCompiled.sql).toContain('finishing_position = ANY($3::integer[])');
+    await expect(executeF1QL(pool, selected)).resolves.toMatchObject({ rows: [{ driver_id: 'lando-norris', finishing_position: 2 }] });
+    expect(interpretEventClassification(lowerF1QL(selected), referenceRows)).toEqual([expect.objectContaining({ driver_id: 'lando-norris', finishing_position: 2 })]);
   });
 
   it('compiles official qualifying classification from the canonical view', async () => {
@@ -464,6 +471,13 @@ describe('F1QL standings vertical slice', () => {
       { season: 2025, round: 9, driver_id: 'driver-dns', team_id: 'test-team', qualifying_position: null, best_time_ms: null, best_session: null, eliminated_in_round: null, classification_status: 'dns' }
     ];
     expect(filteredExecuted.rows).toEqual(interpretQualifyingClassification(lowerF1QL(filtered), referenceRows));
+
+    const selected: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 9, limit: 1, filters: { qualifying_position: [2] } } };
+    const selectedCompiled = compileF1QL(lowerF1QL(selected));
+    expect(selectedCompiled.params).toEqual([2025, 9, [2]]);
+    expect(selectedCompiled.sql).toContain('qualifying_position = ANY($3::integer[])');
+    await expect(executeF1QL(pool, selected)).resolves.toMatchObject({ rows: [{ driver_id: 'lando-norris', qualifying_position: 2 }] });
+    expect(interpretQualifyingClassification(lowerF1QL(selected), referenceRows)).toEqual([expect.objectContaining({ driver_id: 'lando-norris', qualifying_position: 2 })]);
   });
 
   it('returns event metadata with an explicit race-session default', async () => {

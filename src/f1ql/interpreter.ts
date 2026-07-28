@@ -301,7 +301,8 @@ function interpretEventClassificationNode(node: CorePipelineNode, rows: EventCla
       .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
-      .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
+      .filter((row) => where.team_id === undefined || row.team_id === where.team_id)
+      .filter((row) => where.finishing_position === undefined || (row.finishing_position !== null && where.finishing_position.includes(row.finishing_position)));
   }
   if (node.op === 'sort') {
     const direction = node.direction === 'asc' ? 1 : -1;
@@ -328,7 +329,8 @@ function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: Qua
       .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
-      .filter((row) => where.team_id === undefined || row.team_id === where.team_id);
+      .filter((row) => where.team_id === undefined || row.team_id === where.team_id)
+      .filter((row) => where.qualifying_position === undefined || (row.qualifying_position !== null && where.qualifying_position.includes(row.qualifying_position)));
   }
   if (node.op === 'sort') {
     const direction = node.direction === 'asc' ? 1 : -1;

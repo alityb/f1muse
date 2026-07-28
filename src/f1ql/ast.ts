@@ -75,6 +75,7 @@ export interface ClassificationEntityFilters {
   classification_status?: Array<'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn'>;
   driver_id?: string;
   team_id?: string;
+  finishing_position?: number[];
 }
 
 export interface EventClassificationNode extends EventFilter {
@@ -90,6 +91,7 @@ export interface QualifyingClassificationNode extends EventFilter {
     classification_status?: Array<'classified' | 'dnf' | 'dns'>;
     driver_id?: string;
     team_id?: string;
+    qualifying_position?: number[];
   };
 }
 

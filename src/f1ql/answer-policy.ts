@@ -24,7 +24,7 @@ export interface AnswerCapability {
   operation: F1QLProgram['root']['op'];
   season: number;
   round?: number;
-  filters: Array<'driver' | 'classification_status'>;
+  filters: Array<'driver' | 'classification_status' | 'position'>;
 }
 
 export type AnswerPolicyDecision =
@@ -72,7 +72,16 @@ function authorizeClassification(
   }
   const hasDriver = root.filters?.driver_id !== undefined;
   const statuses = root.filters?.classification_status;
-  if ((hasDriver && statuses !== undefined) || (statuses?.length ?? 0) > 1) {
+  const hasPosition = root.op === 'event_classification'
+    ? root.filters?.finishing_position !== undefined
+    : root.filters?.qualifying_position !== undefined;
+  const positions = root.op === 'event_classification'
+    ? root.filters?.finishing_position
+    : root.filters?.qualifying_position;
+  if ([hasDriver, statuses !== undefined, hasPosition].filter(Boolean).length > 1 || (statuses?.length ?? 0) > 1) {
+    return { type: 'rejected', reason: 'classification_filter_combination_unsupported' };
+  }
+  if (positions !== undefined && positions.length !== root.limit) {
     return { type: 'rejected', reason: 'classification_filter_combination_unsupported' };
   }
   const filters: AnswerCapability['filters'] = [];
@@ -81,6 +90,9 @@ function authorizeClassification(
   }
   if (root.filters?.classification_status !== undefined) {
     filters.push('classification_status');
+  }
+  if (hasPosition) {
+    filters.push('position');
   }
   return {
     type: 'approved',

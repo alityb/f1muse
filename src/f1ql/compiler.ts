@@ -296,6 +296,10 @@ function compileEventClassificationPipeline(node: CorePipelineNode): { where: st
       pipeline.params.push(where.team_id);
       pipeline.where.push(`team_id = $${pipeline.params.length}`);
     }
+    if (where.finishing_position) {
+      pipeline.params.push(where.finishing_position);
+      pipeline.where.push(`finishing_position = ANY($${pipeline.params.length}::integer[])`);
+    }
     return pipeline;
   }
   if (node.op === 'sort') {
@@ -345,6 +349,10 @@ function compileQualifyingClassificationPipeline(node: CorePipelineNode): { wher
     if (where.team_id) {
       pipeline.params.push(where.team_id);
       pipeline.where.push(`team_id = $${pipeline.params.length}`);
+    }
+    if (where.qualifying_position) {
+      pipeline.params.push(where.qualifying_position);
+      pipeline.where.push(`qualifying_position = ANY($${pipeline.params.length}::integer[])`);
     }
     return pipeline;
   }

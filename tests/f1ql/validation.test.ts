@@ -20,6 +20,13 @@ describe('F1QL validation gates', () => {
     const invalid = { version: 1 as const, root: { op: 'event_classification' as const, season: 2025, round: 31, limit: 1 } };
     expect(() => validateF1QLProgram(invalid)).toThrow(expect.objectContaining({ code: 'coverage_unsupported' }));
   });
+  it('requires canonical bounded classification position sets', () => {
+    expect(parseF1QLProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 3, filters: { finishing_position: [1, 2, 3] } } }).root)
+      .toMatchObject({ filters: { finishing_position: [1, 2, 3] } });
+    expect(() => parseF1QLProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 2, filters: { finishing_position: [2, 1] } } })).toThrow();
+    expect(() => parseF1QLProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { finishing_position: [1, 2, 3] } } })).toThrow();
+    expect(() => parseF1QLProgram({ version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { qualifying_position: [31] } } })).toThrow();
+  });
   it('reads the active definitions version through the refresh path', () => {
     process.env.F1QL_DEFINITIONS_VERSION = 'stale';
     expect(() => validateF1QLProgram(program)).toThrow(expect.objectContaining({ code: 'definitions_version_mismatch' }));

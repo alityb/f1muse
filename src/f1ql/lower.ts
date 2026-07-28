@@ -231,12 +231,19 @@ function lowerQualifyingClassification(node: Extract<F1QLProgram['root'], { op: 
 }
 
 function classificationFilters(node: Extract<F1QLProgram['root'], { op: 'event_classification' | 'qualifying_classification' }>): Array<CoreEventClassificationFilter | CoreQualifyingClassificationFilter> {
-  return [
+  const filters: Array<CoreEventClassificationFilter | CoreQualifyingClassificationFilter> = [
     { season: node.season, round: node.round },
     ...(node.filters?.classification_status === undefined ? [] : [{ classification_status: node.filters.classification_status }]),
     ...(node.filters?.driver_id === undefined ? [] : [{ driver_id: node.filters.driver_id }]),
     ...(node.filters?.team_id === undefined ? [] : [{ team_id: node.filters.team_id }])
   ];
+  if (node.op === 'event_classification' && node.filters?.finishing_position !== undefined) {
+    filters.push({ finishing_position: node.filters.finishing_position });
+  }
+  if (node.op === 'qualifying_classification' && node.filters?.qualifying_position !== undefined) {
+    filters.push({ qualifying_position: node.filters.qualifying_position });
+  }
+  return filters;
 }
 
 function applyFilters(input: CorePipelineNode, filters: CoreFilterNode['where'][]): CoreFilterNode {
