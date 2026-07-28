@@ -7,6 +7,7 @@ describe('answer template registry', () => {
     ['final_standings_points', { season: 2025, driver_ids: ['lando-norris'] }, 'aggregate'],
     ['final_standings_leader', { season: 2025 }, 'rank'],
     ['current_standings', { season: 2026 }, 'rank'],
+    ['driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }, 'aggregate'],
     ['race_classification_all', { season: 2025, round: 7 }, 'event_classification'],
     ['race_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'event_classification'],
     ['race_classification_status', { season: 2025, round: 7, status: 'dsq' }, 'event_classification'],
@@ -19,8 +20,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v4', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(12);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v5', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(13);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);
@@ -74,6 +75,19 @@ describe('answer template registry', () => {
     expect(() => materializeAnswerTemplate('current_standings', { season: 2027 })).toThrow();
   });
 
+  it('owns the final driver season standing summary and integrity count', () => {
+    expect(materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }).root).toEqual({
+      op: 'aggregate',
+      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: 'max-verstappen' } },
+      group_by: ['driver_id'],
+      measures: [
+        { as: 'championship_position', function: 'min', field: 'championship_position' },
+        { as: 'points', function: 'max', field: 'points' },
+        { as: 'standing_rows', function: 'count' }
+      ]
+    });
+  });
+
   it('materializes all final standings points without a driver filter', () => {
     const root = materializeAnswerTemplate('final_standings_points', { season: 2025 }).root;
     expect(root).toMatchObject({ op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } });
@@ -100,6 +114,7 @@ describe('answer template registry', () => {
     ['final_standings_points', { season: [2024, 2025] }],
     ['final_standings_points', { season: 2025, driver_ids: ['lando-norris', 'lando-norris'] }],
     ['final_standings_leader', { season: 2026 }],
+    ['driver_season_official_summary', { season: 2026, driver_id: 'max-verstappen' }],
     ['race_date', { season: 2025, round: 1, limit: 1 }],
     ['race_classification_position', { season: 2025, round: 1, positions: [2, 1] }],
     ['qualifying_classification_position', { season: 2025, round: 1, positions: [0] }]

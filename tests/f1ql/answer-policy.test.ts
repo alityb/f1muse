@@ -23,6 +23,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'current_driver_standings'
     },
     {
+      name: 'official driver season summary',
+      program: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }),
+      source: 'final_driver_standings'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'
@@ -153,5 +158,17 @@ describe('Phase 7 answer capability policy', () => {
     for (const program of mutations) {
       expect(authorizeAnswerProgram(program)).toEqual({ type: 'rejected', reason: 'interim_standings_unsupported' });
     }
+  });
+
+  it('rejects malformed season-summary integrity shapes', () => {
+    const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
+    if (summary.root.op !== 'aggregate') throw new Error('fixture must aggregate');
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, measures: summary.root.measures.slice(0, 2) } })).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, measures: [...summary.root.measures.slice(0, 2), { as: 'standing_rows', function: 'sum', field: 'points' }] } })).toEqual({
+      type: 'rejected', reason: 'capability_unsupported'
+    });
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, where: { season: 2025, driver_id: ['max-verstappen'] } } } })).toEqual({
+      type: 'rejected', reason: 'capability_unsupported'
+    });
   });
 });

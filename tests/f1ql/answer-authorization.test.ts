@@ -88,7 +88,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v9', release_attestation: 5 }
+      active_versions: { authorization: 'answer-authorization-v10', release_attestation: 5 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);

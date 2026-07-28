@@ -124,7 +124,7 @@ async function main(): Promise<void> {
     requiredEnvironment('F1QL_ANSWER_EVALUATION_KEY_ID'),
     requiredEnvironment('F1QL_ANSWER_EVALUATION_PRIVATE_KEY_BASE64')
   );
-  if (answerEvaluationManifest.length !== 88) {
+  if (answerEvaluationManifest.length !== 90) {
     throw new Error('Answer evaluation collection requires the complete reviewed corpus');
   }
   const provider = providerMetadata();
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
     const uniqueCaseCount = new Set(artifact.observations.map(observation => observation.id)).size;
     const expectedObservationCount = answerEvaluationManifest.reduce((count, item) =>
       count + (item.answerable ? ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE : 1), 0);
-    if (uniqueCaseCount !== answerEvaluationManifest.length || uniqueCaseCount !== 88 || artifact.observations.length !== expectedObservationCount) {
+    if (uniqueCaseCount !== answerEvaluationManifest.length || uniqueCaseCount !== 90 || artifact.observations.length !== expectedObservationCount) {
       throw new Error('Answer evaluation collection did not complete the reviewed corpus');
     }
     const serialized = `${JSON.stringify(artifact, null, 2)}\n`;

@@ -38,6 +38,11 @@ describe('answer bounds', () => {
     expect(() => enforceAnswerWorkBudget(program, approved, estimate.units - 1)).toThrow(AnswerBoundError);
   });
 
+  it('bounds a driver season summary to one row and 36 work units', () => {
+    const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
+    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v1', units: 36, requested_rows: 1 });
+  });
+
   it('enforces row and exact UTF-8 byte boundaries', () => {
     const rows = [{ driver_id: 'norris' }, { driver_id: 'piastri' }];
     expect(() => enforceAnswerRows(rows, 1)).toThrowError(expect.objectContaining({ bound: 'rows', actual: 2 }));

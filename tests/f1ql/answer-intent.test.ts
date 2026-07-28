@@ -77,6 +77,17 @@ describe('answer-specific intent contract', () => {
     });
   });
 
+  it('hydrates one official season-summary driver reference', () => {
+    const text = 'Show Max Verstappen official 2025 season summary.';
+    expect(hydrateAndParseAnswerIntent({
+      type: 'driver_season_official_summary', season: 2025,
+      season_reference: { text: '2025' }, driver_reference: { text: 'Max Verstappen' }
+    }, createAnswerQuestionContract(text))).toEqual({
+      type: 'driver_season_official_summary', season: 2025,
+      season_reference: reference(text, '2025'), driver_reference: reference(text, 'Max Verstappen')
+    });
+  });
+
   it('hydrates a trusted result-selection reference without accepting position arrays', () => {
     const text = 'Show the top five finishers at the 2025 Australian Grand Prix.';
     expect(hydrateAndParseAnswerIntent({

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v4';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v6' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v5';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v7' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -55,6 +55,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('final_standings_points', { ...seasonProperties, driver_references: { type: 'array', maxItems: 4, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('final_standings_leader', seasonProperties, ['season', 'season_reference']),
         closedIntent('current_standings', seasonProperties, ['season', 'season_reference']),
+        closedIntent('driver_season_official_summary', { ...seasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
         closedIntent('race_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('race_classification_driver', { ...seasonProperties, ...eventProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'driver_reference']),
         closedIntent('race_classification_status', { ...seasonProperties, ...eventProperties, status: { enum: ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'] }, status_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'status', 'status_reference']),
@@ -82,6 +83,7 @@ Decision table (follow literal wording):
 - final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
 - final_standings_leader: final driver standings champion/leader.
 - current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
+- driver_season_official_summary: literal official final-season summary for exactly one named driver; this means recorded championship position and points, never pace or a cross-source composite.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
 - race_classification_status: race classification filtered by exactly one literal supported status.
@@ -99,6 +101,8 @@ Question: Who led the 2025 standings?
 {"intent":{"type":"final_standings_leader","season":2025,"season_reference":{"text":"2025"}}}
 Question: Show the latest recorded 2026 driver standings.
 {"intent":{"type":"current_standings","season":2026,"season_reference":{"text":"2026"}}}
+Question: Show Max Verstappen official 2025 season summary.
+{"intent":{"type":"driver_season_official_summary","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Max Verstappen"}}}
 Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying

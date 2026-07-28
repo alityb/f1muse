@@ -19,6 +19,7 @@ describe('F1QL launch capability migration', () => {
     expect(new Set(launchParityManifest.map(testCase => testCase.id)).size).toBe(launchParityManifest.length);
     expect([...new Set(launchParityManifest.map(testCase => testCase.legacy_kind))].sort()).toEqual([...LEGACY_QUERY_KINDS].sort());
     const requiredCases = [
+      ['season-summary', 'Show Max Verstappen official 2025 season summary.', 'driver_season_official_summary'],
       ['current-standings', 'Show the latest recorded 2026 driver standings.', 'current_standings'],
       ['race-winner', 'Who won the 2025 Australian Grand Prix?', 'race_result_selection'],
       ['race-podium', 'Show the podium for the 2025 Australian Grand Prix.', 'race_result_selection'],
@@ -59,8 +60,8 @@ describe('F1QL launch capability migration', () => {
     }
   });
 
-  it('contracts only result selections with deterministic proof and reviewed generated evidence', async () => {
-    const contractedIds = ['current-standings', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-podium', 'race-second', 'race-top-five', 'race-winner'];
+  it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
+    const contractedIds = ['current-standings', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));
@@ -68,12 +69,19 @@ describe('F1QL launch capability migration', () => {
       const evaluation = answerEvaluationManifest.find(item => item.question === parityCase.question);
       expect(evaluation).toMatchObject({ answerable: true, expected: { action: 'answer', proof_outcome: 'passed' } });
       const contract = createAnswerQuestionContract(parityCase.question);
-      const intent = await deriveAnswerIntent(contract, { inventoryMentions: async () => [] });
+      const inventory = {
+        inventoryMentions: async (question: string) => question.includes('Max Verstappen') ? [{
+          text: 'Max Verstappen', start: Array.from(question.slice(0, question.indexOf('Max Verstappen'))).length,
+          end: Array.from(question.slice(0, question.indexOf('Max Verstappen'))).length + Array.from('Max Verstappen').length,
+          candidates: ['max_verstappen'], active_candidates: ['max_verstappen']
+        }] : []
+      };
+      const intent = await deriveAnswerIntent(contract, inventory);
       expect(intent.type).not.toMatch(/clarification|unsupported/u);
       const proof = await proveAnswerIntent(contract, intent, {
         resolve: async (season, name) => name === 'Australian Grand Prix' ? { type: 'resolved', season, round: 1 } : { type: 'missing' },
         resolveRound: async (season, round) => ({ type: 'resolved', season, round })
-      }, { inventoryMentions: async () => [] });
+      }, inventory);
       expect(getF1QLProgramHash(proof.program)).toBe(getF1QLProgramHash(evaluation!.expected.acceptable_programs![0]));
       expect(authorizeAnswerProgram(proof.program).type).toBe('approved');
       expect(emittedIds.has(evaluation?.id ?? '')).toBe(true);
@@ -89,7 +97,7 @@ describe('F1QL launch capability migration', () => {
       }
       expect(disposition.reason).not.toMatch(/legacy template|because supported/iu);
     }
-    expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_season_summary.authorities).toEqual(expect.arrayContaining(['standings', 'race_classification', 'qualifying_classification']));
+    expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_season_summary.authorities).toEqual(['standings']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_head_to_head_count.authorities).toEqual(expect.arrayContaining(['race_classification', 'qualifying_classification']));
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_multi_comparison.authorities).toEqual(['standings']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_matchup_lookup.authorities).toEqual(['race_classification', 'qualifying_classification']);

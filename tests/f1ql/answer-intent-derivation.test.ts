@@ -44,14 +44,28 @@ describe('provider-free answer intent derivation', () => {
     ['Who took pole at the 2025 Australian Grand Prix?', inventory(), 'qualifying_pole'],
     ['Show the top five qualifiers at the 2025 Australian Grand Prix.', inventory(), 'qualifying_top_n'],
     ['Who qualified third at the 2025 Australian Grand Prix?', inventory(), 'qualifying_exact_position'],
-    ['Show the latest recorded 2026 driver standings.', inventory(), 'current_standings']
+    ['Show the latest recorded 2026 driver standings.', inventory(), 'current_standings'],
+    ['Show Max Verstappen official 2025 season summary.', inventory('Max Verstappen'), 'driver_season_official_summary'],
+    ['Give the official 2025 season summary for Max Verstappen.', inventory('Max Verstappen'), 'driver_season_official_summary']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v3');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v4');
+  });
+
+  it.each([
+    'Show Max Verstappen 2025 season summary.',
+    'Show Max Verstappen official 2026 season summary.',
+    'Show Max Verstappen official 2025 season summary with wins and poles.',
+    'Show Max Verstappen and Lando Norris official 2025 season summary.',
+    'Show official 2025 season summary.'
+  ])('does not broaden official season summaries: %s', async question => {
+    const names = ['Max Verstappen', 'Lando Norris'].filter(name => question.includes(name));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).toMatch(/unsupported|clarification/u);
   });
 
   it.each([

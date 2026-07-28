@@ -3606,6 +3606,156 @@
     }
   },
   {
+    "id": "launch-season-summary",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "max-verstappen"
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "championship_position",
+              "function": "min",
+              "field": "championship_position"
+            },
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            },
+            {
+              "as": "standing_rows",
+              "function": "count"
+            }
+          ]
+        }
+      },
+      "program_hash": "576942c55da72e4ba81bd2a37494a5afff733179f01e11827d15435c5d848fc7",
+      "answer": {
+        "headline": "Official final 2025 championship standing summary for max-verstappen.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "25"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "25",
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers max-verstappen.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-season-summary",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "max-verstappen"
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "championship_position",
+              "function": "min",
+              "field": "championship_position"
+            },
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            },
+            {
+              "as": "standing_rows",
+              "function": "count"
+            }
+          ]
+        }
+      },
+      "program_hash": "576942c55da72e4ba81bd2a37494a5afff733179f01e11827d15435c5d848fc7",
+      "answer": {
+        "headline": "Official final 2025 championship standing summary for max-verstappen.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "25"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "25",
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers max-verstappen.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
     "id": "unicode-astral",
     "envelope": {
       "mode": "gated_execution",

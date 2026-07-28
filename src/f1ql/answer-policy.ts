@@ -114,6 +114,11 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
     }
     return { type: 'rejected', reason: 'interim_standings_unsupported' };
   }
+  const summaryLike = aggregate.input.where.driver_id !== undefined
+    && aggregate.measures.some(measure => measure.as === 'championship_position' || measure.as === 'standing_rows' || measure.function === 'count');
+  if (summaryLike && !isDriverSeasonOfficialSummary(aggregate, operation)) {
+    return { type: 'rejected', reason: 'capability_unsupported' };
+  }
   const driverId = aggregate.input.where.driver_id;
   let driverCount = 0;
   if (driverId !== undefined) {
@@ -131,6 +136,17 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
       filters: driverCount === 0 ? [] : ['driver']
     }
   };
+}
+
+function isDriverSeasonOfficialSummary(aggregate: AggregateNode, operation: 'aggregate' | 'rank'): boolean {
+  if (operation !== 'aggregate' || aggregate.input.op !== 'filter' || typeof aggregate.input.where.driver_id !== 'string' ||
+      Object.keys(aggregate.input.where).length !== 2 || aggregate.group_by.length !== 1 || aggregate.group_by[0] !== 'driver_id') {
+    return false;
+  }
+  return aggregate.measures.length === 3
+    && aggregate.measures[0].as === 'championship_position' && aggregate.measures[0].function === 'min' && aggregate.measures[0].field === 'championship_position'
+    && aggregate.measures[1].as === 'points' && aggregate.measures[1].function === 'max' && aggregate.measures[1].field === 'points'
+    && aggregate.measures[2].as === 'standing_rows' && aggregate.measures[2].function === 'count' && aggregate.measures[2].field === undefined;
 }
 
 function isCurrentStandings(aggregate: AggregateNode, rank: Extract<F1QLProgram['root'], { op: 'rank' }> | undefined): boolean {

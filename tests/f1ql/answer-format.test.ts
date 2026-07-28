@@ -115,4 +115,27 @@ describe('deterministic answer formatting', () => {
     expect(() => formatAnswerRows(current, approved(current), [row('one', 1), row('three', 3)])).toThrow(AnswerFormatError);
     expect(() => formatAnswerRows(current, approved(current), [row('two', 2)])).toThrow(AnswerFormatError);
   });
+
+  it('formats only final recorded season-summary facts', () => {
+    const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
+    expect(formatAnswerRows(summary, approved(summary), [{ driver_id: 'max-verstappen', championship_position: 3, points: '25.000', standing_rows: '1' }])).toEqual({
+      answer: {
+        headline: 'Official final 2025 championship standing summary for max-verstappen.',
+        facts: [{ subject: 'max-verstappen', values: { championship_position: '3', points: '25' } }]
+      },
+      coverage: 'sufficient', caveats: []
+    });
+  });
+
+  it('fails closed for duplicate, substituted, or mismatched season-summary rows', () => {
+    const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
+    const row = { driver_id: 'max-verstappen', championship_position: 3, points: 25, standing_rows: 1 };
+    expect(() => formatAnswerRows(summary, approved(summary), [row, row])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, driver_id: 'lando-norris' }])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, standing_rows: 2 }])).toThrow(AnswerFormatError);
+    for (const championship_position of [null, 0, -1, 1.5]) {
+      expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, championship_position }])).toThrow(AnswerFormatError);
+    }
+    expect(formatAnswerRows(summary, approved(summary), [{ ...row, championship_position: 31 }]).answer.facts[0].values.championship_position).toBe('31');
+  });
 });

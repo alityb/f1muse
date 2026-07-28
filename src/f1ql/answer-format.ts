@@ -94,6 +94,9 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const aliases = aggregate.measures.map(measure => measure.as);
+  if (aliases.includes('standing_rows')) {
+    return formatDriverSeasonSummary(program, aggregate, rows);
+  }
   const ordered = program.root.op === 'rank' ? rows : [...rows].sort((left, right) => requiredString(left.driver_id, 'driver_id').localeCompare(requiredString(right.driver_id, 'driver_id')));
   if (current) {
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
@@ -109,6 +112,31 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
     answer: { headline: current ? `Latest recorded ${capabilitySeason(program)} driver standings.` : `Final ${capabilitySeason(program)} driver standings result.`, facts },
     coverage: 'sufficient' as const,
     caveats: current ? ['season_in_progress'] : [] as string[]
+  };
+}
+
+function formatDriverSeasonSummary(program: F1QLProgram, aggregate: Extract<F1QLProgram['root'], { op: 'aggregate' }>, rows: Array<Record<string, unknown>>) {
+  if (program.root.op !== 'aggregate' || aggregate.input.op !== 'filter' || typeof aggregate.input.where.driver_id !== 'string' || rows.length !== 1) {
+    throw new AnswerFormatError('Driver season summary rows were invalid');
+  }
+  const row = rows[0];
+  const driverId = requiredString(row.driver_id, 'driver_id');
+  if (driverId !== aggregate.input.where.driver_id || requiredPosition(row.standing_rows, 'standing_rows') !== 1) {
+    throw new AnswerFormatError('Driver season summary rows were invalid');
+  }
+  return {
+    answer: {
+      headline: `Official final ${capabilitySeason(program)} championship standing summary for ${driverId}.`,
+      facts: [{
+        subject: driverId,
+        values: {
+          championship_position: displayNumeric(requiredPositiveInteger(row.championship_position, 'championship_position'), 'championship_position'),
+          points: displayNumeric(row.points, 'points')
+        }
+      }]
+    },
+    coverage: 'sufficient' as const,
+    caveats: [] as string[]
   };
 }
 
@@ -152,6 +180,14 @@ function requiredPosition(value: unknown, field: string): number {
     throw new AnswerFormatError(`Invalid ${field} value`);
   }
   return position;
+}
+
+function requiredPositiveInteger(value: unknown, field: string): number {
+  const integer = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
+  if (typeof integer !== 'number' || !Number.isSafeInteger(integer) || integer < 1) {
+    throw new AnswerFormatError(`Invalid ${field} value`);
+  }
+  return integer;
 }
 
 function formatMetadata(rows: Array<Record<string, unknown>>) {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './verified-programs';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v4' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v5' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -19,6 +19,7 @@ const QUALIFYING_STATUSES = ['classified', 'dnf', 'dns'] as const;
 
 export type AnswerTemplateId =
   | 'final_standings_points' | 'final_standings_leader' | 'current_standings'
+  | 'driver_season_official_summary'
   | 'race_classification_all' | 'race_classification_driver' | 'race_classification_status'
   | 'qualifying_classification_all' | 'qualifying_classification_driver' | 'qualifying_classification_status'
   | 'race_classification_position' | 'qualifying_classification_position'
@@ -57,6 +58,10 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
   current_standings: {
     variables: { season: currentStandingsSeasonConstraint },
     semantic: 'latest recorded standings snapshot for the reviewed ongoing season; min official championship_position and max points grouped by driver_id; ascending official position limit 30'
+  },
+  driver_season_official_summary: {
+    variables: { season: finalSeasonConstraint, driver_id: driverIdConstraint },
+    semantic: 'one final-season recorded championship position and points row for one canonical driver; count source rows for integrity'
   },
   race_classification_all: {
     variables: { season: allClassificationSeasonConstraint, round: roundConstraint },
@@ -100,6 +105,7 @@ const variableSchemas = {
   final_standings_points: z.object({ season: finalSeason, driver_ids: z.array(resolvedDriverId).min(1).max(4).refine(ids => new Set(ids).size === ids.length, 'Resolved driver IDs must be unique').optional() }).strict(),
   final_standings_leader: z.object({ season: finalSeason }).strict(),
   current_standings: z.object({ season: currentStandingsSeason }).strict(),
+  driver_season_official_summary: z.object({ season: finalSeason, driver_id: resolvedDriverId }).strict(),
   race_classification_all: z.object({ season: allClassificationSeason, round }).strict(),
   race_classification_driver: z.object({ season, round, driver_id: resolvedDriverId }).strict(),
   race_classification_status: z.object({ season, round, status: raceStatus }).strict(),
@@ -148,6 +154,17 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
       group_by: ['driver_id'],
       measures: [{ as: 'points', function: 'max', field: 'points' }]
     };
+  } else if (templateId === 'driver_season_official_summary') {
+    root = {
+      op: 'aggregate',
+      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: scoped.season, driver_id: scoped.driver_id as string } },
+      group_by: ['driver_id'],
+      measures: [
+        { as: 'championship_position', function: 'min', field: 'championship_position' },
+        { as: 'points', function: 'max', field: 'points' },
+        { as: 'standing_rows', function: 'count' }
+      ]
+    };
   } else if (templateId === 'final_standings_leader' || templateId === 'current_standings') {
     root = {
       op: 'rank',
@@ -185,6 +202,7 @@ const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> 
   final_standings_points: [{ season: 2025 }, { season: 2025, driver_ids: ['sentinel-driver', 'second-driver'] }],
   final_standings_leader: [{ season: 2025 }],
   current_standings: [{ season: CURRENT_STANDINGS_SEASON }],
+  driver_season_official_summary: [{ season: 2025, driver_id: 'sentinel-driver' }],
   race_classification_all: [{ season: 2025, round: 7 }],
   race_classification_driver: [{ season: 2025, round: 7, driver_id: 'sentinel-driver' }],
   race_classification_status: [{ season: 2025, round: 7, status: 'dsq' }],

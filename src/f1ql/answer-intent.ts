@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v3' as const;
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v4' as const;
 
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
@@ -37,6 +37,7 @@ export const answerIntentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('final_standings_points'), ...seasonFields, driver_references: z.array(literalReferenceSchema).max(4) }).strict(),
   z.object({ type: z.literal('final_standings_leader'), ...seasonFields }).strict(),
   z.object({ type: z.literal('current_standings'), ...seasonFields }).strict(),
+  z.object({ type: z.literal('driver_season_official_summary'), ...seasonFields, ...driverFields }).strict(),
   z.object({ type: z.literal('race_classification_all'), ...seasonFields, ...eventFields }).strict(),
   z.object({ type: z.literal('race_classification_driver'), ...seasonFields, ...eventFields, ...driverFields }).strict(),
   z.object({ type: z.literal('race_classification_status'), ...seasonFields, ...eventFields, status: raceStatus, ...statusFields }).strict(),
@@ -59,6 +60,7 @@ export const untrustedAnswerIntentCandidateSchema = z.discriminatedUnion('type',
   z.object({ type: z.literal('final_standings_points'), ...untrustedSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).max(4) }).strict(),
   z.object({ type: z.literal('final_standings_leader'), ...untrustedSeasonFields }).strict(),
   z.object({ type: z.literal('current_standings'), ...untrustedSeasonFields }).strict(),
+  z.object({ type: z.literal('driver_season_official_summary'), ...untrustedSeasonFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('race_classification_all'), ...untrustedSeasonFields, ...untrustedEventFields }).strict(),
   z.object({ type: z.literal('race_classification_driver'), ...untrustedSeasonFields, ...untrustedEventFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('race_classification_status'), ...untrustedSeasonFields, ...untrustedEventFields, status: raceStatus, status_reference: untrustedLiteralReferenceSchema }).strict(),
