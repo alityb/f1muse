@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   }
   const databaseUrl = getTestDatabaseUrl();
   assertDisposableDerivationDatabase(databaseUrl);
-  if (answerEvaluationManifest.length !== 92) throw new Error('Answer derivation evidence requires the complete manifest');
+  if (answerEvaluationManifest.length !== 94) throw new Error('Answer derivation evidence requires the complete manifest');
   const pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 2_000, options: '-c statement_timeout=5000' });
   try {
     await setupTestDatabase(pool, { seed: false });

@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v17' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v18' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
@@ -80,7 +80,7 @@ const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'points', pattern: /\bpoints?\b/giu },
   { value: 'official_leader', pattern: /\b(?:championship|standings)\s+(?:champion|leader)\b|\bdriver\s+champion\b|\bwho\b[^.?!]{0,80}\bchampion\b|\bwho\s+(?:led|won)\s+(?:the\s+)?(?:(?:19[5-9]\d|20\d{2}|2100)\s+)?(?:driver\s+)?(?:championship|standings)\b/giu },
   { value: 'latest_recorded', pattern: /\blatest\s+recorded\b/giu },
-  { value: 'official_season_summary', pattern: /\bofficial\s+(?:19[5-9]\d|20\d{2}|2100)\s+season\s+summary\b/giu },
+  { value: 'official_season_summary', pattern: /\bofficial\s+(?:19[5-9]\d|20\d{2}|2100)\s+(?:season|driver)\s+summary\b/giu },
   { value: 'official_career_summary', pattern: /\bofficial\s+career\s+summary\b/giu },
   { value: 'date', pattern: /\b(?:date|what\s+day|when\s+(?:was|is|did))\b/giu }
 ];

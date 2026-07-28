@@ -10,6 +10,7 @@ const programs = {
   leader: materializeAnswerTemplate('final_standings_leader', { season: 2025 }),
   current: materializeAnswerTemplate('current_standings', { season: 2026 }),
   seasonSummary: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }),
+  profileReplacement: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'lando-norris' }),
   careerSummary: materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' }),
   raceAll: materializeAnswerTemplate('race_classification_all', { season: 2025, round: 1 }),
   raceMax: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 1, driver_id: 'max-verstappen' }),
@@ -116,6 +117,8 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('holdout-current-standings', 'temporal_entity_holdout', 'Give the latest recorded driver standings for 2026.', 'current_standings', programs.current, ['partial_season', 'snapshot_freshness', 'official_position', 'year_placement']),
   answer('launch-season-summary', 'iid_holdout', 'Show Max Verstappen official 2025 season summary.', 'driver_season_official_summary', programs.seasonSummary, ['official_position', 'source_authority', 'summary_scope', 'legacy_pace_exclusion']),
   answer('holdout-season-summary', 'temporal_entity_holdout', 'Give the official 2025 season summary for Max Verstappen.', 'driver_season_official_summary', programs.seasonSummary, ['official_position', 'source_authority', 'summary_scope', 'year_placement']),
+  answer('launch-profile-replacement', 'iid_holdout', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary', programs.profileReplacement, ['official_position', 'source_authority', 'profile_replacement', 'mixed_source_exclusion']),
+  answer('holdout-profile-replacement', 'temporal_entity_holdout', 'Give the official 2025 driver summary for Lando Norris.', 'driver_season_official_summary', programs.profileReplacement, ['official_position', 'source_authority', 'profile_replacement', 'word_order']),
   answer('launch-career-summary', 'iid_holdout', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary', programs.careerSummary, ['official_position', 'source_authority', 'summary_scope', 'career_cutoff']),
   answer('holdout-career-summary', 'temporal_entity_holdout', 'Give the official career summary for Lewis Hamilton.', 'driver_career_official_summary', programs.careerSummary, ['official_position', 'source_authority', 'summary_scope', 'word_order']),
 

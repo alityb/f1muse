@@ -3780,6 +3780,156 @@
     }
   },
   {
+    "id": "launch-profile-replacement",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "lando-norris"
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "championship_position",
+              "function": "min",
+              "field": "championship_position"
+            },
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            },
+            {
+              "as": "standing_rows",
+              "function": "count"
+            }
+          ]
+        }
+      },
+      "program_hash": "e9618cb4e31e391ce390320a6eead014d2ad79b6bbe11cf18efad7a770eb1cfd",
+      "answer": {
+        "headline": "Official final 2025 championship standing summary for lando-norris.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2",
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "points": "300",
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers lando-norris.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-profile-replacement",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "aggregate",
+          "input": {
+            "op": "filter",
+            "input": {
+              "op": "source",
+              "source": "standings"
+            },
+            "where": {
+              "season": 2025,
+              "driver_id": "lando-norris"
+            }
+          },
+          "group_by": [
+            "driver_id"
+          ],
+          "measures": [
+            {
+              "as": "championship_position",
+              "function": "min",
+              "field": "championship_position"
+            },
+            {
+              "as": "points",
+              "function": "max",
+              "field": "points"
+            },
+            {
+              "as": "standing_rows",
+              "function": "count"
+            }
+          ]
+        }
+      },
+      "program_hash": "e9618cb4e31e391ce390320a6eead014d2ad79b6bbe11cf18efad7a770eb1cfd",
+      "answer": {
+        "headline": "Official final 2025 championship standing summary for lando-norris.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2",
+              "points": "300"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "points": "300",
+          "standing_rows": 1
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers lando-norris.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
     "id": "launch-career-summary",
     "envelope": {
       "mode": "gated_execution",

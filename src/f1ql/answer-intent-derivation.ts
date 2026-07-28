@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v5' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v6' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -41,7 +41,7 @@ export async function deriveAnswerIntent(
   }
   const seasonFields = { season: seasonMention.value, season_reference: copyReference(seasonMention) };
   const inventory = await resolver.inventoryMentions(contract.normalized_question, seasonMention.value);
-  const drivers = inventory.map(copyReference);
+  const drivers = inventory.filter(mention => !isSummaryStructureMention(contract, mention)).map(copyReference);
   return parseAnswerIntent(selectIntent(contract, seasonFields, drivers), contract);
 }
 
@@ -306,10 +306,15 @@ function copyReference(mention: Pick<AnswerQuestionMention<string | number>, 'te
   return { text: mention.text, start: mention.start, end: mention.end };
 }
 
+function isSummaryStructureMention(contract: AnswerQuestionContract, mention: DriverInventoryMention): boolean {
+  return mention.text.toLocaleLowerCase('en-US') === 'driver' && contract.metric_cues.some(cue =>
+    cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end);
+}
+
 function matchesSeasonSummaryQuestion(question: string, driver: LiteralMentionReference): boolean {
   const points = Array.from(question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
-  return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) season summary|give the official (?:19[5-9]\d|20\d{2}|2100) season summary for <driver>)\.?$/iu.test(masked);
+  return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) (?:season|driver) summary|give the official (?:19[5-9]\d|20\d{2}|2100) (?:season|driver) summary for <driver>)\.?$/iu.test(masked);
 }
 
 function matchesCareerSummaryQuestion(question: string, driver: LiteralMentionReference): boolean {

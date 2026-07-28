@@ -47,6 +47,8 @@ describe('provider-free answer intent derivation', () => {
     ['Show the latest recorded 2026 driver standings.', inventory(), 'current_standings'],
     ['Show Max Verstappen official 2025 season summary.', inventory('Max Verstappen'), 'driver_season_official_summary'],
     ['Give the official 2025 season summary for Max Verstappen.', inventory('Max Verstappen'), 'driver_season_official_summary'],
+    ['Show Lando Norris official 2025 driver summary.', inventory('Lando Norris', 'driver'), 'driver_season_official_summary'],
+    ['Give the official 2025 driver summary for Lando Norris.', inventory('Lando Norris', 'driver'), 'driver_season_official_summary'],
     ['Show Lewis Hamilton official career summary.', inventory('Lewis Hamilton'), 'driver_career_official_summary'],
     ['Give the official career summary for Lewis Hamilton.', inventory('Lewis Hamilton'), 'driver_career_official_summary']
   ] as const;
@@ -55,7 +57,7 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v5');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v6');
   });
 
   it.each([
@@ -66,6 +68,18 @@ describe('provider-free answer intent derivation', () => {
     'Show official 2025 season summary.'
   ])('does not broaden official season summaries: %s', async question => {
     const names = ['Max Verstappen', 'Lando Norris'].filter(name => question.includes(name));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).toMatch(/unsupported|clarification/u);
+  });
+
+  it.each([
+    'Show Lando Norris 2025 driver summary.',
+    'Show Lando Norris official 2026 driver summary.',
+    'Show Lando Norris official 2025 driver profile.',
+    'Show Lando Norris official 2025 driver summary with wins and poles.',
+    'Show Lando Norris and Oscar Piastri official 2025 driver summary.'
+  ])('does not broaden profile replacement wording: %s', async question => {
+    const names = ['Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name));
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
     expect(intent.type).toMatch(/unsupported|clarification/u);
   });

@@ -151,7 +151,8 @@ async function deterministicTranslation(
     : root.op === 'aggregate' && root.input.op === 'filter' ? root.input.where.season
       : 'season' in root ? root.season : undefined;
   const season = typeof scopedSeason === 'number' ? scopedSeason : contract.years[0]?.value;
-  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, season);
+  const inventory = (await driverResolver.inventoryMentions(contract.normalized_question, season)).filter(mention =>
+    !contract.metric_cues.some(cue => cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end));
   return { type: 'intent_candidate', intent: executableIntent(contract, item.expected.template_id!, inventory) };
 }
 

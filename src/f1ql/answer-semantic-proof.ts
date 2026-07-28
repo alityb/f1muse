@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v8' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v9' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -110,7 +110,8 @@ export async function proveAnswerIntent(
   } else if ('driver_references' in intent) {
     driverReferences = intent.driver_references;
   }
-  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 'season' in intent ? intent.season : undefined);
+  const rawInventory = await driverResolver.inventoryMentions(contract.normalized_question, 'season' in intent ? intent.season : undefined);
+  const inventory = rawInventory.filter(mention => !isSummaryStructureMention(contract, mention));
   proveDriverReferenceInventory(driverReferences, inventory);
   const driverIds: string[] = [];
   for (const mention of inventory) {
@@ -407,7 +408,7 @@ function templateForIntent(intent: ExecutableAnswerIntent): AnswerTemplateId {
 function matchesSeasonSummaryQuestion(contract: AnswerQuestionContract, driver: LiteralMentionReference): boolean {
   const points = Array.from(contract.normalized_question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
-  return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) season summary|give the official (?:19[5-9]\d|20\d{2}|2100) season summary for <driver>)\.?$/iu.test(masked);
+  return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) (?:season|driver) summary|give the official (?:19[5-9]\d|20\d{2}|2100) (?:season|driver) summary for <driver>)\.?$/iu.test(masked);
 }
 
 function matchesCareerSummaryQuestion(contract: AnswerQuestionContract, driver: LiteralMentionReference): boolean {
@@ -447,6 +448,11 @@ function proofMention(kind: 'event' | 'driver', reference: LiteralMentionReferen
 
 function referenceValue(reference: LiteralMentionReference): Record<string, unknown> {
   return { end: reference.end, start: reference.start, text: reference.text };
+}
+
+function isSummaryStructureMention(contract: AnswerQuestionContract, mention: LiteralMentionReference): boolean {
+  return mention.text.toLocaleLowerCase('en-US') === 'driver' && contract.metric_cues.some(cue =>
+    cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end);
 }
 
 function canonicalDriverId(value: string): string {

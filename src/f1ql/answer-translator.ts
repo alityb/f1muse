@@ -3,7 +3,7 @@ import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
 export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v6';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v8' as const;
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v9' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -84,7 +84,7 @@ Decision table (follow literal wording):
 - final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
 - final_standings_leader: final driver standings champion/leader.
 - current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
-- driver_season_official_summary: literal official final-season summary for exactly one named driver; this means recorded championship position and points, never pace or a cross-source composite.
+- driver_season_official_summary: literal official final-season summary for exactly one named driver, including the closed "official <year> driver summary" alias; this means recorded championship position and points, never a broader profile, pace, or a cross-source composite.
 - driver_career_official_summary: literal official career summary for exactly one named driver; this means best recorded final championship position and count of recorded final standings rows through 2025, never a distinct-season claim, pace, or a cross-source composite.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
@@ -105,6 +105,8 @@ Question: Show the latest recorded 2026 driver standings.
 {"intent":{"type":"current_standings","season":2026,"season_reference":{"text":"2026"}}}
 Question: Show Max Verstappen official 2025 season summary.
 {"intent":{"type":"driver_season_official_summary","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Max Verstappen"}}}
+Question: Show Lando Norris official 2025 driver summary.
+{"intent":{"type":"driver_season_official_summary","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Lando Norris"}}}
 Question: Show Lewis Hamilton official career summary.
 {"intent":{"type":"driver_career_official_summary","driver_reference":{"text":"Lewis Hamilton"}}}
 Question: All 2025 Monaco race results
