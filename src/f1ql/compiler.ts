@@ -1,8 +1,9 @@
 import { StandingsFilter } from './ast';
-import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 import { MINIMUM_ELIGIBLE_LAPS_PER_EVENT } from './lower';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
+import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
@@ -12,6 +13,9 @@ export interface CompiledF1QL {
 }
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
+  if (isDriverCareerWinsAggregate(program.root)) {
+    return compileDriverCareerWinsByCircuit(program.root);
+  }
   if (program.root.op === 'comparison_summary') {
     return compileComparisonSummary(program.root);
   }
@@ -50,6 +54,113 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
       ${whereSql}
       GROUP BY driver_id
       ${rankSql}
+    `,
+    params
+  };
+}
+
+function isDriverCareerWinsAggregate(node: CoreProgram['root']): node is CoreAggregateNode & { input: CoreJoinNode } {
+  return node.op === 'aggregate' && node.input.op === 'join';
+}
+
+// eslint-disable-next-line complexity,max-lines-per-function
+function compileDriverCareerWinsByCircuit(node: CoreAggregateNode & { input: CoreJoinNode }): CompiledF1QL {
+  const { left, right } = node.input;
+  const integrity = node.source_integrity;
+  if (node.input.type !== 'left' || JSON.stringify(node.input.on) !== JSON.stringify(['season', 'round']) ||
+      left.op !== 'filter' || left.input.op !== 'filter' || left.input.input.op !== 'source' || left.input.input.source !== 'event_classification' ||
+      right.op !== 'filter' || right.input.op !== 'source' || right.input.source !== 'event_metadata' ||
+      JSON.stringify(node.group_by) !== JSON.stringify(['circuit_id']) ||
+      JSON.stringify(node.measures) !== JSON.stringify([{ as: 'wins', function: 'count' }]) ||
+      JSON.stringify(integrity) !== JSON.stringify({
+        left_key: ['season', 'round'], left_key_scope: 'before_outer_filter', right_key: ['season', 'round'], require_unique_left_keys: true,
+        require_exactly_one_right_match: true, require_non_null_right_fields: ['circuit_id']
+      })) {
+    throw new Error('Expected the closed joined career race-wins aggregate');
+  }
+  const leftWhere = left.where as CoreEventClassificationFilter;
+  const winnerWhere = left.input.where as CoreEventClassificationFilter;
+  const rightWhere = right.where as CoreEventMetadataFilter;
+  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id']) ||
+      JSON.stringify(Object.keys(winnerWhere).sort()) !== JSON.stringify(['finishing_position', 'season']) ||
+      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['season']) ||
+      JSON.stringify(winnerWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(rightWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(winnerWhere.finishing_position) !== JSON.stringify([1]) ||
+      typeof leftWhere.driver_id !== 'string' || !/^[a-z][a-z0-9-]{0,99}$/.test(leftWhere.driver_id)) {
+    throw new Error('Expected exact career scope, driver, and race P1 filters');
+  }
+  const params = [DRIVER_CAREER_WIN_SEASONS, leftWhere.driver_id, DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID];
+  return {
+    sql: `
+      WITH all_p1_source AS (
+        SELECT season, round, driver_id
+        FROM f1ql.event_classification
+        WHERE season = ANY($1::integer[]) AND finishing_position = 1
+      ),
+      requested_winner_events AS (
+        SELECT DISTINCT season, round
+        FROM all_p1_source
+        WHERE driver_id = $2
+      ),
+      winner_keys AS (
+        SELECT source.season, source.round, count(*)::integer AS source_rows
+        FROM all_p1_source AS source
+        JOIN requested_winner_events AS requested USING (season, round)
+        GROUP BY source.season, source.round
+      ),
+      metadata_keys AS (
+        SELECT season, round, count(*)::integer AS source_rows, min(circuit_id) AS circuit_id
+        FROM f1ql.event_metadata
+        WHERE season = ANY($1::integer[])
+        GROUP BY season, round
+      ),
+      joined_keys AS (
+        SELECT winners.*, metadata.source_rows AS metadata_rows, metadata.circuit_id
+        FROM winner_keys AS winners
+        LEFT JOIN metadata_keys AS metadata USING (season, round)
+      ),
+      integrity AS (
+        SELECT
+          coalesce(sum(source_rows), 0)::integer AS winner_source_rows,
+          count(*)::integer AS distinct_winner_event_keys,
+          coalesce(sum(source_rows - 1), 0)::integer AS duplicate_winner_rows,
+          coalesce(sum(metadata_rows), 0)::integer AS metadata_source_rows,
+          count(*) FILTER (WHERE metadata_rows IS NOT NULL)::integer AS distinct_metadata_event_keys,
+          count(*) FILTER (WHERE metadata_rows IS NULL)::integer AS missing_event_metadata_rows,
+          coalesce(sum(greatest(metadata_rows - 1, 0)), 0)::integer AS duplicate_event_metadata_rows,
+          count(*) FILTER (WHERE metadata_rows = 1 AND nullif(btrim(circuit_id), '') IS NULL)::integer AS missing_circuit_id_rows
+        FROM joined_keys
+      ),
+      checked_integrity AS (
+        SELECT *, winner_source_rows > 0 AS source_presence_ok,
+          duplicate_winner_rows = 0 AND missing_event_metadata_rows = 0 AND
+          duplicate_event_metadata_rows = 0 AND missing_circuit_id_rows = 0 AS source_integrity_ok
+        FROM integrity
+      ),
+      grouped AS (
+        SELECT joined.circuit_id, count(*)::integer AS wins
+        FROM joined_keys AS joined CROSS JOIN checked_integrity AS integrity
+        WHERE integrity.source_integrity_ok
+        GROUP BY joined.circuit_id
+      )
+      SELECT * FROM (
+      SELECT $3::text AS metric_id, $2::text AS driver_id, grouped.circuit_id, grouped.wins,
+        integrity.winner_source_rows, integrity.distinct_winner_event_keys, integrity.duplicate_winner_rows,
+        integrity.metadata_source_rows, integrity.distinct_metadata_event_keys, integrity.missing_event_metadata_rows,
+        integrity.duplicate_event_metadata_rows, integrity.missing_circuit_id_rows,
+        integrity.source_presence_ok, integrity.source_integrity_ok
+      FROM grouped CROSS JOIN checked_integrity AS integrity
+      UNION ALL
+      SELECT $3::text, $2::text, NULL::text, NULL::integer,
+        integrity.winner_source_rows, integrity.distinct_winner_event_keys, integrity.duplicate_winner_rows,
+        integrity.metadata_source_rows, integrity.distinct_metadata_event_keys, integrity.missing_event_metadata_rows,
+        integrity.duplicate_event_metadata_rows, integrity.missing_circuit_id_rows,
+        integrity.source_presence_ok, integrity.source_integrity_ok
+      FROM checked_integrity AS integrity
+      WHERE integrity.source_presence_ok AND NOT integrity.source_integrity_ok
+      ) AS career_results
+      ORDER BY wins DESC NULLS LAST, circuit_id COLLATE "C" ASC NULLS LAST
     `,
     params
   };
@@ -519,12 +630,12 @@ function compileEventMetadataPipeline(node: CorePipelineNode): { where: string[]
   return pipeline;
 }
 
-function appendEqualityFilter(pipeline: { where: string[]; params: unknown[] }, field: 'season' | 'round', value: number | undefined): void {
+function appendEqualityFilter(pipeline: { where: string[]; params: unknown[] }, field: 'season' | 'round', value: number | number[] | undefined): void {
   if (value === undefined) {
     return;
   }
   pipeline.params.push(value);
-  pipeline.where.push(`${field} = $${pipeline.params.length}`);
+  pipeline.where.push(Array.isArray(value) ? `${field} = ANY($${pipeline.params.length}::integer[])` : `${field} = $${pipeline.params.length}`);
 }
 
 function getSource(node: CorePipelineNode | CoreDeltaNode | CoreComparisonSummaryNode): CoreSourceNode {
@@ -536,6 +647,9 @@ function getSource(node: CorePipelineNode | CoreDeltaNode | CoreComparisonSummar
   }
   if (node.op === 'comparison_summary') {
     return getSource(node.input.input.left);
+  }
+  if (node.op === 'aggregate') {
+    return node.input.op === 'join' ? getSource(node.input.left) : getSource(node.input);
   }
   return getSource(node.input);
 }
@@ -697,6 +811,9 @@ function compilePacePipeline(node: CorePipelineNode): PaceSourcePlan | PaceFilte
     return { where: node.where as CoreLapPaceFilter };
   }
   if (node.op === 'aggregate') {
+    if (node.input.op === 'join') {
+      throw new Error('Lap pace does not support joined aggregates');
+    }
     const input = compilePacePipeline(node.input);
     if (isPaceSourcePlan(input)) {
       throw new Error('Lap pace aggregates require a filter');

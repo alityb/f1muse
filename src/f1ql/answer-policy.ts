@@ -43,6 +43,9 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
   if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare') {
     return { type: 'rejected', reason: 'capability_unsupported' };
   }
+  if (root.op === 'driver_career_wins_by_circuit') {
+    return { type: 'rejected', reason: 'capability_unsupported' };
+  }
   if (root.op === 'race_season_finishing_position_h2h') {
     return authorizeRaceSeasonH2H(root);
   }

@@ -6,7 +6,7 @@ export interface CoreSourceNode {
 }
 
 export interface CoreEventClassificationFilter {
-  season?: number;
+  season?: number | number[];
   round?: number;
   classification_status?: string[];
   driver_id?: string;
@@ -59,7 +59,7 @@ export interface CoreQualifyingClassificationFilter {
 }
 
 export interface CoreEventMetadataFilter {
-  season?: number;
+  season?: number | number[];
   round?: number;
   session_scope?: 'race' | 'qualifying';
 }
@@ -110,10 +110,20 @@ export type CoreAggregateMeasure = AggregateMeasure | {
 
 export interface CoreAggregateNode {
   op: 'aggregate';
-  input: CorePipelineNode;
+  input: CorePipelineNode | CoreJoinNode;
   group_by: string[];
   measures: CoreAggregateMeasure[];
   minimum_rows?: number;
+  source_integrity?: CoreAggregateSourceIntegrity;
+}
+
+export interface CoreAggregateSourceIntegrity {
+  left_key: string[];
+  left_key_scope?: 'before_outer_filter';
+  right_key: string[];
+  require_unique_left_keys: boolean;
+  require_exactly_one_right_match: boolean;
+  require_non_null_right_fields: string[];
 }
 
 export interface CoreSortNode {
@@ -137,7 +147,7 @@ export interface CoreJoinNode {
   left: CorePipelineNode;
   right: CorePipelineNode;
   on: string[];
-  type: 'inner';
+  type: 'inner' | 'left';
 }
 
 export interface CoreCompareNode {

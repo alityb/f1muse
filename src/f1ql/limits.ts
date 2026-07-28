@@ -1,5 +1,6 @@
 import { F1QLProgram } from './ast';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS } from './official-lap-window';
+import { DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES } from './driver-career-wins-by-circuit';
 
 const MAX_REQUESTED_ROUNDS = 24;
 export const MAX_F1QL_SOURCE_ROUND_BRANCHES = 60;
@@ -18,10 +19,14 @@ export interface F1QLCostLimitOptions {
   maxSourceRoundBranches?: number;
 }
 
+// eslint-disable-next-line complexity
 export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   const root = program.root;
   if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
     return { source_round_branches: SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES };
+  }
+  if (root.op === 'driver_career_wins_by_circuit') {
+    return { source_round_branches: DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES };
   }
   if (root.op === 'pace_delta' || root.op === 'pace_summary') {
     const rounds = root.scope.rounds?.length ?? MAX_REQUESTED_ROUNDS;
@@ -36,6 +41,7 @@ export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   return { source_round_branches: 0 };
 }
 
+// eslint-disable-next-line complexity
 export function enforceF1QLCostLimits(program: F1QLProgram, options: F1QLCostLimitOptions = {}): void {
   if (program.root.op === 'official_lap_window_median_compare' && program.root.lap_end - program.root.lap_start + 1 > MAX_OFFICIAL_LAP_WINDOW_LAPS) {
     throw new F1QLCostLimitError(`At most ${MAX_OFFICIAL_LAP_WINDOW_LAPS} laps may be requested`);
@@ -46,9 +52,12 @@ export function enforceF1QLCostLimits(program: F1QLProgram, options: F1QLCostLim
       throw new F1QLCostLimitError(`At most ${MAX_REQUESTED_ROUNDS} rounds may be requested`);
     }
   }
-  const maximum = options.maxSourceRoundBranches ?? MAX_F1QL_SOURCE_ROUND_BRANCHES;
-  if (!Number.isSafeInteger(maximum) || maximum < 0 || maximum > MAX_F1QL_SOURCE_ROUND_BRANCHES) {
-    throw new F1QLCostLimitError(`maxSourceRoundBranches must be between 0 and ${MAX_F1QL_SOURCE_ROUND_BRANCHES}`);
+  const operationMaximum = program.root.op === 'driver_career_wins_by_circuit'
+    ? DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES
+    : MAX_F1QL_SOURCE_ROUND_BRANCHES;
+  const maximum = options.maxSourceRoundBranches ?? operationMaximum;
+  if (!Number.isSafeInteger(maximum) || maximum < 0 || maximum > operationMaximum) {
+    throw new F1QLCostLimitError(`maxSourceRoundBranches must be between 0 and ${operationMaximum}`);
   }
   const estimate = estimateF1QLCost(program);
   if (estimate.source_round_branches > maximum) {

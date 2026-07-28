@@ -477,12 +477,12 @@ describe('sealed official lap timing serving contract', () => {
 
   it('regenerates the complete nonempty bounded F1QL result with answer access denied', async () => {
     const content = fs.readFileSync('data/phase8-belgium-2022-f1ql-result.json');
-    expect(createHash('sha256').update(content).digest('hex')).toBe('cd8d7fb02cac628b234dbcf9c421870fd1f59f2eb7367111989184a0783b6e0a');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('d5c29d8486a3ce2c9230e7f2bfa3f6f936b799926240f7df45110319b646a97c');
     const expected = JSON.parse(content.toString('utf8'));
     expect(expected).toMatchObject({
       emitter: 'localhost_sealed_official_lap_f1ql_v1',
-      definitions_version: 'v6',
-      compiler_version: 'core-v5',
+      definitions_version: 'v7',
+      compiler_version: 'core-v6',
       fact_space_version: 'source-views-v2',
       answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
       rows: [{ metric_id: OFFICIAL_LAP_WINDOW_METRIC_ID, median_delta_seconds: 1.3335, winner_driver_id: 'max-verstappen' }]
@@ -492,12 +492,12 @@ describe('sealed official lap timing serving contract', () => {
 
   it('regenerates the complete nonempty event-mean F1QL result with answer access denied', async () => {
     const content = fs.readFileSync('data/phase9-belgium-2022-event-mean-result.json');
-    expect(createHash('sha256').update(content).digest('hex')).toBe('32d0a649eb1495f52989219cf8f5d82416d8815f77c9a94c8e96d788153dc9c1');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('4f324ac926427e012d220fdbc9935d9a414c8e94091de3905366b0222cdddce4');
     const expected = JSON.parse(content.toString('utf8'));
     expect(expected).toMatchObject({
       emitter: 'localhost_sealed_official_event_mean_f1ql_v1',
-      definitions_version: 'v6',
-      compiler_version: 'core-v5',
+      definitions_version: 'v7',
+      compiler_version: 'core-v6',
       fact_space_version: 'source-views-v2',
       answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
       rows: [{

@@ -4,6 +4,7 @@ import { MAX_OFFICIAL_LAP_WINDOW_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './o
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
 const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
@@ -198,9 +199,20 @@ export const qualifyingSeasonPositionH2HNodeSchema = z.object({
   }
 });
 
+export const driverCareerWinsByCircuitNodeSchema = z.object({
+  op: z.literal('driver_career_wins_by_circuit'),
+  metric: z.literal(DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID),
+  seasons: z.array(season.max(2025)).length(DRIVER_CAREER_WIN_SEASONS.length),
+  driver_id: z.string().regex(/^[a-z][a-z0-9-]{0,99}$/)
+}).strict().superRefine((node, context) => {
+  if (node.seasons.some((value, index) => value !== DRIVER_CAREER_WIN_SEASONS[index])) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'career race-win scope must be the exact ordered 1950-2025 season set' });
+  }
+});
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, qualifyingSeasonPositionH2HNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, qualifyingSeasonPositionH2HNodeSchema, driverCareerWinsByCircuitNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

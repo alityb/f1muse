@@ -132,9 +132,16 @@ export interface QualifyingSeasonPositionH2HNode {
   driver_b_id: string;
 }
 
+export interface DriverCareerWinsByCircuitNode {
+  op: 'driver_career_wins_by_circuit';
+  metric: 'official_race_p1_by_circuit_1950_2025_v1';
+  seasons: number[];
+  driver_id: string;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode | QualifyingSeasonPositionH2HNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode | QualifyingSeasonPositionH2HNode | DriverCareerWinsByCircuitNode;
 }
 
 export interface F1QLResult {

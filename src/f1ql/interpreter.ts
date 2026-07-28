@@ -1,7 +1,8 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
+import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
 export interface StandingsRow {
   season: number;
@@ -80,6 +81,95 @@ export interface ComparisonSummaryRow {
   driver_id: string;
   finishing_position?: number | null;
   qualifying_position?: number | null;
+}
+
+// eslint-disable-next-line complexity,max-lines-per-function
+export function interpretDriverCareerWinsByCircuit(
+  program: CoreProgram,
+  classificationRows: EventClassificationRow[],
+  metadataRows: EventMetadataRow[]
+): Array<Record<string, unknown>> {
+  if (program.root.op !== 'aggregate' || program.root.input.op !== 'join') {
+    throw new Error('Expected a joined career race-wins aggregate');
+  }
+  const node = program.root as CoreAggregateNode & { input: CoreJoinNode };
+  const { left, right } = node.input;
+  const integrityContract = node.source_integrity;
+  if (node.input.type !== 'left' || JSON.stringify(node.input.on) !== JSON.stringify(['season', 'round']) ||
+      left.op !== 'filter' || left.input.op !== 'filter' || left.input.input.op !== 'source' || left.input.input.source !== 'event_classification' ||
+      right.op !== 'filter' || right.input.op !== 'source' || right.input.source !== 'event_metadata' ||
+      JSON.stringify(node.group_by) !== JSON.stringify(['circuit_id']) ||
+      JSON.stringify(node.measures) !== JSON.stringify([{ as: 'wins', function: 'count' }]) ||
+      JSON.stringify(integrityContract) !== JSON.stringify({
+        left_key: ['season', 'round'], left_key_scope: 'before_outer_filter', right_key: ['season', 'round'], require_unique_left_keys: true,
+        require_exactly_one_right_match: true, require_non_null_right_fields: ['circuit_id']
+      })) {
+    throw new Error('Expected the closed career race-wins integrity contract');
+  }
+  const leftWhere = left.where as CoreEventClassificationFilter;
+  const winnerWhere = left.input.where as CoreEventClassificationFilter;
+  const rightWhere = right.where as CoreEventMetadataFilter;
+  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id']) ||
+      JSON.stringify(Object.keys(winnerWhere).sort()) !== JSON.stringify(['finishing_position', 'season']) ||
+      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['season']) ||
+      JSON.stringify(winnerWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(rightWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(winnerWhere.finishing_position) !== JSON.stringify([1]) || typeof leftWhere.driver_id !== 'string' ||
+      !/^[a-z][a-z0-9-]{0,99}$/.test(leftWhere.driver_id)) {
+    throw new Error('Expected exact career scope, driver, and race P1 filters');
+  }
+  const allP1Rows = classificationRows.filter(row => DRIVER_CAREER_WIN_SEASONS.includes(row.season) && row.finishing_position === 1);
+  const requestedEventKeys = new Set(allP1Rows.filter(row => row.driver_id === leftWhere.driver_id).map(row => JSON.stringify([row.season, row.round])));
+  const winnerRows = allP1Rows.filter(row => requestedEventKeys.has(JSON.stringify([row.season, row.round])));
+  if (requestedEventKeys.size === 0) {
+    return [];
+  }
+  const winnerKeys = groupRows(winnerRows, row => JSON.stringify([row.season, row.round]));
+  const metadataKeys = groupRows(
+    metadataRows.filter(row => DRIVER_CAREER_WIN_SEASONS.includes(row.season)),
+    row => JSON.stringify([row.season, row.round])
+  );
+  const joined = Array.from(winnerKeys.values()).map(winners => {
+    const winner = winners[0];
+    const metadata = metadataKeys.get(JSON.stringify([winner.season, winner.round])) ?? [];
+    return { winners, metadata, circuit_id: metadata.map(row => row.circuit_id).sort()[0] ?? null };
+  });
+  const sentinels = {
+    winner_source_rows: winnerRows.length,
+    distinct_winner_event_keys: winnerKeys.size,
+    duplicate_winner_rows: winnerRows.length - winnerKeys.size,
+    metadata_source_rows: joined.reduce((sum, item) => sum + item.metadata.length, 0),
+    distinct_metadata_event_keys: joined.filter(item => item.metadata.length > 0).length,
+    missing_event_metadata_rows: joined.filter(item => item.metadata.length === 0).length,
+    duplicate_event_metadata_rows: joined.reduce((sum, item) => sum + Math.max(item.metadata.length - 1, 0), 0),
+    missing_circuit_id_rows: joined.filter(item => item.metadata.length === 1 && (item.circuit_id === null || item.circuit_id.trim() === '')).length,
+    source_presence_ok: true
+  };
+  const sourceIntegrityOk = sentinels.duplicate_winner_rows === 0 && sentinels.missing_event_metadata_rows === 0 &&
+    sentinels.duplicate_event_metadata_rows === 0 && sentinels.missing_circuit_id_rows === 0;
+  if (!sourceIntegrityOk) {
+    return [{ metric_id: DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, driver_id: leftWhere.driver_id, circuit_id: null, wins: null, ...sentinels, source_integrity_ok: false }];
+  }
+  const groups = groupRows(joined, item => item.circuit_id!);
+  return Array.from(groups.entries())
+    .map(([circuitId, wins]) => ({
+      metric_id: DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, driver_id: leftWhere.driver_id,
+      circuit_id: circuitId, wins: wins.length, ...sentinels, source_integrity_ok: true
+    }))
+    .sort((left, right) => Number(right.wins) - Number(left.wins) || compareUtf8Bytes(String(left.circuit_id), String(right.circuit_id)));
+}
+
+function compareUtf8Bytes(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+}
+
+function groupRows<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const value = key(row);
+    groups.set(value, [...(groups.get(value) ?? []), row]);
+  }
+  return groups;
 }
 
 export function interpretComparisonSummary(program: CoreProgram, rows: ComparisonSummaryRow[]): Array<Record<string, unknown>> {
@@ -394,7 +484,7 @@ function interpretEventClassificationNode(node: CorePipelineNode, rows: EventCla
   if (node.op === 'filter') {
     const where = node.where as CoreEventClassificationFilter;
     return interpretEventClassificationNode(node.input, rows)
-      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.season === undefined || matchesValue(row.season, where.season))
       .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
@@ -422,7 +512,7 @@ function interpretQualifyingClassificationNode(node: CorePipelineNode, rows: Qua
   if (node.op === 'filter') {
     const where = node.where as CoreQualifyingClassificationFilter;
     return interpretQualifyingClassificationNode(node.input, rows)
-      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.season === undefined || matchesValue(row.season, where.season))
       .filter((row) => where.round === undefined || row.round === where.round)
       .filter((row) => where.classification_status === undefined || where.classification_status.includes(row.classification_status))
       .filter((row) => where.driver_id === undefined || row.driver_id === where.driver_id)
@@ -454,7 +544,7 @@ function interpretEventMetadataNode(node: CorePipelineNode, rows: EventMetadataR
   const where = node.where as CoreEventMetadataFilter;
   return {
     rows: result.rows
-      .filter((row) => where.season === undefined || row.season === where.season)
+      .filter((row) => where.season === undefined || matchesValue(row.season, where.season))
       .filter((row) => where.round === undefined || row.round === where.round),
     sessionScope: where.session_scope ?? result.sessionScope
   };
@@ -466,6 +556,9 @@ function getSourceName(node: CorePipelineNode | CoreDeltaNode): string {
   }
   if (node.op === 'delta') {
     return getSourceName(node.input.input.left);
+  }
+  if (node.op === 'aggregate') {
+    return node.input.op === 'join' ? getSourceName(node.input.left) : getSourceName(node.input);
   }
   return getSourceName(node.input);
 }
@@ -601,6 +694,9 @@ function interpretPacePipeline(node: CorePipelineNode, rows: PaceLapRow[]): Arra
       .filter((row) => matchesLapPaceFilter(row as unknown as PaceLapRow, where));
   }
   if (node.op === 'aggregate') {
+    if (node.input.op === 'join') {
+      throw new Error('Lap pace does not support joined aggregates');
+    }
     const input = interpretPacePipeline(node.input, rows);
     const groups = new Map<string, Array<Record<string, unknown>>>();
     for (const row of input) {
@@ -669,6 +765,9 @@ function getPaceConstant(node: CorePipelineNode, field: keyof CoreLapPaceFilter)
   }
   if (node.op === 'filter') {
     return (node.where as CoreLapPaceFilter)[field] ?? getPaceConstant(node.input, field);
+  }
+  if (node.op === 'aggregate') {
+    return node.input.op === 'join' ? undefined : getPaceConstant(node.input, field);
   }
   return getPaceConstant(node.input, field);
 }

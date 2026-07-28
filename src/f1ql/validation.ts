@@ -3,14 +3,15 @@ import { F1QLProgram } from './ast';
 import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreFilterNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS, MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
+import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 
-export const F1QL_DEFINITIONS_VERSION = 'v6';
+export const F1QL_DEFINITIONS_VERSION = 'v7';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'event_classification', 'race_season_finishing_position_h2h'] },
+  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'aggregate', 'compare', 'comparison_summary', 'event_classification', 'race_season_finishing_position_h2h', 'driver_career_wins_by_circuit'] },
   qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'qualifying_classification', 'qualifying_season_position_h2h'] },
-  event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'event_metadata'] },
+  event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'join', 'aggregate', 'event_metadata', 'driver_career_wins_by_circuit'] },
   official_lap_timing: {
     fields: ['season', 'round', 'session_type', 'driver_id', 'lap_start', 'lap_end', 'complete_requested_window', 'complete_event', 'official_deleted_lap', 'official_pit_marker', 'lap_time_seconds'],
     operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'official_lap_window_median_compare', 'official_event_mean_compare']
@@ -79,6 +80,9 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'event_metadata') {
     return { drivers: [] };
   }
+  if (root.op === 'driver_career_wins_by_circuit') {
+    return { drivers: [] };
+  }
   const aggregate = root.op === 'rank' ? root.input : root;
   if (aggregate.input.op !== 'filter' || typeof aggregate.input.where.season !== 'number' || !aggregate.input.where.driver_id) {
     return { drivers: [] };
@@ -117,10 +121,54 @@ export function validateCoreProgram(program: CoreProgram): void {
     validateComparisonSummary(program.root);
     return;
   }
+  if (program.root.op === 'aggregate' && program.root.input.op === 'join') {
+    validateDriverCareerWinsAggregate(program.root);
+    return;
+  }
   const source = validatePipeline(program.root);
   if ((source === 'event_classification' || source === 'qualifying_classification') && program.root.op !== 'limit') {
     throw new F1QLValidationError('signature_invalid', 'Classification requires a limit');
   }
+}
+
+// eslint-disable-next-line complexity
+function validateDriverCareerWinsAggregate(node: CoreAggregateNode): void {
+  if (node.input.op !== 'join') {
+    throw new F1QLValidationError('signature_invalid', 'Career wins requires a joined aggregate');
+  }
+  const { left, right } = node.input;
+  if (node.input.type !== 'left' || JSON.stringify(node.input.on) !== JSON.stringify(['season', 'round']) ||
+      left.op !== 'filter' || left.input.op !== 'filter' || left.input.input.op !== 'source' || left.input.input.source !== 'event_classification' ||
+      right.op !== 'filter' || right.input.op !== 'source' || right.input.source !== 'event_metadata' ||
+      JSON.stringify(node.group_by) !== JSON.stringify(['circuit_id']) ||
+      JSON.stringify(node.measures) !== JSON.stringify([{ as: 'wins', function: 'count' }]) ||
+      JSON.stringify(node.source_integrity) !== JSON.stringify({
+        left_key: ['season', 'round'], left_key_scope: 'before_outer_filter', right_key: ['season', 'round'], require_unique_left_keys: true,
+        require_exactly_one_right_match: true, require_non_null_right_fields: ['circuit_id']
+      })) {
+    throw new F1QLValidationError('signature_invalid', 'Career wins requires the exact left join, grouping, measure, and source-integrity contract');
+  }
+  const leftWhere = left.where as CoreEventClassificationFilter;
+  const winnerWhere = left.input.where as CoreEventClassificationFilter;
+  const rightWhere = right.where as Record<string, unknown>;
+  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id']) ||
+      JSON.stringify(Object.keys(winnerWhere).sort()) !== JSON.stringify(['finishing_position', 'season']) ||
+      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['season']) ||
+      JSON.stringify(winnerWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(rightWhere.season) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS) ||
+      JSON.stringify(winnerWhere.finishing_position) !== JSON.stringify([1]) ||
+      !isNonemptyString(leftWhere.driver_id) || !/^[a-z][a-z0-9-]{0,99}$/.test(leftWhere.driver_id)) {
+    throw new F1QLValidationError('signature_invalid', 'Career wins requires the exact 1950-2025 scope, canonical driver, and race P1 filter');
+  }
+  assertSignature('event_classification', 'source', []);
+  assertSignature('event_classification', 'filter', ['season', 'finishing_position']);
+  assertSignature('event_classification', 'filter', ['driver_id']);
+  assertSignature('event_metadata', 'source', []);
+  assertSignature('event_metadata', 'filter', ['season']);
+  assertSignature('event_classification', 'join', ['season', 'round']);
+  assertSignature('event_metadata', 'join', ['season', 'round']);
+  assertSignature('event_classification', 'aggregate', ['driver_id', 'finishing_position']);
+  assertSignature('event_metadata', 'aggregate', ['circuit_id']);
 }
 
 // eslint-disable-next-line complexity
@@ -139,7 +187,7 @@ function validateComparisonSummary(node: CoreComparisonSummaryNode): void {
   }
   const left = classificationComparisonBranch(join.left);
   const right = classificationComparisonBranch(join.right);
-  if (left.source !== right.source || !Number.isInteger(left.where.season) || left.where.season! < 1950 || left.where.season! > 2100 || left.where.season !== right.where.season ||
+  if (left.source !== right.source || typeof left.where.season !== 'number' || !Number.isInteger(left.where.season) || left.where.season < 1950 || left.where.season > 2100 || left.where.season !== right.where.season ||
       !isNonemptyString(left.where.driver_id) || !isNonemptyString(right.where.driver_id) || left.where.driver_id === right.where.driver_id) {
     throw new F1QLValidationError('signature_invalid', 'Comparison summary requires one season, one shared source, and two distinct nonempty ordered driver IDs');
   }
@@ -180,6 +228,7 @@ function isComparisonSummarySource(value: unknown): value is keyof typeof CORE_C
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(CORE_COMPARISON_SUMMARY_SIGNATURES, value);
 }
 
+// eslint-disable-next-line complexity
 function validatePipeline(node: CorePipelineNode): CoreSourceNode['source'] {
   if (node.op === 'source') {
     assertSignature(node.source, 'source', []);
@@ -187,10 +236,17 @@ function validatePipeline(node: CorePipelineNode): CoreSourceNode['source'] {
   }
   if (node.op === 'filter') {
     const source = validatePipeline(node.input);
+    const season = (node.where as { season?: unknown }).season;
+    if (Array.isArray(season) && (source === 'event_classification' || source === 'qualifying_classification' || source === 'event_metadata')) {
+      throw new F1QLValidationError('signature_invalid', 'Multi-season Core filters require a closed joined aggregate');
+    }
     assertSignature(source, 'filter', signatureFieldsForFilter(source, node));
     return source;
   }
   if (node.op === 'aggregate') {
+    if (node.input.op === 'join') {
+      throw new F1QLValidationError('signature_invalid', 'Joined aggregates require a closed integrity contract');
+    }
     const source = validatePipeline(node.input);
     assertSignature(source, 'aggregate', signatureFieldsForAggregate(source, node));
     return source;
@@ -364,6 +420,14 @@ function validateSignature(program: F1QLProgram): void {
   }
   if (root.op === 'qualifying_season_position_h2h') {
     assertSignature('qualifying_classification', root.op, ['season', 'round', 'driver_id', 'qualifying_position']);
+    return;
+  }
+  if (root.op === 'driver_career_wins_by_circuit') {
+    if (root.metric !== DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID || JSON.stringify(root.seasons) !== JSON.stringify(DRIVER_CAREER_WIN_SEASONS)) {
+      throw new F1QLValidationError('signature_invalid', 'Career wins requires the fixed metric and completed-season scope');
+    }
+    assertSignature('event_classification', root.op, ['season', 'round', 'driver_id', 'finishing_position']);
+    assertSignature('event_metadata', root.op, ['season', 'round', 'circuit_id']);
     return;
   }
   if (isClassificationRoot(root)) {

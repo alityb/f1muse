@@ -151,6 +151,9 @@ function answerOrderBy(program: F1QLResult['program']): string | undefined {
   if (root.op === 'event_metadata') {
     return 'event_id ASC';
   }
+  if (root.op === 'driver_career_wins_by_circuit') {
+    return 'wins DESC NULLS LAST, circuit_id COLLATE "C" ASC NULLS LAST';
+  }
   return undefined;
 }
 

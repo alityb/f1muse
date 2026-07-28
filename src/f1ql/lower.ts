@@ -5,8 +5,45 @@ import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS } from './official-lap-window
 
 export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
 
-// eslint-disable-next-line max-lines-per-function
+// eslint-disable-next-line complexity,max-lines-per-function
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
+  if (program.root.op === 'driver_career_wins_by_circuit') {
+    return {
+      version: 1,
+      root: {
+        op: 'aggregate',
+        input: {
+          op: 'join',
+          type: 'left',
+          on: ['season', 'round'],
+          left: {
+            op: 'filter',
+            input: {
+              op: 'filter',
+              input: { op: 'source', source: 'event_classification' },
+              where: { season: program.root.seasons, finishing_position: [1] }
+            },
+            where: { driver_id: program.root.driver_id }
+          },
+          right: {
+            op: 'filter',
+            input: { op: 'source', source: 'event_metadata' },
+            where: { season: program.root.seasons }
+          }
+        },
+        group_by: ['circuit_id'],
+        measures: [{ as: 'wins', function: 'count' }],
+        source_integrity: {
+          left_key: ['season', 'round'],
+          left_key_scope: 'before_outer_filter',
+          right_key: ['season', 'round'],
+          require_unique_left_keys: true,
+          require_exactly_one_right_match: true,
+          require_non_null_right_fields: ['circuit_id']
+        }
+      }
+    };
+  }
   if (program.root.op === 'qualifying_season_position_h2h') {
     return lowerSeasonPositionH2H(program.root, 'qualifying_classification', 'qualifying_position');
   }

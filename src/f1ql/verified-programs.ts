@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { parseF1QLProgram } from './schema';
 import { F1QL_DEFINITIONS_VERSION } from './validation';
 
-export const F1QL_COMPILER_VERSION = 'core-v5';
+export const F1QL_COMPILER_VERSION = 'core-v6';
 export const F1QL_FACT_SPACE_VERSION = 'source-views-v2';
 
 export interface VerifiedProgram {
