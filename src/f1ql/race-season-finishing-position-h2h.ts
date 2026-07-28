@@ -1,0 +1,1 @@
+export const RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID = 'official_race_finishing_position_shared_events_v1' as const;

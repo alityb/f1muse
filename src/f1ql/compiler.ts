@@ -1,5 +1,5 @@
 import { StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 import { MINIMUM_ELIGIBLE_LAPS_PER_EVENT } from './lower';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
@@ -12,6 +12,9 @@ export interface CompiledF1QL {
 }
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
+  if (program.root.op === 'comparison_summary') {
+    return compileComparisonSummary(program.root);
+  }
   if (getSource(program.root as CorePipelineNode | CoreDeltaNode).source === 'official_lap_timing') {
     return program.root.op === 'delta' && program.root.metric_id === OFFICIAL_EVENT_MEAN_METRIC_ID
       ? compileOfficialEventMean(program.root)
@@ -49,6 +52,114 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
       ${rankSql}
     `,
     params
+  };
+}
+
+const COMPARISON_SUMMARY_SQL_SOURCES: Record<keyof typeof CORE_COMPARISON_SUMMARY_SIGNATURES, { table: string; field: string }> = {
+  event_classification: { table: 'f1ql.event_classification', field: 'finishing_position' },
+  qualifying_classification: { table: 'f1ql.qualifying_classification', field: 'qualifying_position' }
+};
+
+// eslint-disable-next-line max-lines-per-function
+function compileComparisonSummary(node: CoreComparisonSummaryNode): CompiledF1QL {
+  const { season, leftId, rightId, table, field } = comparisonSummaryPlan(node);
+  const params = [season, leftId, rightId, node.metric_id, node.lower_is_better];
+  return {
+    sql: `
+      WITH scoped_source AS (
+        SELECT season, round, driver_id, ${field} AS comparison_value
+        FROM ${table}
+        WHERE season = $1 AND driver_id IN ($2, $3)
+      ),
+      source_integrity AS (
+        SELECT
+          count(*) FILTER (WHERE driver_id = $2)::integer AS driver_a_source_rows,
+          count(*) FILTER (WHERE driver_id = $3)::integer AS driver_b_source_rows,
+          count(DISTINCT (season, round, driver_id))::integer AS distinct_source_keys,
+          (count(*) - count(DISTINCT (season, round, driver_id)))::integer AS duplicate_source_rows
+        FROM scoped_source
+      ),
+      unique_shared_rounds AS (
+        SELECT
+          round,
+          max(comparison_value) FILTER (WHERE driver_id = $2) AS driver_a_value,
+          max(comparison_value) FILTER (WHERE driver_id = $3) AS driver_b_value
+        FROM scoped_source
+        GROUP BY round
+        HAVING count(*) FILTER (WHERE driver_id = $2) = 1
+           AND count(*) FILTER (WHERE driver_id = $3) = 1
+      ),
+      comparison AS (
+        SELECT
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($5::boolean AND driver_a_value < driver_b_value) OR (NOT $5::boolean AND driver_a_value > driver_b_value)))::integer AS driver_a_ahead,
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($5::boolean AND driver_b_value < driver_a_value) OR (NOT $5::boolean AND driver_b_value > driver_a_value)))::integer AS driver_b_ahead,
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND driver_a_value = driver_b_value)::integer AS ties,
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL)::integer AS shared_events
+        FROM unique_shared_rounds
+      )
+      SELECT
+        $4::text AS metric_id,
+        $1::integer AS season,
+        $2::text AS driver_a_id,
+        $3::text AS driver_b_id,
+        CASE WHEN integrity.source_integrity_ok THEN comparison.driver_a_ahead ELSE NULL END AS driver_a_ahead,
+        CASE WHEN integrity.source_integrity_ok THEN comparison.driver_b_ahead ELSE NULL END AS driver_b_ahead,
+        CASE WHEN integrity.source_integrity_ok THEN comparison.ties ELSE NULL END AS ties,
+        CASE WHEN integrity.source_integrity_ok THEN comparison.shared_events ELSE NULL END AS shared_events,
+        integrity.driver_a_source_rows,
+        integrity.driver_b_source_rows,
+        integrity.distinct_source_keys,
+        integrity.duplicate_source_rows,
+        integrity.source_presence_ok,
+        integrity.source_unique_keys_ok,
+        integrity.source_integrity_ok
+      FROM comparison
+      CROSS JOIN LATERAL (
+        SELECT
+          source_integrity.*,
+          driver_a_source_rows > 0 AND driver_b_source_rows > 0 AS source_presence_ok,
+          duplicate_source_rows = 0 AS source_unique_keys_ok,
+          driver_a_source_rows > 0 AND driver_b_source_rows > 0 AND duplicate_source_rows = 0 AS source_integrity_ok
+        FROM source_integrity
+      ) AS integrity
+    `,
+    params
+  };
+}
+
+interface ComparisonSummaryPlan {
+  season: number;
+  leftId: string;
+  rightId: string;
+  table: string;
+  field: string;
+}
+
+// eslint-disable-next-line complexity
+function comparisonSummaryPlan(node: CoreComparisonSummaryNode): ComparisonSummaryPlan {
+  const { left, right } = node.input.input;
+  if (left.op !== 'filter' || right.op !== 'filter' ||
+      left.input.op !== 'source' || right.input.op !== 'source' || left.input.source !== right.input.source ||
+      !Object.prototype.hasOwnProperty.call(COMPARISON_SUMMARY_SQL_SOURCES, left.input.source)) {
+    throw new Error('Expected filtered covered comparison-summary branches');
+  }
+  const source = left.input.source as keyof typeof COMPARISON_SUMMARY_SQL_SOURCES;
+  const sqlSource = COMPARISON_SUMMARY_SQL_SOURCES[source];
+  if (node.input.left.field !== sqlSource.field || node.input.right.field !== sqlSource.field) {
+    throw new Error('Expected a covered comparison-summary field');
+  }
+  const leftWhere = left.where as { season?: number; driver_id?: string };
+  const rightWhere = right.where as { season?: number; driver_id?: string };
+  if (typeof leftWhere.season !== 'number' || leftWhere.season !== rightWhere.season ||
+      typeof leftWhere.driver_id !== 'string' || typeof rightWhere.driver_id !== 'string') {
+    throw new Error('Expected shared season and ordered driver filters');
+  }
+  return {
+    season: leftWhere.season,
+    leftId: leftWhere.driver_id,
+    rightId: rightWhere.driver_id,
+    table: sqlSource.table,
+    field: sqlSource.field
   };
 }
 
@@ -408,11 +519,14 @@ function appendEqualityFilter(pipeline: { where: string[]; params: unknown[] }, 
   pipeline.where.push(`${field} = $${pipeline.params.length}`);
 }
 
-function getSource(node: CorePipelineNode | CoreDeltaNode): CoreSourceNode {
+function getSource(node: CorePipelineNode | CoreDeltaNode | CoreComparisonSummaryNode): CoreSourceNode {
   if (node.op === 'source') {
     return node;
   }
   if (node.op === 'delta') {
+    return getSource(node.input.input.left);
+  }
+  if (node.op === 'comparison_summary') {
     return getSource(node.input.input.left);
   }
   return getSource(node.input);
@@ -438,7 +552,7 @@ interface PaceJoinPlan {
   on: string[];
 }
 
-function compileLapPace(node: CoreProgram['root']): CompiledF1QL {
+function compileLapPace(node: Exclude<CoreProgram['root'], CoreComparisonSummaryNode>): CompiledF1QL {
   if (node.op === 'delta') {
     return compilePaceDelta(node);
   }

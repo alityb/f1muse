@@ -147,6 +147,11 @@ export interface CoreCompareNode {
   right: { field: string; as: string };
 }
 
+export const CORE_COMPARISON_SUMMARY_SIGNATURES = {
+  event_classification: { comparison_fields: ['finishing_position'] },
+  qualifying_classification: { comparison_fields: ['qualifying_position'] }
+} as const;
+
 export interface CoreDeltaNode {
   op: 'delta';
   input: CoreCompareNode;
@@ -156,7 +161,16 @@ export interface CoreDeltaNode {
   lower_is_better?: true;
 }
 
+export interface CoreComparisonSummaryNode {
+  op: 'comparison_summary';
+  input: CoreCompareNode;
+  metric_id: string;
+  lower_is_better: boolean;
+  require_unique_source_keys: boolean;
+  require_source_presence: boolean;
+}
+
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode;
+  root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode | CoreComparisonSummaryNode;
 }

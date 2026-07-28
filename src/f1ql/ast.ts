@@ -116,9 +116,17 @@ export interface OfficialEventMeanCompareNode extends EventFilter {
   driver_b_id: string;
 }
 
+export interface RaceSeasonFinishingPositionH2HNode {
+  op: 'race_season_finishing_position_h2h';
+  metric: 'official_race_finishing_position_shared_events_v1';
+  season: number;
+  driver_a_id: string;
+  driver_b_id: string;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode;
 }
 
 export interface F1QLResult {

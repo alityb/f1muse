@@ -69,9 +69,9 @@ export function createProgramRoutes(pool: Pool): Router {
   return router;
 }
 
-function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'event_classification' | 'official_lap_window_median_compare' | 'official_event_mean_compare' | 'invalid' {
+function getOperation(body: unknown): 'aggregate' | 'rank' | 'pace_delta' | 'pace_summary' | 'event_classification' | 'official_lap_window_median_compare' | 'official_event_mean_compare' | 'race_season_finishing_position_h2h' | 'invalid' {
   const operation = (body as { root?: { op?: unknown } })?.root?.op;
-  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary' || operation === 'event_classification' || operation === 'official_lap_window_median_compare' || operation === 'official_event_mean_compare'
+  return operation === 'aggregate' || operation === 'rank' || operation === 'pace_delta' || operation === 'pace_summary' || operation === 'event_classification' || operation === 'official_lap_window_median_compare' || operation === 'official_event_mean_compare' || operation === 'race_season_finishing_position_h2h'
     ? operation
     : 'invalid';
 }

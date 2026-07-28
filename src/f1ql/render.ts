@@ -22,6 +22,9 @@ export function renderF1QL(program: F1QLProgram): string {
   if (program.root.op === 'official_event_mean_compare') {
     return `Official non-deleted, non-PIT completed race-lap arithmetic mean; ${program.root.driver_a_id} versus ${program.root.driver_b_id}; season ${program.root.season}; round ${program.root.round}; all completed laps per driver; safety-car, weather, traffic, tyre, fuel, and race-state effects included.`;
   }
+  if (program.root.op === 'race_season_finishing_position_h2h') {
+    return `Official race finishing-position head-to-head; ${program.root.driver_a_id} versus ${program.root.driver_b_id}; final season ${program.root.season}; shared rounds with two non-null positions only; lower position finishes ahead and equal positions tie; unique source rows required.`;
+  }
   return renderStandings(program);
 }
 
@@ -54,7 +57,7 @@ function renderPaceSummary(node: PaceSummaryNode): string {
 
 // eslint-disable-next-line complexity
 function renderStandings(program: F1QLProgram): string {
-  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare') {
+  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare' || program.root.op === 'race_season_finishing_position_h2h') {
     throw new Error('renderStandings does not accept pace programs');
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;

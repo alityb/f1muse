@@ -7,6 +7,38 @@ export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
 
 // eslint-disable-next-line max-lines-per-function
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
+  if (program.root.op === 'race_season_finishing_position_h2h') {
+    return {
+      version: 1,
+      root: {
+        op: 'comparison_summary',
+        input: {
+          op: 'compare',
+          input: {
+            op: 'join',
+            left: {
+              op: 'filter',
+              input: { op: 'source', source: 'event_classification' },
+              where: { season: program.root.season, driver_id: program.root.driver_a_id }
+            },
+            right: {
+              op: 'filter',
+              input: { op: 'source', source: 'event_classification' },
+              where: { season: program.root.season, driver_id: program.root.driver_b_id }
+            },
+            on: ['season', 'round'],
+            type: 'inner'
+          },
+          left: { field: 'finishing_position', as: 'driver_a_position' },
+          right: { field: 'finishing_position', as: 'driver_b_position' }
+        },
+        metric_id: program.root.metric,
+        lower_is_better: true,
+        require_unique_source_keys: true,
+        require_source_presence: true
+      }
+    };
+  }
   if (program.root.op === 'official_event_mean_compare') {
     return {
       version: 1,

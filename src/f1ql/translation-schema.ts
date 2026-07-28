@@ -72,7 +72,9 @@ export type F1QLProgramCandidate = F1QLProgram | NamedEventProgramCandidate;
 
 export function parseF1QLProgramCandidate(input: unknown): F1QLProgramCandidate {
   const canonical = f1qlProgramSchema.safeParse(input);
-  return canonical.success ? canonical.data as F1QLProgram : namedEventProgramSchema.parse(input);
+  return canonical.success && canonical.data.root.op !== 'race_season_finishing_position_h2h'
+    ? canonical.data as F1QLProgram
+    : namedEventProgramSchema.parse(input);
 }
 
 export function isNamedEventProgram(candidate: F1QLProgramCandidate): candidate is NamedEventProgramCandidate {

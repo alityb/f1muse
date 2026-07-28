@@ -577,6 +577,8 @@ export function canonicalProgramEntities(program: F1QLProgram): string[] {
   let driver: string[] = [];
   if (root.op === 'pace_delta') {
     driver = [root.driver_a_id, root.driver_b_id];
+  } else if (root.op === 'race_season_finishing_position_h2h') {
+    driver = [root.driver_a_id, root.driver_b_id];
   } else if (root.op === 'pace_summary') {
     driver = [root.driver_id];
   } else if ('filters' in root && root.filters?.driver_id) {

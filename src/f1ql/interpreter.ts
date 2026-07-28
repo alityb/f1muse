@@ -1,5 +1,5 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CoreAggregateNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 
@@ -72,6 +72,95 @@ export interface OfficialLapTimingRow {
   lap_time_seconds: number;
   official_deleted_lap: boolean;
   official_pit_marker: boolean;
+}
+
+export interface ComparisonSummaryRow {
+  season: number;
+  round: number;
+  driver_id: string;
+  finishing_position?: number | null;
+  qualifying_position?: number | null;
+}
+
+export function interpretComparisonSummary(program: CoreProgram, rows: ComparisonSummaryRow[]): Array<Record<string, unknown>> {
+  if (program.root.op !== 'comparison_summary') {
+    throw new Error('Expected a comparison summary');
+  }
+  const node: CoreComparisonSummaryNode = program.root;
+  const { season, leftId, rightId, leftField, rightField } = referenceComparisonSummaryPlan(node);
+  const scoped = rows.filter(row => row.season === season && (row.driver_id === leftId || row.driver_id === rightId));
+  const driverASourceRows = scoped.filter(row => row.driver_id === leftId).length;
+  const driverBSourceRows = scoped.filter(row => row.driver_id === rightId).length;
+  const distinctSourceKeys = new Set(scoped.map(row => JSON.stringify([row.season, row.round, row.driver_id]))).size;
+  const duplicateSourceRows = scoped.length - distinctSourceKeys;
+  const sourcePresenceOk = driverASourceRows > 0 && driverBSourceRows > 0;
+  const sourceUniqueKeysOk = duplicateSourceRows === 0;
+  const sourceIntegrityOk = (!node.require_source_presence || sourcePresenceOk) && (!node.require_unique_source_keys || sourceUniqueKeysOk);
+  const byRound = new Map<number, ComparisonSummaryRow[]>();
+  for (const row of scoped) {
+    const round = byRound.get(row.round) ?? [];
+    round.push(row);
+    byRound.set(row.round, round);
+  }
+  const shared = Array.from(byRound.values()).flatMap(round => {
+    const left = round.filter(row => row.driver_id === leftId);
+    const right = round.filter(row => row.driver_id === rightId);
+    const leftPosition = left[0]?.[leftField];
+    const rightPosition = right[0]?.[rightField];
+    return left.length === 1 && right.length === 1 && typeof leftPosition === 'number' && typeof rightPosition === 'number'
+      ? [{ left: leftPosition, right: rightPosition }]
+      : [];
+  });
+  return [{
+    metric_id: node.metric_id,
+    season,
+    driver_a_id: leftId,
+    driver_b_id: rightId,
+    driver_a_ahead: sourceIntegrityOk ? shared.filter(event => node.lower_is_better ? event.left < event.right : event.left > event.right).length : null,
+    driver_b_ahead: sourceIntegrityOk ? shared.filter(event => node.lower_is_better ? event.right < event.left : event.right > event.left).length : null,
+    ties: sourceIntegrityOk ? shared.filter(event => event.left === event.right).length : null,
+    shared_events: sourceIntegrityOk ? shared.length : null,
+    driver_a_source_rows: driverASourceRows,
+    driver_b_source_rows: driverBSourceRows,
+    distinct_source_keys: distinctSourceKeys,
+    duplicate_source_rows: duplicateSourceRows,
+    source_presence_ok: sourcePresenceOk,
+    source_unique_keys_ok: sourceUniqueKeysOk,
+    source_integrity_ok: sourceIntegrityOk
+  }];
+}
+
+// eslint-disable-next-line complexity
+function referenceComparisonSummaryPlan(node: CoreComparisonSummaryNode): {
+  season: number;
+  leftId: string;
+  rightId: string;
+  leftField: 'finishing_position' | 'qualifying_position';
+  rightField: 'finishing_position' | 'qualifying_position';
+} {
+  const { left, right } = node.input.input;
+  if (left.op !== 'filter' || right.op !== 'filter' || left.input.op !== 'source' || right.input.op !== 'source' ||
+      left.input.source !== right.input.source || !Object.prototype.hasOwnProperty.call(CORE_COMPARISON_SUMMARY_SIGNATURES, left.input.source)) {
+    throw new Error('Expected filtered comparison branches');
+  }
+  const source = left.input.source as keyof typeof CORE_COMPARISON_SUMMARY_SIGNATURES;
+  const fields = CORE_COMPARISON_SUMMARY_SIGNATURES[source].comparison_fields as readonly string[];
+  if (!fields.includes(node.input.left.field) || !fields.includes(node.input.right.field)) {
+    throw new Error('Expected covered comparison fields');
+  }
+  const leftWhere = left.where as { season?: number; driver_id?: string };
+  const rightWhere = right.where as { season?: number; driver_id?: string };
+  if (typeof leftWhere.season !== 'number' || leftWhere.season !== rightWhere.season ||
+      typeof leftWhere.driver_id !== 'string' || typeof rightWhere.driver_id !== 'string') {
+    throw new Error('Expected shared season and ordered driver filters');
+  }
+  return {
+    season: leftWhere.season,
+    leftId: leftWhere.driver_id,
+    rightId: rightWhere.driver_id,
+    leftField: node.input.left.field as 'finishing_position' | 'qualifying_position',
+    rightField: node.input.right.field as 'finishing_position' | 'qualifying_position'
+  };
 }
 
 export function interpretOfficialEventMeanProgram(program: CoreProgram, rows: OfficialLapTimingRow[]): Array<Record<string, unknown>> {
@@ -258,7 +347,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'delta' || getSourceName(program.root) !== 'standings') {
+  if (program.root.op === 'delta' || program.root.op === 'comparison_summary' || getSourceName(program.root) !== 'standings') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = getAggregateRoot(program);
@@ -389,6 +478,9 @@ function getAggregateRoot(program: CoreProgram): CoreAggregateNode {
 export function interpretLapPaceProgram(program: CoreProgram, rows: PaceLapRow[]): Array<Record<string, unknown>> {
   if (program.root.op === 'delta') {
     return interpretPaceDelta(program.root, rows);
+  }
+  if (program.root.op === 'comparison_summary') {
+    throw new Error('interpretLapPaceProgram does not accept comparison summaries');
   }
   const result = interpretPacePipeline(program.root, rows);
   const driverId = getPaceConstant(program.root, 'driver_id');
