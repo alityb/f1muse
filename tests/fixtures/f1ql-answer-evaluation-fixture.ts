@@ -31,10 +31,12 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (2025, 2, 2, '2', 'lando_norris', 300),
     (2025, 3, 3, '3', 'max_verstappen', 25),
     (2024, 1, 1, '1', 'lewis_hamilton', 389),
+    (2023, 3, 3, '3', 'lewis_hamilton', 234),
     (2024, 2, 2, '2', 'charles_leclerc', 356),
     (2026, 1, 1, '1', 'lando_norris', 42),
     (2026, 2, 2, '2', 'oscar_piastri', 42),
-    (2026, 3, 3, '3', 'max_verstappen', 30)`);
+    (2026, 3, 3, '3', 'max_verstappen', 30),
+    (2026, 4, 4, '4', 'lewis_hamilton', 12)`);
   await pool.query(`INSERT INTO grand_prix (id, name, full_name, short_name, abbreviation) VALUES
     ('australian_grand_prix', 'Australian Grand Prix', 'Formula 1 Australian Grand Prix', 'Australian GP', 'AUS'),
     ('monaco_grand_prix', 'Monaco Grand Prix', 'Formula 1 Monaco Grand Prix', 'Monaco GP', 'MON'),

@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v7' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v8' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -17,7 +17,7 @@ export interface AnswerProofEventResolver {
 }
 
 export interface AnswerProofDriverResolver {
-  inventoryMentions(question: string, season: number): Promise<readonly AnswerDriverLiteralMention[]>;
+  inventoryMentions(question: string, season?: number): Promise<readonly AnswerDriverLiteralMention[]>;
 }
 
 export interface AnswerProofMention {
@@ -110,7 +110,7 @@ export async function proveAnswerIntent(
   } else if ('driver_references' in intent) {
     driverReferences = intent.driver_references;
   }
-  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, intent.season);
+  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, 'season' in intent ? intent.season : undefined);
   proveDriverReferenceInventory(driverReferences, inventory);
   const driverIds: string[] = [];
   for (const mention of inventory) {
@@ -135,7 +135,7 @@ export async function proveAnswerIntent(
     throw new AnswerSemanticProofError('entity_cardinality_mismatch');
   }
 
-  const variables: Record<string, unknown> = { season: intent.season };
+  const variables: Record<string, unknown> = 'season' in intent ? { season: intent.season } : {};
   if (round !== undefined) {
     variables.round = round;
   }
@@ -255,6 +255,12 @@ function proveEventReference(contract: AnswerQuestionContract, reference: Litera
 
 function proveSeason(contract: AnswerQuestionContract, intent: ExecutableAnswerIntent): void {
   const seasons = new Set(contract.years.map(cue => cue.value));
+  if (intent.type === 'driver_career_official_summary') {
+    if (seasons.size !== 0) {
+      throw new AnswerSemanticProofError('season_mismatch');
+    }
+    return;
+  }
   if (seasons.size !== 1 || !seasons.has(intent.season)) {
     throw new AnswerSemanticProofError('season_mismatch');
   }
@@ -266,7 +272,7 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (explicitSources.size > 0 && [...explicitSources].some(cue => cue !== source)) {
     throw new AnswerSemanticProofError('session_mismatch');
   }
-  if (source === 'standings' && !explicitSources.has('standings') && intent.type !== 'driver_season_official_summary') {
+  if (source === 'standings' && !explicitSources.has('standings') && intent.type !== 'driver_season_official_summary' && intent.type !== 'driver_career_official_summary') {
     throw new AnswerSemanticProofError('template_mismatch');
   }
   const sessions = new Set(contract.session_cues.map(cue => cue.value));
@@ -298,6 +304,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('official_season_summary') && intent.type !== 'driver_season_official_summary') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('official_career_summary') && intent.type !== 'driver_career_official_summary') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('date') && intent.type !== 'race_date') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -311,6 +320,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'driver_season_official_summary' && (!metrics.has('official_season_summary') || !matchesSeasonSummaryQuestion(contract, intent.driver_reference))) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'driver_career_official_summary' && (!metrics.has('official_career_summary') || !matchesCareerSummaryQuestion(contract, intent.driver_reference))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'current_standings' && /\bfinal\b/iu.test(contract.normalized_question)) {
@@ -364,7 +376,7 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
 }
 
 function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date' {
-  if (intent.type.startsWith('final_standings') || intent.type === 'current_standings' || intent.type === 'driver_season_official_summary') {
+  if (intent.type.startsWith('final_standings') || intent.type === 'current_standings' || intent.type === 'driver_season_official_summary' || intent.type === 'driver_career_official_summary') {
     return 'standings';
   }
   if (intent.type.startsWith('race_classification')) {
@@ -396,6 +408,12 @@ function matchesSeasonSummaryQuestion(contract: AnswerQuestionContract, driver: 
   const points = Array.from(contract.normalized_question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
   return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) season summary|give the official (?:19[5-9]\d|20\d{2}|2100) season summary for <driver>)\.?$/iu.test(masked);
+}
+
+function matchesCareerSummaryQuestion(contract: AnswerQuestionContract, driver: LiteralMentionReference): boolean {
+  const points = Array.from(contract.normalized_question);
+  const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
+  return /^(?:show <driver> official career summary|give the official career summary for <driver>)\.?$/iu.test(masked);
 }
 
 function positionsForIntent(intent: Extract<ExecutableAnswerIntent, { selection_reference: LiteralMentionReference }>): number[] {

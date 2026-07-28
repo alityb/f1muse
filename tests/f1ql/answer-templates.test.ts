@@ -8,6 +8,7 @@ describe('answer template registry', () => {
     ['final_standings_leader', { season: 2025 }, 'rank'],
     ['current_standings', { season: 2026 }, 'rank'],
     ['driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }, 'aggregate'],
+    ['driver_career_official_summary', { driver_id: 'lewis-hamilton' }, 'aggregate'],
     ['race_classification_all', { season: 2025, round: 7 }, 'event_classification'],
     ['race_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'event_classification'],
     ['race_classification_status', { season: 2025, round: 7, status: 'dsq' }, 'event_classification'],
@@ -20,8 +21,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v5', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(13);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v6', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(14);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);
@@ -86,6 +87,21 @@ describe('answer template registry', () => {
         { as: 'standing_rows', function: 'count' }
       ]
     });
+  });
+
+  it('owns the bounded final-standings career summary', () => {
+    const root = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' }).root;
+    expect(root).toMatchObject({
+      op: 'aggregate',
+      input: { op: 'filter', where: { driver_id: 'lewis-hamilton' } },
+      group_by: ['driver_id'],
+      measures: [
+        { as: 'best_championship_position', function: 'min', field: 'championship_position' },
+        { as: 'recorded_final_standings_rows', function: 'count' }
+      ]
+    });
+    if (root.op !== 'aggregate' || root.input.op !== 'filter') throw new Error('fixture must filter');
+    expect(root.input.where.season).toEqual(Array.from({ length: 76 }, (_, index) => 1950 + index));
   });
 
   it('materializes all final standings points without a driver filter', () => {

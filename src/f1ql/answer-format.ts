@@ -94,6 +94,9 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const aliases = aggregate.measures.map(measure => measure.as);
+  if (aliases.includes('recorded_final_standings_rows')) {
+    return formatDriverCareerSummary(program, aggregate, rows);
+  }
   if (aliases.includes('standing_rows')) {
     return formatDriverSeasonSummary(program, aggregate, rows);
   }
@@ -112,6 +115,31 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
     answer: { headline: current ? `Latest recorded ${capabilitySeason(program)} driver standings.` : `Final ${capabilitySeason(program)} driver standings result.`, facts },
     coverage: 'sufficient' as const,
     caveats: current ? ['season_in_progress'] : [] as string[]
+  };
+}
+
+function formatDriverCareerSummary(program: F1QLProgram, aggregate: Extract<F1QLProgram['root'], { op: 'aggregate' }>, rows: Array<Record<string, unknown>>) {
+  if (program.root.op !== 'aggregate' || aggregate.input.op !== 'filter' || typeof aggregate.input.where.driver_id !== 'string' || rows.length !== 1) {
+    throw new AnswerFormatError('Driver career summary rows were invalid');
+  }
+  const row = rows[0];
+  const driverId = requiredString(row.driver_id, 'driver_id');
+  if (driverId !== aggregate.input.where.driver_id) {
+    throw new AnswerFormatError('Driver career summary rows were invalid');
+  }
+  return {
+    answer: {
+      headline: `Recorded final championship standings career summary for ${driverId}.`,
+      facts: [{
+        subject: driverId,
+        values: {
+          best_championship_position: displayNumeric(requiredPositiveInteger(row.best_championship_position, 'best_championship_position'), 'best_championship_position'),
+          recorded_final_standings_rows: displayNumeric(requiredPositiveInteger(row.recorded_final_standings_rows, 'recorded_final_standings_rows'), 'recorded_final_standings_rows')
+        }
+      }]
+    },
+    coverage: 'sufficient' as const,
+    caveats: ['final_standings_rows_only']
   };
 }
 

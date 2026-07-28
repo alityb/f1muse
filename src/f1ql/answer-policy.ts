@@ -1,4 +1,5 @@
 import { AggregateNode, F1QLProgram } from './ast';
+import { ANSWER_FINAL_STANDINGS_SEASONS } from './answer-templates';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -23,7 +24,7 @@ export type AnswerPolicyReason =
 export interface AnswerCapability {
   source: AnswerCapabilitySource;
   operation: F1QLProgram['root']['op'];
-  season: number;
+  season: number | readonly number[];
   round?: number;
   filters: Array<'driver' | 'classification_status' | 'position'>;
 }
@@ -102,7 +103,16 @@ function authorizeClassification(
 }
 
 function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | 'rank', rank?: Extract<F1QLProgram['root'], { op: 'rank' }>): AnswerPolicyDecision {
-  if (aggregate.input.op !== 'filter' || typeof aggregate.input.where.season !== 'number') {
+  if (aggregate.input.op !== 'filter') {
+    return { type: 'rejected', reason: 'temporal_scope_unsupported' };
+  }
+  if (isDriverCareerOfficialSummary(aggregate, operation)) {
+    return {
+      type: 'approved',
+      capability: { source: 'final_driver_standings', operation, season: ANSWER_FINAL_STANDINGS_SEASONS, filters: ['driver'] }
+    };
+  }
+  if (typeof aggregate.input.where.season !== 'number') {
     return { type: 'rejected', reason: 'temporal_scope_unsupported' };
   }
   if (aggregate.input.where.season > FINAL_STANDINGS_THROUGH_SEASON) {
@@ -136,6 +146,22 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
       filters: driverCount === 0 ? [] : ['driver']
     }
   };
+}
+
+function isDriverCareerOfficialSummary(aggregate: AggregateNode, operation: 'aggregate' | 'rank'): boolean {
+  if (operation !== 'aggregate' || aggregate.input.op !== 'filter' || typeof aggregate.input.where.driver_id !== 'string' ||
+      aggregate.input.input.op !== 'source' || aggregate.input.input.source !== 'standings' ||
+      Object.keys(aggregate.input.where).length !== 2 || !sameSeasons(aggregate.input.where.season, ANSWER_FINAL_STANDINGS_SEASONS) ||
+      aggregate.group_by.length !== 1 || aggregate.group_by[0] !== 'driver_id') {
+    return false;
+  }
+  return aggregate.measures.length === 2
+    && aggregate.measures[0].as === 'best_championship_position' && aggregate.measures[0].function === 'min' && aggregate.measures[0].field === 'championship_position'
+    && aggregate.measures[1].as === 'recorded_final_standings_rows' && aggregate.measures[1].function === 'count' && aggregate.measures[1].field === undefined;
+}
+
+function sameSeasons(value: number | number[] | undefined, expected: readonly number[]): boolean {
+  return Array.isArray(value) && value.length === expected.length && value.every((season, index) => season === expected[index]);
 }
 
 function isDriverSeasonOfficialSummary(aggregate: AggregateNode, operation: 'aggregate' | 'rank'): boolean {

@@ -28,6 +28,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'final_driver_standings'
     },
     {
+      name: 'official driver career summary',
+      program: materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' }),
+      source: 'final_driver_standings'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'
@@ -169,6 +174,25 @@ describe('Phase 7 answer capability policy', () => {
     });
     expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, where: { season: 2025, driver_id: ['max-verstappen'] } } } })).toEqual({
       type: 'rejected', reason: 'capability_unsupported'
+    });
+  });
+
+  it('rejects malformed or broadened career-summary shapes', () => {
+    const summary = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' });
+    if (summary.root.op !== 'aggregate' || summary.root.input.op !== 'filter') throw new Error('fixture must aggregate');
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, measures: summary.root.measures.slice(0, 1) } })).toEqual({ type: 'rejected', reason: 'temporal_scope_unsupported' });
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, where: { ...summary.root.input.where, season: [1950, 2025] } } } })).toEqual({
+      type: 'rejected', reason: 'temporal_scope_unsupported'
+    });
+    const seasons = summary.root.input.where.season as number[];
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, where: { ...summary.root.input.where, season: [...seasons.slice(0, -1), 2026] } } } })).toEqual({
+      type: 'rejected', reason: 'temporal_scope_unsupported'
+    });
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, where: { ...summary.root.input.where, driver_id: ['lewis-hamilton'] } } } })).toEqual({
+      type: 'rejected', reason: 'temporal_scope_unsupported'
+    });
+    expect(authorizeAnswerProgram({ ...summary, root: { ...summary.root, input: { ...summary.root.input, input: { op: 'source', source: 'other' } } } } as never)).toEqual({
+      type: 'rejected', reason: 'temporal_scope_unsupported'
     });
   });
 });

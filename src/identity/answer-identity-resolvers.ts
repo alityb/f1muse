@@ -122,20 +122,28 @@ export class AnswerDriverIdentityResolver {
     return { success: false, error: 'ambiguous_driver', candidates: (active.length > 1 ? active : candidates).sort() };
   }
 
-  async inventoryMentions(question: string, season: number): Promise<readonly AnswerDriverLiteralMention[]> {
-    const result = await this.database.query<DriverIdentityRow>(`
-      SELECT i.driver_id, i.identity, p.participation_source
-      FROM f1ql.answer_driver_identity i
-      LEFT JOIN f1ql.answer_season_participation p
-        ON p.driver_id = i.driver_id AND p.season = $1
-      WHERE char_length(i.identity) BETWEEN 1 AND 200
-      ORDER BY i.identity, i.driver_id, p.participation_source
-      LIMIT $2
-    `, [season, ANSWER_DRIVER_IDENTITY_MAX_ROWS + 1]);
+  async inventoryMentions(question: string, season?: number): Promise<readonly AnswerDriverLiteralMention[]> {
+    const result = season === undefined
+      ? await this.database.query<DriverIdentityRow>(`
+        SELECT driver_id, identity
+        FROM f1ql.answer_driver_identity
+        WHERE char_length(identity) BETWEEN 1 AND 200
+        ORDER BY identity, driver_id
+        LIMIT $1
+      `, [ANSWER_DRIVER_IDENTITY_MAX_ROWS + 1])
+      : await this.database.query<DriverIdentityRow>(`
+        SELECT i.driver_id, i.identity, p.participation_source
+        FROM f1ql.answer_driver_identity i
+        LEFT JOIN f1ql.answer_season_participation p
+          ON p.driver_id = i.driver_id AND p.season = $1
+        WHERE char_length(i.identity) BETWEEN 1 AND 200
+        ORDER BY i.identity, i.driver_id, p.participation_source
+        LIMIT $2
+      `, [season, ANSWER_DRIVER_IDENTITY_MAX_ROWS + 1]);
     if (result.rows.length > ANSWER_DRIVER_IDENTITY_MAX_ROWS) {
       throw new AnswerIdentityResolverError('driver_identity_overflow');
     }
-    return inventoryLiteralMentions(question, result.rows);
+    return inventoryLiteralMentions(question, result.rows, season === undefined);
   }
 
   private async activeCandidates(candidates: string[], season: number): Promise<string[]> {
@@ -156,7 +164,7 @@ export class AnswerDriverIdentityResolver {
   }
 }
 
-function inventoryLiteralMentions(question: string, rows: readonly DriverIdentityRow[]): readonly AnswerDriverLiteralMention[] {
+function inventoryLiteralMentions(question: string, rows: readonly DriverIdentityRow[], unscoped = false): readonly AnswerDriverLiteralMention[] {
   const questionPoints = Array.from(question);
   const matches = new Map<string, { text: string; start: number; end: number; candidates: Set<string>; entrant: Set<string>; fallback: Set<string> }>();
   for (const row of rows) {
@@ -192,13 +200,21 @@ function inventoryLiteralMentions(question: string, rows: readonly DriverIdentit
     }
     selected.push(match);
   }
-  return selected.sort((left, right) => left.start - right.start || left.end - right.end).map(match => ({
-    text: match.text,
-    start: match.start,
-    end: match.end,
-    candidates: [...match.candidates].sort(),
-    active_candidates: [...(match.entrant.size > 0 ? match.entrant : match.fallback)].sort()
-  }));
+  return selected.sort((left, right) => left.start - right.start || left.end - right.end).map(match => {
+    let active = match.fallback;
+    if (unscoped) {
+      active = match.candidates;
+    } else if (match.entrant.size > 0) {
+      active = match.entrant;
+    }
+    return {
+      text: match.text,
+      start: match.start,
+      end: match.end,
+      candidates: [...match.candidates].sort(),
+      active_candidates: [...active].sort()
+    };
+  });
 }
 
 function isLiteralBoundary(question: readonly string[], start: number, end: number): boolean {

@@ -146,20 +146,23 @@ async function deterministicTranslation(
       ? { type: 'clarification_required', reason: item.expected.reason as 'metric_ambiguous' }
       : { type: 'unsupported', reason: item.expected.reason as Extract<AnswerIntent, { type: 'unsupported' }>['reason'] };
   }
-  const season = Number(item.expected.acceptable_programs![0].root.op === 'rank'
-    ? item.expected.acceptable_programs![0].root.input.input.op === 'filter' && item.expected.acceptable_programs![0].root.input.input.where.season
-    : 'season' in item.expected.acceptable_programs![0].root && item.expected.acceptable_programs![0].root.season);
-  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, season || contract.years[0].value);
+  const root = item.expected.acceptable_programs![0].root;
+  const scopedSeason = root.op === 'rank' && root.input.input.op === 'filter' ? root.input.input.where.season
+    : root.op === 'aggregate' && root.input.op === 'filter' ? root.input.where.season
+      : 'season' in root ? root.season : undefined;
+  const season = typeof scopedSeason === 'number' ? scopedSeason : contract.years[0]?.value;
+  const inventory = await driverResolver.inventoryMentions(contract.normalized_question, season);
   return { type: 'intent_candidate', intent: executableIntent(contract, item.expected.template_id!, inventory) };
 }
 
 function executableIntent(contract: AnswerQuestionContract, template: string, inventory: readonly { text: string; start: number; end: number }[]): Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }> {
+  const references = inventory.map(mention => ({ text: mention.text, start: mention.start, end: mention.end }));
+  if (template === 'driver_career_official_summary') return { type: template, driver_reference: references[0] };
   const seasonMention = contract.years[0];
   const season = seasonMention.value;
   const season_reference = { text: seasonMention.text, start: seasonMention.start, end: seasonMention.end };
   const event = contract.event_cues[0] ?? contract.rounds[0];
   const event_reference = event ? { text: event.text, start: event.start, end: event.end } : undefined;
-  const references = inventory.map(mention => ({ text: mention.text, start: mention.start, end: mention.end }));
   if (template === 'final_standings_points') return { type: template, season, season_reference, driver_references: references };
   if (template === 'final_standings_leader') return { type: template, season, season_reference };
   if (template === 'current_standings') return { type: template, season, season_reference };

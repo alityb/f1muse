@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v4' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v5' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -10,7 +10,7 @@ interface DriverInventoryMention {
 }
 
 export interface AnswerIntentInventoryResolver {
-  inventoryMentions(question: string, season: number): Promise<readonly DriverInventoryMention[]>;
+  inventoryMentions(question: string, season?: number): Promise<readonly DriverInventoryMention[]>;
 }
 
 const unsupported = { type: 'unsupported', reason: 'capability_unsupported' } as const;
@@ -30,6 +30,11 @@ export async function deriveAnswerIntent(
     return parseAnswerIntent(unsupported, contract);
   }
 
+  const metrics = new Set(contract.metric_cues.map(cue => cue.value));
+  if (metrics.has('official_career_summary')) {
+    const drivers = (await resolver.inventoryMentions(contract.normalized_question)).map(copyReference);
+    return parseAnswerIntent(careerSummaryIntent(contract, drivers, metrics), contract);
+  }
   const seasonMention = uniqueSeasonMention(contract);
   if (!seasonMention) {
     return parseAnswerIntent(unsupported, contract);
@@ -38,6 +43,18 @@ export async function deriveAnswerIntent(
   const inventory = await resolver.inventoryMentions(contract.normalized_question, seasonMention.value);
   const drivers = inventory.map(copyReference);
   return parseAnswerIntent(selectIntent(contract, seasonFields, drivers), contract);
+}
+
+function careerSummaryIntent(
+  contract: AnswerQuestionContract,
+  drivers: LiteralMentionReference[],
+  metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
+): unknown {
+  const valid = contract.years.length === 0 && drivers.length === 1 && contract.source_cues.length === 0 && contract.session_cues.length === 0
+    && only(metrics, 'official_career_summary') && contract.event_cues.length === 0 && contract.rounds.length === 0
+    && contract.status_cues.length === 0 && contract.action_cues.length === 0 && contract.result_cues.length === 0
+    && matchesCareerSummaryQuestion(contract.normalized_question, drivers[0]);
+  return valid ? { type: 'driver_career_official_summary', driver_reference: drivers[0] } : unsupported;
 }
 
 function preservedOutcome(contract: AnswerQuestionContract): unknown | undefined {
@@ -293,6 +310,12 @@ function matchesSeasonSummaryQuestion(question: string, driver: LiteralMentionRe
   const points = Array.from(question);
   const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
   return /^(?:show <driver> official (?:19[5-9]\d|20\d{2}|2100) season summary|give the official (?:19[5-9]\d|20\d{2}|2100) season summary for <driver>)\.?$/iu.test(masked);
+}
+
+function matchesCareerSummaryQuestion(question: string, driver: LiteralMentionReference): boolean {
+  const points = Array.from(question);
+  const masked = [...points.slice(0, driver.start), '<driver>', ...points.slice(driver.end)].join('');
+  return /^(?:show <driver> official career summary|give the official career summary for <driver>)\.?$/iu.test(masked);
 }
 
 function containsGreekOrCyrillicLetter(value: string): boolean {

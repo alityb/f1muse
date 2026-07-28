@@ -138,4 +138,26 @@ describe('deterministic answer formatting', () => {
     }
     expect(formatAnswerRows(summary, approved(summary), [{ ...row, championship_position: 31 }]).answer.facts[0].values.championship_position).toBe('31');
   });
+
+  it('formats only bounded final-standings career facts', () => {
+    const summary = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' });
+    expect(formatAnswerRows(summary, approved(summary), [{ driver_id: 'lewis-hamilton', best_championship_position: 1, recorded_final_standings_rows: '2' }])).toEqual({
+      answer: {
+        headline: 'Recorded final championship standings career summary for lewis-hamilton.',
+        facts: [{ subject: 'lewis-hamilton', values: { best_championship_position: '1', recorded_final_standings_rows: '2' } }]
+      },
+      coverage: 'sufficient', caveats: ['final_standings_rows_only']
+    });
+  });
+
+  it('fails closed for malformed career-summary rows', () => {
+    const summary = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' });
+    const row = { driver_id: 'lewis-hamilton', best_championship_position: 1, recorded_final_standings_rows: 2 };
+    expect(() => formatAnswerRows(summary, approved(summary), [row, row])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, driver_id: 'other-driver' }])).toThrow(AnswerFormatError);
+    for (const value of [null, 0, -1, 1.5]) {
+      expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, best_championship_position: value }])).toThrow(AnswerFormatError);
+      expect(() => formatAnswerRows(summary, approved(summary), [{ ...row, recorded_final_standings_rows: value }])).toThrow(AnswerFormatError);
+    }
+  });
 });

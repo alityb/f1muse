@@ -18,4 +18,24 @@ describe('answer driver identity inventory', () => {
       { text: 'Sample Driver', start: 20, end: 33, candidates: ['inactive-sample'], active_candidates: [] }
     ]);
   });
+
+  it('preserves every literal candidate when resolving without a season', async () => {
+    let sql = '';
+    const database = {
+      query: async (statement: string) => {
+        sql = statement;
+        return { rows: [
+          { driver_id: 'alex-one', identity: 'Alex Smith' },
+          { driver_id: 'alex-two', identity: 'Alex Smith' }
+        ] };
+      }
+    };
+    const resolver = new AnswerDriverIdentityResolver(database as never);
+
+    await expect(resolver.inventoryMentions('Show Alex Smith official career summary.')).resolves.toEqual([
+      { text: 'Alex Smith', start: 5, end: 15, candidates: ['alex-one', 'alex-two'], active_candidates: ['alex-one', 'alex-two'] }
+    ]);
+    expect(sql).toContain('FROM f1ql.answer_driver_identity');
+    expect(sql).not.toContain('answer_season_participation');
+  });
 });

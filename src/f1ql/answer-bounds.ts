@@ -3,7 +3,7 @@ import { F1QLProgram } from './ast';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 
-export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v1';
+export const ANSWER_WORK_MODEL_VERSION = 'answer-work-v2';
 
 export class AnswerBoundError extends Error {
   constructor(readonly bound: 'work_units' | 'rows' | 'response_bytes', readonly actual: number, readonly maximum: number) {
@@ -38,7 +38,8 @@ export function estimateAnswerWork(program: F1QLProgram, capability: AnswerCapab
     const driverId = aggregate.input.op === 'filter' ? aggregate.input.where.driver_id : undefined;
     const driverCount = estimatedStandingsDrivers(driverId);
     const requestedRows = root.op === 'rank' ? Math.min(root.limit, driverCount) : driverCount;
-    return estimate(20 + driverCount + aggregate.measures.length * 5 + (root.op === 'rank' ? 5 : 0), requestedRows);
+    const seasonCount = aggregate.input.op === 'filter' && Array.isArray(aggregate.input.where.season) ? aggregate.input.where.season.length : 0;
+    return estimate(20 + driverCount + aggregate.measures.length * 5 + seasonCount + (root.op === 'rank' ? 5 : 0), requestedRows);
   }
   throw new AnswerWorkModelError('Approved capability had no work model');
 }

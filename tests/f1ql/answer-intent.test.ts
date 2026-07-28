@@ -88,6 +88,18 @@ describe('answer-specific intent contract', () => {
     });
   });
 
+  it('hydrates one official career-summary driver reference without a season', () => {
+    const text = 'Show Lewis Hamilton official career summary.';
+    expect(hydrateAndParseAnswerIntent({
+      type: 'driver_career_official_summary', driver_reference: { text: 'Lewis Hamilton' }
+    }, createAnswerQuestionContract(text))).toEqual({
+      type: 'driver_career_official_summary', driver_reference: reference(text, 'Lewis Hamilton')
+    });
+    expect(() => parseAnswerIntent({
+      type: 'driver_career_official_summary', driver_reference: { text: 'Lewis Hamilton', start: 0, end: 14 }
+    }, createAnswerQuestionContract(text))).toThrow();
+  });
+
   it('hydrates a trusted result-selection reference without accepting position arrays', () => {
     const text = 'Show the top five finishers at the 2025 Australian Grand Prix.';
     expect(hydrateAndParseAnswerIntent({

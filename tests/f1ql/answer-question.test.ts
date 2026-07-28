@@ -6,7 +6,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v16');
+    expect(contract.version).toBe('answer-question-v17');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -25,6 +25,7 @@ describe('answer question contract', () => {
     expect(createAnswerQuestionContract('When was the 2025 Monaco race?').metric_cues.map(cue => cue.value)).toEqual(['date']);
     expect(createAnswerQuestionContract('Show the latest recorded 2026 driver standings.').metric_cues.map(cue => cue.value)).toEqual(['latest_recorded']);
     expect(createAnswerQuestionContract('Show Max Verstappen official 2025 season summary.').metric_cues.map(cue => cue.value)).toEqual(['official_season_summary']);
+    expect(createAnswerQuestionContract('Show Lewis Hamilton official career summary.').metric_cues.map(cue => cue.value)).toEqual(['official_career_summary']);
   });
 
   it('admits only latest-recorded wording while preserving broader interim rejection', () => {

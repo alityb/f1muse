@@ -46,14 +46,16 @@ describe('provider-free answer intent derivation', () => {
     ['Who qualified third at the 2025 Australian Grand Prix?', inventory(), 'qualifying_exact_position'],
     ['Show the latest recorded 2026 driver standings.', inventory(), 'current_standings'],
     ['Show Max Verstappen official 2025 season summary.', inventory('Max Verstappen'), 'driver_season_official_summary'],
-    ['Give the official 2025 season summary for Max Verstappen.', inventory('Max Verstappen'), 'driver_season_official_summary']
+    ['Give the official 2025 season summary for Max Verstappen.', inventory('Max Verstappen'), 'driver_season_official_summary'],
+    ['Show Lewis Hamilton official career summary.', inventory('Lewis Hamilton'), 'driver_career_official_summary'],
+    ['Give the official career summary for Lewis Hamilton.', inventory('Lewis Hamilton'), 'driver_career_official_summary']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v4');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v5');
   });
 
   it.each([
@@ -64,6 +66,18 @@ describe('provider-free answer intent derivation', () => {
     'Show official 2025 season summary.'
   ])('does not broaden official season summaries: %s', async question => {
     const names = ['Max Verstappen', 'Lando Norris'].filter(name => question.includes(name));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).toMatch(/unsupported|clarification/u);
+  });
+
+  it.each([
+    'Show Lewis Hamilton career summary.',
+    'Show Lewis Hamilton official 2024 career summary.',
+    'Show Lewis Hamilton official career summary with wins and poles.',
+    'Show Lewis Hamilton and Max Verstappen official career summary.',
+    'Show official career summary.'
+  ])('does not broaden official career summaries: %s', async question => {
+    const names = ['Lewis Hamilton', 'Max Verstappen'].filter(name => question.includes(name));
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
     expect(intent.type).toMatch(/unsupported|clarification/u);
   });

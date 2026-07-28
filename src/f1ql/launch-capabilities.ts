@@ -41,7 +41,7 @@ export interface LaunchCapabilityDisposition {
 
 export const LAUNCH_CAPABILITY_DISPOSITIONS: Readonly<Record<LegacyQueryKind, LaunchCapabilityDisposition>> = Object.freeze({
   driver_season_summary: port(['driver_season_official_summary', 'current_standings'], 'standings', 'Use recorded final championship position and points or explicitly current recorded standings; do not include legacy pace proxies or partial cross-source composites.'),
-  driver_career_summary: port('driver_career_official_summary', ['standings', 'race_classification', 'qualifying_classification'], 'Use official career classifications and recorded standings; retain source-specific coverage.'),
+  driver_career_summary: port('driver_career_official_summary', 'standings', 'Use best recorded final championship position and count of recorded final standings rows through 2025; do not imply race, qualifying, pace, or distinct-season totals.'),
   driver_profile_summary: replace('driver_official_summary', ['standings', 'race_classification', 'qualifying_classification'], 'Replace the mixed-authority profile composite with explicit season or career official summaries.'),
   driver_trend_summary: retire('official_trend_source_required', 'none', 'The legacy trend mixes teammate-gap products and has no reviewed longitudinal metric contract.'),
   driver_head_to_head_count: port('classification_head_to_head', ['race_classification', 'qualifying_classification'], 'Compare literal finishing or qualifying positions over shared classified events.'),

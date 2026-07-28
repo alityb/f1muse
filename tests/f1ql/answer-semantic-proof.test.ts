@@ -15,10 +15,10 @@ const events: AnswerProofEventResolver = {
 };
 const drivers: AnswerProofDriverResolver = {
   inventoryMentions: async question => {
-    const mentions = ['Max', 'Lando Norris'].filter(name => question.includes(name));
+    const mentions = ['Max', 'Lando Norris', 'Lewis Hamilton'].filter(name => question.includes(name));
     return mentions.map(text => {
       const reference = span(question, text);
-      const driver = text === 'Max' ? 'max_verstappen' : 'lando_norris';
+      const driver = text === 'Max' ? 'max_verstappen' : text === 'Lewis Hamilton' ? 'lewis_hamilton' : 'lando_norris';
       return { ...reference, candidates: [driver], active_candidates: [driver] };
     });
   }
@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v7', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v8', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v7',
+      version: 'answer-semantic-proof-v8',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -116,6 +116,18 @@ describe('independent answer semantic proof', () => {
       template_id: 'driver_season_official_summary',
       template_variables: { season: 2025, driver_id: 'max-verstappen' },
       program: { root: { op: 'aggregate', input: { where: { season: 2025, driver_id: 'max-verstappen' } } } }
+    });
+  });
+
+  it('proves one final-standings-only official career summary', async () => {
+    const question = 'Show Lewis Hamilton official career summary.';
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'driver_career_official_summary', driver_reference: span(question, 'Lewis Hamilton')
+    }, events, drivers);
+    expect(proof).toMatchObject({
+      template_id: 'driver_career_official_summary',
+      template_variables: { driver_id: 'lewis-hamilton' },
+      program: { root: { op: 'aggregate', input: { where: { driver_id: 'lewis-hamilton' } } } }
     });
   });
 
