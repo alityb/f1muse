@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v13' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v14' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
@@ -9,6 +9,7 @@ export type AnswerQuestionSessionCue = 'race' | 'qualifying' | 'sprint';
 export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'date';
 export type AnswerQuestionActionCue = 'all';
 export type AnswerQuestionStatusCue = 'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn';
+export type AnswerQuestionResultCue = 'race_winner' | 'race_podium' | 'race_top_n' | 'race_exact_position' | 'qualifying_pole' | 'qualifying_top_n' | 'qualifying_exact_position';
 export type AnswerQuestionUnsupportedCue = 'sprint' | 'grid' | 'constructor' | 'pace' | 'team' | 'interim' | 'multiseason' | 'capability';
 
 export interface AnswerQuestionMention<T extends string | number> {
@@ -18,6 +19,10 @@ export interface AnswerQuestionMention<T extends string | number> {
   /** Exclusive offset in Unicode code points within normalized_question. */
   readonly end: number;
   readonly text: string;
+}
+
+export interface AnswerQuestionResultMention extends AnswerQuestionMention<AnswerQuestionResultCue> {
+  readonly position?: number;
 }
 
 export type AnswerQuestionOutcome =
@@ -39,6 +44,7 @@ export interface AnswerQuestionContract {
   readonly metric_cues: readonly AnswerQuestionMention<AnswerQuestionMetricCue>[];
   readonly action_cues: readonly AnswerQuestionMention<AnswerQuestionActionCue>[];
   readonly status_cues: readonly AnswerQuestionMention<AnswerQuestionStatusCue>[];
+  readonly result_cues: readonly AnswerQuestionResultMention[];
   readonly unsupported_cues: readonly AnswerQuestionMention<AnswerQuestionUnsupportedCue>[];
   readonly outcome: AnswerQuestionOutcome;
 }
@@ -133,7 +139,6 @@ const UNSUPPORTED_PATTERNS: readonly CuePattern<Exclude<AnswerQuestionUnsupporte
   { value: 'pace', pattern: /\bpace\b|\blap\s+time(?:s)?\b|\b(?:faster|fastest|quicker|quickest|speed)\b/giu },
   { value: 'team', pattern: /\bteam(?:s|'s)?\b/giu },
   { value: 'team', pattern: TEAM_NAME_PATTERN },
-  { value: 'capability', pattern: UNSUPPORTED_ORDER_CARDINALITY_PATTERN },
   { value: 'capability', pattern: /\bnon[-\s]*(?:DNFs?|DNSs?)\b/giu },
   { value: 'capability', pattern: EXCLUSION_MARKER_PATTERN },
   { value: 'capability', pattern: /\balso\s+add\b|\bsubstitute\s+[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}'-]*){0,2}(?=[.,;?!]|$)|(?:^|[;.!?]\s+)omit\s+[\p{L}][\p{L}'-]*(?:\s+[\p{L}][\p{L}'-]*){0,2}(?=[.,;?!]|$)|\bbut\s+use\s+[^.?!]{1,100}(?=[.?!]|$)|\bbut\s+return\s+(?:classified|not[-\s]+classified|DNFs?|DNSs?|DSQs?|withdrawn)\s+drivers?\b/giu }
@@ -168,18 +173,30 @@ export function createAnswerQuestionContract(input: unknown): AnswerQuestionCont
   const metricCues = extractCues(normalized, METRIC_PATTERNS);
   const actionCues = extractCues(normalized, ACTION_PATTERNS);
   const statusCues = removeContainedStatusCues(extractCues(normalized, STATUS_PATTERNS));
+  const resultCues = extractResultCues(normalized);
   const unsupportedCues: AnswerQuestionMention<AnswerQuestionUnsupportedCue>[] = [
     ...extractCues(normalized, UNSUPPORTED_PATTERNS)
   ];
+  const orderMatch = firstMatch(maskMentionSpans(normalized, resultCues), UNSUPPORTED_ORDER_CARDINALITY_PATTERN);
+  if (orderMatch) {
+    unsupportedCues.push(toMention('capability', orderMatch));
+  }
+  const remainingResultRank = resultCues.length === 0 ? undefined : firstMatch(
+    maskMatches(maskMentionSpans(maskRoundReferences(normalized), resultCues), /\bformula\s+(?:1|one)\b/giu),
+    new RegExp(`\\b${EXPLICIT_RANK_TOKEN}\\b`, 'giu')
+  );
+  if (remainingResultRank) {
+    unsupportedCues.push(toMention('capability', remainingResultRank));
+  }
   const bareNotMatch = firstMatch(maskSupportedNotPhrases(normalized), /\bnot\b/giu);
   if (bareNotMatch) {
     unsupportedCues.push(toMention('capability', bareNotMatch));
   }
-  const cardinalityMatch = firstMatch(maskRoundReferences(normalized), GENERIC_CARDINALITY_PATTERN);
+  const cardinalityMatch = firstMatch(maskMentionSpans(maskRoundReferences(normalized), resultCues), GENERIC_CARDINALITY_PATTERN);
   if (cardinalityMatch) {
     unsupportedCues.push(toMention('capability', cardinalityMatch));
   }
-  const instructionalIntent = hasInstructionalIntentMention(normalized, sourceCues, sessionCues, metricCues, actionCues, statusCues);
+  const instructionalIntent = hasInstructionalIntentMention(normalized, sourceCues, sessionCues, metricCues, actionCues, statusCues, resultCues);
 
   const standings = sourceCues.some(cue => cue.value === 'standings');
   const interimMatch = standings ? firstMatch(normalized, INTERIM_STANDINGS_PATTERN) : undefined;
@@ -214,8 +231,9 @@ export function createAnswerQuestionContract(input: unknown): AnswerQuestionCont
     metric_cues: metricCues,
     action_cues: actionCues,
     status_cues: statusCues,
+    result_cues: resultCues,
     unsupported_cues: sortMentions(unsupportedCues),
-    outcome: determineOutcome(normalized, years, sourceCues, sessionCues, metricCues, actionCues, statusCues, unsupportedCues, instructionalIntent)
+    outcome: determineOutcome(normalized, years, sourceCues, sessionCues, metricCues, actionCues, statusCues, resultCues, unsupportedCues, instructionalIntent)
   };
   return deepFreeze(contract);
 }
@@ -232,6 +250,7 @@ function determineOutcome(
   metrics: readonly AnswerQuestionMention<AnswerQuestionMetricCue>[],
   actions: readonly AnswerQuestionMention<AnswerQuestionActionCue>[],
   statuses: readonly AnswerQuestionMention<AnswerQuestionStatusCue>[],
+  results: readonly AnswerQuestionResultMention[],
   unsupported: readonly AnswerQuestionMention<AnswerQuestionUnsupportedCue>[],
   instructionalIntent: boolean
 ): AnswerQuestionOutcome {
@@ -247,10 +266,13 @@ function determineOutcome(
     return { type: 'rejected', reason: 'capability_unsupported' };
   }
   const sessionSet = new Set(sessions.map(cue => cue.value).filter(value => value !== 'sprint'));
+  for (const result of results) {
+    sessionSet.add(result.value.startsWith('race_') ? 'race' : 'qualifying');
+  }
   if (sessionSet.has('race') && sessionSet.has('qualifying')) {
     return { type: 'clarification_required', reason: 'session_ambiguous' };
   }
-  if (sources.length > 0 && years.length === 0) {
+  if ((sources.length > 0 || results.length > 0) && years.length === 0) {
     return { type: 'clarification_required', reason: 'season_missing' };
   }
   const classificationSource = sources.some(cue => cue.value === 'race_classification' || cue.value === 'qualifying_classification');
@@ -269,9 +291,10 @@ function hasInstructionalIntentMention(
   sessions: readonly AnswerQuestionMention<AnswerQuestionSessionCue>[],
   metrics: readonly AnswerQuestionMention<AnswerQuestionMetricCue>[],
   actions: readonly AnswerQuestionMention<AnswerQuestionActionCue>[],
-  statuses: readonly AnswerQuestionMention<AnswerQuestionStatusCue>[]
+  statuses: readonly AnswerQuestionMention<AnswerQuestionStatusCue>[],
+  results: readonly AnswerQuestionResultMention[]
 ): boolean {
-  if (sources.length + sessions.length + metrics.length + actions.length + statuses.length === 0) {
+  if (sources.length + sessions.length + metrics.length + actions.length + statuses.length + results.length === 0) {
     return false;
   }
   if (/\b(?:do\s+not|don't|dont|never|no\s+need\s+to)\b/iu.test(question)) {
@@ -292,6 +315,33 @@ function hasInstructionalIntentMention(
     return true;
   }
   return /\b(?:prompts?|instructions?|rules?|examples?|quoted?\s+text|user\s+(?:said|asked)|question\s+(?:said|asked))\b[\s:,-]{0,12}/iu.test(question) && promptLike.test(question);
+}
+
+function extractResultCues(question: string): AnswerQuestionResultMention[] {
+  const patterns: readonly { value: AnswerQuestionResultCue; pattern: RegExp; numbered?: boolean }[] = [
+    { value: 'race_winner', pattern: /\bwho\s+won\b(?=[^.?!]{0,120}\b(?:grand\s+prix|gp|race)\b)/giu },
+    { value: 'race_podium', pattern: /\bpodium(?:\s+(?:finishers?|places?|positions?|results?))?\b/giu },
+    { value: 'race_top_n', pattern: new RegExp(`\\btop[-\\s]+(${CARDINAL_NUMBER_TOKEN})[-\\s]+finishers?\\b`, 'giu'), numbered: true },
+    { value: 'race_exact_position', pattern: new RegExp(`\\bfinished\\s+(?:in\\s+)?(${EXPLICIT_RANK_TOKEN})\\b(?![-\\s]+(?:place|position|rank))`, 'giu'), numbered: true },
+    { value: 'qualifying_pole', pattern: /\b(?:who\s+)?(?:took|take|takes|got|gets|secured|secures|claimed|claims|won)\s+pole\b|\bpole\s+sitter\b/giu },
+    { value: 'qualifying_top_n', pattern: new RegExp(`\\btop[-\\s]+(${CARDINAL_NUMBER_TOKEN})[-\\s]+qualifiers?\\b`, 'giu'), numbered: true },
+    { value: 'qualifying_exact_position', pattern: new RegExp(`\\bqualified\\s+(?:in\\s+)?(${EXPLICIT_RANK_TOKEN})\\b(?![-\\s]+(?:place|position|rank))`, 'giu'), numbered: true }
+  ];
+  const mentions = patterns.flatMap(({ value, pattern, numbered }) => [...question.matchAll(pattern)].flatMap(match => {
+    const position = numbered ? parsePositionReference(match[1] ?? '') : undefined;
+    if (numbered && position === undefined) {
+      return [];
+    }
+    return [{ ...toMention(value, match), ...(position === undefined ? {} : { position }) }];
+  }));
+  return sortMentions(mentions) as AnswerQuestionResultMention[];
+}
+
+function parsePositionReference(reference: string): number | undefined {
+  const normalized = reference.toLocaleLowerCase('en-US').replace(/-/gu, ' ').replace(/\s+/gu, ' ').trim();
+  const digit = normalized.match(/^(\d{1,3})(?:st|nd|rd|th)?$/u);
+  const value = digit ? Number(digit[1]) : ROUND_WORD_VALUES[normalized];
+  return value !== undefined && value >= 1 && value <= 30 ? value : undefined;
 }
 
 function extractNumbers(question: string, pattern: RegExp): AnswerQuestionMention<number>[] {
@@ -370,6 +420,14 @@ function maskMatches(value: string, pattern: RegExp): string {
     }
     const start = codePointOffset(value, match.index);
     characters.fill(' ', start, start + Array.from(match[0]).length);
+  }
+  return characters.join('');
+}
+
+function maskMentionSpans(value: string, mentions: readonly Pick<AnswerQuestionMention<string | number>, 'start' | 'end'>[]): string {
+  const characters = Array.from(value);
+  for (const mention of mentions) {
+    characters.fill(' ', mention.start, mention.end);
   }
   return characters.join('');
 }

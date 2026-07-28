@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v1' as const;
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v2' as const;
 
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
@@ -29,6 +29,9 @@ const untrustedSeasonFields = {
   season_reference: untrustedLiteralReferenceSchema
 };
 const untrustedEventFields = { event_reference: untrustedLiteralReferenceSchema };
+const position = z.number().int().min(1).max(30);
+const selectionFields = { selection_reference: literalReferenceSchema };
+const untrustedSelectionFields = { selection_reference: untrustedLiteralReferenceSchema };
 
 export const answerIntentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('final_standings_points'), ...seasonFields, driver_references: z.array(literalReferenceSchema).max(4) }).strict(),
@@ -39,6 +42,13 @@ export const answerIntentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('qualifying_classification_all'), ...seasonFields, ...eventFields }).strict(),
   z.object({ type: z.literal('qualifying_classification_driver'), ...seasonFields, ...eventFields, ...driverFields }).strict(),
   z.object({ type: z.literal('qualifying_classification_status'), ...seasonFields, ...eventFields, status: qualifyingStatus, ...statusFields }).strict(),
+  z.object({ type: z.literal('race_winner'), ...seasonFields, ...eventFields, ...selectionFields }).strict(),
+  z.object({ type: z.literal('race_podium'), ...seasonFields, ...eventFields, ...selectionFields }).strict(),
+  z.object({ type: z.literal('race_top_n'), ...seasonFields, ...eventFields, position, ...selectionFields }).strict(),
+  z.object({ type: z.literal('race_exact_position'), ...seasonFields, ...eventFields, position, ...selectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_pole'), ...seasonFields, ...eventFields, ...selectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_top_n'), ...seasonFields, ...eventFields, position, ...selectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_exact_position'), ...seasonFields, ...eventFields, position, ...selectionFields }).strict(),
   z.object({ type: z.literal('race_date'), ...seasonFields, ...eventFields }).strict(),
   z.object({ type: z.literal('clarification'), reason: z.enum(['season_missing', 'event_ambiguous', 'entity_ambiguous', 'session_ambiguous', 'metric_ambiguous']) }).strict(),
   z.object({ type: z.literal('unsupported'), reason: z.enum(['sprint_source_unsupported', 'grid_source_unsupported', 'constructor_source_unsupported', 'pace_source_disabled', 'team_filter_unsupported', 'interim_standings_unsupported', 'temporal_scope_unsupported', 'capability_unsupported']) }).strict()
@@ -53,6 +63,13 @@ export const untrustedAnswerIntentCandidateSchema = z.discriminatedUnion('type',
   z.object({ type: z.literal('qualifying_classification_all'), ...untrustedSeasonFields, ...untrustedEventFields }).strict(),
   z.object({ type: z.literal('qualifying_classification_driver'), ...untrustedSeasonFields, ...untrustedEventFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('qualifying_classification_status'), ...untrustedSeasonFields, ...untrustedEventFields, status: qualifyingStatus, status_reference: untrustedLiteralReferenceSchema }).strict(),
+  z.object({ type: z.literal('race_winner'), ...untrustedSeasonFields, ...untrustedEventFields, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('race_podium'), ...untrustedSeasonFields, ...untrustedEventFields, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('race_top_n'), ...untrustedSeasonFields, ...untrustedEventFields, position, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('race_exact_position'), ...untrustedSeasonFields, ...untrustedEventFields, position, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_pole'), ...untrustedSeasonFields, ...untrustedEventFields, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_top_n'), ...untrustedSeasonFields, ...untrustedEventFields, position, ...untrustedSelectionFields }).strict(),
+  z.object({ type: z.literal('qualifying_exact_position'), ...untrustedSeasonFields, ...untrustedEventFields, position, ...untrustedSelectionFields }).strict(),
   z.object({ type: z.literal('race_date'), ...untrustedSeasonFields, ...untrustedEventFields }).strict(),
   z.object({ type: z.literal('clarification'), reason: z.enum(['season_missing', 'event_ambiguous', 'entity_ambiguous', 'session_ambiguous', 'metric_ambiguous']) }).strict(),
   z.object({ type: z.literal('unsupported'), reason: z.enum(['sprint_source_unsupported', 'grid_source_unsupported', 'constructor_source_unsupported', 'pace_source_disabled', 'team_filter_unsupported', 'interim_standings_unsupported', 'temporal_scope_unsupported', 'capability_unsupported']) }).strict()
@@ -212,6 +229,9 @@ function collectReferences(intent: AnswerIntent): LiteralMentionReference[] {
   }
   if ('status_reference' in intent) {
     references.push(intent.status_reference);
+  }
+  if ('selection_reference' in intent) {
+    references.push(intent.selection_reference);
   }
   return references;
 }

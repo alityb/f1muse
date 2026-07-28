@@ -36,14 +36,30 @@ describe('provider-free answer intent derivation', () => {
     ['Show all 2025 Monaco qualifying results.', inventory(), 'qualifying_classification_all'],
     ['Where did Max Verstappen qualify in 2025 Monaco qualifying?', inventory('Max Verstappen'), 'qualifying_classification_driver'],
     ['Show DNSs in the 2025 Monaco qualifying results.', inventory(), 'qualifying_classification_status'],
-    ['When was the 2025 Monaco race?', inventory(), 'race_date']
+    ['When was the 2025 Monaco race?', inventory(), 'race_date'],
+    ['Who won the 2025 Australian Grand Prix?', inventory(), 'race_winner'],
+    ['Show the podium for the 2025 Australian Grand Prix.', inventory(), 'race_podium'],
+    ['Show the top five finishers at the 2025 Australian Grand Prix.', inventory(), 'race_top_n'],
+    ['Who finished second at the 2025 Australian Grand Prix?', inventory(), 'race_exact_position'],
+    ['Who took pole at the 2025 Australian Grand Prix?', inventory(), 'qualifying_pole'],
+    ['Show the top five qualifiers at the 2025 Australian Grand Prix.', inventory(), 'qualifying_top_n'],
+    ['Who qualified third at the 2025 Australian Grand Prix?', inventory(), 'qualifying_exact_position']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v1');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v2');
+  });
+
+  it('binds result cardinality to the trusted cue', async () => {
+    await expect(deriveAnswerIntent(createAnswerQuestionContract('Show the top five finishers at the 2025 Australian Grand Prix.'), inventory())).resolves.toMatchObject({
+      type: 'race_top_n', position: 5, selection_reference: { text: 'top five finishers' }
+    });
+    await expect(deriveAnswerIntent(createAnswerQuestionContract('Who qualified third at the 2025 Australian Grand Prix?'), inventory())).resolves.toMatchObject({
+      type: 'qualifying_exact_position', position: 3, selection_reference: { text: 'qualified third' }
+    });
   });
 
   it.each([

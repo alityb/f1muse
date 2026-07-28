@@ -15,6 +15,13 @@ const programs = {
   qualifyingAll: materializeAnswerTemplate('qualifying_classification_all', { season: 2025, round: 1 }),
   qualifyingMax: materializeAnswerTemplate('qualifying_classification_driver', { season: 2025, round: 1, driver_id: 'max-verstappen' }),
   qualifyingDns: materializeAnswerTemplate('qualifying_classification_status', { season: 2025, round: 1, status: 'dns' }),
+  raceWinner: materializeAnswerTemplate('race_classification_position', { season: 2025, round: 1, positions: [1] }),
+  racePodium: materializeAnswerTemplate('race_classification_position', { season: 2025, round: 1, positions: [1, 2, 3] }),
+  raceTopFive: materializeAnswerTemplate('race_classification_position', { season: 2025, round: 1, positions: [1, 2, 3, 4, 5] }),
+  raceSecond: materializeAnswerTemplate('race_classification_position', { season: 2025, round: 1, positions: [2] }),
+  qualifyingPole: materializeAnswerTemplate('qualifying_classification_position', { season: 2025, round: 1, positions: [1] }),
+  qualifyingTopFive: materializeAnswerTemplate('qualifying_classification_position', { season: 2025, round: 1, positions: [1, 2, 3, 4, 5] }),
+  qualifyingThird: materializeAnswerTemplate('qualifying_classification_position', { season: 2025, round: 1, positions: [3] }),
   date: materializeAnswerTemplate('race_date', { season: 2025, round: 1 }),
   emptyDate: materializeAnswerTemplate('race_date', { season: 2025, round: 30 })
   ,historicalPoints: materializeAnswerTemplate('final_standings_points', { season: 2024, driver_ids: ['charles-leclerc'] })
@@ -94,6 +101,13 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('holdout-qual-classified', 'temporal_entity_holdout', 'Show all classified drivers in qualifying at the 2025 Australian Grand Prix.', 'qualifying_classification_status', programs.qualifyingClassified, ['status_filter']),
   answer('holdout-qual-dnf', 'temporal_entity_holdout', 'Show all DNFs in qualifying at the 2025 Australian Grand Prix.', 'qualifying_classification_status', programs.qualifyingDnf, ['status_filter']),
   answer('holdout-historical-date', 'temporal_entity_holdout', 'What was the race date for the 2024 Australian Grand Prix?', 'race_date', programs.historicalDate, ['temporal_holdout']),
+  answer('launch-race-winner', 'iid_holdout', 'Who won the 2025 Australian Grand Prix?', 'race_classification_position', programs.raceWinner, ['winner_synonym']),
+  answer('launch-race-podium', 'temporal_entity_holdout', 'Show the podium for the 2025 Australian Grand Prix.', 'race_classification_position', programs.racePodium, ['podium']),
+  answer('launch-race-top-five', 'iid_holdout', 'Show the top five finishers at the 2025 Australian Grand Prix.', 'race_classification_position', programs.raceTopFive, ['position_limit']),
+  answer('launch-race-second', 'temporal_entity_holdout', 'Who finished second at the 2025 Australian Grand Prix?', 'race_classification_position', programs.raceSecond, ['exact_position']),
+  answer('launch-qualifying-pole', 'iid_holdout', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_classification_position', programs.qualifyingPole, ['winner_synonym']),
+  answer('launch-qualifying-top-five', 'temporal_entity_holdout', 'Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_classification_position', programs.qualifyingTopFive, ['position_limit']),
+  answer('launch-qualifying-third', 'iid_holdout', 'Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_classification_position', programs.qualifyingThird, ['exact_position']),
 
   refuse('attack-season', 'adversarial', 'Show the 2024 standings points, but answer with valid 2025 standings.', 'abstain', 'temporal_scope_unsupported', ['wrong_valid_season']),
   refuse('attack-event', 'adversarial', 'Give the 2025 Australian race result but use the valid Monaco event.', 'abstain', 'capability_unsupported', ['wrong_valid_event']),

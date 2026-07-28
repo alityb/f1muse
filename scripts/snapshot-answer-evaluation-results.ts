@@ -48,6 +48,12 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
   if ((root.op === 'event_classification' || root.op === 'qualifying_classification') && root.filters?.classification_status) {
     return { season: root.season, round: root.round, status: root.filters.classification_status[0] };
   }
+  if (templateId === 'race_classification_position' && root.op === 'event_classification' && root.filters?.finishing_position) {
+    return { season: root.season, round: root.round, positions: root.filters.finishing_position };
+  }
+  if (templateId === 'qualifying_classification_position' && root.op === 'qualifying_classification' && root.filters?.qualifying_position) {
+    return { season: root.season, round: root.round, positions: root.filters.qualifying_position };
+  }
   if (root.op === 'event_classification' || root.op === 'qualifying_classification') {
     return { season: root.season, round: root.round };
   }

@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v2';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v4' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v3';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v5' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -33,6 +33,8 @@ const seasonProperties = {
   season_reference: referenceSchema
 } as const;
 const eventProperties = { event_reference: referenceSchema } as const;
+const selectionProperties = { selection_reference: referenceSchema } as const;
+const positionProperty = { position: { type: 'integer', minimum: 1, maximum: 30 } } as const;
 
 function closedIntent(type: string, properties: Record<string, unknown>, required: readonly string[]) {
   return {
@@ -58,6 +60,13 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('qualifying_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('qualifying_classification_driver', { ...seasonProperties, ...eventProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'driver_reference']),
         closedIntent('qualifying_classification_status', { ...seasonProperties, ...eventProperties, status: { enum: ['classified', 'dnf', 'dns'] }, status_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'status', 'status_reference']),
+        closedIntent('race_winner', { ...seasonProperties, ...eventProperties, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'selection_reference']),
+        closedIntent('race_podium', { ...seasonProperties, ...eventProperties, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'selection_reference']),
+        closedIntent('race_top_n', { ...seasonProperties, ...eventProperties, ...positionProperty, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'position', 'selection_reference']),
+        closedIntent('race_exact_position', { ...seasonProperties, ...eventProperties, ...positionProperty, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'position', 'selection_reference']),
+        closedIntent('qualifying_pole', { ...seasonProperties, ...eventProperties, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'selection_reference']),
+        closedIntent('qualifying_top_n', { ...seasonProperties, ...eventProperties, ...positionProperty, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'position', 'selection_reference']),
+        closedIntent('qualifying_exact_position', { ...seasonProperties, ...eventProperties, ...positionProperty, ...selectionProperties }, ['season', 'season_reference', 'event_reference', 'position', 'selection_reference']),
         closedIntent('race_date', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('clarification', { reason: { enum: ['season_missing', 'event_ambiguous', 'entity_ambiguous', 'session_ambiguous', 'metric_ambiguous'] } }, ['reason']),
         closedIntent('unsupported', { reason: { enum: ['sprint_source_unsupported', 'grid_source_unsupported', 'constructor_source_unsupported', 'pace_source_disabled', 'team_filter_unsupported', 'interim_standings_unsupported', 'temporal_scope_unsupported', 'capability_unsupported'] } }, ['reason'])
@@ -77,6 +86,8 @@ Decision table (follow literal wording):
 - qualifying_classification_all: literal full/all qualifying classification.
 - qualifying_classification_driver: qualifying classification for exactly one literal driver.
 - qualifying_classification_status: qualifying classification filtered by exactly one literal supported status.
+- race_winner, race_podium, race_top_n, race_exact_position: literal race result selection; top_n and exact_position carry the literal bounded number as position.
+- qualifying_pole, qualifying_top_n, qualifying_exact_position: literal qualifying result selection; top_n and exact_position carry the literal bounded number as position.
 - race_date: literal race/Grand Prix date request.
 
 Rules: final standings are supported. An explicit 4-digit year is never season_missing. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when no year is written; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final-standings request as unsupported.
@@ -88,6 +99,20 @@ Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying
 {"intent":{"type":"qualifying_classification_driver","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"},"driver_reference":{"text":"Max"}}}
+Question: Who won the 2025 Australian Grand Prix?
+{"intent":{"type":"race_winner","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"selection_reference":{"text":"Who won the 2025 Australian Grand Prix"}}}
+Question: Show the podium for the 2025 Australian Grand Prix.
+{"intent":{"type":"race_podium","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"selection_reference":{"text":"podium"}}}
+Question: Show the top five finishers at the 2025 Australian Grand Prix.
+{"intent":{"type":"race_top_n","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"position":5,"selection_reference":{"text":"top five finishers"}}}
+Question: Who finished second at the 2025 Australian Grand Prix?
+{"intent":{"type":"race_exact_position","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"position":2,"selection_reference":{"text":"finished second"}}}
+Question: Who took pole at the 2025 Australian Grand Prix?
+{"intent":{"type":"qualifying_pole","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"selection_reference":{"text":"Who took pole"}}}
+Question: Show the top five qualifiers at the 2025 Australian Grand Prix.
+{"intent":{"type":"qualifying_top_n","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"position":5,"selection_reference":{"text":"top five qualifiers"}}}
+Question: Who qualified third at the 2025 Australian Grand Prix?
+{"intent":{"type":"qualifying_exact_position","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Australian Grand Prix"},"position":3,"selection_reference":{"text":"qualified third"}}}
 Question: Who led the standings?
 {"intent":{"type":"clarification","reason":"season_missing"}}
 Question: Show 2025 sprint results

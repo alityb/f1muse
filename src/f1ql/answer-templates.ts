@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './verified-programs';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v2' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v3' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -20,6 +20,7 @@ export type AnswerTemplateId =
   | 'final_standings_points' | 'final_standings_leader'
   | 'race_classification_all' | 'race_classification_driver' | 'race_classification_status'
   | 'qualifying_classification_all' | 'qualifying_classification_driver' | 'qualifying_classification_status'
+  | 'race_classification_position' | 'qualifying_classification_position'
   | 'race_date';
 
 const season = z.number().int().min(SEASON_MIN).max(SEASON_MAX);
@@ -29,6 +30,11 @@ const round = z.number().int().min(ROUND_MIN).max(ROUND_MAX);
 const resolvedDriverId = z.string().regex(new RegExp(DRIVER_ID_PATTERN)).max(DRIVER_ID_MAX_LENGTH);
 const raceStatus = z.enum(RACE_STATUSES);
 const qualifyingStatus = z.enum(QUALIFYING_STATUSES);
+const positions = z.array(z.number().int().min(1).max(30)).min(1).max(30).superRefine((values, context) => {
+  if (values.some((value, index) => index > 0 && value <= values[index - 1])) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Positions must be strictly increasing' });
+  }
+});
 
 const seasonConstraint = { type: 'integer', minimum: SEASON_MIN, maximum: SEASON_MAX } as const;
 const finalSeasonConstraint = { type: 'integer', minimum: SEASON_MIN, maximum: FINAL_SEASON_MAX } as const;
@@ -69,6 +75,14 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
     variables: { season: seasonConstraint, round: roundConstraint, status: { type: 'enum', values: QUALIFYING_STATUSES } },
     semantic: 'qualifying classification for one event and one classification status; fixed limit 30'
   },
+  race_classification_position: {
+    variables: { season: seasonConstraint, round: roundConstraint, positions: { type: 'array', item: { type: 'integer', minimum: 1, maximum: 30 }, minimum_items: 1, maximum_items: 30, unique: true, order: 'strictly_increasing' } },
+    semantic: 'race event classification for one event and exact numbered finishing positions; limit equals position count'
+  },
+  qualifying_classification_position: {
+    variables: { season: seasonConstraint, round: roundConstraint, positions: { type: 'array', item: { type: 'integer', minimum: 1, maximum: 30 }, minimum_items: 1, maximum_items: 30, unique: true, order: 'strictly_increasing' } },
+    semantic: 'qualifying classification for one event and exact numbered qualifying positions; limit equals position count'
+  },
   race_date: {
     variables: { season: seasonConstraint, round: roundConstraint },
     semantic: 'event metadata for one event with race session scope'
@@ -84,6 +98,8 @@ const variableSchemas = {
   qualifying_classification_all: z.object({ season: allClassificationSeason, round }).strict(),
   qualifying_classification_driver: z.object({ season, round, driver_id: resolvedDriverId }).strict(),
   qualifying_classification_status: z.object({ season, round, status: qualifyingStatus }).strict(),
+  race_classification_position: z.object({ season, round, positions }).strict(),
+  qualifying_classification_position: z.object({ season, round, positions }).strict(),
   race_date: z.object({ season, round }).strict()
 } satisfies Record<AnswerTemplateId, z.ZodTypeAny>;
 
@@ -100,6 +116,7 @@ interface ScopedVariables {
   driver_id?: string;
   driver_ids?: string[];
   status?: string;
+  positions?: number[];
 }
 
 export type AnswerTemplateVariables = Readonly<Record<string, unknown>>;
@@ -134,6 +151,10 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
     };
   } else if (templateId === 'race_date') {
     root = { op: 'event_metadata', season: scoped.season, round: scoped.round as number, session_scope: 'race' };
+  } else if (templateId === 'race_classification_position') {
+    root = { op: 'event_classification', season: scoped.season, round: scoped.round as number, limit: scoped.positions?.length as number, filters: { finishing_position: scoped.positions as number[] } };
+  } else if (templateId === 'qualifying_classification_position') {
+    root = { op: 'qualifying_classification', season: scoped.season, round: scoped.round as number, limit: scoped.positions?.length as number, filters: { qualifying_position: scoped.positions as number[] } };
   } else if (templateId.startsWith('race_classification')) {
     const filters = classificationFilters(scoped) as Extract<F1QLProgram['root'], { op: 'event_classification' }>['filters'];
     root = {
@@ -161,6 +182,8 @@ const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> 
   qualifying_classification_all: [{ season: 2025, round: 7 }],
   qualifying_classification_driver: [{ season: 2025, round: 7, driver_id: 'sentinel-driver' }],
   qualifying_classification_status: [{ season: 2025, round: 7, status: 'dns' }],
+  race_classification_position: [{ season: 2025, round: 7, positions: [1] }, { season: 2025, round: 7, positions: [1, 2, 3] }, { season: 2025, round: 7, positions: [2] }],
+  qualifying_classification_position: [{ season: 2025, round: 7, positions: [1] }, { season: 2025, round: 7, positions: [1, 2, 3, 4, 5] }, { season: 2025, round: 7, positions: [3] }],
   race_date: [{ season: 2025, round: 7 }]
 });
 

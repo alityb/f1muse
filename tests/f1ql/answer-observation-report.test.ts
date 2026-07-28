@@ -71,9 +71,9 @@ describe('answer observation reporting', () => {
     expect(report.translation_latency).toMatchObject({ observations: report.artifact.observations, required_observations: report.artifact.observations, p95_ms: 100, max_ms: 100, status: 'pass' });
     expect(report.translation_timeouts).toEqual({ observations: report.artifact.observations, required_observations: report.artifact.observations, timed_out: 0, maximum_timeouts: 0, status: 'pass' });
     expect(report.release_gates).toMatchObject({ provider_diagnostics_zero: true, exact_templates_complete: true, exact_programs_complete: true, semantic_proofs_complete: true, status: 'pass' });
-    expect(report.reliability).toMatchObject({ answerable_cases: 44, required_observations: 132, supplied_observations: 132, complete_cases: 44, status: 'pass' });
+    expect(report.reliability).toMatchObject({ answerable_cases: 51, required_observations: 153, supplied_observations: 153, complete_cases: 51, status: 'pass' });
     for (const field of ['action', 'reason', 'template_id', 'program_hash'] as const) {
-      expect(report.reliability[field]).toEqual({ exact_cases: 44, drift_cases: 0 });
+      expect(report.reliability[field]).toEqual({ exact_cases: 51, drift_cases: 0 });
     }
     expect(report.release_gates).toMatchObject({ repetition_completeness: true, repeated_exactness: true, zero_repetition_drift: true });
     const serialized = JSON.stringify(report);
@@ -151,7 +151,7 @@ describe('answer observation reporting', () => {
       for (const target of input.observations.filter((item: any) => item.id === id)) target.reason = 'race_classification';
     });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.reliability.reason).toEqual({ exact_cases: 43, drift_cases: 0 });
+    expect(report.reliability.reason).toEqual({ exact_cases: 50, drift_cases: 0 });
     expect(report.release_gates).toMatchObject({ repeated_exactness: false, zero_repetition_drift: true, status: 'fail' });
   });
 
@@ -161,7 +161,7 @@ describe('answer observation reporting', () => {
       input.observations = input.observations.filter((item: any) => item.id !== id || item.observation_index !== 2);
     });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.reliability).toMatchObject({ supplied_observations: 131, complete_cases: 43, status: 'insufficient' });
+    expect(report.reliability).toMatchObject({ supplied_observations: 152, complete_cases: 50, status: 'insufficient' });
     expect(report.release_gates).toMatchObject({ repetition_completeness: false, repeated_exactness: false, zero_repetition_drift: true, status: 'insufficient' });
   });
 
@@ -250,7 +250,7 @@ describe('answer observation reporting', () => {
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
     expect(report.translation_latency.status).toBe('insufficient');
     expect(report.translation_timeouts.status).toBe('insufficient');
-    expect(report.reliability).toMatchObject({ supplied_observations: 44, complete_cases: 0, status: 'insufficient' });
+    expect(report.reliability).toMatchObject({ supplied_observations: 51, complete_cases: 0, status: 'insufficient' });
     expect(report.release_gates.semantic_proofs_complete).toBe(false);
     expect(report.release_gates.status).toBe('insufficient');
   });

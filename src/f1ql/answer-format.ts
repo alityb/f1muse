@@ -61,6 +61,12 @@ export function formatAnswerRows(
   rows: Array<Record<string, unknown>>
 ): { answer: FormattedAnswer; coverage: AnswerCoverageStatus; caveats: string[] } {
   if (rows.length === 0) {
+    const root = program.root;
+    const positionSelected = (root.op === 'event_classification' && root.filters?.finishing_position !== undefined)
+      || (root.op === 'qualifying_classification' && root.filters?.qualifying_position !== undefined);
+    if (positionSelected) {
+      throw new AnswerFormatError('Selected classification positions were incomplete');
+    }
     return {
       answer: { headline: 'No matching source rows were available.', facts: [] },
       coverage: 'empty',
@@ -111,19 +117,35 @@ function formatClassification(program: F1QLProgram, rows: Array<Record<string, u
   const keys = kind === 'race'
     ? ['finishing_position', 'points', 'classification_status', 'status_reason']
     : ['qualifying_position', 'best_time_ms', 'best_session', 'eliminated_in_round', 'classification_status'];
+  const selectedPositions = root.op === 'event_classification'
+    ? root.filters?.finishing_position
+    : root.filters?.qualifying_position;
+  if (selectedPositions !== undefined) {
+    const positionField = root.op === 'event_classification' ? 'finishing_position' : 'qualifying_position';
+    const returnedPositions = rows.map(row => requiredPosition(row[positionField], positionField)).sort((left, right) => left - right);
+    if (returnedPositions.length !== selectedPositions.length || returnedPositions.some((position, index) => position !== selectedPositions[index])) {
+      throw new AnswerFormatError('Selected classification positions were incomplete');
+    }
+  }
   const facts = rows.map(row => ({
     subject: requiredString(row.driver_id, 'driver_id'),
     values: Object.fromEntries(keys.map(key => [key, isNumericClassificationField(key) ? displayNumeric(row[key], key) : displayText(row[key], key)]))
   }));
-  const positionSelected = root.op === 'event_classification'
-    ? root.filters?.finishing_position !== undefined
-    : root.filters?.qualifying_position !== undefined;
+  const positionSelected = selectedPositions !== undefined;
   const possiblyTruncated = root.filters?.driver_id === undefined && !positionSelected && rows.length === root.limit;
   return {
     answer: { headline: `${kind === 'race' ? 'Race' : 'Qualifying'} classification for ${root.season} round ${root.round}.`, facts },
     coverage: possiblyTruncated ? 'possibly_truncated' as const : 'sufficient' as const,
     caveats: possiblyTruncated ? [`classification_limited_to_${root.limit}_rows`] : []
   };
+}
+
+function requiredPosition(value: unknown, field: string): number {
+  const position = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
+  if (typeof position !== 'number' || !Number.isInteger(position) || position < 1 || position > 30) {
+    throw new AnswerFormatError(`Invalid ${field} value`);
+  }
+  return position;
 }
 
 function formatMetadata(rows: Array<Record<string, unknown>>) {

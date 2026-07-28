@@ -6,7 +6,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v13');
+    expect(contract.version).toBe('answer-question-v14');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -37,6 +37,39 @@ describe('answer question contract', () => {
     ['round 2', 2], ['rd. #2', 2], ['R30', 30], ['twenty-first round', 21], ['round thirtieth', 30]
   ] as const)('parses the bounded round reference %s', (reference, round) => {
     expect(parseRoundReference(reference)).toBe(round);
+  });
+
+  it.each([
+    'Who won position number 2 at the 2025 Australian Grand Prix?',
+    'Who won the first 5 at the 2025 Australian Grand Prix?',
+    'Who won but return the runner-up at the 2025 Australian Grand Prix?'
+  ])('does not mask conflicting winner semantics: %s', question => {
+    expect(createAnswerQuestionContract(question).outcome).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+  });
+
+  it('clarifies conflicting winner and pole semantics', () => {
+    expect(createAnswerQuestionContract('Who won pole at the 2025 Australian Grand Prix?').outcome).toEqual({ type: 'clarification_required', reason: 'session_ambiguous' });
+  });
+
+  it('does not reinterpret a championship winner as a race winner', () => {
+    const contract = createAnswerQuestionContract('Who won the 2025 championship?');
+    expect(contract.result_cues).toEqual([]);
+    expect(contract.metric_cues.map(cue => cue.value)).toContain('official_leader');
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+  });
+
+  it.each([
+    'Who finished second and third at the 2025 Australian Grand Prix?',
+    'Who qualified third or fourth at the 2025 Australian Grand Prix?',
+    'Show the podium and fourth at the 2025 Australian Grand Prix.'
+  ])('rejects a trailing unconsumed result rank: %s', question => {
+    expect(createAnswerQuestionContract(question).outcome).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+  });
+
+  it('does not treat Formula 1 or a round reference as a second result rank', () => {
+    expect(createAnswerQuestionContract('Who won the Formula 1 Australian Grand Prix in 2025?').outcome).toEqual({ type: 'inspection_required' });
+    expect(createAnswerQuestionContract('Who took pole in Formula One at the 2025 Australian Grand Prix?').outcome).toEqual({ type: 'inspection_required' });
+    expect(createAnswerQuestionContract('Who took pole at round 1 in 2025?').outcome).toEqual({ type: 'inspection_required' });
   });
 
   it.each(['round 0', 'round 31', 'thirty-first round', 'second place', '2025'])('rejects non-round or out-of-range reference %s', reference => {
@@ -163,8 +196,7 @@ describe('answer question contract', () => {
     'Show the first 10 drivers in the final 2025 standings',
     'Show the last two drivers in the final 2025 standings',
     'Which driver was last in the final 2025 standings?',
-    'Show the top-ten final 2025 standings',
-    'Show the 2025 Monaco race podium'
+    'Show the top-ten final 2025 standings'
   ])('rejects unsupported bounded ordering or cardinality: %s', question => {
     expect(createAnswerQuestionContract(question).outcome).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
   });
@@ -201,6 +233,21 @@ describe('answer question contract', () => {
     'Show the worst qualifying results in Monaco 2025'
   ])('rejects generic explicit rank, order, and cardinality requests: %s', question => {
     expect(createAnswerQuestionContract(question).outcome).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+  });
+
+  it.each([
+    ['Who won the 2025 Australian Grand Prix?', 'race_winner', undefined],
+    ['Show the podium for the 2025 Australian Grand Prix.', 'race_podium', undefined],
+    ['Show the top five finishers at the 2025 Australian Grand Prix.', 'race_top_n', 5],
+    ['Who finished second at the 2025 Australian Grand Prix?', 'race_exact_position', 2],
+    ['Who took pole at the 2025 Australian Grand Prix?', 'qualifying_pole', undefined],
+    ['Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_top_n', 5],
+    ['Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_exact_position', 3]
+  ] as const)('extracts trusted result selection from %s', (question, value, position) => {
+    const contract = createAnswerQuestionContract(question);
+    expect(contract.result_cues).toEqual([expect.objectContaining({ value, ...(position === undefined ? {} : { position }) })]);
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+    expect(Object.isFrozen(contract.result_cues)).toBe(true);
   });
 
   it.each([

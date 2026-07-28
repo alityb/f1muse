@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v1' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v2' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -65,8 +65,40 @@ function selectIntent(
   const metrics = new Set(contract.metric_cues.map(cue => cue.value));
   return standingsIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? dateIntent(contract, seasonFields, drivers, sources, sessions, metrics)
+    ?? resultPositionIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? classificationSelection(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? unsupported;
+}
+
+function resultPositionIntent(
+  contract: AnswerQuestionContract,
+  seasonFields: { season: number; season_reference: LiteralMentionReference },
+  drivers: LiteralMentionReference[],
+  sources: ReadonlySet<AnswerQuestionContract['source_cues'][number]['value']>,
+  sessions: ReadonlySet<AnswerQuestionContract['session_cues'][number]['value']>,
+  metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
+): unknown | undefined {
+  if (contract.result_cues.length === 0) {
+    return undefined;
+  }
+  if (contract.result_cues.length !== 1 || drivers.length !== 0 || contract.status_cues.length !== 0 ||
+      contract.action_cues.length !== 0 || metrics.size !== 0) {
+    return unsupported;
+  }
+  const cue = contract.result_cues[0];
+  const session = cue.value.startsWith('race_') ? 'race' : 'qualifying';
+  const expectedSource = session === 'race' ? 'race_classification' : 'qualifying_classification';
+  if ((sources.size > 0 && !only(sources, expectedSource)) || (sessions.size > 0 && !only(sessions, session))) {
+    return unsupported;
+  }
+  const event = uniqueEventReference(contract);
+  if (!event) {
+    return unsupported;
+  }
+  const selectionReference = copyReference(cue);
+  return cue.position === undefined
+    ? { type: cue.value, ...seasonFields, event_reference: event, selection_reference: selectionReference }
+    : { type: cue.value, ...seasonFields, event_reference: event, position: cue.position, selection_reference: selectionReference };
 }
 
 function standingsIntent(

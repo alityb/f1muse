@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v4' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v5' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -148,7 +148,10 @@ export async function proveAnswerIntent(
   if ('status' in intent) {
     variables.status = intent.status;
   }
-  const templateId = intent.type;
+  if ('selection_reference' in intent) {
+    variables.positions = positionsForIntent(intent);
+  }
+  const templateId = templateForIntent(intent);
   let templateVariables: AnswerTemplateVariables;
   let program: F1QLProgram;
   try {
@@ -303,7 +306,7 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   }
   const statusSelectsClassification = contract.status_cues.length > 0
     && (source === 'race_classification' || source === 'qualifying_classification');
-  if (explicitSources.size === 0 && metrics.size === 0 && !statusSelectsClassification) {
+  if (explicitSources.size === 0 && metrics.size === 0 && !statusSelectsClassification && !('selection_reference' in intent)) {
     throw new AnswerSemanticProofError('template_mismatch');
   }
 }
@@ -330,6 +333,16 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
   if ('driver_references' in intent && intent.driver_references.length === 0 && intent.type !== 'final_standings_points') {
     throw new AnswerSemanticProofError('entity_cardinality_mismatch');
   }
+  if ('selection_reference' in intent) {
+    const expectedCues = contract.result_cues.filter(cue => cue.start === intent.selection_reference.start && cue.end === intent.selection_reference.end && cue.value === intent.type);
+    if (expectedCues.length !== 1 || contract.result_cues.length !== 1 ||
+        ('position' in intent && expectedCues[0].position !== intent.position) ||
+        contract.status_cues.length > 0 || contract.action_cues.length > 0) {
+      throw new AnswerSemanticProofError('entity_cardinality_mismatch');
+    }
+  } else if (contract.result_cues.length > 0) {
+    throw new AnswerSemanticProofError('entity_cardinality_mismatch');
+  }
 }
 
 function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date' {
@@ -342,7 +355,36 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
   if (intent.type.startsWith('qualifying_classification')) {
     return 'qualifying_classification';
   }
+  if (intent.type === 'race_date') {
+    return 'race_date';
+  }
+  if (intent.type.startsWith('race_')) {
+    return 'race_classification';
+  }
+  if (intent.type.startsWith('qualifying_')) {
+    return 'qualifying_classification';
+  }
   return 'race_date';
+}
+
+function templateForIntent(intent: ExecutableAnswerIntent): AnswerTemplateId {
+  if ('selection_reference' in intent) {
+    return intent.type.startsWith('race_') ? 'race_classification_position' : 'qualifying_classification_position';
+  }
+  return intent.type;
+}
+
+function positionsForIntent(intent: Extract<ExecutableAnswerIntent, { selection_reference: LiteralMentionReference }>): number[] {
+  if (intent.type === 'race_winner' || intent.type === 'qualifying_pole') {
+    return [1];
+  }
+  if (intent.type === 'race_podium') {
+    return [1, 2, 3];
+  }
+  if (intent.type === 'race_top_n' || intent.type === 'qualifying_top_n') {
+    return Array.from({ length: intent.position }, (_, index) => index + 1);
+  }
+  return [intent.position];
 }
 
 function roundFromReference(reference: LiteralMentionReference): number | undefined {

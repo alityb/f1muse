@@ -77,6 +77,21 @@ describe('answer-specific intent contract', () => {
     });
   });
 
+  it('hydrates a trusted result-selection reference without accepting position arrays', () => {
+    const text = 'Show the top five finishers at the 2025 Australian Grand Prix.';
+    expect(hydrateAndParseAnswerIntent({
+      type: 'race_top_n', season: 2025, position: 5,
+      season_reference: { text: '2025' }, event_reference: { text: 'Australian Grand Prix' }, selection_reference: { text: 'top five finishers' }
+    }, createAnswerQuestionContract(text))).toEqual({
+      type: 'race_top_n', season: 2025, position: 5,
+      season_reference: reference(text, '2025'), event_reference: reference(text, 'Australian Grand Prix'), selection_reference: reference(text, 'top five finishers')
+    });
+    expect(() => parseUntrustedAnswerIntentCandidate({
+      type: 'race_top_n', season: 2025, position: 5, positions: [1, 2, 3, 4, 5],
+      season_reference: { text: '2025' }, event_reference: { text: 'Australian Grand Prix' }, selection_reference: { text: 'top five finishers' }
+    })).toThrow();
+  });
+
   it.each(['the second round', 'round two'])('hydrates an exact word round event reference: %s', eventReference => {
     const text = `Show all 2025 race results for ${eventReference}`;
     const intent = hydrateAndParseAnswerIntent({

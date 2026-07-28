@@ -12,6 +12,7 @@ import { collectAnswerObservations, createAnswerObservationSigningHelper, verify
 import { AnswerQuestionContract } from '../../src/f1ql/answer-question';
 import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
 import { AnswerIntent } from '../../src/f1ql/answer-intent';
+import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
 import { AnswerTranslationResult } from '../../src/f1ql/answer-translator';
 import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
 
@@ -116,6 +117,12 @@ async function deterministicTranslation(
 ): Promise<AnswerTranslationResult> {
   const item = cases.get(contract.sha256);
   if (!item) throw new Error('reviewed question missing');
+  if (item.id.startsWith('launch-')) {
+    const intent = await deriveAnswerIntent(contract, driverResolver);
+    if (intent.type === 'clarification') return { type: 'clarification_required', reason: intent.reason };
+    if (intent.type === 'unsupported') return { type: 'unsupported', reason: intent.reason };
+    return { type: 'intent_candidate', intent };
+  }
   if (item.id === 'dev-ambiguous') return { type: 'clarification_required', reason: 'metric_ambiguous' };
   if (item.id === 'ambiguous-event') return { type: 'intent_candidate', intent: executableIntent(contract, 'race_classification_all', []) };
   if (item.id === 'ambiguous-driver') {
@@ -161,5 +168,11 @@ function executableIntent(contract: AnswerQuestionContract, template: string, in
   const status = contract.status_cues[0];
   if (template === 'race_classification_status') return { type: template, season, season_reference, event_reference: event_reference!, status: status.value, status_reference: { text: status.text, start: status.start, end: status.end } };
   if (template === 'qualifying_classification_status') return { type: template, season, season_reference, event_reference: event_reference!, status: status.value as 'classified' | 'dnf' | 'dns', status_reference: { text: status.text, start: status.start, end: status.end } };
+  if (template === 'race_classification_position' || template === 'qualifying_classification_position') {
+    const selection = contract.result_cues[0];
+    const base = { season, season_reference, event_reference: event_reference!, selection_reference: { text: selection.text, start: selection.start, end: selection.end } };
+    return selection.position === undefined ? { type: selection.value, ...base } as Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>
+      : { type: selection.value, ...base, position: selection.position } as Exclude<AnswerIntent, { type: 'clarification' | 'unsupported' }>;
+  }
   throw new Error(`unsupported deterministic template ${template}`);
 }

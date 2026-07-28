@@ -12,12 +12,14 @@ describe('answer template registry', () => {
     ['qualifying_classification_all', { season: 2025, round: 7 }, 'qualifying_classification'],
     ['qualifying_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'qualifying_classification'],
     ['qualifying_classification_status', { season: 2025, round: 7, status: 'dns' }, 'qualifying_classification'],
+    ['race_classification_position', { season: 2025, round: 7, positions: [1, 2, 3] }, 'event_classification'],
+    ['qualifying_classification_position', { season: 2025, round: 7, positions: [3] }, 'qualifying_classification'],
     ['race_date', { season: 2025, round: 7 }, 'event_metadata']
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v2', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(9);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v3', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(11);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);
@@ -64,6 +66,15 @@ describe('answer template registry', () => {
     expect(root).not.toMatchObject({ input: { where: { driver_id: expect.anything() } } });
   });
 
+  it('owns exact position filters and matching row limits', () => {
+    expect(materializeAnswerTemplate('race_classification_position', { season: 2025, round: 1, positions: [1, 2, 3] }).root).toEqual({
+      op: 'event_classification', season: 2025, round: 1, limit: 3, filters: { finishing_position: [1, 2, 3] }
+    });
+    expect(materializeAnswerTemplate('qualifying_classification_position', { season: 2025, round: 1, positions: [3] }).root).toEqual({
+      op: 'qualifying_classification', season: 2025, round: 1, limit: 1, filters: { qualifying_position: [3] }
+    });
+  });
+
   it.each([
     ['race_classification_all', { season: 2025, round: 0 }],
     ['race_classification_all', { season: 1995, round: 1 }],
@@ -75,7 +86,9 @@ describe('answer template registry', () => {
     ['final_standings_points', { season: [2024, 2025] }],
     ['final_standings_points', { season: 2025, driver_ids: ['lando-norris', 'lando-norris'] }],
     ['final_standings_leader', { season: 2026 }],
-    ['race_date', { season: 2025, round: 1, limit: 1 }]
+    ['race_date', { season: 2025, round: 1, limit: 1 }],
+    ['race_classification_position', { season: 2025, round: 1, positions: [2, 1] }],
+    ['qualifying_classification_position', { season: 2025, round: 1, positions: [0] }]
   ])('rejects malformed or caller-controlled variables for %s', (template, variables) => {
     expect(() => materializeAnswerTemplate(template as never, variables)).toThrow();
   });

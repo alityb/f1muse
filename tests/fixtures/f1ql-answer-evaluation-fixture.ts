@@ -21,6 +21,7 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (2025, 'mclaren', 'mclaren', 'oscar_piastri', false),
     (2025, 'sample', 'sample', 'sample_driver', false),
     (2025, 'ferrari', 'ferrari', 'charles_leclerc', false),
+    (2025, 'mercedes', 'mercedes', 'lewis_hamilton', false),
     (2025, 'ambiguous-one', 'ambiguous-one', 'alex_one', false),
     (2025, 'ambiguous-two', 'ambiguous-two', 'alex_two', false),
     (2024, 'ferrari', 'ferrari', 'charles_leclerc', false),
@@ -46,6 +47,10 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (19, 2025, 19, 'spa-two', 'belgian_grand_prix', 'Formula 1 Belgian Grand Prix', '2025-07-27')`);
   await pool.query(`INSERT INTO race_data (race_id, type, driver_id, constructor_id, position_number, position_text, race_points, race_reason_retired) VALUES
     (1, 'RACE_RESULT', 'max_verstappen', 'red-bull', 1, '1', 25, NULL),
+    (1, 'RACE_RESULT', 'lando_norris', 'mclaren', 2, '2', 18, NULL),
+    (1, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 3, '3', 15, NULL),
+    (1, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 4, '4', 12, NULL),
+    (1, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 5, '5', 10, NULL),
     (1, 'RACE_RESULT', 'sample_driver', 'sample', NULL, 'R', 0, 'Engine'),
     (1, 'RACE_RESULT', 'status_dns', 'sample', NULL, 'DNS', 0, 'DNS'),
     (1, 'RACE_RESULT', 'status_dsq', 'sample', NULL, 'DSQ', 0, 'Disqualified'),
@@ -57,8 +62,12 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (101, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 2, '2', 18, NULL)`);
   await pool.query(`INSERT INTO qualifying_results
     (season, round, driver_id, team_id, qualifying_position, best_time_ms, best_session, is_dnf, is_dns) VALUES
-    (2025, 1, 'max_verstappen', 'red-bull', 1, 80000, 'Q3', false, false),
-    (2025, 1, 'lando_norris', 'mclaren', NULL, NULL, NULL, false, true),
+    (2025, 1, 'lando_norris', 'mclaren', 1, 80000, 'Q3', false, false),
+    (2025, 1, 'oscar_piastri', 'mclaren', 2, 80100, 'Q3', false, false),
+    (2025, 1, 'max_verstappen', 'red-bull', 3, 80200, 'Q3', false, false),
+    (2025, 1, 'charles_leclerc', 'ferrari', 4, 80300, 'Q3', false, false),
+    (2025, 1, 'lewis_hamilton', 'mercedes', 5, 80400, 'Q3', false, false),
+    (2025, 1, 'status_qual_dns', 'sample', NULL, NULL, NULL, false, true),
     (2025, 1, 'status_qual_dnf', 'sample', NULL, NULL, 'Q1', true, false),
     (2025, 2, 'lando_norris', 'mclaren', 1, 79000, 'Q3', false, false),
     (2025, 2, 'charles_leclerc', 'ferrari', 2, 79100, 'Q3', false, false),

@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v4', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v5', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v4',
+      version: 'answer-semantic-proof-v5',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -115,6 +115,39 @@ describe('independent answer semantic proof', () => {
       type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' }
     }, contract);
     await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason: 'template_mismatch' });
+  });
+
+  it.each([
+    ['Who won the 2025 Australian Grand Prix?', 'race_winner', undefined, 'race_classification_position', [1]],
+    ['Show the podium for the 2025 Australian Grand Prix.', 'race_podium', undefined, 'race_classification_position', [1, 2, 3]],
+    ['Show the top five finishers at the 2025 Australian Grand Prix.', 'race_top_n', 5, 'race_classification_position', [1, 2, 3, 4, 5]],
+    ['Who finished second at the 2025 Australian Grand Prix?', 'race_exact_position', 2, 'race_classification_position', [2]],
+    ['Who took pole at the 2025 Australian Grand Prix?', 'qualifying_pole', undefined, 'qualifying_classification_position', [1]],
+    ['Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_top_n', 5, 'qualifying_classification_position', [1, 2, 3, 4, 5]],
+    ['Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_exact_position', 3, 'qualifying_classification_position', [3]]
+  ] as const)('proves exact result selection for %s', async (question, type, position, template, positions) => {
+    const contract = createAnswerQuestionContract(question);
+    const selection = contract.result_cues[0];
+    const intent = {
+      type, season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Australian Grand Prix'),
+      selection_reference: { text: selection.text, start: selection.start, end: selection.end },
+      ...(position === undefined ? {} : { position })
+    };
+    const proof = await proveAnswerIntent(contract, intent, {
+      resolve: async (season) => ({ type: 'resolved', season, round: 1 }),
+      resolveRound: async (season, round) => ({ type: 'resolved', season, round })
+    }, drivers);
+    expect(proof).toMatchObject({ template_id: template, template_variables: { season: 2025, round: 1, positions } });
+  });
+
+  it('rejects a wrong-but-bounded result position', async () => {
+    const question = 'Who finished second at the 2025 Australian Grand Prix?';
+    const contract = createAnswerQuestionContract(question);
+    await expect(proveAnswerIntent(contract, {
+      type: 'race_exact_position', season: 2025, position: 3,
+      season_reference: span(question, '2025'), event_reference: span(question, 'Australian Grand Prix'), selection_reference: span(question, 'finished second')
+    }, { resolve: async season => ({ type: 'resolved', season, round: 1 }), resolveRound: async (season, round) => ({ type: 'resolved', season, round }) }, drivers))
+      .rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
   });
 
   it.each([

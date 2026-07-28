@@ -545,6 +545,42 @@
             }
           },
           {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "4",
+              "points": "12",
+              "classification_status": "classified",
+              "status_reason": "4"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "5",
+              "points": "10",
+              "classification_status": "classified",
+              "status_reason": "5"
+            }
+          },
+          {
             "subject": "sample-driver",
             "values": {
               "finishing_position": null,
@@ -600,6 +636,34 @@
           "status_reason": "1"
         },
         {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 4,
+          "points": "12",
+          "classification_status": "classified",
+          "status_reason": "4"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 5,
+          "points": "10",
+          "classification_status": "classified",
+          "status_reason": "5"
+        },
+        {
           "driver_id": "sample-driver",
           "finishing_position": null,
           "points": "0",
@@ -643,7 +707,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 6
+          "rows_returned": 10
         },
         "caveats": []
       }
@@ -676,6 +740,42 @@
             }
           },
           {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "4",
+              "points": "12",
+              "classification_status": "classified",
+              "status_reason": "4"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "5",
+              "points": "10",
+              "classification_status": "classified",
+              "status_reason": "5"
+            }
+          },
+          {
             "subject": "sample-driver",
             "values": {
               "finishing_position": null,
@@ -731,6 +831,34 @@
           "status_reason": "1"
         },
         {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 4,
+          "points": "12",
+          "classification_status": "classified",
+          "status_reason": "4"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 5,
+          "points": "10",
+          "classification_status": "classified",
+          "status_reason": "5"
+        },
+        {
           "driver_id": "sample-driver",
           "finishing_position": null,
           "points": "0",
@@ -774,7 +902,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 6
+          "rows_returned": 10
         },
         "caveats": []
       }
@@ -1018,7 +1146,7 @@
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
           {
-            "subject": "max-verstappen",
+            "subject": "lando-norris",
             "values": {
               "qualifying_position": "1",
               "best_time_ms": "80000",
@@ -1028,13 +1156,43 @@
             }
           },
           {
-            "subject": "lando-norris",
+            "subject": "oscar-piastri",
             "values": {
-              "qualifying_position": null,
-              "best_time_ms": null,
-              "best_session": null,
+              "qualifying_position": "2",
+              "best_time_ms": "80100",
+              "best_session": "Q3",
               "eliminated_in_round": null,
-              "classification_status": "dns"
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "4",
+              "best_time_ms": "80300",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "5",
+              "best_time_ms": "80400",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
             }
           },
           {
@@ -1046,12 +1204,22 @@
               "eliminated_in_round": null,
               "classification_status": "dnf"
             }
+          },
+          {
+            "subject": "status-qual-dns",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
           }
         ]
       },
       "rows": [
         {
-          "driver_id": "max-verstappen",
+          "driver_id": "lando-norris",
           "qualifying_position": 1,
           "best_time_ms": 80000,
           "best_session": "Q3",
@@ -1059,12 +1227,36 @@
           "classification_status": "classified"
         },
         {
-          "driver_id": "lando-norris",
-          "qualifying_position": null,
-          "best_time_ms": null,
-          "best_session": null,
+          "driver_id": "oscar-piastri",
+          "qualifying_position": 2,
+          "best_time_ms": 80100,
+          "best_session": "Q3",
           "eliminated_in_round": null,
-          "classification_status": "dns"
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 4,
+          "best_time_ms": 80300,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 5,
+          "best_time_ms": 80400,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
         },
         {
           "driver_id": "status-qual-dnf",
@@ -1073,6 +1265,14 @@
           "best_session": "Q1",
           "eliminated_in_round": null,
           "classification_status": "dnf"
+        },
+        {
+          "driver_id": "status-qual-dns",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
         }
       ],
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
@@ -1083,7 +1283,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 3
+          "rows_returned": 7
         },
         "caveats": []
       }
@@ -1107,7 +1307,7 @@
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
           {
-            "subject": "max-verstappen",
+            "subject": "lando-norris",
             "values": {
               "qualifying_position": "1",
               "best_time_ms": "80000",
@@ -1117,13 +1317,43 @@
             }
           },
           {
-            "subject": "lando-norris",
+            "subject": "oscar-piastri",
             "values": {
-              "qualifying_position": null,
-              "best_time_ms": null,
-              "best_session": null,
+              "qualifying_position": "2",
+              "best_time_ms": "80100",
+              "best_session": "Q3",
               "eliminated_in_round": null,
-              "classification_status": "dns"
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "4",
+              "best_time_ms": "80300",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "5",
+              "best_time_ms": "80400",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
             }
           },
           {
@@ -1135,12 +1365,22 @@
               "eliminated_in_round": null,
               "classification_status": "dnf"
             }
+          },
+          {
+            "subject": "status-qual-dns",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
           }
         ]
       },
       "rows": [
         {
-          "driver_id": "max-verstappen",
+          "driver_id": "lando-norris",
           "qualifying_position": 1,
           "best_time_ms": 80000,
           "best_session": "Q3",
@@ -1148,12 +1388,36 @@
           "classification_status": "classified"
         },
         {
-          "driver_id": "lando-norris",
-          "qualifying_position": null,
-          "best_time_ms": null,
-          "best_session": null,
+          "driver_id": "oscar-piastri",
+          "qualifying_position": 2,
+          "best_time_ms": 80100,
+          "best_session": "Q3",
           "eliminated_in_round": null,
-          "classification_status": "dns"
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 4,
+          "best_time_ms": 80300,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 5,
+          "best_time_ms": 80400,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
         },
         {
           "driver_id": "status-qual-dnf",
@@ -1162,6 +1426,14 @@
           "best_session": "Q1",
           "eliminated_in_round": null,
           "classification_status": "dnf"
+        },
+        {
+          "driver_id": "status-qual-dns",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
         }
       ],
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
@@ -1172,7 +1444,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 3
+          "rows_returned": 7
         },
         "caveats": []
       }
@@ -1201,8 +1473,8 @@
           {
             "subject": "max-verstappen",
             "values": {
-              "qualifying_position": "1",
-              "best_time_ms": "80000",
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
               "best_session": "Q3",
               "eliminated_in_round": null,
               "classification_status": "classified"
@@ -1213,8 +1485,8 @@
       "rows": [
         {
           "driver_id": "max-verstappen",
-          "qualifying_position": 1,
-          "best_time_ms": 80000,
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
           "best_session": "Q3",
           "eliminated_in_round": null,
           "classification_status": "classified"
@@ -1257,8 +1529,8 @@
           {
             "subject": "max-verstappen",
             "values": {
-              "qualifying_position": "1",
-              "best_time_ms": "80000",
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
               "best_session": "Q3",
               "eliminated_in_round": null,
               "classification_status": "classified"
@@ -1269,8 +1541,8 @@
       "rows": [
         {
           "driver_id": "max-verstappen",
-          "qualifying_position": 1,
-          "best_time_ms": 80000,
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
           "best_session": "Q3",
           "eliminated_in_round": null,
           "classification_status": "classified"
@@ -1313,7 +1585,7 @@
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
           {
-            "subject": "lando-norris",
+            "subject": "status-qual-dns",
             "values": {
               "qualifying_position": null,
               "best_time_ms": null,
@@ -1326,7 +1598,7 @@
       },
       "rows": [
         {
-          "driver_id": "lando-norris",
+          "driver_id": "status-qual-dns",
           "qualifying_position": null,
           "best_time_ms": null,
           "best_session": null,
@@ -1371,7 +1643,7 @@
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
           {
-            "subject": "lando-norris",
+            "subject": "status-qual-dns",
             "values": {
               "qualifying_position": null,
               "best_time_ms": null,
@@ -1384,7 +1656,7 @@
       },
       "rows": [
         {
-          "driver_id": "lando-norris",
+          "driver_id": "status-qual-dns",
           "qualifying_position": null,
           "best_time_ms": null,
           "best_session": null,
@@ -1875,6 +2147,42 @@
               "classification_status": "classified",
               "status_reason": "1"
             }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "4",
+              "points": "12",
+              "classification_status": "classified",
+              "status_reason": "4"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "5",
+              "points": "10",
+              "classification_status": "classified",
+              "status_reason": "5"
+            }
           }
         ]
       },
@@ -1885,6 +2193,34 @@
           "points": "25",
           "classification_status": "classified",
           "status_reason": "1"
+        },
+        {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 4,
+          "points": "12",
+          "classification_status": "classified",
+          "status_reason": "4"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 5,
+          "points": "10",
+          "classification_status": "classified",
+          "status_reason": "5"
         }
       ],
       "rendering": "Official race classification; season 2025; round 1; top 30.",
@@ -1895,7 +2231,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 1
+          "rows_returned": 5
         },
         "caveats": []
       }
@@ -2275,10 +2611,50 @@
         "headline": "Qualifying classification for 2025 round 1.",
         "facts": [
           {
-            "subject": "max-verstappen",
+            "subject": "lando-norris",
             "values": {
               "qualifying_position": "1",
               "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "qualifying_position": "2",
+              "best_time_ms": "80100",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "4",
+              "best_time_ms": "80300",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "5",
+              "best_time_ms": "80400",
               "best_session": "Q3",
               "eliminated_in_round": null,
               "classification_status": "classified"
@@ -2288,9 +2664,41 @@
       },
       "rows": [
         {
-          "driver_id": "max-verstappen",
+          "driver_id": "lando-norris",
           "qualifying_position": 1,
           "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "qualifying_position": 2,
+          "best_time_ms": 80100,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 4,
+          "best_time_ms": 80300,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 5,
+          "best_time_ms": 80400,
           "best_session": "Q3",
           "eliminated_in_round": null,
           "classification_status": "classified"
@@ -2304,7 +2712,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 1
+          "rows_returned": 5
         },
         "caveats": []
       }
@@ -2408,6 +2816,582 @@
       "rendering": "Event metadata; season 2024; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-race-winner",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 1,
+          "filters": {
+            "finishing_position": [
+              1
+            ]
+          }
+        }
+      },
+      "program_hash": "c04d754c24f1cb85c71e88e753a8277ae9e724daa6cb9bafdbfc4331b9867708",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; position 1.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-race-podium",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 3,
+          "filters": {
+            "finishing_position": [
+              1,
+              2,
+              3
+            ]
+          }
+        }
+      },
+      "program_hash": "5cb8103169557d21664e79964de06b058961157a9b90e8ce7673393b57d83116",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 3.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-race-top-five",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 5,
+          "filters": {
+            "finishing_position": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          }
+        }
+      },
+      "program_hash": "e53a44ca85a8c5ddbc8d49c70871bfb465f35706808ccee38cba7f8dc512d8ac",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "finishing_position": "1",
+              "points": "25",
+              "classification_status": "classified",
+              "status_reason": "1"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "4",
+              "points": "12",
+              "classification_status": "classified",
+              "status_reason": "4"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "5",
+              "points": "10",
+              "classification_status": "classified",
+              "status_reason": "5"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "finishing_position": 1,
+          "points": "25",
+          "classification_status": "classified",
+          "status_reason": "1"
+        },
+        {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 4,
+          "points": "12",
+          "classification_status": "classified",
+          "status_reason": "4"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 5,
+          "points": "10",
+          "classification_status": "classified",
+          "status_reason": "5"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; top 5.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 5
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-race-second",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "event_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 1,
+          "filters": {
+            "finishing_position": [
+              2
+            ]
+          }
+        }
+      },
+      "program_hash": "3f90308ad845b5a8d0db7cc407e41a5ec0ee69919692b50a4650df5e6402dd5a",
+      "answer": {
+        "headline": "Race classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        }
+      ],
+      "rendering": "Official race classification; season 2025; round 1; position 2.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-qualifying-pole",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 1,
+          "filters": {
+            "qualifying_position": [
+              1
+            ]
+          }
+        }
+      },
+      "program_hash": "45a7d39ebe0216e599b85591f342da98de31cf5be6fd3a85708c0c9e766bd1f3",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; position 1.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-qualifying-top-five",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 5,
+          "filters": {
+            "qualifying_position": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          }
+        }
+      },
+      "program_hash": "d81e643614eab472937b0429d675a4242aeeb3fe9096501b88727a3f277ebf74",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "qualifying_position": "2",
+              "best_time_ms": "80100",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "4",
+              "best_time_ms": "80300",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "5",
+              "best_time_ms": "80400",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "qualifying_position": 2,
+          "best_time_ms": 80100,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 4,
+          "best_time_ms": 80300,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 5,
+          "best_time_ms": 80400,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 5.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 5
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-qualifying-third",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 1,
+          "filters": {
+            "qualifying_position": [
+              3
+            ]
+          }
+        }
+      },
+      "program_hash": "b2cd963391fe7657083f347a7b68e6f125e8d66dc4c1814760f7ddb80a92c8c1",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; position 3.",
+      "metadata": {
+        "source": "qualifying_classification",
         "definitions_version": "v4",
         "compiler_version": "core-v3",
         "fact_space_version": "source-views-v2",
@@ -2691,6 +3675,42 @@
             }
           },
           {
+            "subject": "lando-norris",
+            "values": {
+              "finishing_position": "2",
+              "points": "18",
+              "classification_status": "classified",
+              "status_reason": "2"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "finishing_position": "3",
+              "points": "15",
+              "classification_status": "classified",
+              "status_reason": "3"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "finishing_position": "4",
+              "points": "12",
+              "classification_status": "classified",
+              "status_reason": "4"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "finishing_position": "5",
+              "points": "10",
+              "classification_status": "classified",
+              "status_reason": "5"
+            }
+          },
+          {
             "subject": "sample-driver",
             "values": {
               "finishing_position": null,
@@ -2746,6 +3766,34 @@
           "status_reason": "1"
         },
         {
+          "driver_id": "lando-norris",
+          "finishing_position": 2,
+          "points": "18",
+          "classification_status": "classified",
+          "status_reason": "2"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "finishing_position": 3,
+          "points": "15",
+          "classification_status": "classified",
+          "status_reason": "3"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "finishing_position": 4,
+          "points": "12",
+          "classification_status": "classified",
+          "status_reason": "4"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "finishing_position": 5,
+          "points": "10",
+          "classification_status": "classified",
+          "status_reason": "5"
+        },
+        {
           "driver_id": "sample-driver",
           "finishing_position": null,
           "points": "0",
@@ -2789,7 +3837,7 @@
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
-          "rows_returned": 6
+          "rows_returned": 10
         },
         "caveats": []
       }
@@ -2894,8 +3942,8 @@
           {
             "subject": "max-verstappen",
             "values": {
-              "qualifying_position": "1",
-              "best_time_ms": "80000",
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
               "best_session": "Q3",
               "eliminated_in_round": null,
               "classification_status": "classified"
@@ -2906,8 +3954,8 @@
       "rows": [
         {
           "driver_id": "max-verstappen",
-          "qualifying_position": 1,
-          "best_time_ms": 80000,
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
           "best_session": "Q3",
           "eliminated_in_round": null,
           "classification_status": "classified"

@@ -49,6 +49,15 @@ describe('deterministic answer formatting', () => {
       .toMatchObject({ coverage: 'sufficient', caveats: [] });
   });
 
+  it('fails closed when selected classification positions are missing, duplicated, or substituted', () => {
+    const program: F1QLProgram = { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 3, filters: { finishing_position: [1, 2, 3] } } };
+    const row = (driver_id: string, finishing_position: number) => ({ driver_id, finishing_position, points: '0', classification_status: 'classified', status_reason: null });
+    expect(() => formatAnswerRows(program, approved(program), [])).toThrow('Selected classification positions were incomplete');
+    expect(() => formatAnswerRows(program, approved(program), [row('one', 1), row('two', 2)])).toThrow('Selected classification positions were incomplete');
+    expect(() => formatAnswerRows(program, approved(program), [row('one', 1), row('other-one', 1), row('three', 3)])).toThrow('Selected classification positions were incomplete');
+    expect(() => formatAnswerRows(program, approved(program), [row('one', 1), row('two', 2), row('four', 4)])).toThrow('Selected classification positions were incomplete');
+  });
+
   it('formats qualifying and metadata source contracts', () => {
     const qualifying: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 2, limit: 30, filters: { driver_id: 'piastri' } } };
     expect(formatAnswerRows(qualifying, approved(qualifying), [{ driver_id: 'piastri', qualifying_position: 1, best_time_ms: '90250', best_session: 'q3', eliminated_in_round: null, classification_status: 'classified' }]).answer.facts[0])
