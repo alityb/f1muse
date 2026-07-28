@@ -47,7 +47,7 @@ export const LAUNCH_CAPABILITY_DISPOSITIONS: Readonly<Record<LegacyQueryKind, La
   driver_head_to_head_count: port('classification_head_to_head', ['race_classification', 'qualifying_classification'], 'Compare literal finishing or qualifying positions only over shared events where both drivers have recorded numeric positions.'),
   driver_performance_vector: retire('performance_vector_source_required', 'none', 'The vector mixes pace proxies, synthetic weather context, and percentile semantics without one authority.'),
   driver_multi_comparison: replace('official_multi_driver_ranking', 'standings', 'Replace pace-vector ranking with explicit official standings or result ranking.'),
-  driver_matchup_lookup: replace('classification_head_to_head', ['race_classification', 'qualifying_classification'], 'Replace the precomputed compatibility lookup with the reviewed H2H contract.'),
+  driver_matchup_lookup: replace('qualifying_season_position_h2h', 'qualifying_classification', 'Replace this qualifying matchup wording with recorded shared-event qualifying-position H2H; do not infer teammate identity or a time gap.'),
   driver_vs_driver_comprehensive: replace('official_driver_comparison', ['standings', 'race_classification', 'qualifying_classification'], 'Compose official summaries and H2H without legacy pace or mixed-source claims.'),
   driver_career_wins_by_circuit: port('driver_career_wins_by_circuit', ['race_classification', 'event_metadata'], 'Count official race wins and group them by canonical circuit identity from event metadata.'),
   teammate_comparison_career: replace('classification_head_to_head', ['race_classification', 'qualifying_classification'], 'Use the same official H2H contract with an explicit shared-team filter only after team identity is reviewed.'),
@@ -61,8 +61,8 @@ export const LAUNCH_CAPABILITY_DISPOSITIONS: Readonly<Record<LegacyQueryKind, La
   driver_career_pole_count: port('driver_career_poles', 'qualifying_classification', 'Count official qualifying P1 classifications over covered career seasons.'),
   driver_q3_count: replace('driver_season_top_ten_qualifying', 'qualifying_classification', 'Replace the legacy eliminated-in-round proxy with explicit official top-ten qualifying classifications and era coverage.'),
   season_q3_rankings: replace('season_top_ten_qualifying_ranking', 'qualifying_classification', 'Replace the legacy Q3 proxy ranking with explicit official top-ten qualifying classifications and era coverage.'),
-  qualifying_gap_teammates: replace('qualifying_classification_head_to_head', 'qualifying_classification', 'Replace position-to-time proxies with official qualifying-position H2H.'),
-  qualifying_gap_drivers: replace('qualifying_classification_head_to_head', 'qualifying_classification', 'Use official qualifying-position H2H rather than a synthetic time gap.'),
+  qualifying_gap_teammates: replace('qualifying_season_position_h2h', 'qualifying_classification', 'Replace position-to-time proxies with recorded shared-event qualifying-position H2H without asserting teammate identity.'),
+  qualifying_gap_drivers: replace('qualifying_season_position_h2h', 'qualifying_classification', 'Use recorded shared-event qualifying-position H2H rather than a synthetic time gap.'),
   qualifying_results_summary: port('qualifying_result_selection', ['qualifying_classification', 'event_metadata'], 'Support full classification, pole, top-N, exact position, driver, and status selection.')
 } satisfies Record<QueryIntentKind, LaunchCapabilityDisposition>);
 

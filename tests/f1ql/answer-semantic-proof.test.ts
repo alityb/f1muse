@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v11', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v12', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v11',
+      version: 'answer-semantic-proof-v12',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -194,6 +194,30 @@ describe('independent answer semantic proof', () => {
     }, events, reversedDrivers);
     expect(proof.template_variables).toEqual({ season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
     expect(proof.program.root).toMatchObject({ driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+  });
+
+  it('independently proves qualifying H2H wording and maps IDs by exact spans', async () => {
+    const question = 'In 2025, who outqualified whom more often, Lando Norris or Oscar Piastri?';
+    const reversedDrivers: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [
+        { ...span(question, 'Oscar Piastri'), candidates: ['oscar_piastri'], active_candidates: ['oscar_piastri'] },
+        { ...span(question, 'Lando Norris'), candidates: ['lando_norris'], active_candidates: ['lando_norris'] }
+      ]
+    };
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'qualifying_season_position_h2h', season: 2025, season_reference: span(question, '2025'),
+      driver_references: [span(question, 'Lando Norris'), span(question, 'Oscar Piastri')]
+    }, events, reversedDrivers);
+    expect(proof).toMatchObject({
+      template_id: 'qualifying_season_position_h2h',
+      template_variables: { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' },
+      program: { root: { op: 'qualifying_season_position_h2h', metric: 'official_qualifying_position_shared_events_v1' } }
+    });
+    const broader = 'Compare who outqualified whom more often in 2025, Lando Norris or Oscar Piastri?';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(broader), {
+      type: 'qualifying_season_position_h2h', season: 2025, season_reference: span(broader, '2025'),
+      driver_references: [span(broader, 'Lando Norris'), span(broader, 'Oscar Piastri')]
+    }, events, drivers)).rejects.toMatchObject({ reason: 'metric_mismatch' });
   });
 
   it.each([

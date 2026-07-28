@@ -87,6 +87,17 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (2025, 1, 'status_qual_dnf', 'sample', NULL, NULL, 'Q1', true, false),
     (2025, 2, 'lando_norris', 'mclaren', 1, 79000, 'Q3', false, false),
     (2025, 2, 'charles_leclerc', 'ferrari', 2, 79100, 'Q3', false, false),
+    (2025, 2, 'max_verstappen', 'red-bull', 1, 79050, 'Q3', false, false),
+    (2025, 3, 'lando_norris', 'mclaren', 3, 79200, 'Q3', false, false),
+    (2025, 3, 'oscar_piastri', 'mclaren', 1, 79000, 'Q3', false, false),
+    (2025, 3, 'max_verstappen', 'red-bull', 2, 79100, 'Q3', false, false),
+    (2025, 4, 'lando_norris', 'mclaren', 2, 79100, 'Q3', false, false),
+    (2025, 4, 'oscar_piastri', 'mclaren', 2, 79100, 'Q3', false, false),
+    (2025, 4, 'max_verstappen', 'red-bull', 3, 79200, 'Q3', false, false),
+    (2025, 5, 'lando_norris', 'mclaren', NULL, NULL, 'Q1', true, false),
+    (2025, 5, 'oscar_piastri', 'mclaren', 3, 79200, 'Q3', false, false),
+    (2025, 5, 'max_verstappen', 'red-bull', 1, 79000, 'Q3', false, false),
+    (2025, 6, 'lando_norris', 'mclaren', 1, 79000, 'Q3', false, false),
     (2024, 1, 'lewis_hamilton', 'mercedes', 1, 80500, 'Q3', false, false),
     (2024, 1, 'charles_leclerc', 'ferrari', 2, 80600, 'Q3', false, false)`);
 }

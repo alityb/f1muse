@@ -53,13 +53,17 @@ describe('provider-free answer intent derivation', () => {
     ['Give the official career summary for Lewis Hamilton.', inventory('Lewis Hamilton'), 'driver_career_official_summary']
     ,['Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'race_season_finishing_position_h2h']
     ,['In 2025, who finished ahead more often, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'race_season_finishing_position_h2h']
+    ,['Who outqualified whom more often in 2025, Norris or Piastri?', inventory('Norris', 'Piastri'), 'qualifying_season_position_h2h']
+    ,['In 2025, who outqualified whom more often, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'qualifying_season_position_h2h']
+    ,['Who qualified ahead more often in 2025, Norris or Verstappen?', inventory('Norris', 'Verstappen'), 'qualifying_season_position_h2h']
+    ,['In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?', inventory('Lando Norris', 'Max Verstappen'), 'qualifying_season_position_h2h']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v7');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v8');
   });
 
   it.each([
@@ -69,7 +73,6 @@ describe('provider-free answer intent derivation', () => {
     'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri or Max Verstappen?',
     'Who finished ahead more often in 2025, Lando Norris or Lando Norris?',
     'Who finished ahead more often in the 2025 Australian Grand Prix, Lando Norris or Oscar Piastri?',
-    'Who outqualified whom more often in 2025, Lando Norris or Oscar Piastri?',
     'Who finished ahead more often in race and qualifying in 2025, Lando Norris or Oscar Piastri?',
     'Which teammate finished ahead more often in 2025, Lando Norris or Oscar Piastri?',
     'Who was faster in 2025, Lando Norris or Oscar Piastri?',
@@ -77,6 +80,25 @@ describe('provider-free answer intent derivation', () => {
     'Compare who was better in 2025, Lando Norris or Oscar Piastri?'
   ])('does not broaden race H2H wording: %s', async question => {
     const names = ['Lando Norris', 'Oscar Piastri', 'Max Verstappen'].filter(name => question.includes(name));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).toMatch(/unsupported|clarification/u);
+  });
+
+  it.each([
+    'Who outqualified whom more often, Norris or Piastri?',
+    'Who outqualified whom more often in 2026, Norris or Piastri?',
+    'Who outqualified whom more often in 2025, Norris?',
+    'Who outqualified whom more often in 2025, Norris or Piastri or Verstappen?',
+    'Who outqualified whom more often in 2025, Norris or Norris?',
+    'Who outqualified whom more often at Monaco in 2025, Norris or Piastri?',
+    'Who finished ahead more often in qualifying in 2025, Norris or Piastri?',
+    'Who outqualified whom more often in race and qualifying in 2025, Norris or Piastri?',
+    'Which teammate outqualified whom more often in 2025, Norris or Piastri?',
+    'Who had the faster qualifying lap in 2025, Norris or Piastri?',
+    'Who outqualified whom more often excluding DNFs in 2025, Norris or Piastri?',
+    'Compare who was better in qualifying in 2025, Norris or Piastri?'
+  ])('does not broaden qualifying H2H wording: %s', async question => {
+    const names = ['Norris', 'Piastri', 'Verstappen'].filter(name => question.includes(name));
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
     expect(intent.type).toMatch(/unsupported|clarification/u);
   });

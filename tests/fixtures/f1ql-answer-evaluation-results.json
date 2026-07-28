@@ -4356,6 +4356,266 @@
     }
   },
   {
+    "id": "launch-qualifying-h2h-teammates",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_season_position_h2h",
+          "metric": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri"
+        }
+      },
+      "program_hash": "72db23b395fba42e9c58002d2743d04597a6f87032a97a2e1c62ade97ca20d78",
+      "answer": {
+        "headline": "lando-norris and oscar-piastri qualified ahead equally often. Final 2025 qualifying-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs oscar-piastri",
+            "values": {
+              "driver_a_ahead": "1",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri",
+          "driver_a_ahead": 1,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 3,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 4,
+          "distinct_source_keys": 10,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official qualifying-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v6",
+        "compiler_version": "core-v5",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_qualifying_positions",
+          "no_qualifying_time_gap_or_teammate_claim"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-qualifying-h2h-teammates",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_season_position_h2h",
+          "metric": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri"
+        }
+      },
+      "program_hash": "72db23b395fba42e9c58002d2743d04597a6f87032a97a2e1c62ade97ca20d78",
+      "answer": {
+        "headline": "lando-norris and oscar-piastri qualified ahead equally often. Final 2025 qualifying-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs oscar-piastri",
+            "values": {
+              "driver_a_ahead": "1",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "oscar-piastri",
+          "driver_a_ahead": 1,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 3,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 4,
+          "distinct_source_keys": 10,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official qualifying-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v6",
+        "compiler_version": "core-v5",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_qualifying_positions",
+          "no_qualifying_time_gap_or_teammate_claim"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-qualifying-h2h-drivers",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_season_position_h2h",
+          "metric": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "max-verstappen"
+        }
+      },
+      "program_hash": "8d1e15781987c58725bdc9b2c382e40db4724fbbf2b36b4de9699db05be7d209",
+      "answer": {
+        "headline": "lando-norris qualified ahead more often. Final 2025 qualifying-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs max-verstappen",
+            "values": {
+              "driver_a_ahead": "2",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "4"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "max-verstappen",
+          "driver_a_ahead": 2,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 4,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 5,
+          "distinct_source_keys": 11,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official qualifying-position head-to-head; lando-norris versus max-verstappen; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v6",
+        "compiler_version": "core-v5",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_qualifying_positions",
+          "no_qualifying_time_gap_or_teammate_claim"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-qualifying-h2h-drivers",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_season_position_h2h",
+          "metric": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "max-verstappen"
+        }
+      },
+      "program_hash": "8d1e15781987c58725bdc9b2c382e40db4724fbbf2b36b4de9699db05be7d209",
+      "answer": {
+        "headline": "lando-norris qualified ahead more often. Final 2025 qualifying-position H2H.",
+        "facts": [
+          {
+            "subject": "lando-norris vs max-verstappen",
+            "values": {
+              "driver_a_ahead": "2",
+              "driver_b_ahead": "1",
+              "ties": "1",
+              "shared_events": "4"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_qualifying_position_shared_events_v1",
+          "season": 2025,
+          "driver_a_id": "lando-norris",
+          "driver_b_id": "max-verstappen",
+          "driver_a_ahead": 2,
+          "driver_b_ahead": 1,
+          "ties": 1,
+          "shared_events": 4,
+          "driver_a_source_rows": 6,
+          "driver_b_source_rows": 5,
+          "distinct_source_keys": 11,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official qualifying-position head-to-head; lando-norris versus max-verstappen; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v6",
+        "compiler_version": "core-v5",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "shared_events_require_both_recorded_numeric_qualifying_positions",
+          "no_qualifying_time_gap_or_teammate_claim"
+        ]
+      }
+    }
+  },
+  {
     "id": "unicode-astral",
     "envelope": {
       "mode": "gated_execution",

@@ -23,9 +23,9 @@ function capability(program: F1QLProgram): AnswerCapability {
 }
 
 describe('answer bounds', () => {
-  it('charges two complete race-season branches and requests one H2H row', () => {
-    const h2h = materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
-    expect(estimateAnswerWork(h2h, capability(h2h))).toEqual({ version: 'answer-work-v3', units: 60, requested_rows: 1 });
+  it.each(['race_season_finishing_position_h2h', 'qualifying_season_position_h2h'] as const)('charges two complete season branches and requests one %s row', template => {
+    const h2h = materializeAnswerTemplate(template, { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+    expect(estimateAnswerWork(h2h, capability(h2h))).toEqual({ version: 'answer-work-v4', units: 60, requested_rows: 1 });
   });
   it.each(programs)('estimates approved work deterministically for $root.op', program => {
     const first = estimateAnswerWork(program, capability(program));
@@ -44,12 +44,12 @@ describe('answer bounds', () => {
 
   it('bounds a driver season summary to one row and 36 work units', () => {
     const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
-    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v3', units: 36, requested_rows: 1 });
+    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v4', units: 36, requested_rows: 1 });
   });
 
   it('charges all 76 final seasons while bounding a driver career summary to one row', () => {
     const summary = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' });
-    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v3', units: 107, requested_rows: 1 });
+    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v4', units: 107, requested_rows: 1 });
   });
 
   it('enforces row and exact UTF-8 byte boundaries', () => {

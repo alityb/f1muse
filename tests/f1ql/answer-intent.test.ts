@@ -120,6 +120,17 @@ describe('answer-specific intent contract', () => {
     }, createAnswerQuestionContract(text))).toThrow();
   });
 
+  it('hydrates exactly two ordered qualifying H2H aliases', () => {
+    const text = 'Who outqualified whom more often in 2025, Norris or Piastri?';
+    expect(hydrateAndParseAnswerIntent({
+      type: 'qualifying_season_position_h2h', season: 2025, season_reference: { text: '2025' },
+      driver_references: [{ text: 'Norris' }, { text: 'Piastri' }]
+    }, createAnswerQuestionContract(text))).toEqual({
+      type: 'qualifying_season_position_h2h', season: 2025, season_reference: reference(text, '2025'),
+      driver_references: [reference(text, 'Norris'), reference(text, 'Piastri')]
+    });
+  });
+
   it('hydrates a trusted result-selection reference without accepting position arrays', () => {
     const text = 'Show the top five finishers at the 2025 Australian Grand Prix.';
     expect(hydrateAndParseAnswerIntent({

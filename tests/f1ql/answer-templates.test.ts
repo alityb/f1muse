@@ -10,6 +10,7 @@ describe('answer template registry', () => {
     ['driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }, 'aggregate'],
     ['driver_career_official_summary', { driver_id: 'lewis-hamilton' }, 'aggregate'],
     ['race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'race_season_finishing_position_h2h'],
+    ['qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'qualifying_season_position_h2h'],
     ['race_classification_all', { season: 2025, round: 7 }, 'event_classification'],
     ['race_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'event_classification'],
     ['race_classification_status', { season: 2025, round: 7, status: 'dsq' }, 'event_classification'],
@@ -22,8 +23,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v7', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(15);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v8', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(16);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);
@@ -112,6 +113,15 @@ describe('answer template registry', () => {
     });
     expect(() => materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2026, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' })).toThrow();
     expect(() => materializeAnswerTemplate('race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'lando-norris' })).toThrow();
+  });
+
+  it('owns the exact ordered final-season qualifying H2H root', () => {
+    expect(materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }).root).toEqual({
+      op: 'qualifying_season_position_h2h', metric: 'official_qualifying_position_shared_events_v1', season: 2025,
+      driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri'
+    });
+    expect(() => materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2026, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' })).toThrow();
+    expect(() => materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'lando-norris' })).toThrow();
   });
 
   it('materializes all final standings points without a driver filter', () => {

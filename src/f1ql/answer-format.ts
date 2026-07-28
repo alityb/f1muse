@@ -66,6 +66,12 @@ export function formatAnswerRows(
     }
     return formatRaceSeasonH2H(program.root, rows);
   }
+  if (program.root.op === 'qualifying_season_position_h2h') {
+    if (capability.source !== 'qualifying_classification' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Qualifying H2H capability did not match program');
+    }
+    return formatQualifyingSeasonH2H(program.root, rows);
+  }
   if (rows.length === 0) {
     const root = program.root;
     const positionSelected = (root.op === 'event_classification' && root.filters?.finishing_position !== undefined)
@@ -94,28 +100,32 @@ export function formatAnswerRows(
   throw new AnswerFormatError('Unsupported answer source');
 }
 
+function formatQualifyingSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'qualifying_season_position_h2h' }>, rows: Array<Record<string, unknown>>) {
+  const counts = validateSeasonH2HRow(root, rows, 'Qualifying H2H');
+  let outcome = `${root.driver_a_id} and ${root.driver_b_id} qualified ahead equally often.`;
+  if (counts.driverAAhead > counts.driverBAhead) {
+    outcome = `${root.driver_a_id} qualified ahead more often.`;
+  } else if (counts.driverBAhead > counts.driverAAhead) {
+    outcome = `${root.driver_b_id} qualified ahead more often.`;
+  }
+  return {
+    answer: {
+      headline: `${outcome} Final ${root.season} qualifying-position H2H.`,
+      facts: [{
+        subject: `${root.driver_a_id} vs ${root.driver_b_id}`,
+        values: {
+          driver_a_ahead: String(counts.driverAAhead), driver_b_ahead: String(counts.driverBAhead),
+          ties: String(counts.ties), shared_events: String(counts.sharedEvents)
+        }
+      }]
+    },
+    coverage: 'sufficient' as const,
+    caveats: ['shared_events_require_both_recorded_numeric_qualifying_positions', 'no_qualifying_time_gap_or_teammate_claim']
+  };
+}
+
 function formatRaceSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'race_season_finishing_position_h2h' }>, rows: Array<Record<string, unknown>>) {
-  if (rows.length !== 1) {
-    throw new AnswerFormatError('Race H2H rows were invalid');
-  }
-  const row = rows[0];
-  if (row.metric_id !== root.metric || row.season !== root.season || row.driver_a_id !== root.driver_a_id || row.driver_b_id !== root.driver_b_id ||
-      row.source_integrity_ok !== true || row.source_presence_ok !== true || row.source_unique_keys_ok !== true) {
-    throw new AnswerFormatError('Race H2H rows were invalid');
-  }
-  const driverAAhead = requiredBoundedCount(row.driver_a_ahead, 'driver_a_ahead');
-  const driverBAhead = requiredBoundedCount(row.driver_b_ahead, 'driver_b_ahead');
-  const ties = requiredBoundedCount(row.ties, 'ties');
-  const sharedEvents = requiredBoundedCount(row.shared_events, 'shared_events');
-  const driverASourceRows = requiredBoundedCount(row.driver_a_source_rows, 'driver_a_source_rows');
-  const driverBSourceRows = requiredBoundedCount(row.driver_b_source_rows, 'driver_b_source_rows');
-  const distinctSourceKeys = requiredBoundedCount(row.distinct_source_keys, 'distinct_source_keys', 60);
-  const duplicateSourceRows = requiredBoundedCount(row.duplicate_source_rows, 'duplicate_source_rows');
-  if (sharedEvents === 0 || driverASourceRows === 0 || driverBSourceRows === 0 || duplicateSourceRows !== 0 ||
-      distinctSourceKeys !== driverASourceRows + driverBSourceRows || sharedEvents > Math.min(driverASourceRows, driverBSourceRows) ||
-      driverAAhead + driverBAhead + ties !== sharedEvents) {
-    throw new AnswerFormatError('Race H2H rows were invalid');
-  }
+  const { driverAAhead, driverBAhead, ties, sharedEvents } = validateSeasonH2HRow(root, rows, 'Race H2H');
   let outcome = `${root.driver_a_id} and ${root.driver_b_id} finished ahead equally often.`;
   if (driverAAhead > driverBAhead) {
     outcome = `${root.driver_a_id} finished ahead more often.`;
@@ -135,6 +145,34 @@ function formatRaceSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'race_seas
     coverage: 'sufficient' as const,
     caveats: ['shared_events_require_both_recorded_numeric_finishing_positions', 'null_or_one_sided_events_excluded']
   };
+}
+
+function validateSeasonH2HRow(
+  root: Extract<F1QLProgram['root'], { op: 'race_season_finishing_position_h2h' | 'qualifying_season_position_h2h' }>,
+  rows: Array<Record<string, unknown>>,
+  label: string
+) {
+  if (rows.length !== 1) {
+    throw new AnswerFormatError(`${label} rows were invalid`);
+  }
+  const row = rows[0];
+  if (row.metric_id !== root.metric || row.season !== root.season || row.driver_a_id !== root.driver_a_id || row.driver_b_id !== root.driver_b_id ||
+      row.source_integrity_ok !== true || row.source_presence_ok !== true || row.source_unique_keys_ok !== true) {
+    throw new AnswerFormatError(`${label} rows were invalid`);
+  }
+  const driverAAhead = requiredBoundedCount(row.driver_a_ahead, 'driver_a_ahead');
+  const driverBAhead = requiredBoundedCount(row.driver_b_ahead, 'driver_b_ahead');
+  const ties = requiredBoundedCount(row.ties, 'ties');
+  const sharedEvents = requiredBoundedCount(row.shared_events, 'shared_events', 30, 1);
+  const driverASourceRows = requiredBoundedCount(row.driver_a_source_rows, 'driver_a_source_rows', 30, 1);
+  const driverBSourceRows = requiredBoundedCount(row.driver_b_source_rows, 'driver_b_source_rows', 30, 1);
+  const distinctSourceKeys = requiredBoundedCount(row.distinct_source_keys, 'distinct_source_keys', 60, 1);
+  const duplicateSourceRows = requiredBoundedCount(row.duplicate_source_rows, 'duplicate_source_rows');
+  if (duplicateSourceRows !== 0 || distinctSourceKeys !== driverASourceRows + driverBSourceRows ||
+      sharedEvents > Math.min(driverASourceRows, driverBSourceRows) || driverAAhead + driverBAhead + ties !== sharedEvents) {
+    throw new AnswerFormatError(`${label} rows were invalid`);
+  }
+  return { driverAAhead, driverBAhead, ties, sharedEvents };
 }
 
 function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknown>>, current: boolean) {
@@ -267,9 +305,9 @@ function requiredPositiveInteger(value: unknown, field: string): number {
   return integer;
 }
 
-function requiredBoundedCount(value: unknown, field: string, maximum = 30): number {
+function requiredBoundedCount(value: unknown, field: string, maximum = 30, minimum = 0): number {
   const integer = typeof value === 'string' && /^\d+$/u.test(value) ? Number(value) : value;
-  if (typeof integer !== 'number' || !Number.isSafeInteger(integer) || integer < 0 || integer > maximum) {
+  if (typeof integer !== 'number' || !Number.isSafeInteger(integer) || integer < minimum || integer > maximum) {
     throw new AnswerFormatError(`Invalid ${field} value`);
   }
   return integer;

@@ -168,7 +168,7 @@ function executableIntent(contract: AnswerQuestionContract, template: string, in
   if (template === 'final_standings_leader') return { type: template, season, season_reference };
   if (template === 'current_standings') return { type: template, season, season_reference };
   if (template === 'driver_season_official_summary') return { type: template, season, season_reference, driver_reference: references[0] };
-  if (template === 'race_season_finishing_position_h2h') return { type: template, season, season_reference, driver_references: references };
+  if (template === 'race_season_finishing_position_h2h' || template === 'qualifying_season_position_h2h') return { type: template, season, season_reference, driver_references: references };
   if (template === 'race_date') return { type: template, season, season_reference, event_reference: event_reference! };
   if (template === 'race_classification_all' || template === 'qualifying_classification_all') return { type: template, season, season_reference, event_reference: event_reference! };
   if (template === 'race_classification_driver' || template === 'qualifying_classification_driver') return { type: template, season, season_reference, event_reference: event_reference!, driver_reference: references[0] };

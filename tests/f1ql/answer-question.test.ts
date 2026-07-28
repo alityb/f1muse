@@ -12,7 +12,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v19');
+    expect(contract.version).toBe('answer-question-v20');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -21,6 +21,22 @@ describe('answer question contract', () => {
     expect(contract.outcome).toEqual({ type: 'inspection_required' });
     expect(Object.isFrozen(contract)).toBe(true);
     expect(Object.isFrozen(contract.years)).toBe(true);
+  });
+
+  it.each([
+    'Who outqualified whom more often in 2025, Norris or Piastri?',
+    'In 2025, who outqualified whom more often, Lando Norris or Oscar Piastri?',
+    'Who qualified ahead more often in 2025, Norris or Verstappen?',
+    'In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?'
+  ])('records only the trusted qualifying-position H2H cue: %s', question => {
+    const contract = createAnswerQuestionContract(question);
+    expect(contract.metric_cues).toEqual([expect.objectContaining({ value: 'qualifying_position_h2h' })]);
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+  });
+
+  it('requires a season for qualifying-position H2H', () => {
+    expect(createAnswerQuestionContract('Who outqualified whom more often, Norris or Piastri?').outcome)
+      .toEqual({ type: 'clarification_required', reason: 'season_missing' });
   });
 
   it('extracts only explicit metric, action, and classification-status cues', () => {

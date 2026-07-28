@@ -28,6 +28,12 @@ describe('deterministic answer formatting', () => {
     shared_events: 3, driver_a_source_rows: 6, driver_b_source_rows: 4, distinct_source_keys: 10,
     duplicate_source_rows: 0, source_presence_ok: true, source_unique_keys_ok: true, source_integrity_ok: true
   };
+  const qualifyingH2H = materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'max-verstappen' });
+  const qualifyingH2HRow = {
+    ...h2hRow, metric_id: 'official_qualifying_position_shared_events_v1', driver_b_id: 'max-verstappen',
+    driver_a_ahead: 2, driver_b_ahead: 1, ties: 1, shared_events: 4,
+    driver_a_source_rows: 6, driver_b_source_rows: 5, distinct_source_keys: 11
+  };
 
   it('formats race H2H with explicit shared-position methodology', () => {
     expect(formatAnswerRows(h2h, approved(h2h), [h2hRow])).toEqual({
@@ -59,6 +65,28 @@ describe('deterministic answer formatting', () => {
       { driver_a_source_rows: 31, distinct_source_keys: 35 }, { driver_a_source_rows: 2, distinct_source_keys: 6 }
     ]) {
       expect(() => formatAnswerRows(h2h, approved(h2h), [{ ...h2hRow, ...mutation }])).toThrow(AnswerFormatError);
+    }
+  });
+
+  it('formats only qualifying-position H2H without time-gap or teammate claims', () => {
+    expect(formatAnswerRows(qualifyingH2H, approved(qualifyingH2H), [qualifyingH2HRow])).toEqual({
+      answer: {
+        headline: 'lando-norris qualified ahead more often. Final 2025 qualifying-position H2H.',
+        facts: [{ subject: 'lando-norris vs max-verstappen', values: { driver_a_ahead: '2', driver_b_ahead: '1', ties: '1', shared_events: '4' } }]
+      },
+      coverage: 'sufficient',
+      caveats: ['shared_events_require_both_recorded_numeric_qualifying_positions', 'no_qualifying_time_gap_or_teammate_claim']
+    });
+  });
+
+  it('fails closed for malformed or integrity-failed qualifying H2H data', () => {
+    for (const mutation of [
+      { metric_id: 'other' }, { season: 2024 }, { driver_b_id: 'other' }, { source_integrity_ok: false },
+      { source_presence_ok: false }, { source_unique_keys_ok: false }, { driver_a_source_rows: 0 },
+      { driver_b_source_rows: 31 }, { distinct_source_keys: 0 }, { distinct_source_keys: 61 },
+      { duplicate_source_rows: 1 }, { shared_events: 0 }, { shared_events: 6 }, { ties: 2 }
+    ]) {
+      expect(() => formatAnswerRows(qualifyingH2H, approved(qualifyingH2H), [{ ...qualifyingH2HRow, ...mutation }])).toThrow(AnswerFormatError);
     }
   });
   it('sorts unranked standings and normalizes numeric strings without changing raw rows', () => {

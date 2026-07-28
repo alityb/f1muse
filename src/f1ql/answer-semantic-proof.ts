@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v11' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v12' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -146,7 +146,7 @@ export async function proveAnswerIntent(
     variables.driver_id = resolvedDriverId(intent.driver_reference, resolvedDriverIds);
   }
   if ('driver_references' in intent && driverIds.length > 0) {
-    if (intent.type === 'race_season_finishing_position_h2h') {
+    if (intent.type === 'race_season_finishing_position_h2h' || intent.type === 'qualifying_season_position_h2h') {
       variables.driver_a_id = resolvedDriverId(intent.driver_references[0], resolvedDriverIds);
       variables.driver_b_id = resolvedDriverId(intent.driver_references[1], resolvedDriverIds);
     } else {
@@ -318,6 +318,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('race_finishing_position_h2h') && intent.type !== 'race_season_finishing_position_h2h') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('qualifying_position_h2h') && intent.type !== 'qualifying_season_position_h2h') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('date') && intent.type !== 'race_date') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -337,6 +340,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'race_season_finishing_position_h2h' && (!metrics.has('race_finishing_position_h2h') || !matchesRaceH2HQuestion(contract, intent.driver_references))) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'qualifying_season_position_h2h' && (!metrics.has('qualifying_position_h2h') || !matchesQualifyingH2HQuestion(contract, intent.driver_references))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'current_standings' && /\bfinal\b/iu.test(contract.normalized_question)) {
@@ -396,6 +402,9 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
   if (intent.type === 'race_season_finishing_position_h2h') {
     return 'race_classification';
   }
+  if (intent.type === 'qualifying_season_position_h2h') {
+    return 'qualifying_classification';
+  }
   if (intent.type.startsWith('race_classification')) {
     return 'race_classification';
   }
@@ -440,6 +449,15 @@ function matchesRaceH2HQuestion(contract: AnswerQuestionContract, drivers: reado
     masked.splice(driver.start, driver.end - driver.start, `<driver_${index === 0 ? 'a' : 'b'}>`);
   }
   return /^(?:who finished ahead more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who finished ahead more often, <driver_a> or <driver_b>)\?$/iu.test(masked.join(''));
+}
+
+function matchesQualifyingH2HQuestion(contract: AnswerQuestionContract, drivers: readonly LiteralMentionReference[]): boolean {
+  const points = Array.from(contract.normalized_question);
+  const masked = [...points];
+  for (const [index, driver] of [...drivers].map((driver, index) => [index, driver] as const).sort((left, right) => right[1].start - left[1].start)) {
+    masked.splice(driver.start, driver.end - driver.start, `<driver_${index === 0 ? 'a' : 'b'}>`);
+  }
+  return /^(?:who outqualified whom more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who outqualified whom more often, <driver_a> or <driver_b>|who qualified ahead more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who qualified ahead more often, <driver_a> or <driver_b>)\?$/iu.test(masked.join(''));
 }
 
 function positionsForIntent(intent: Extract<ExecutableAnswerIntent, { selection_reference: LiteralMentionReference }>): number[] {

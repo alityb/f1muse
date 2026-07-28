@@ -38,6 +38,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'race_classification'
     },
     {
+      name: 'final-season qualifying-position H2H',
+      program: materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
+      source: 'qualifying_classification'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'
@@ -207,6 +212,18 @@ describe('Phase 7 answer capability policy', () => {
     if (root.op !== 'race_season_finishing_position_h2h') throw new Error('fixture must be H2H');
     for (const mutated of [
       { ...root, season: 2026 }, { ...root, driver_b_id: root.driver_a_id }, { ...root, driver_a_id: 'Lando Norris' }, { ...root, metric: 'other' }, { ...root, round: 1 }
+    ]) {
+      expect(authorizeAnswerProgram({ version: 1, root: mutated } as unknown as F1QLProgram)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+    }
+  });
+
+  it('authorizes only the exact qualifying H2H root shape and metric', () => {
+    const h2h = materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+    const root = h2h.root;
+    if (root.op !== 'qualifying_season_position_h2h') throw new Error('fixture must be H2H');
+    for (const mutated of [
+      { ...root, season: 2026 }, { ...root, driver_b_id: root.driver_a_id }, { ...root, driver_a_id: 'Lando Norris' },
+      { ...root, metric: 'official_race_finishing_position_shared_events_v1' }, { ...root, round: 1 }
     ]) {
       expect(authorizeAnswerProgram({ version: 1, root: mutated } as unknown as F1QLProgram)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
     }

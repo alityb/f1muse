@@ -24,6 +24,9 @@ describe('F1QL launch capability migration', () => {
       ['profile-replacement', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'],
       ['current-standings', 'Show the latest recorded 2026 driver standings.', 'current_standings'],
       ['race-h2h', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'],
+      ['matchup-replacement', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'],
+      ['qualifying-h2h-teammates', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'],
+      ['qualifying-h2h-drivers', 'Who qualified ahead more often in 2025, Norris or Verstappen?', 'qualifying_season_position_h2h'],
       ['race-winner', 'Who won the 2025 Australian Grand Prix?', 'race_result_selection'],
       ['race-podium', 'Show the podium for the 2025 Australian Grand Prix.', 'race_result_selection'],
       ['race-top-five', 'Show the top five finishers at the 2025 Australian Grand Prix.', 'race_result_selection'],
@@ -64,7 +67,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'current-standings', 'profile-replacement', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = ['career-summary', 'current-standings', 'matchup-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));
@@ -73,11 +76,11 @@ describe('F1QL launch capability migration', () => {
       expect(evaluation).toMatchObject({ answerable: true, expected: { action: 'answer', proof_outcome: 'passed' } });
       const contract = createAnswerQuestionContract(parityCase.question);
       const inventory = {
-        inventoryMentions: async (question: string) => ['Max Verstappen', 'Lewis Hamilton', 'Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name)).map(name => ({
+        inventoryMentions: async (question: string) => ['Max Verstappen', 'Lewis Hamilton', 'Lando Norris', 'Oscar Piastri', 'Norris', 'Piastri', 'Verstappen'].filter(name => question.includes(name) && !['Max Verstappen', 'Lando Norris', 'Oscar Piastri'].some(full => full !== name && full.endsWith(name) && question.includes(full))).map(name => ({
           text: name, start: Array.from(question.slice(0, question.indexOf(name))).length,
           end: Array.from(question.slice(0, question.indexOf(name))).length + Array.from(name).length,
-          candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' ? 'oscar_piastri' : 'lando_norris'],
-          active_candidates: [name === 'Max Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' ? 'oscar_piastri' : 'lando_norris']
+          candidates: [name === 'Max Verstappen' || name === 'Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' || name === 'Piastri' ? 'oscar_piastri' : 'lando_norris'],
+          active_candidates: [name === 'Max Verstappen' || name === 'Verstappen' ? 'max_verstappen' : name === 'Lewis Hamilton' ? 'lewis_hamilton' : name === 'Oscar Piastri' || name === 'Piastri' ? 'oscar_piastri' : 'lando_norris']
         }))
       };
       const intent = await deriveAnswerIntent(contract, inventory);
@@ -106,7 +109,7 @@ describe('F1QL launch capability migration', () => {
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_profile_summary.authorities).toEqual(['standings']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_head_to_head_count.authorities).toEqual(expect.arrayContaining(['race_classification', 'qualifying_classification']));
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_multi_comparison.authorities).toEqual(['standings']);
-    expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_matchup_lookup.authorities).toEqual(['race_classification', 'qualifying_classification']);
+    expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_matchup_lookup.authorities).toEqual(['qualifying_classification']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.driver_career_wins_by_circuit.authorities).toEqual(['race_classification', 'event_metadata']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.race_results_summary.authorities).toEqual(['race_classification', 'event_metadata']);
     expect(LAUNCH_CAPABILITY_DISPOSITIONS.qualifying_results_summary.authorities).toEqual(['qualifying_classification', 'event_metadata']);
