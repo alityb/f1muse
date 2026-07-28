@@ -3404,6 +3404,208 @@
     }
   },
   {
+    "id": "launch-current-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2026
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 30
+        }
+      },
+      "program_hash": "abe13a68b200c48a1f77bc94a70d1eaf261d1aa30bb0cd151b3b17b71ccabfe2",
+      "answer": {
+        "headline": "Latest recorded 2026 driver standings.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "1",
+              "points": "42"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "2",
+              "points": "42"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "30"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 1,
+          "points": "42"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 2,
+          "points": "42"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "30"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2026; rank by championship_position asc, top 30.",
+      "metadata": {
+        "source": "current_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": [
+          "season_in_progress"
+        ]
+      }
+    }
+  },
+  {
+    "id": "holdout-current-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2026
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 30
+        }
+      },
+      "program_hash": "abe13a68b200c48a1f77bc94a70d1eaf261d1aa30bb0cd151b3b17b71ccabfe2",
+      "answer": {
+        "headline": "Latest recorded 2026 driver standings.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "1",
+              "points": "42"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "2",
+              "points": "42"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "30"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 1,
+          "points": "42"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 2,
+          "points": "42"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "30"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2026; rank by championship_position asc, top 30.",
+      "metadata": {
+        "source": "current_driver_standings",
+        "definitions_version": "v4",
+        "compiler_version": "core-v3",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": [
+          "season_in_progress"
+        ]
+      }
+    }
+  },
+  {
     "id": "unicode-astral",
     "envelope": {
       "mode": "gated_execution",

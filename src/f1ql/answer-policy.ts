@@ -5,6 +5,7 @@ export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
 
 export type AnswerCapabilitySource =
   | 'final_driver_standings'
+  | 'current_driver_standings'
   | 'race_classification'
   | 'qualifying_classification'
   | 'race_date_metadata';
@@ -58,7 +59,7 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
     return authorizeStandings(root, root.op);
   }
   if (root.op === 'rank') {
-    return authorizeStandings(root.input, root.op);
+    return authorizeStandings(root.input, root.op, root);
   }
   return { type: 'rejected', reason: 'capability_unsupported' };
 }
@@ -100,11 +101,17 @@ function authorizeClassification(
   };
 }
 
-function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | 'rank'): AnswerPolicyDecision {
+function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | 'rank', rank?: Extract<F1QLProgram['root'], { op: 'rank' }>): AnswerPolicyDecision {
   if (aggregate.input.op !== 'filter' || typeof aggregate.input.where.season !== 'number') {
     return { type: 'rejected', reason: 'temporal_scope_unsupported' };
   }
   if (aggregate.input.where.season > FINAL_STANDINGS_THROUGH_SEASON) {
+    if (isCurrentStandings(aggregate, rank)) {
+      return {
+        type: 'approved',
+        capability: { source: 'current_driver_standings', operation, season: aggregate.input.where.season, filters: [] }
+      };
+    }
     return { type: 'rejected', reason: 'interim_standings_unsupported' };
   }
   const driverId = aggregate.input.where.driver_id;
@@ -124,4 +131,15 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
       filters: driverCount === 0 ? [] : ['driver']
     }
   };
+}
+
+function isCurrentStandings(aggregate: AggregateNode, rank: Extract<F1QLProgram['root'], { op: 'rank' }> | undefined): boolean {
+  if (!rank || aggregate.input.op !== 'filter' || aggregate.input.where.season !== 2026 ||
+      Object.keys(aggregate.input.where).length !== 1 || aggregate.group_by.length !== 1 || aggregate.group_by[0] !== 'driver_id' ||
+      rank.by !== 'championship_position' || rank.direction !== 'asc' || rank.limit !== 30) {
+    return false;
+  }
+  return aggregate.measures.length === 2
+    && aggregate.measures[0].as === 'championship_position' && aggregate.measures[0].function === 'min' && aggregate.measures[0].field === 'championship_position'
+    && aggregate.measures[1].as === 'points' && aggregate.measures[1].function === 'max' && aggregate.measures[1].field === 'points';
 }

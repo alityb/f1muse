@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AnswerCapability, authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
 import { AnswerBoundError, enforceAnswerRows, enforceAnswerWorkBudget, enforceVerifiedAnswerWorkBudget, estimateAnswerWork, estimateVerifiedAnswerWork, serializeAnswerResponse } from '../../src/f1ql/answer-bounds';
 import { F1QLProgram } from '../../src/f1ql/ast';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
 import { addCollectionSentinel, F1QLCostLimitError } from '../../src/f1ql/executor';
 import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
 import { proveAnswerIntent } from '../../src/f1ql/answer-semantic-proof';
@@ -11,7 +12,8 @@ const programs: F1QLProgram[] = [
   { version: 1, root: { op: 'rank', input: { op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: ['a', 'b'] } }, group_by: ['driver_id'], measures: [{ as: 'points', function: 'max', field: 'points' }] }, by: 'points', direction: 'desc', limit: 2 } },
   { version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 30 } },
   { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 1, limit: 20 } },
-  { version: 1, root: { op: 'event_metadata', season: 2025, round: 1, session_scope: 'race' } }
+  { version: 1, root: { op: 'event_metadata', season: 2025, round: 1, session_scope: 'race' } },
+  materializeAnswerTemplate('current_standings', { season: 2026 })
 ];
 
 function capability(program: F1QLProgram): AnswerCapability {

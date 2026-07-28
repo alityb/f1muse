@@ -57,6 +57,16 @@ async function proof() {
   }, { inventoryMentions: async () => [] });
 }
 
+async function currentProof() {
+  const question = 'Show the latest recorded 2026 driver standings.';
+  return proveAnswerIntent(createAnswerQuestionContract(question), {
+    type: 'current_standings', season: 2026,
+    season_reference: { text: '2026', start: 25, end: 29 }
+  }, {
+    resolve: async () => ({ type: 'missing' }), resolveRound: async () => ({ type: 'missing' })
+  }, { inventoryMentions: async () => [] });
+}
+
 describe('one-time answer execution authorization', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -78,11 +88,21 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v8', release_attestation: 5 }
+      active_versions: { authorization: 'answer-authorization-v9', release_attestation: 5 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(Object.isFrozen(authorization)).toBe(true);
+  });
+
+  it('binds current standings to its distinct capability and release template', async () => {
+    const semanticProof = await currentProof();
+    const attestation = release(activeContext({ deployment_template_ids: ['current_standings'] }));
+    const authorization = buildAnswerExecutionAuthorization(randomUUID(), 'internal', semanticProof, attestation);
+    expect(authorization).toMatchObject({
+      template_id: 'current_standings', program_hash: semanticProof.program_hash,
+      capability: { source: 'current_driver_standings', operation: 'rank', season: 2026, filters: [] }
+    });
   });
 
   it('consumes exactly once with exact request, audience, deployment, release, versions, and time', async () => {

@@ -73,8 +73,8 @@ export function formatAnswerRows(
       caveats: ['empty_result_is_not_zero']
     };
   }
-  if (capability.source === 'final_driver_standings') {
-    return formatStandings(program, rows);
+  if (capability.source === 'final_driver_standings' || capability.source === 'current_driver_standings') {
+    return formatStandings(program, rows, capability.source === 'current_driver_standings');
   }
   if (capability.source === 'race_classification') {
     return formatClassification(program, rows, 'race');
@@ -88,21 +88,27 @@ export function formatAnswerRows(
   throw new AnswerFormatError('Unsupported answer source');
 }
 
-function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknown>>) {
+function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknown>>, current: boolean) {
   if (program.root.op !== 'aggregate' && program.root.op !== 'rank') {
     throw new AnswerFormatError('Standings capability did not match program');
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;
   const aliases = aggregate.measures.map(measure => measure.as);
   const ordered = program.root.op === 'rank' ? rows : [...rows].sort((left, right) => requiredString(left.driver_id, 'driver_id').localeCompare(requiredString(right.driver_id, 'driver_id')));
+  if (current) {
+    const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
+    if (positions.some((position, index) => position !== index + 1)) {
+      throw new AnswerFormatError('Current standings positions were invalid');
+    }
+  }
   const facts = ordered.map(row => ({
     subject: requiredString(row.driver_id, 'driver_id'),
     values: Object.fromEntries(aliases.map(alias => [alias, displayNumeric(row[alias], alias)]))
   }));
   return {
-    answer: { headline: `Final ${capabilitySeason(program)} driver standings result.`, facts },
+    answer: { headline: current ? `Latest recorded ${capabilitySeason(program)} driver standings.` : `Final ${capabilitySeason(program)} driver standings result.`, facts },
     coverage: 'sufficient' as const,
-    caveats: [] as string[]
+    caveats: current ? ['season_in_progress'] : [] as string[]
   };
 }
 

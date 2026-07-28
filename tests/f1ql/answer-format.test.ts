@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { AnswerFormatError, buildAnswerEnvelope, formatAnswerRows } from '../../src/f1ql/answer-format';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
 
 function approved(program: F1QLProgram) {
   const decision = authorizeAnswerProgram(program);
@@ -85,5 +86,33 @@ describe('deterministic answer formatting', () => {
   it('normalizes decimals without losing integer precision', () => {
     const formatted = formatAnswerRows(standings, approved(standings), [{ driver_id: 'norris', points: '9007199254740993.000' }]);
     expect(formatted.answer.facts[0].values.points).toBe('9007199254740993');
+  });
+
+  it('formats latest-recorded standings with distinct in-progress semantics', () => {
+    const current = materializeAnswerTemplate('current_standings', { season: 2026 });
+    const formatted = formatAnswerRows(current, approved(current), [
+      { driver_id: 'lando-norris', championship_position: '1', points: '42.000' },
+      { driver_id: 'oscar-piastri', championship_position: 2, points: 42 }
+    ]);
+    expect(formatted).toEqual({
+      answer: {
+        headline: 'Latest recorded 2026 driver standings.',
+        facts: [
+          { subject: 'lando-norris', values: { championship_position: '1', points: '42' } },
+          { subject: 'oscar-piastri', values: { championship_position: '2', points: '42' } }
+        ]
+      },
+      coverage: 'sufficient', caveats: ['season_in_progress']
+    });
+  });
+
+  it('fails closed for missing, duplicate, or non-increasing current positions', () => {
+    const current = materializeAnswerTemplate('current_standings', { season: 2026 });
+    const row = (driver_id: string, championship_position?: unknown) => ({ driver_id, championship_position, points: 1 });
+    expect(() => formatAnswerRows(current, approved(current), [row('one')])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(current, approved(current), [row('one', 1), row('other-one', 1)])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(current, approved(current), [row('two', 2), row('one', 1)])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(current, approved(current), [row('one', 1), row('three', 3)])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(current, approved(current), [row('two', 2)])).toThrow(AnswerFormatError);
   });
 });

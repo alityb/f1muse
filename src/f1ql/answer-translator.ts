@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v3';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v5' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v4';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v6' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -54,6 +54,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
       anyOf: [
         closedIntent('final_standings_points', { ...seasonProperties, driver_references: { type: 'array', maxItems: 4, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('final_standings_leader', seasonProperties, ['season', 'season_reference']),
+        closedIntent('current_standings', seasonProperties, ['season', 'season_reference']),
         closedIntent('race_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('race_classification_driver', { ...seasonProperties, ...eventProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'driver_reference']),
         closedIntent('race_classification_status', { ...seasonProperties, ...eventProperties, status: { enum: ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'] }, status_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'status', 'status_reference']),
@@ -80,6 +81,7 @@ export const ANSWER_TRANSLATOR_SYSTEM_PROMPT = `Return exactly { "intent": <Answ
 Decision table (follow literal wording):
 - final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
 - final_standings_leader: final driver standings champion/leader.
+- current_standings: complete latest-recorded driver standings only when the wording literally says "latest recorded"; never infer it from current, live, ongoing, so far, as-of, event, or round wording.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
 - race_classification_status: race classification filtered by exactly one literal supported status.
@@ -90,11 +92,13 @@ Decision table (follow literal wording):
 - qualifying_pole, qualifying_top_n, qualifying_exact_position: literal qualifying result selection; top_n and exact_position carry the literal bounded number as position.
 - race_date: literal race/Grand Prix date request.
 
-Rules: final standings are supported. An explicit 4-digit year is never season_missing. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when no year is written; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final-standings request as unsupported.
+Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when no year is written; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
 
 Valid examples:
 Question: Who led the 2025 standings?
 {"intent":{"type":"final_standings_leader","season":2025,"season_reference":{"text":"2025"}}}
+Question: Show the latest recorded 2026 driver standings.
+{"intent":{"type":"current_standings","season":2026,"season_reference":{"text":"2026"}}}
 Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying

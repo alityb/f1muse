@@ -162,6 +162,7 @@ function executableIntent(contract: AnswerQuestionContract, template: string, in
   const references = inventory.map(mention => ({ text: mention.text, start: mention.start, end: mention.end }));
   if (template === 'final_standings_points') return { type: template, season, season_reference, driver_references: references };
   if (template === 'final_standings_leader') return { type: template, season, season_reference };
+  if (template === 'current_standings') return { type: template, season, season_reference };
   if (template === 'race_date') return { type: template, season, season_reference, event_reference: event_reference! };
   if (template === 'race_classification_all' || template === 'qualifying_classification_all') return { type: template, season, season_reference, event_reference: event_reference! };
   if (template === 'race_classification_driver' || template === 'qualifying_classification_driver') return { type: template, season, season_reference, event_reference: event_reference!, driver_reference: references[0] };

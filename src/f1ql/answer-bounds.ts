@@ -33,7 +33,7 @@ export function estimateAnswerWork(program: F1QLProgram, capability: AnswerCapab
       (capability.source === 'qualifying_classification' && root.op === 'qualifying_classification')) {
     return estimate(10 + root.limit, root.limit);
   }
-  if (capability.source === 'final_driver_standings' && (root.op === 'aggregate' || root.op === 'rank')) {
+  if ((capability.source === 'final_driver_standings' || capability.source === 'current_driver_standings') && (root.op === 'aggregate' || root.op === 'rank')) {
     const aggregate = root.op === 'rank' ? root.input : root;
     const driverId = aggregate.input.op === 'filter' ? aggregate.input.where.driver_id : undefined;
     const driverCount = estimatedStandingsDrivers(driverId);

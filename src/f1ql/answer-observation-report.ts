@@ -11,7 +11,7 @@ import { ANSWER_PROVIDER_DIAGNOSTIC_CODES, AnswerProviderDiagnosticCode } from '
 import { ANSWER_TEMPLATE_IDS, AnswerTemplateId } from './answer-templates';
 import { getF1QLProgramHash } from './verified-programs';
 
-const REQUIRED_SOURCES = ['final_driver_standings', 'qualifying_classification', 'race_classification', 'race_date_metadata'] as const;
+const REQUIRED_SOURCES = ['current_driver_standings', 'final_driver_standings', 'qualifying_classification', 'race_classification', 'race_date_metadata'] as const;
 const REQUIRED_OPERATIONS = ['aggregate', 'rank', 'event_classification', 'qualifying_classification', 'event_metadata'] as const;
 const PROOF_REJECTION_REASONS = ['season_mismatch', 'event_mismatch', 'session_mismatch', 'metric_mismatch', 'status_mismatch', 'entity_cardinality_mismatch', 'template_mismatch'] as const;
 export const ANSWER_TRANSLATION_P95_BUDGET_MS = 5_000;

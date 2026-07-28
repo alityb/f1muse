@@ -70,4 +70,26 @@ describe('Jolpica standings snapshot sync', () => {
       })));
     });
   }
+
+  it('rolls back an incomplete standings replacement', async () => {
+    const season = 2099;
+    await pool.query(`INSERT INTO season_driver_standing
+      (year, position_display_order, position_number, position_text, driver_id, points)
+      VALUES ($1, 1, 1, '1', 'existing-driver', 99)`, [season]);
+    await pool.query(`INSERT INTO season_constructor_standing
+      (year, position_display_order, position_number, position_text, constructor_id, engine_manufacturer_id, points)
+      VALUES ($1, 1, 1, '1', 'existing-constructor', 'existing-engine', 88)`, [season]);
+
+    await expect(syncStandings(pool, season, async path => path.includes('driverstandings')
+      ? { StandingsTable: { StandingsLists: [{ DriverStandings: [{ position: '1', points: '10', Driver: { driverId: 'replacement-driver' } }] }] } }
+      : { StandingsTable: { StandingsLists: [{ ConstructorStandings: [
+        { position: '1', points: '9', Constructor: { constructorId: 'replacement-constructor' } },
+        { position: 'invalid', points: '5', Constructor: { constructorId: 'broken-constructor' } }
+      ] }] } })).rejects.toThrow();
+
+    const actual = await pool.query('SELECT driver_id, points FROM season_driver_standing WHERE year = $1', [season]);
+    expect(actual.rows).toEqual([{ driver_id: 'existing-driver', points: '99' }]);
+    const constructors = await pool.query('SELECT constructor_id, points FROM season_constructor_standing WHERE year = $1', [season]);
+    expect(constructors.rows).toEqual([{ constructor_id: 'existing-constructor', points: '88' }]);
+  });
 });

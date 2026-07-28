@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v5', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v6', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,12 +82,27 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v5',
+      version: 'answer-semantic-proof-v6',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
     });
     expect(proof.program.root).not.toMatchObject({ input: { where: { driver_id: expect.anything() } } });
+  });
+
+  it('proves latest-recorded standings independently from final standings', async () => {
+    const question = 'Show the latest recorded 2026 driver standings.';
+    const contract = createAnswerQuestionContract(question);
+    const proof = await proveAnswerIntent(contract, {
+      type: 'current_standings', season: 2026, season_reference: span(question, '2026')
+    }, events, drivers);
+    expect(proof).toMatchObject({
+      template_id: 'current_standings', template_variables: { season: 2026 },
+      program: { root: { op: 'rank', by: 'championship_position', direction: 'asc', limit: 30 } }
+    });
+    await expect(proveAnswerIntent(contract, {
+      type: 'final_standings_leader', season: 2026, season_reference: span(question, '2026')
+    }, events, drivers)).rejects.toMatchObject({ reason: 'metric_mismatch' });
   });
 
   it.each([

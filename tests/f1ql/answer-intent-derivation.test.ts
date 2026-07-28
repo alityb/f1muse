@@ -43,14 +43,27 @@ describe('provider-free answer intent derivation', () => {
     ['Who finished second at the 2025 Australian Grand Prix?', inventory(), 'race_exact_position'],
     ['Who took pole at the 2025 Australian Grand Prix?', inventory(), 'qualifying_pole'],
     ['Show the top five qualifiers at the 2025 Australian Grand Prix.', inventory(), 'qualifying_top_n'],
-    ['Who qualified third at the 2025 Australian Grand Prix?', inventory(), 'qualifying_exact_position']
+    ['Who qualified third at the 2025 Australian Grand Prix?', inventory(), 'qualifying_exact_position'],
+    ['Show the latest recorded 2026 driver standings.', inventory(), 'current_standings']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v2');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v3');
+  });
+
+  it.each([
+    'Show the latest recorded 2025 driver standings.',
+    'Show the latest recorded 2027 driver standings.',
+    'Show the latest recorded 2026 driver standings for Lando Norris.',
+    'Show the latest recorded 2026 driver standings after the summer break.',
+    'Show the latest recorded 2026 driver standings through last weekend.',
+    'Show the latest recorded 2026 driver standings on July 1.'
+  ])('does not broaden latest-recorded standings: %s', async question => {
+    const resolver = question.includes('Lando') ? inventory('Lando Norris') : inventory();
+    await expect(deriveAnswerIntent(createAnswerQuestionContract(question), resolver)).resolves.toEqual({ type: 'unsupported', reason: 'capability_unsupported' });
   });
 
   it('binds result cardinality to the trusted cue', async () => {

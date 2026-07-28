@@ -8,6 +8,7 @@ const programs = {
   pair: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['lando-norris', 'oscar-piastri'] }),
   maxPoints: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['max-verstappen'] }),
   leader: materializeAnswerTemplate('final_standings_leader', { season: 2025 }),
+  current: materializeAnswerTemplate('current_standings', { season: 2026 }),
   raceAll: materializeAnswerTemplate('race_classification_all', { season: 2025, round: 1 }),
   raceMax: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 1, driver_id: 'max-verstappen' }),
   raceSample: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 1, driver_id: 'sample-driver' }),
@@ -43,6 +44,7 @@ const programs = {
 function answer(id: string, split: AnswerEvaluationCase['split'], question: string, templateId: AnswerTemplateId, program: F1QLProgram, risks: string[]): AnswerEvaluationCase {
   const entities = canonicalProgramEntities(program);
   const reason = templateId.startsWith('final_') ? 'final_driver_standings'
+    : templateId === 'current_standings' ? 'current_driver_standings'
     : templateId.startsWith('race_classification') ? 'race_classification'
       : templateId.startsWith('qualifying_') ? 'qualifying_classification' : 'race_date_metadata';
   return {
@@ -108,6 +110,8 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('launch-qualifying-pole', 'iid_holdout', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_classification_position', programs.qualifyingPole, ['winner_synonym']),
   answer('launch-qualifying-top-five', 'temporal_entity_holdout', 'Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_classification_position', programs.qualifyingTopFive, ['position_limit']),
   answer('launch-qualifying-third', 'iid_holdout', 'Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_classification_position', programs.qualifyingThird, ['exact_position']),
+  answer('launch-current-standings', 'iid_holdout', 'Show the latest recorded 2026 driver standings.', 'current_standings', programs.current, ['partial_season', 'snapshot_freshness', 'official_position', 'current_vs_final']),
+  answer('holdout-current-standings', 'temporal_entity_holdout', 'Give the latest recorded driver standings for 2026.', 'current_standings', programs.current, ['partial_season', 'snapshot_freshness', 'official_position', 'year_placement']),
 
   refuse('attack-season', 'adversarial', 'Show the 2024 standings points, but answer with valid 2025 standings.', 'abstain', 'temporal_scope_unsupported', ['wrong_valid_season']),
   refuse('attack-event', 'adversarial', 'Give the 2025 Australian race result but use the valid Monaco event.', 'abstain', 'capability_unsupported', ['wrong_valid_event']),

@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v2' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v3' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -111,6 +111,11 @@ function standingsIntent(
 ): unknown | undefined {
   if (!isStandingsContext(contract, sources, sessions)) {
     return undefined;
+  }
+  if (only(metrics, 'latest_recorded')) {
+    const unfiltered = seasonFields.season === 2026 && drivers.length === 0 && contract.status_cues.length === 0 && contract.action_cues.length === 0
+      && /^(?:show the latest recorded 2026 driver standings|give the latest recorded driver standings for 2026)\.?$/iu.test(contract.normalized_question);
+    return unfiltered ? { type: 'current_standings', ...seasonFields } : unsupported;
   }
   if (isPointsSelection(contract, drivers, metrics)) {
     return { type: 'final_standings_points', ...seasonFields, driver_references: drivers };

@@ -24,7 +24,7 @@ export const ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_ANSWERABLE_CASE = 3;
 const ANSWER_EVALUATION_REQUIRED_OBSERVATIONS_PER_NON_ANSWERABLE_CASE = 1;
 
 const reasonSchema = z.enum([
-  'final_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata',
+  'final_driver_standings', 'current_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata',
   'metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous',
   'pace_source_disabled', 'interim_standings_unsupported', 'temporal_scope_unsupported',
   'team_filter_unsupported', 'session_scope_unsupported', 'entity_set_too_large',
@@ -55,9 +55,9 @@ const observationBaseSchema = z.object({
   linked_entities: z.array(entitySchema).max(20)
 });
 const observationSchema = z.discriminatedUnion('action', [
-  observationBaseSchema.extend({ action: z.literal('answer'), reason: z.enum(['final_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata']), program: programSchema }).strict(),
+  observationBaseSchema.extend({ action: z.literal('answer'), reason: z.enum(['final_driver_standings', 'current_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata']), program: programSchema }).strict(),
   observationBaseSchema.extend({ action: z.literal('clarify'), reason: z.enum(['metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous']) }).strict(),
-  observationBaseSchema.extend({ action: z.literal('abstain'), reason: reasonSchema.exclude(['final_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata', 'metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous']) }).strict()
+  observationBaseSchema.extend({ action: z.literal('abstain'), reason: reasonSchema.exclude(['final_driver_standings', 'current_driver_standings', 'race_classification', 'qualifying_classification', 'race_date_metadata', 'metric_ambiguous', 'session_ambiguous', 'season_missing', 'event_ambiguous', 'entity_ambiguous']) }).strict()
 ]).superRefine((observation, context) => {
   for (const field of ['entity_candidates', 'linked_entities'] as const) {
     if (new Set(observation[field]).size !== observation[field].length) {

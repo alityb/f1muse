@@ -6,7 +6,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v14');
+    expect(contract.version).toBe('answer-question-v15');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -23,6 +23,15 @@ describe('answer question contract', () => {
     expect(contract.status_cues.map(cue => cue.value)).toEqual(['dnf']);
     expect(createAnswerQuestionContract('Who was the 2025 standings leader?').metric_cues.map(cue => cue.value)).toEqual(['official_leader']);
     expect(createAnswerQuestionContract('When was the 2025 Monaco race?').metric_cues.map(cue => cue.value)).toEqual(['date']);
+    expect(createAnswerQuestionContract('Show the latest recorded 2026 driver standings.').metric_cues.map(cue => cue.value)).toEqual(['latest_recorded']);
+  });
+
+  it('admits only latest-recorded wording while preserving broader interim rejection', () => {
+    expect(createAnswerQuestionContract('Show the latest recorded 2026 driver standings.').outcome).toEqual({ type: 'inspection_required' });
+    expect(createAnswerQuestionContract('Show the current 2026 driver standings.').outcome).toEqual({ type: 'rejected', reason: 'interim_standings_unsupported' });
+    expect(createAnswerQuestionContract('Show the latest recorded 2026 standings after round 10.').outcome).toEqual({ type: 'rejected', reason: 'interim_standings_unsupported' });
+    expect(createAnswerQuestionContract('Show the latest recorded 2026 standings as of today.').outcome).toEqual({ type: 'rejected', reason: 'interim_standings_unsupported' });
+    expect(createAnswerQuestionContract('Show the latest recorded final 2026 driver standings.').outcome).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
   });
 
   it('defines all mention offsets in Unicode code points', () => {

@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v14' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v15' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
 export type AnswerQuestionSourceCue = 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date';
 export type AnswerQuestionSessionCue = 'race' | 'qualifying' | 'sprint';
-export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'date';
+export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'latest_recorded' | 'date';
 export type AnswerQuestionActionCue = 'all';
 export type AnswerQuestionStatusCue = 'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn';
 export type AnswerQuestionResultCue = 'race_winner' | 'race_podium' | 'race_top_n' | 'race_exact_position' | 'qualifying_pole' | 'qualifying_top_n' | 'qualifying_exact_position';
@@ -79,6 +79,7 @@ const SESSION_PATTERNS: readonly CuePattern<AnswerQuestionSessionCue>[] = [
 const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'points', pattern: /\bpoints?\b/giu },
   { value: 'official_leader', pattern: /\b(?:championship|standings)\s+(?:champion|leader)\b|\bdriver\s+champion\b|\bwho\b[^.?!]{0,80}\bchampion\b|\bwho\s+(?:led|won)\s+(?:the\s+)?(?:(?:19[5-9]\d|20\d{2}|2100)\s+)?(?:driver\s+)?(?:championship|standings)\b/giu },
+  { value: 'latest_recorded', pattern: /\blatest\s+recorded\b/giu },
   { value: 'date', pattern: /\b(?:date|what\s+day|when\s+(?:was|is|did))\b/giu }
 ];
 
@@ -102,7 +103,7 @@ const ROUND_REFERENCE_PATTERN = new RegExp(`\\b(?:round|rd\\.?|r)\\s*#?\\s*(${RO
 const EVENT_NAME = '(?:Australian|Chinese|Japanese|Bahrain|Saudi\\s+Arabian|Miami|Emilia[- ]Romagna|Monaco|Spanish|Canadian|Austrian|British|Belgian|Hungarian|Dutch|Italian|Azerbaijan|Singapore|United\\s+States|Mexico\\s+City|S(?:a|ã)o\\s+Paulo|Las\\s+Vegas|Qatar|Abu\\s+Dhabi|French|German|European|Portuguese|Turkish|Russian|Malaysian|Indian|Korean|South\\s+African|Argentine|Detroit|Pacific|San\\s+Marino|Melbourne|Shanghai|Suzuka|Jeddah|Imola|Barcelona|Montreal|Spielberg|Silverstone|Spa(?:-Francorchamps)?|Budapest|Zandvoort|Monza|Baku|Austin|Mexico|Interlagos|Lusail|Yas\\s+Marina)';
 const EVENT_PATTERN = new RegExp(`\\b${EVENT_NAME}(?:\\s+(?:grand\\s+prix|gp))?\\b`, 'giu');
 const INTERIM_STANDINGS_PATTERN = new RegExp(
-  `\\b(?:current|live|ongoing|so\\s+far|mid[-\\s]?season)\\b|\\b(?:as[-\\s]+of|after|before|through|up[-\\s]+to|at)\\s+(?:(?:round\\s+${ROUND_NUMBER})|(?:(?:the\\s+)?${ROUND_NUMBER}\\s+rounds?)|(?:the\\s+)?${EVENT_NAME}(?:\\s+(?:grand\\s+prix|gp))?)\\b`,
+  `\\b(?:current|live|ongoing|so\\s+far|mid[-\\s]?season)\\b|\\bas[-\\s]+of\\b|\\b(?:after|before|through|up[-\\s]+to)\\s+(?:today|yesterday|now|currently|date)\\b|\\b(?:after|before|through|up[-\\s]+to|at)\\s+(?:(?:round\\s+${ROUND_NUMBER})|(?:(?:the\\s+)?${ROUND_NUMBER}\\s+rounds?)|(?:the\\s+)?${EVENT_NAME}(?:\\s+(?:grand\\s+prix|gp))?)\\b`,
   'giu'
 );
 
@@ -205,6 +206,11 @@ export function createAnswerQuestionContract(input: unknown): AnswerQuestionCont
   } else if (standings && (rounds.length > 0 || eventCues.length > 0)) {
     const qualifier = [...rounds, ...eventCues].sort((left, right) => left.start - right.start)[0];
     unsupportedCues.push({ value: 'interim', start: qualifier.start, end: qualifier.end, text: qualifier.text });
+  }
+  const latestRecorded = metricCues.some(cue => cue.value === 'latest_recorded');
+  const finalLatestMatch = standings && latestRecorded ? firstMatch(normalized, /\bfinal\b/giu) : undefined;
+  if (finalLatestMatch) {
+    unsupportedCues.push(toMention('capability', finalLatestMatch));
   }
   if (new Set(years.map(year => year.value)).size > 1) {
     const first = years[0];

@@ -298,6 +298,7 @@ export async function syncStandings(
 
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     if (driverList.length) {
       await client.query('DELETE FROM season_driver_standing WHERE year = $1', [season]);
       const rows = driverList.map((s: any) => {
@@ -335,6 +336,10 @@ export async function syncStandings(
             parseFloat(s.points ?? '0'), false]);
       }
     }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
   } finally {
     client.release();
   }

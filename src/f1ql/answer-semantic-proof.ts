@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v5' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v6' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -292,6 +292,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('official_leader') && intent.type !== 'final_standings_leader') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('latest_recorded') && intent.type !== 'current_standings') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('date') && intent.type !== 'race_date') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -300,6 +303,15 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   }
   if (intent.type === 'final_standings_leader' && !metrics.has('official_leader')) {
     throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'current_standings' && !metrics.has('latest_recorded')) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'current_standings' && /\bfinal\b/iu.test(contract.normalized_question)) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'current_standings' && !/^(?:show the latest recorded 2026 driver standings|give the latest recorded driver standings for 2026)\.?$/iu.test(contract.normalized_question)) {
+    throw new AnswerSemanticProofError('template_mismatch');
   }
   if (intent.type === 'race_date' && !metrics.has('date') && !explicitSources.has('race_date')) {
     throw new AnswerSemanticProofError('metric_mismatch');
@@ -346,7 +358,7 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
 }
 
 function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date' {
-  if (intent.type.startsWith('final_standings')) {
+  if (intent.type.startsWith('final_standings') || intent.type === 'current_standings') {
     return 'standings';
   }
   if (intent.type.startsWith('race_classification')) {

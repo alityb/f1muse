@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
 import { F1QLProgram } from '../../src/f1ql/ast';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
 
 const standingsAggregate = (season: number | number[] | undefined, driver_id?: string | string[]): F1QLProgram => ({
   version: 1,
@@ -16,6 +17,11 @@ const standingsAggregate = (season: number | number[] | undefined, driver_id?: s
 
 describe('Phase 7 answer capability policy', () => {
   it.each([
+    {
+      name: 'latest-recorded current standings',
+      program: materializeAnswerTemplate('current_standings', { season: 2026 }),
+      source: 'current_driver_standings'
+    },
     {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
@@ -132,5 +138,20 @@ describe('Phase 7 answer capability policy', () => {
     expect(authorizeAnswerProgram({ version: 1, root: { op: 'event_classification', season: 2025, round: 1, limit: 1, filters: { finishing_position: [1, 2, 3] } } })).toEqual({
       type: 'rejected', reason: 'classification_filter_combination_unsupported'
     });
+  });
+
+  it('authorizes only the exact reviewed current-standings shape', () => {
+    const current = materializeAnswerTemplate('current_standings', { season: 2026 });
+    if (current.root.op !== 'rank') throw new Error('fixture must rank');
+    const mutations: F1QLProgram[] = [
+      { ...current, root: { ...current.root, direction: 'desc' } },
+      { ...current, root: { ...current.root, by: 'points' } },
+      { ...current, root: { ...current.root, limit: 29 } },
+      { ...current, root: { ...current.root, input: { ...current.root.input, measures: [{ as: 'points', function: 'max', field: 'points' }] } } },
+      { ...current, root: { ...current.root, input: { ...current.root.input, input: { ...current.root.input.input, where: { season: 2026, driver_id: 'lando-norris' } } } } }
+    ];
+    for (const program of mutations) {
+      expect(authorizeAnswerProgram(program)).toEqual({ type: 'rejected', reason: 'interim_standings_unsupported' });
+    }
   });
 });

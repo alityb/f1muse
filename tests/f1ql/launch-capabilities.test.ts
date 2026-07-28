@@ -60,7 +60,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only result selections with deterministic proof and reviewed generated evidence', async () => {
-    const contractedIds = ['qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-podium', 'race-second', 'race-top-five', 'race-winner'];
+    const contractedIds = ['current-standings', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-podium', 'race-second', 'race-top-five', 'race-winner'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));

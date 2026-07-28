@@ -74,6 +74,15 @@ async function driverProof(): Promise<VerifiedAnswerSemanticProof> {
   });
 }
 
+async function currentProof(): Promise<VerifiedAnswerSemanticProof> {
+  const question = 'Show the latest recorded 2026 driver standings.';
+  return proveAnswerIntent(createAnswerQuestionContract(question), {
+    type: 'current_standings', season: 2026, season_reference: span(question, '2026')
+  }, {
+    resolve: async () => ({ type: 'missing' }), resolveRound: async () => ({ type: 'missing' })
+  }, { inventoryMentions: async () => [] });
+}
+
 function authority(proof: VerifiedAnswerSemanticProof, deploymentId = 'execution-test-deployment') {
   const attestation = release(proof.template_id, deploymentId);
   const requestId = randomUUID();
@@ -147,6 +156,34 @@ describe('answer execution service', () => {
     expect(Buffer.from(result.serialized_response, 'utf8')).toEqual(Buffer.from(JSON.stringify(result.response), 'utf8'));
     expect(JSON.parse(result.serialized_response)).toEqual(result.response);
     expect(result.response.answer.facts[0].values).toEqual({ points: '357' });
+  });
+
+  it('executes current standings through release-bound read-only authority', async () => {
+    const proof = await currentProof();
+    const { authorization, context } = authority(proof);
+    const statements: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        statements.push(sql);
+        if (sql.startsWith('SELECT * FROM')) {
+          return { rows: [
+            { driver_id: 'lando-norris', championship_position: 1, points: '42' },
+            { driver_id: 'oscar-piastri', championship_position: 2, points: '42' }
+          ] };
+        }
+        return { rows: [] };
+      }),
+      release: vi.fn()
+    };
+    const pool = { query: vi.fn(), connect: vi.fn(async () => client) } as unknown as Pool;
+
+    const result = await executeAuthorizedAnswer(pool, authorization, proof, context, { now: () => nowMs });
+
+    expect(statements[0]).toBe('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+    expect(statements).toContain("SELECT set_config('statement_timeout', $1, true)");
+    expect(statements.at(-1)).toBe('COMMIT');
+    expect(result.response.metadata).toMatchObject({ source: 'current_driver_standings', caveats: ['season_in_progress'] });
+    expect(result.response.answer).toMatchObject({ headline: 'Latest recorded 2026 driver standings.' });
   });
 
   it('executes zero database operations for copied, killed, and replayed authorization', async () => {
