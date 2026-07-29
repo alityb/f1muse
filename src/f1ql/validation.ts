@@ -1,16 +1,19 @@
 import { Pool, PoolClient } from 'pg';
 import { F1QLProgram } from './ast';
-import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreFilterNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreComposeNode, CoreDeltaNode, CoreEventClassificationFilter, CoreFilterNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreSourceNode } from './core';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS, MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 
-export const F1QL_DEFINITIONS_VERSION = 'v7';
+export const F1QL_DEFINITIONS_VERSION = 'v8';
 export const F1QL_SIGNATURES = {
-  standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank'] },
+  standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank', 'compose', 'official_driver_results_comparison'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'aggregate', 'compare', 'comparison_summary', 'event_classification', 'race_season_finishing_position_h2h', 'driver_career_wins_by_circuit'] },
-  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'qualifying_classification', 'qualifying_season_position_h2h'] },
+  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'aggregate', 'compare', 'comparison_summary', 'compose', 'event_classification', 'race_season_finishing_position_h2h', 'official_driver_results_comparison', 'driver_career_wins_by_circuit'] },
+  qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'compose', 'qualifying_classification', 'qualifying_season_position_h2h', 'official_driver_results_comparison'] },
   event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'join', 'aggregate', 'event_metadata', 'driver_career_wins_by_circuit'] },
   official_lap_timing: {
     fields: ['season', 'round', 'session_type', 'driver_id', 'lap_start', 'lap_end', 'complete_requested_window', 'complete_event', 'official_deleted_lap', 'official_pit_marker', 'lap_time_seconds'],
@@ -68,7 +71,7 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'pace_delta') {
     return { season: root.scope.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
-  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
+  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     return { season: root.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
   if (root.op === 'pace_summary') {
@@ -121,6 +124,10 @@ export function validateCoreProgram(program: CoreProgram): void {
     validateComparisonSummary(program.root);
     return;
   }
+  if (program.root.op === 'compose') {
+    validateCompose(program.root);
+    return;
+  }
   if (program.root.op === 'aggregate' && program.root.input.op === 'join') {
     validateDriverCareerWinsAggregate(program.root);
     return;
@@ -128,6 +135,81 @@ export function validateCoreProgram(program: CoreProgram): void {
   const source = validatePipeline(program.root);
   if ((source === 'event_classification' || source === 'qualifying_classification') && program.root.op !== 'limit') {
     throw new F1QLValidationError('signature_invalid', 'Classification requires a limit');
+  }
+}
+
+function validateCompose(node: CoreComposeNode): void {
+  if (!isBoundedIdentifier(node.metric_id) || node.require_exactly_one_row_per_input !== true || node.inputs.length < 2 || node.inputs.length > 8 || node.select.length < 1 || node.select.length > 100) {
+    throw new F1QLValidationError('signature_invalid', 'Compose requires a bounded metric and bounded exact-one-row inputs and selections');
+  }
+  const outputs = new Map<string, Set<string>>();
+  for (const item of node.inputs) {
+    if (!isBoundedIdentifier(item.as) || outputs.has(item.as)) {
+      throw new F1QLValidationError('signature_invalid', 'Compose input aliases must be unique bounded identifiers');
+    }
+    if (item.input.op === 'comparison_summary') {
+      validateComparisonSummary(item.input);
+      outputs.set(item.as, new Set(['metric_id', 'season', 'driver_a_id', 'driver_b_id', 'driver_a_ahead', 'driver_b_ahead', 'ties', 'shared_events', 'driver_a_source_rows', 'driver_b_source_rows', 'distinct_source_keys', 'duplicate_source_rows', 'source_presence_ok', 'source_unique_keys_ok', 'source_integrity_ok']));
+      if (item.require !== undefined) {
+        throw new F1QLValidationError('signature_invalid', 'Comparison summary inputs cannot add scalar count requirements');
+      }
+    } else {
+      const source = validatePipeline(item.input);
+      const aggregateInput = item.input.input;
+      const where = aggregateInput.op === 'filter' ? aggregateInput.where as Record<string, unknown> : undefined;
+      if (source !== 'standings' || aggregateInput.op !== 'filter' || typeof where?.season !== 'number' || typeof where.driver_id !== 'string' ||
+          JSON.stringify(Object.keys(where).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+          JSON.stringify(item.input.group_by) !== JSON.stringify(['driver_id']) || JSON.stringify(item.input.measures) !== JSON.stringify([
+            { as: 'championship_position', function: 'min', field: 'championship_position' },
+            { as: 'points', function: 'max', field: 'points' },
+            { as: 'standing_rows', function: 'count' }
+          ]) || JSON.stringify(item.require) !== JSON.stringify({ field: 'standing_rows', equals: 1, non_null_fields: ['championship_position', 'points'] })) {
+        throw new F1QLValidationError('signature_invalid', 'Compose aggregate inputs must be scalar-driver standings aggregates');
+      }
+      outputs.set(item.as, new Set(['driver_id', ...item.input.measures.map(measure => measure.as)]));
+    }
+  }
+  const selected = new Set<string>();
+  for (const selection of node.select) {
+    if (!isBoundedIdentifier(selection.input) || !isBoundedIdentifier(selection.field) || !isBoundedIdentifier(selection.as) || selected.has(selection.as) || !outputs.get(selection.input)?.has(selection.field)) {
+      throw new F1QLValidationError('signature_invalid', 'Compose selections must reference declared fields and unique bounded aliases');
+    }
+    selected.add(selection.as);
+  }
+  if (node.metric_id !== OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID) {
+    throw new F1QLValidationError('signature_invalid', 'Unsupported composition metric');
+  }
+  validateOfficialDriverResultsComposition(node);
+}
+
+function validateOfficialDriverResultsComposition(node: CoreComposeNode): void {
+  if (JSON.stringify(node.inputs.map(input => input.as)) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES) ||
+      JSON.stringify(node.select) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT)) {
+    throw new F1QLValidationError('signature_invalid', 'Official driver results composition requires the exact inputs and projection contract');
+  }
+  const [standingA, standingB, race, qualifying] = node.inputs;
+  if (standingA.input.op !== 'aggregate' || standingB.input.op !== 'aggregate' || race.input.op !== 'comparison_summary' || qualifying.input.op !== 'comparison_summary') {
+    throw new F1QLValidationError('signature_invalid', 'Official driver results composition input types changed');
+  }
+  const standingAWhere = (standingA.input.input as CoreFilterNode).where as Record<string, unknown>;
+  const standingBWhere = (standingB.input.input as CoreFilterNode).where as Record<string, unknown>;
+  const raceLeft = classificationComparisonBranch(race.input.input.input.left);
+  const raceRight = classificationComparisonBranch(race.input.input.input.right);
+  const qualifyingLeft = classificationComparisonBranch(qualifying.input.input.input.left);
+  const qualifyingRight = classificationComparisonBranch(qualifying.input.input.input.right);
+  const raceSeason = raceLeft.where.season;
+  if (typeof raceSeason !== 'number' || raceSeason < OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN || raceSeason > OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX ||
+      race.input.metric_id !== RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID || qualifying.input.metric_id !== QUALIFYING_SEASON_POSITION_H2H_METRIC_ID ||
+      race.input.lower_is_better !== true || qualifying.input.lower_is_better !== true ||
+      race.input.require_unique_source_keys !== true || qualifying.input.require_unique_source_keys !== true ||
+      race.input.require_source_presence !== true || qualifying.input.require_source_presence !== true ||
+      raceLeft.source !== 'event_classification' || raceRight.source !== 'event_classification' ||
+      qualifyingLeft.source !== 'qualifying_classification' || qualifyingRight.source !== 'qualifying_classification' ||
+      standingAWhere.season !== raceLeft.where.season || standingBWhere.season !== raceLeft.where.season ||
+      raceRight.where.season !== raceLeft.where.season || qualifyingLeft.where.season !== raceLeft.where.season || qualifyingRight.where.season !== raceLeft.where.season ||
+      standingAWhere.driver_id !== raceLeft.where.driver_id || standingBWhere.driver_id !== raceRight.where.driver_id ||
+      qualifyingLeft.where.driver_id !== raceLeft.where.driver_id || qualifyingRight.where.driver_id !== raceRight.where.driver_id) {
+    throw new F1QLValidationError('signature_invalid', 'Official driver results composition branches must share one season and ordered drivers');
   }
 }
 
@@ -419,6 +501,15 @@ function validateSignature(program: F1QLProgram): void {
     return;
   }
   if (root.op === 'qualifying_season_position_h2h') {
+    assertSignature('qualifying_classification', root.op, ['season', 'round', 'driver_id', 'qualifying_position']);
+    return;
+  }
+  if (root.op === 'official_driver_results_comparison') {
+    if (root.metric !== OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID) {
+      throw new F1QLValidationError('signature_invalid', 'Official driver results comparison requires the fixed metric');
+    }
+    assertSignature('standings', root.op, ['season', 'driver_id', 'points', 'championship_position']);
+    assertSignature('event_classification', root.op, ['season', 'round', 'driver_id', 'finishing_position']);
     assertSignature('qualifying_classification', root.op, ['season', 'round', 'driver_id', 'qualifying_position']);
     return;
   }

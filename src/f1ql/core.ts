@@ -180,7 +180,27 @@ export interface CoreComparisonSummaryNode {
   require_source_presence: boolean;
 }
 
+export interface CoreComposeInput {
+  as: string;
+  input: CoreAggregateNode | CoreComparisonSummaryNode;
+  require?: { field: string; equals: number; non_null_fields: string[] };
+}
+
+export interface CoreComposeSelection {
+  input: string;
+  field: string;
+  as: string;
+}
+
+export interface CoreComposeNode {
+  op: 'compose';
+  metric_id: string;
+  inputs: CoreComposeInput[];
+  select: CoreComposeSelection[];
+  require_exactly_one_row_per_input: true;
+}
+
 export interface CoreProgram {
   version: 1;
-  root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode | CoreComparisonSummaryNode;
+  root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode | CoreComparisonSummaryNode | CoreComposeNode;
 }

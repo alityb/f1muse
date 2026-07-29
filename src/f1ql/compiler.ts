@@ -1,9 +1,12 @@
 import { StandingsFilter } from './ast';
-import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreComposeNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
 import { MINIMUM_ELIGIBLE_LAPS_PER_EVENT } from './lower';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS, OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS, OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
@@ -13,6 +16,9 @@ export interface CompiledF1QL {
 }
 
 export function compileF1QL(program: CoreProgram): CompiledF1QL {
+  if (program.root.op === 'compose') {
+    return compileCompose(program.root);
+  }
   if (isDriverCareerWinsAggregate(program.root)) {
     return compileDriverCareerWinsByCircuit(program.root);
   }
@@ -57,6 +63,99 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
     `,
     params
   };
+}
+
+function compileCompose(node: CoreComposeNode): CompiledF1QL {
+  if (!/^[a-z][a-z0-9_]{0,99}$/.test(node.metric_id) || node.require_exactly_one_row_per_input !== true || node.inputs.length < 2 || node.inputs.length > 8 || node.select.length < 1 || node.select.length > 100) {
+    throw new Error('Expected a bounded scalar composition');
+  }
+  if (node.metric_id !== OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID) {
+    throw new Error('Unsupported composition metric');
+  }
+  validateOfficialComposePlan(node);
+  const params: unknown[] = [];
+  const aliases = new Set<string>();
+  const fields = new Map<string, Set<string>>();
+  const ctes = node.inputs.map(({ as, input, require }) => {
+    if (!/^[a-z][a-z0-9_]{0,99}$/.test(as) || aliases.has(as)) {
+      throw new Error('Compose input aliases must be unique bounded identifiers');
+    }
+    aliases.add(as);
+    const available = composeInputFields(input, require);
+    fields.set(as, available);
+    const compiled = compileF1QL({ version: 1, root: input });
+    const sql = rebaseSqlParams(compiled.sql, params.length);
+    params.push(...compiled.params);
+    return require === undefined
+      ? `${as} AS (${sql})`
+      : `${as} AS (SELECT * FROM (${sql}) AS composed_input WHERE ${require.field} = ${require.equals} AND ${require.non_null_fields.map(field => `${field} IS NOT NULL`).join(' AND ')})`;
+  });
+  const outputAliases = new Set<string>();
+  const selections = node.select.map(selection => {
+    if (!aliases.has(selection.input) || !fields.get(selection.input)?.has(selection.field) || !/^[a-z][a-z0-9_]{0,99}$/.test(selection.as) || outputAliases.has(selection.as)) {
+      throw new Error('Compose selections require known inputs and unique bounded identifiers');
+    }
+    outputAliases.add(selection.as);
+    return `${selection.input}.${selection.field} AS ${selection.as}`;
+  });
+  params.push(node.metric_id);
+  return {
+    sql: `WITH ${ctes.join(',\n')} SELECT $${params.length}::text AS metric_id, ${selections.join(', ')} FROM ${Array.from(aliases).join(' CROSS JOIN ')}`,
+    params
+  };
+}
+
+function validateOfficialComposePlan(node: CoreComposeNode): void {
+  if (JSON.stringify(node.inputs.map(input => input.as)) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES) ||
+      JSON.stringify(node.select) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT)) {
+    throw new Error('Official driver results composition requires the exact inputs and projection contract');
+  }
+  const [standingA, standingB, race, qualifying] = node.inputs;
+  if (standingA.input.op !== 'aggregate' || standingB.input.op !== 'aggregate' || race.input.op !== 'comparison_summary' || qualifying.input.op !== 'comparison_summary') {
+    throw new Error('Official driver results composition input types changed');
+  }
+  const whereA = standingA.input.input.op === 'filter' ? standingA.input.input.where as Record<string, unknown> : {};
+  const whereB = standingB.input.input.op === 'filter' ? standingB.input.input.where as Record<string, unknown> : {};
+  const racePlan = comparisonSummaryPlan(race.input);
+  const qualifyingPlan = comparisonSummaryPlan(qualifying.input);
+  if (racePlan.season < OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN || racePlan.season > OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX ||
+      race.input.metric_id !== RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID || qualifying.input.metric_id !== QUALIFYING_SEASON_POSITION_H2H_METRIC_ID ||
+      race.input.lower_is_better !== true || qualifying.input.lower_is_better !== true ||
+      race.input.require_unique_source_keys !== true || qualifying.input.require_unique_source_keys !== true ||
+      race.input.require_source_presence !== true || qualifying.input.require_source_presence !== true ||
+      racePlan.table !== 'f1ql.event_classification' || qualifyingPlan.table !== 'f1ql.qualifying_classification' ||
+      whereA.season !== racePlan.season || whereB.season !== racePlan.season || qualifyingPlan.season !== racePlan.season ||
+      whereA.driver_id !== racePlan.leftId || whereB.driver_id !== racePlan.rightId ||
+      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId) {
+    throw new Error('Official driver results composition branches must share one season and ordered drivers');
+  }
+}
+
+function composeInputFields(input: CoreComposeNode['inputs'][number]['input'], require: CoreComposeNode['inputs'][number]['require']): Set<string> {
+  if (input.op === 'comparison_summary') {
+    comparisonSummaryPlan(input);
+    if (require !== undefined) {
+      throw new Error('Comparison summary inputs cannot add scalar count requirements');
+    }
+    return new Set(['metric_id', 'season', 'driver_a_id', 'driver_b_id', 'driver_a_ahead', 'driver_b_ahead', 'ties', 'shared_events', 'driver_a_source_rows', 'driver_b_source_rows', 'distinct_source_keys', 'duplicate_source_rows', 'source_presence_ok', 'source_unique_keys_ok', 'source_integrity_ok']);
+  }
+  const aggregateInput = input.input;
+  const where = aggregateInput.op === 'filter' ? aggregateInput.where as Record<string, unknown> : undefined;
+  if (aggregateInput.op !== 'filter' || aggregateInput.input.op !== 'source' || aggregateInput.input.source !== 'standings' ||
+      JSON.stringify(Object.keys(where ?? {}).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+      typeof where?.season !== 'number' || typeof where.driver_id !== 'string' || JSON.stringify(input.group_by) !== JSON.stringify(['driver_id']) ||
+      JSON.stringify(input.measures) !== JSON.stringify([
+        { as: 'championship_position', function: 'min', field: 'championship_position' },
+        { as: 'points', function: 'max', field: 'points' },
+        { as: 'standing_rows', function: 'count' }
+      ]) || JSON.stringify(require) !== JSON.stringify({ field: 'standing_rows', equals: 1, non_null_fields: ['championship_position', 'points'] })) {
+    throw new Error('Compose standings inputs require the exact scalar driver integrity aggregate');
+  }
+  return new Set(['driver_id', 'championship_position', 'points', 'standing_rows']);
+}
+
+function rebaseSqlParams(sql: string, offset: number): string {
+  return offset === 0 ? sql : sql.replace(/\$(\d+)/g, (_, value: string) => `$${Number(value) + offset}`);
 }
 
 function isDriverCareerWinsAggregate(node: CoreProgram['root']): node is CoreAggregateNode & { input: CoreJoinNode } {
@@ -674,7 +773,7 @@ interface PaceJoinPlan {
   on: string[];
 }
 
-function compileLapPace(node: Exclude<CoreProgram['root'], CoreComparisonSummaryNode>): CompiledF1QL {
+function compileLapPace(node: Exclude<CoreProgram['root'], CoreComparisonSummaryNode | CoreComposeNode>): CompiledF1QL {
   if (node.op === 'delta') {
     return compilePaceDelta(node);
   }

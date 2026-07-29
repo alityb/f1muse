@@ -1,5 +1,8 @@
 import { AggregateNode, F1QLProgram } from './ast';
-import { CoreAggregateNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { CoreAggregateNode, CoreComparisonSummaryNode, CoreEventClassificationFilter, CoreFilterNode, CoreLapPaceFilter, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter, CoreSourceNode } from './core';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS } from './official-lap-window';
 
@@ -7,6 +10,9 @@ export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
 
 // eslint-disable-next-line complexity,max-lines-per-function
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
+  if (program.root.op === 'official_driver_results_comparison') {
+    return lowerOfficialDriverResultsComparison(program.root);
+  }
   if (program.root.op === 'driver_career_wins_by_circuit') {
     return {
       version: 1,
@@ -178,6 +184,38 @@ function lowerSeasonPositionH2H(
       lower_is_better: true,
       require_unique_source_keys: true,
       require_source_presence: true
+    }
+  };
+}
+
+function lowerOfficialDriverResultsComparison(
+  node: Extract<F1QLProgram['root'], { op: 'official_driver_results_comparison' }>
+): CoreProgram {
+  const standing = (driverId: string): CoreAggregateNode => ({
+    op: 'aggregate',
+    input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: node.season, driver_id: driverId } },
+    group_by: ['driver_id'],
+    measures: [
+      { as: 'championship_position', function: 'min', field: 'championship_position' },
+      { as: 'points', function: 'max', field: 'points' },
+      { as: 'standing_rows', function: 'count' }
+    ]
+  });
+  const h2h = (source: 'event_classification' | 'qualifying_classification', field: 'finishing_position' | 'qualifying_position', metricId: string): CoreComparisonSummaryNode =>
+    lowerSeasonPositionH2H({ ...node, op: source === 'event_classification' ? 'race_season_finishing_position_h2h' : 'qualifying_season_position_h2h', metric: metricId } as never, source, field).root as CoreComparisonSummaryNode;
+  return {
+    version: 1,
+    root: {
+      op: 'compose',
+      metric_id: node.metric,
+      inputs: [
+        { as: 'driver_a_standing', input: standing(node.driver_a_id), require: { field: 'standing_rows', equals: 1, non_null_fields: ['championship_position', 'points'] } },
+        { as: 'driver_b_standing', input: standing(node.driver_b_id), require: { field: 'standing_rows', equals: 1, non_null_fields: ['championship_position', 'points'] } },
+        { as: 'race', input: h2h('event_classification', 'finishing_position', RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID) },
+        { as: 'qualifying', input: h2h('qualifying_classification', 'qualifying_position', QUALIFYING_SEASON_POSITION_H2H_METRIC_ID) }
+      ],
+      select: OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT.map(selection => ({ ...selection })),
+      require_exactly_one_row_per_input: true
     }
   };
 }

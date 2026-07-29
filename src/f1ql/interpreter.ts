@@ -1,8 +1,11 @@
 import { AggregateMeasure, StandingsFilter } from './ast';
-import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
+import { CORE_COMPARISON_SUMMARY_SIGNATURES, CoreAggregateNode, CoreComparisonSummaryNode, CoreComposeNode, CoreDeltaNode, CoreEventClassificationFilter, CoreEventMetadataFilter, CoreFilterNode, CoreJoinNode, CoreLapPaceFilter, CoreLimitNode, CoreOfficialEventMeanFilter, CoreOfficialLapTimingFilter, CorePipelineNode, CoreProgram, CoreQualifyingClassificationFilter } from './core';
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from './official-lap-window';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 
 export interface StandingsRow {
   season: number;
@@ -220,9 +223,113 @@ export function interpretComparisonSummary(program: CoreProgram, rows: Compariso
   }];
 }
 
+export function interpretOfficialDriverResultsComparison(
+  program: CoreProgram,
+  standingsRows: StandingsRow[],
+  raceRows: EventClassificationRow[],
+  qualifyingRows: QualifyingClassificationRow[]
+): Array<Record<string, unknown>> {
+  if (program.root.op !== 'compose') {
+    throw new Error('Expected a scalar composition');
+  }
+  const node: CoreComposeNode = program.root;
+  if (node.require_exactly_one_row_per_input !== true || node.inputs.length < 2 || node.inputs.length > 8 || node.select.length < 1 || node.select.length > 100) {
+    throw new Error('Composition must require bounded exactly-one-row inputs');
+  }
+  if (node.metric_id !== OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID) {
+    throw new Error('Unsupported composition metric');
+  }
+  validateReferenceOfficialCompositionPlan(node);
+  const results = new Map<string, Record<string, unknown>>();
+  for (const item of node.inputs) {
+    if (!/^[a-z][a-z0-9_]{0,99}$/.test(item.as)) {
+      throw new Error('Composition input aliases must be bounded identifiers');
+    }
+    if (item.input.op === 'aggregate' && (JSON.stringify(item.input.measures) !== JSON.stringify([
+      { as: 'championship_position', function: 'min', field: 'championship_position' },
+      { as: 'points', function: 'max', field: 'points' },
+      { as: 'standing_rows', function: 'count' }
+    ]) || JSON.stringify(item.require) !== JSON.stringify({ field: 'standing_rows', equals: 1, non_null_fields: ['championship_position', 'points'] }))) {
+      throw new Error('Composition standings inputs require the exact integrity aggregate');
+    }
+    if (item.input.op === 'aggregate') {
+      const aggregateInput = item.input.input;
+      const where = aggregateInput.op === 'filter' ? aggregateInput.where as Record<string, unknown> : undefined;
+      if (aggregateInput.op !== 'filter' || aggregateInput.input.op !== 'source' || aggregateInput.input.source !== 'standings' ||
+          JSON.stringify(Object.keys(where ?? {}).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+          typeof where?.season !== 'number' || typeof where.driver_id !== 'string' || JSON.stringify(item.input.group_by) !== JSON.stringify(['driver_id'])) {
+        throw new Error('Composition standings input shape changed');
+      }
+    }
+    if (item.input.op === 'comparison_summary' && item.require !== undefined) {
+      throw new Error('Comparison summary inputs cannot add scalar count requirements');
+    }
+    const child = { version: 1 as const, root: item.input };
+    const rows = item.input.op === 'aggregate'
+      ? interpretStandingsProgram(child, standingsRows)
+      : interpretComparisonSummary(child, getSourceName(item.input.input.input.left) === 'event_classification' ? raceRows : qualifyingRows);
+    if (rows.length !== 1 || (item.require !== undefined && (rows[0][item.require.field] !== item.require.equals || item.require.non_null_fields.some(field => rows[0][field] === null || rows[0][field] === undefined)))) {
+      return [];
+    }
+    if (results.has(item.as)) {
+      throw new Error('Composition input aliases must be unique');
+    }
+    results.set(item.as, rows[0]);
+  }
+  validateReferenceOfficialCompositionResults(results);
+  const output: Record<string, unknown> = { metric_id: node.metric_id };
+  for (const selection of node.select) {
+    const input = results.get(selection.input);
+    if (!/^[a-z][a-z0-9_]{0,99}$/.test(selection.input) || !/^[a-z][a-z0-9_]{0,99}$/.test(selection.field) || !/^[a-z][a-z0-9_]{0,99}$/.test(selection.as) ||
+        !input || Object.prototype.hasOwnProperty.call(output, selection.as) || !Object.prototype.hasOwnProperty.call(input, selection.field)) {
+      throw new Error(`Composition selected an unavailable or duplicate field: ${selection.input}.${selection.field} as ${selection.as}`);
+    }
+    output[selection.as] = input[selection.field];
+  }
+  return [output];
+}
+
+function validateReferenceOfficialCompositionPlan(node: CoreComposeNode): void {
+  if (JSON.stringify(node.inputs.map(input => input.as)) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES) ||
+      JSON.stringify(node.select) !== JSON.stringify(OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT)) {
+    throw new Error('Official driver results composition requires the exact inputs and projection contract');
+  }
+  const [standingAInput, standingBInput, raceInput, qualifyingInput] = node.inputs;
+  if (standingAInput.input.op !== 'aggregate' || standingBInput.input.op !== 'aggregate' || raceInput.input.op !== 'comparison_summary' || qualifyingInput.input.op !== 'comparison_summary') {
+    throw new Error('Official driver results composition input types changed');
+  }
+  const standingAWhere = (standingAInput.input.input as CoreFilterNode).where as Record<string, unknown>;
+  const standingBWhere = (standingBInput.input.input as CoreFilterNode).where as Record<string, unknown>;
+  const racePlan = referenceComparisonSummaryPlan(raceInput.input);
+  const qualifyingPlan = referenceComparisonSummaryPlan(qualifyingInput.input);
+  if (racePlan.season < OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN || racePlan.season > OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX ||
+      raceInput.input.metric_id !== RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID || qualifyingInput.input.metric_id !== QUALIFYING_SEASON_POSITION_H2H_METRIC_ID ||
+      raceInput.input.lower_is_better !== true || qualifyingInput.input.lower_is_better !== true ||
+      raceInput.input.require_unique_source_keys !== true || qualifyingInput.input.require_unique_source_keys !== true ||
+      raceInput.input.require_source_presence !== true || qualifyingInput.input.require_source_presence !== true ||
+      racePlan.source !== 'event_classification' || qualifyingPlan.source !== 'qualifying_classification' ||
+      standingAWhere.season !== racePlan.season || standingBWhere.season !== racePlan.season || qualifyingPlan.season !== racePlan.season ||
+      standingAWhere.driver_id !== racePlan.leftId || standingBWhere.driver_id !== racePlan.rightId ||
+      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId) {
+    throw new Error('Official driver results composition branches must share one season and ordered drivers');
+  }
+}
+
+function validateReferenceOfficialCompositionResults(results: Map<string, Record<string, unknown>>): void {
+  const standingA = results.get('driver_a_standing')!;
+  const standingB = results.get('driver_b_standing')!;
+  const race = results.get('race')!;
+  const qualifying = results.get('qualifying')!;
+  if (standingA.driver_id !== race.driver_a_id || standingB.driver_id !== race.driver_b_id ||
+      qualifying.season !== race.season || qualifying.driver_a_id !== race.driver_a_id || qualifying.driver_b_id !== race.driver_b_id) {
+    throw new Error('Official driver results composition outputs must retain one season and ordered drivers');
+  }
+}
+
 // eslint-disable-next-line complexity
 function referenceComparisonSummaryPlan(node: CoreComparisonSummaryNode): {
   season: number;
+  source: 'event_classification' | 'qualifying_classification';
   leftId: string;
   rightId: string;
   leftField: 'finishing_position' | 'qualifying_position';
@@ -254,6 +361,7 @@ function referenceComparisonSummaryPlan(node: CoreComparisonSummaryNode): {
   }
   return {
     season: leftWhere.season!,
+    source,
     leftId: leftWhere.driver_id,
     rightId: rightWhere.driver_id,
     leftField: node.input.left.field as 'finishing_position' | 'qualifying_position',
@@ -445,7 +553,7 @@ export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
 ): Array<Record<string, unknown>> {
-  if (program.root.op === 'delta' || program.root.op === 'comparison_summary' || getSourceName(program.root) !== 'standings') {
+  if (program.root.op === 'delta' || program.root.op === 'comparison_summary' || program.root.op === 'compose' || getSourceName(program.root) !== 'standings') {
     throw new Error('interpretStandingsProgram does not accept pace programs');
   }
   const aggregate = getAggregateRoot(program);
@@ -582,6 +690,9 @@ export function interpretLapPaceProgram(program: CoreProgram, rows: PaceLapRow[]
   }
   if (program.root.op === 'comparison_summary') {
     throw new Error('interpretLapPaceProgram does not accept comparison summaries');
+  }
+  if (program.root.op === 'compose') {
+    throw new Error('interpretLapPaceProgram does not accept compositions');
   }
   const result = interpretPacePipeline(program.root, rows);
   const driverId = getPaceConstant(program.root, 'driver_id');

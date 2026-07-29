@@ -7,6 +7,7 @@ export const MAX_F1QL_SOURCE_ROUND_BRANCHES = 60;
 export const SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES = 30 * 2;
 export const RACE_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
 export const QUALIFYING_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
+export const OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES = 122;
 export const MAX_F1QL_RESPONSE_ROWS = 100;
 
 export class F1QLCostLimitError extends Error {}
@@ -24,6 +25,9 @@ export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   const root = program.root;
   if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h') {
     return { source_round_branches: SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES };
+  }
+  if (root.op === 'official_driver_results_comparison') {
+    return { source_round_branches: OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES };
   }
   if (root.op === 'driver_career_wins_by_circuit') {
     return { source_round_branches: DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES };
@@ -52,9 +56,12 @@ export function enforceF1QLCostLimits(program: F1QLProgram, options: F1QLCostLim
       throw new F1QLCostLimitError(`At most ${MAX_REQUESTED_ROUNDS} rounds may be requested`);
     }
   }
-  const operationMaximum = program.root.op === 'driver_career_wins_by_circuit'
-    ? DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES
-    : MAX_F1QL_SOURCE_ROUND_BRANCHES;
+  let operationMaximum = MAX_F1QL_SOURCE_ROUND_BRANCHES;
+  if (program.root.op === 'driver_career_wins_by_circuit') {
+    operationMaximum = DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES;
+  } else if (program.root.op === 'official_driver_results_comparison') {
+    operationMaximum = OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES;
+  }
   const maximum = options.maxSourceRoundBranches ?? operationMaximum;
   if (!Number.isSafeInteger(maximum) || maximum < 0 || maximum > operationMaximum) {
     throw new F1QLCostLimitError(`maxSourceRoundBranches must be between 0 and ${operationMaximum}`);

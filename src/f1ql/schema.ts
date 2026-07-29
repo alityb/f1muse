@@ -5,6 +5,7 @@ import { OFFICIAL_EVENT_MEAN_METRIC_ID } from './official-event-mean';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
 
 const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
@@ -199,6 +200,18 @@ export const qualifyingSeasonPositionH2HNodeSchema = z.object({
   }
 });
 
+export const officialDriverResultsComparisonNodeSchema = z.object({
+  op: z.literal('official_driver_results_comparison'),
+  metric: z.literal(OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID),
+  season: season.max(2025),
+  driver_a_id: z.string().min(1),
+  driver_b_id: z.string().min(1)
+}).strict().superRefine((node, context) => {
+  if (node.driver_a_id === node.driver_b_id) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'official driver results comparison requires two different drivers' });
+  }
+});
+
 export const driverCareerWinsByCircuitNodeSchema = z.object({
   op: z.literal('driver_career_wins_by_circuit'),
   metric: z.literal(DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID),
@@ -212,7 +225,7 @@ export const driverCareerWinsByCircuitNodeSchema = z.object({
 
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, qualifyingSeasonPositionH2HNodeSchema, driverCareerWinsByCircuitNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, qualifyingSeasonPositionH2HNodeSchema, officialDriverResultsComparisonNodeSchema, driverCareerWinsByCircuitNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {
