@@ -44,6 +44,50 @@ describe('deterministic answer formatting', () => {
   const finalDriverRanking = materializeAnswerTemplate('final_standings_driver_ranking', {
     season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri']
   });
+  const officialComparison = materializeAnswerTemplate('official_driver_results_comparison', {
+    season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri'
+  });
+  const officialComparisonRow = {
+    metric_id: 'official_driver_results_comparison_v1', season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri',
+    driver_a_championship_position: 2, driver_a_points: '300.000', driver_a_standing_rows: 1,
+    driver_b_championship_position: 1, driver_b_points: '300.000', driver_b_standing_rows: 1,
+    race_metric_id: 'official_race_finishing_position_shared_events_v1', race_driver_a_ahead: 1, race_driver_b_ahead: 1, race_ties: 1, race_shared_events: 3,
+    race_driver_a_source_rows: 6, race_driver_b_source_rows: 4, race_distinct_source_keys: 10, race_duplicate_source_rows: 0,
+    race_source_presence_ok: true, race_source_unique_keys_ok: true, race_source_integrity_ok: true,
+    qualifying_metric_id: 'official_qualifying_position_shared_events_v1', qualifying_driver_a_ahead: 1, qualifying_driver_b_ahead: 1, qualifying_ties: 1, qualifying_shared_events: 3,
+    qualifying_driver_a_source_rows: 6, qualifying_driver_b_source_rows: 4, qualifying_distinct_source_keys: 10, qualifying_duplicate_source_rows: 0,
+    qualifying_source_presence_ok: true, qualifying_source_unique_keys_ok: true, qualifying_source_integrity_ok: true
+  };
+
+  it('formats only official standings and shared-position H2Hs for the comprehensive replacement', () => {
+    expect(formatAnswerRows(officialComparison, approved(officialComparison), [officialComparisonRow])).toEqual({
+      answer: {
+        headline: 'Official final 2025 results comparison for lando-norris and oscar-piastri.',
+        facts: [
+          { subject: 'lando-norris', values: { championship_position: '2', points: '300' } },
+          { subject: 'oscar-piastri', values: { championship_position: '1', points: '300' } },
+          { subject: 'lando-norris vs oscar-piastri', values: {
+            race_driver_a_ahead: '1', race_driver_b_ahead: '1', race_ties: '1', race_shared_events: '3',
+            qualifying_driver_a_ahead: '1', qualifying_driver_b_ahead: '1', qualifying_ties: '1', qualifying_shared_events: '3'
+          } }
+        ]
+      },
+      coverage: 'sufficient',
+      caveats: ['official_final_standings', 'shared_events_require_both_recorded_numeric_positions', 'no_pace_time_gap_weather_adjustment_achievement_total_or_synthetic_score']
+    });
+  });
+
+  it('fails closed for malformed or integrity-failed official comparison rows', () => {
+    expect(() => formatAnswerRows(officialComparison, approved(officialComparison), [])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(officialComparison, approved(officialComparison), [officialComparisonRow, officialComparisonRow])).toThrow(AnswerFormatError);
+    for (const mutation of [
+      { metric_id: 'other' }, { driver_b_id: 'other' }, { driver_a_standing_rows: 2 }, { driver_a_championship_position: 0 }, { driver_b_championship_position: 2 }, { driver_b_points: '-1' },
+      { race_source_integrity_ok: false }, { race_source_presence_ok: false }, { race_source_unique_keys_ok: false }, { race_duplicate_source_rows: 1 },
+      { race_distinct_source_keys: 9 }, { race_shared_events: 4 }, { qualifying_metric_id: 'other' }, { qualifying_shared_events: 0 }, { qualifying_ties: 2 }
+    ]) {
+      expect(() => formatAnswerRows(officialComparison, approved(officialComparison), [{ ...officialComparisonRow, ...mutation }])).toThrow(AnswerFormatError);
+    }
+  });
 
   it('formats the complete requested driver set by strict official championship position', () => {
     expect(formatAnswerRows(finalDriverRanking, approved(finalDriverRanking), [

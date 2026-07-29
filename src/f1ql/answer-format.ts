@@ -4,6 +4,8 @@ import { F1QLProgram } from './ast';
 import { renderF1QL } from './render';
 import { F1QL_DEFINITIONS_VERSION } from './validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION, getF1QLProgramHash } from './verified-programs';
+import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
+import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 
 export type AnswerCoverageStatus = 'sufficient' | 'empty' | 'possibly_truncated';
 
@@ -61,6 +63,12 @@ export function formatAnswerRows(
   capability: AnswerCapability,
   rows: Array<Record<string, unknown>>
 ): { answer: FormattedAnswer; coverage: AnswerCoverageStatus; caveats: string[] } {
+  if (program.root.op === 'official_driver_results_comparison') {
+    if (capability.source !== 'official_driver_results_comparison' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Official driver results comparison capability did not match program');
+    }
+    return formatOfficialDriverResultsComparison(program.root, rows);
+  }
   if (program.root.op === 'race_season_finishing_position_h2h') {
     if (capability.source !== 'race_classification' || capability.operation !== program.root.op) {
       throw new AnswerFormatError('Race H2H capability did not match program');
@@ -111,6 +119,69 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+function formatOfficialDriverResultsComparison(
+  root: Extract<F1QLProgram['root'], { op: 'official_driver_results_comparison' }>,
+  rows: Array<Record<string, unknown>>
+) {
+  if (rows.length !== 1) {
+    throw new AnswerFormatError('Official driver results comparison rows were invalid');
+  }
+  const row = rows[0];
+  if (row.metric_id !== root.metric || row.season !== root.season || row.driver_a_id !== root.driver_a_id || row.driver_b_id !== root.driver_b_id ||
+      requiredPositiveInteger(row.driver_a_standing_rows, 'driver_a_standing_rows') !== 1 ||
+      requiredPositiveInteger(row.driver_b_standing_rows, 'driver_b_standing_rows') !== 1) {
+    throw new AnswerFormatError('Official driver results comparison rows were invalid');
+  }
+  const driverAPoints = requiredNonnegativeNumeric(row.driver_a_points, 'driver_a_points');
+  const driverBPoints = requiredNonnegativeNumeric(row.driver_b_points, 'driver_b_points');
+  const driverAPosition = requiredPositiveInteger(row.driver_a_championship_position, 'driver_a_championship_position');
+  const driverBPosition = requiredPositiveInteger(row.driver_b_championship_position, 'driver_b_championship_position');
+  if (driverAPosition === driverBPosition) {
+    throw new AnswerFormatError('Official driver results comparison rows were invalid');
+  }
+  const race = validatePrefixedH2H(row, 'race', RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID);
+  const qualifying = validatePrefixedH2H(row, 'qualifying', QUALIFYING_SEASON_POSITION_H2H_METRIC_ID);
+  const facts: AnswerFact[] = [
+    { subject: root.driver_a_id, values: { championship_position: String(driverAPosition), points: driverAPoints } },
+    { subject: root.driver_b_id, values: { championship_position: String(driverBPosition), points: driverBPoints } },
+    {
+      subject: `${root.driver_a_id} vs ${root.driver_b_id}`,
+      values: {
+        race_driver_a_ahead: String(race.driverAAhead), race_driver_b_ahead: String(race.driverBAhead), race_ties: String(race.ties), race_shared_events: String(race.sharedEvents),
+        qualifying_driver_a_ahead: String(qualifying.driverAAhead), qualifying_driver_b_ahead: String(qualifying.driverBAhead), qualifying_ties: String(qualifying.ties), qualifying_shared_events: String(qualifying.sharedEvents)
+      }
+    }
+  ];
+  return {
+    answer: {
+      headline: `Official final ${root.season} results comparison for ${root.driver_a_id} and ${root.driver_b_id}.`,
+      facts
+    },
+    coverage: 'sufficient' as const,
+    caveats: ['official_final_standings', 'shared_events_require_both_recorded_numeric_positions', 'no_pace_time_gap_weather_adjustment_achievement_total_or_synthetic_score']
+  };
+}
+
+function validatePrefixedH2H(row: Record<string, unknown>, prefix: 'race' | 'qualifying', metric: string) {
+  if (row[`${prefix}_metric_id`] !== metric || row[`${prefix}_source_integrity_ok`] !== true ||
+      row[`${prefix}_source_presence_ok`] !== true || row[`${prefix}_source_unique_keys_ok`] !== true) {
+    throw new AnswerFormatError('Official driver results comparison rows were invalid');
+  }
+  const driverAAhead = requiredBoundedCount(row[`${prefix}_driver_a_ahead`], `${prefix}_driver_a_ahead`);
+  const driverBAhead = requiredBoundedCount(row[`${prefix}_driver_b_ahead`], `${prefix}_driver_b_ahead`);
+  const ties = requiredBoundedCount(row[`${prefix}_ties`], `${prefix}_ties`);
+  const sharedEvents = requiredBoundedCount(row[`${prefix}_shared_events`], `${prefix}_shared_events`, 30, 1);
+  const driverASourceRows = requiredBoundedCount(row[`${prefix}_driver_a_source_rows`], `${prefix}_driver_a_source_rows`, 30, 1);
+  const driverBSourceRows = requiredBoundedCount(row[`${prefix}_driver_b_source_rows`], `${prefix}_driver_b_source_rows`, 30, 1);
+  const distinctSourceKeys = requiredBoundedCount(row[`${prefix}_distinct_source_keys`], `${prefix}_distinct_source_keys`, 60, 1);
+  const duplicateSourceRows = requiredBoundedCount(row[`${prefix}_duplicate_source_rows`], `${prefix}_duplicate_source_rows`);
+  if (duplicateSourceRows !== 0 || distinctSourceKeys !== driverASourceRows + driverBSourceRows ||
+      sharedEvents > Math.min(driverASourceRows, driverBSourceRows) || driverAAhead + driverBAhead + ties !== sharedEvents) {
+    throw new AnswerFormatError('Official driver results comparison rows were invalid');
+  }
+  return { driverAAhead, driverBAhead, ties, sharedEvents };
 }
 
 function formatFinalDriverRanking(root: Extract<F1QLProgram['root'], { op: 'rank' }>, rows: Array<Record<string, unknown>>) {
@@ -456,6 +527,14 @@ function displayNumeric(value: unknown, field: string): string | null {
     return negative && normalized !== '0' ? `-${normalized}` : normalized;
   }
   throw new AnswerFormatError(`Invalid ${field} value`);
+}
+
+function requiredNonnegativeNumeric(value: unknown, field: string): string {
+  const displayed = displayNumeric(value, field);
+  if (displayed === null || displayed.startsWith('-')) {
+    throw new AnswerFormatError(`Invalid ${field} value`);
+  }
+  return displayed;
 }
 
 function displayText(value: unknown, field: string): string | null {

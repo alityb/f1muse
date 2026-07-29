@@ -61,13 +61,27 @@ describe('provider-free answer intent derivation', () => {
     ,['In 2025, who outqualified whom more often, Lando Norris or Oscar Piastri?', inventory('Lando Norris', 'Oscar Piastri'), 'qualifying_season_position_h2h']
     ,['Who qualified ahead more often in 2025, Norris or Verstappen?', inventory('Norris', 'Verstappen'), 'qualifying_season_position_h2h']
     ,['In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?', inventory('Lando Norris', 'Max Verstappen'), 'qualifying_season_position_h2h']
+    ,['Compare the official 2025 results of Norris and Piastri.', inventory('Norris', 'Piastri'), 'official_driver_results_comparison']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v10');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v11');
+  });
+
+  it.each([
+    'Compare the 2025 results of Norris and Piastri.',
+    'Compare the official 2024 results of Norris and Piastri.',
+    'Compare the official 2025 results of Piastri and Norris.',
+    'Compare the official 2025 results of Lando Norris and Oscar Piastri.',
+    'Compare the official 2025 results of Norris and Piastri?',
+    'Compare the official 2025 results of Norris and Piastri with pace.'
+  ])('does not broaden official results comparison wording: %s', async question => {
+    const names = ['Lando Norris', 'Oscar Piastri', 'Norris', 'Piastri'].filter(name => question.includes(name) && !['Lando Norris', 'Oscar Piastri'].some(full => full !== name && full.endsWith(name) && question.includes(full)));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).not.toBe('official_driver_results_comparison');
   });
 
   it.each([

@@ -91,7 +91,7 @@ function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly
 }
 
 const fakeClient = {
-  query: async (sql: string) => {
+  query: async (sql: string, params?: unknown[]) => {
     databaseStatements.push(sql.trim());
     if (sql.includes('f1ql.answer_event_identity')) {
       resolutionAttempts++;
@@ -101,11 +101,26 @@ const fakeClient = {
       resolutionAttempts++;
       return { rows: [
         { driver_id: 'driver-a', identity: 'Max', participation_source: 'entrant' },
-        { driver_id: 'driver-b', identity: 'Max', participation_source: 'entrant' }
+        { driver_id: 'driver-b', identity: 'Max', participation_source: 'entrant' },
+        { driver_id: 'lando-norris', identity: 'Norris', participation_source: 'entrant' },
+        { driver_id: 'oscar-piastri', identity: 'Piastri', participation_source: 'entrant' }
       ] };
     }
     if (sql.includes('f1ql.answer_season_participation')) {
-      return { rows: [{ driver_id: 'lando-norris' }] };
+      return { rows: [{ driver_id: 'lando-norris' }, { driver_id: 'oscar-piastri' }] };
+    }
+    if (params?.includes('official_driver_results_comparison_v1')) {
+      return { rows: [{
+          metric_id: 'official_driver_results_comparison_v1', season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri',
+          driver_a_championship_position: 2, driver_a_points: '300', driver_a_standing_rows: 1,
+          driver_b_championship_position: 1, driver_b_points: '300', driver_b_standing_rows: 1,
+          race_metric_id: 'official_race_finishing_position_shared_events_v1', race_driver_a_ahead: 1, race_driver_b_ahead: 1, race_ties: 1, race_shared_events: 3,
+          race_driver_a_source_rows: 6, race_driver_b_source_rows: 4, race_distinct_source_keys: 10, race_duplicate_source_rows: 0,
+          race_source_presence_ok: true, race_source_unique_keys_ok: true, race_source_integrity_ok: true,
+          qualifying_metric_id: 'official_qualifying_position_shared_events_v1', qualifying_driver_a_ahead: 1, qualifying_driver_b_ahead: 1, qualifying_ties: 1, qualifying_shared_events: 3,
+          qualifying_driver_a_source_rows: 6, qualifying_driver_b_source_rows: 4, qualifying_distinct_source_keys: 10, qualifying_duplicate_source_rows: 0,
+          qualifying_source_presence_ok: true, qualifying_source_unique_keys_ok: true, qualifying_source_integrity_ok: true
+      }] };
     }
     if (sql.startsWith('SELECT * FROM')) {
       return { rows: [{ driver_id: 'lando-norris', championship_position: 1, points: '357' }] };
@@ -628,6 +643,21 @@ describe('gated answer route', () => {
     expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
     await expect(response.json()).resolves.toMatchObject({ answer: { facts: [{ subject: 'lando-norris' }] } });
     expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
+    expect(executionAttempts).toBe(1);
+  });
+
+  it('executes only the pinned official Norris/Piastri comparison contract', async () => {
+    const response = await ask('Compare the official 2025 results of Norris and Piastri.');
+    const body = await response.json();
+    expect({ status: response.status, body }).toMatchObject({ status: 200, body: {
+      program: { root: { op: 'official_driver_results_comparison', driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' } },
+      answer: { facts: [
+        { subject: 'lando-norris', values: { championship_position: '2', points: '300' } },
+        { subject: 'oscar-piastri', values: { championship_position: '1', points: '300' } },
+        { subject: 'lando-norris vs oscar-piastri', values: { race_shared_events: '3', qualifying_shared_events: '3' } }
+      ] },
+      metadata: { source: 'official_driver_results_comparison' }
+    } });
     expect(executionAttempts).toBe(1);
   });
 

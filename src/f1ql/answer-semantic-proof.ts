@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v14' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v15' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -146,7 +146,7 @@ export async function proveAnswerIntent(
     variables.driver_id = resolvedDriverId(intent.driver_reference, resolvedDriverIds);
   }
   if ('driver_references' in intent && driverIds.length > 0) {
-    if (intent.type === 'race_season_finishing_position_h2h' || intent.type === 'qualifying_season_position_h2h') {
+    if (intent.type === 'race_season_finishing_position_h2h' || intent.type === 'qualifying_season_position_h2h' || intent.type === 'official_driver_results_comparison') {
       variables.driver_a_id = resolvedDriverId(intent.driver_references[0], resolvedDriverIds);
       variables.driver_b_id = resolvedDriverId(intent.driver_references[1], resolvedDriverIds);
     } else {
@@ -327,6 +327,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (metrics.has('qualifying_position_h2h') && intent.type !== 'qualifying_season_position_h2h') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (metrics.has('official_driver_results_comparison') && intent.type !== 'official_driver_results_comparison') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (metrics.has('date') && intent.type !== 'race_date') {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -355,6 +358,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'qualifying_season_position_h2h' && (!metrics.has('qualifying_position_h2h') || !matchesQualifyingH2HQuestion(contract, intent.driver_references))) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (intent.type === 'official_driver_results_comparison' && (!metrics.has('official_driver_results_comparison') || !matchesOfficialResultsComparisonQuestion(contract, intent.driver_references))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'current_standings' && /\bfinal\b/iu.test(contract.normalized_question)) {
@@ -407,7 +413,7 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
   }
 }
 
-function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'race_classification_event_metadata' | 'qualifying_classification' | 'race_date' {
+function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'race_classification_event_metadata' | 'qualifying_classification' | 'official_driver_results_comparison' | 'race_date' {
   if (intent.type.startsWith('final_standings') || intent.type === 'current_standings' || intent.type === 'driver_season_official_summary' || intent.type === 'driver_career_official_summary') {
     return 'standings';
   }
@@ -419,6 +425,9 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
   }
   if (intent.type === 'qualifying_season_position_h2h') {
     return 'qualifying_classification';
+  }
+  if (intent.type === 'official_driver_results_comparison') {
+    return 'official_driver_results_comparison';
   }
   if (intent.type.startsWith('race_classification')) {
     return 'race_classification';
@@ -486,6 +495,11 @@ function matchesQualifyingH2HQuestion(contract: AnswerQuestionContract, drivers:
     masked.splice(driver.start, driver.end - driver.start, `<driver_${index === 0 ? 'a' : 'b'}>`);
   }
   return /^(?:who outqualified whom more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who outqualified whom more often, <driver_a> or <driver_b>|who qualified ahead more often in (?:19[5-9]\d|20\d{2}|2100), <driver_a> or <driver_b>|in (?:19[5-9]\d|20\d{2}|2100), who qualified ahead more often, <driver_a> or <driver_b>)\?$/iu.test(masked.join(''));
+}
+
+function matchesOfficialResultsComparisonQuestion(contract: AnswerQuestionContract, drivers: readonly LiteralMentionReference[]): boolean {
+  return contract.normalized_question === 'Compare the official 2025 results of Norris and Piastri.'
+    && drivers.length === 2 && drivers[0].text === 'Norris' && drivers[1].text === 'Piastri';
 }
 
 function positionsForIntent(intent: Extract<ExecutableAnswerIntent, { selection_reference: LiteralMentionReference }>): number[] {

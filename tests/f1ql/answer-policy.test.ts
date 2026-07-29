@@ -48,6 +48,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'qualifying_classification'
     },
     {
+      name: 'official driver results comparison',
+      program: materializeAnswerTemplate('official_driver_results_comparison', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
+      source: 'official_driver_results_comparison'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'
@@ -247,6 +252,18 @@ describe('Phase 7 answer capability policy', () => {
     for (const mutated of [
       { ...root, season: 2026 }, { ...root, driver_b_id: root.driver_a_id }, { ...root, driver_a_id: 'Lando Norris' },
       { ...root, metric: 'official_race_finishing_position_shared_events_v1' }, { ...root, round: 1 }
+    ]) {
+      expect(authorizeAnswerProgram({ version: 1, root: mutated } as unknown as F1QLProgram)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
+    }
+  });
+
+  it('authorizes only the exact official driver-results comparison root', () => {
+    const comparison = materializeAnswerTemplate('official_driver_results_comparison', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
+    const root = comparison.root;
+    if (root.op !== 'official_driver_results_comparison') throw new Error('fixture must be comparison');
+    for (const mutated of [
+      { ...root, season: 2026 }, { ...root, driver_b_id: root.driver_a_id }, { ...root, driver_a_id: 'Lando Norris' },
+      { ...root, metric: 'official_race_finishing_position_shared_events_v1' }, { ...root, include_pace: true }
     ]) {
       expect(authorizeAnswerProgram({ version: 1, root: mutated } as unknown as F1QLProgram)).toEqual({ type: 'rejected', reason: 'capability_unsupported' });
     }

@@ -55,6 +55,9 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
       (templateId === 'qualifying_season_position_h2h' && root.op === 'qualifying_season_position_h2h')) {
     return { season: root.season, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };
   }
+  if (templateId === 'official_driver_results_comparison' && root.op === 'official_driver_results_comparison') {
+    return { season: root.season, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };
+  }
   if (templateId === 'race_date' && root.op === 'event_metadata') {
     return { season: root.season, round: root.round };
   }

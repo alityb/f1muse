@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v10' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v11' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -93,6 +93,7 @@ function selectIntent(
   const sessions = new Set(contract.session_cues.map(cue => cue.value));
   const metrics = new Set(contract.metric_cues.map(cue => cue.value));
   return seasonSummaryIntent(contract, seasonFields, drivers, sources, sessions, metrics)
+    ?? officialResultsComparisonIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? raceH2HIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? qualifyingH2HIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? standingsIntent(contract, seasonFields, drivers, sources, sessions, metrics)
@@ -100,6 +101,25 @@ function selectIntent(
     ?? resultPositionIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? classificationSelection(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? unsupported;
+}
+
+function officialResultsComparisonIntent(
+  contract: AnswerQuestionContract,
+  seasonFields: { season: number; season_reference: LiteralMentionReference },
+  drivers: LiteralMentionReference[],
+  sources: ReadonlySet<AnswerQuestionContract['source_cues'][number]['value']>,
+  sessions: ReadonlySet<AnswerQuestionContract['session_cues'][number]['value']>,
+  metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
+): unknown | undefined {
+  if (!metrics.has('official_driver_results_comparison')) {
+    return undefined;
+  }
+  const valid = seasonFields.season === 2025 && drivers.length === 2 && drivers[0].text === 'Norris' && drivers[1].text === 'Piastri'
+    && sources.size === 0 && sessions.size === 0 && only(metrics, 'official_driver_results_comparison')
+    && contract.event_cues.length === 0 && contract.rounds.length === 0 && contract.status_cues.length === 0
+    && contract.action_cues.length === 0 && contract.result_cues.length === 0
+    && contract.normalized_question === 'Compare the official 2025 results of Norris and Piastri.';
+  return valid ? { type: 'official_driver_results_comparison', ...seasonFields, driver_references: drivers } : unsupported;
 }
 
 function qualifyingH2HIntent(

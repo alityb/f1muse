@@ -27,6 +27,7 @@ describe('F1QL launch capability migration', () => {
       ['multi-ranking-replacement', 'Rank Verstappen, Norris, and Piastri by final 2025 championship position.', 'official_multi_driver_ranking'],
       ['race-h2h', 'Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?', 'classification_head_to_head'],
       ['matchup-replacement', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'],
+      ['comprehensive-replacement', 'Compare the official 2025 results of Norris and Piastri.', 'official_driver_comparison'],
       ['qualifying-h2h-teammates', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'],
       ['qualifying-h2h-drivers', 'Who qualified ahead more often in 2025, Norris or Verstappen?', 'qualifying_season_position_h2h'],
       ['race-winner', 'Who won the 2025 Australian Grand Prix?', 'race_result_selection'],
@@ -69,7 +70,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'career-wins', 'current-standings', 'matchup-replacement', 'multi-ranking-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = ['career-summary', 'career-wins', 'comprehensive-replacement', 'current-standings', 'matchup-replacement', 'multi-ranking-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));

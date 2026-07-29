@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v10';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v13' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v11';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v14' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -65,6 +65,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('driver_career_wins_by_circuit', { driver_reference: referenceSchema }, ['driver_reference']),
         closedIntent('race_season_finishing_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('qualifying_season_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
+        closedIntent('official_driver_results_comparison', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('race_classification_all', { ...seasonProperties, ...eventProperties }, ['season', 'season_reference', 'event_reference']),
         closedIntent('race_classification_driver', { ...seasonProperties, ...eventProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'driver_reference']),
         closedIntent('race_classification_status', { ...seasonProperties, ...eventProperties, status: { enum: ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'] }, status_reference: referenceSchema }, ['season', 'season_reference', 'event_reference', 'status', 'status_reference']),
@@ -98,6 +99,7 @@ Decision table (follow literal wording):
 - driver_career_wins_by_circuit: only the literal closed wording "At which circuits has <driver> won races?" or "Which circuits has <driver> won races at?" for exactly one named driver; this means official race P1 classifications through 2025 grouped by canonical circuit ID, never venue aliases, a selected season, current results, sprints, poles, podiums, or other win concepts.
 - race_season_finishing_position_h2h: only the literal closed wording "Who finished ahead more often in <year>, <driver A> or <driver B>?" or "In <year>, who finished ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares race finishing positions only on shared events where both have recorded numeric positions.
 - qualifying_season_position_h2h: only the literal closed wording "Who outqualified whom more often in <year>, <driver A> or <driver B>?", "In <year>, who outqualified whom more often, <driver A> or <driver B>?", "Who qualified ahead more often in <year>, <driver A> or <driver B>?", or "In <year>, who qualified ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares qualifying positions only on shared events where both have recorded numeric positions, never qualifying-time gaps or teammate identity.
+- official_driver_results_comparison: only the exact wording "Compare the official 2025 results of Norris and Piastri." with those two ordered literal references; this returns official final standings plus race and qualifying shared-position H2Hs, never pace, time gaps, achievement totals, weather adjustment, or a synthetic score.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
 - race_classification_status: race classification filtered by exactly one literal supported status.
@@ -131,6 +133,8 @@ Question: Who outqualified whom more often in 2025, Norris or Piastri?
 {"intent":{"type":"qualifying_season_position_h2h","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Norris"},{"text":"Piastri"}]}}
 Question: Who qualified ahead more often in 2025, Norris or Verstappen?
 {"intent":{"type":"qualifying_season_position_h2h","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Norris"},{"text":"Verstappen"}]}}
+Question: Compare the official 2025 results of Norris and Piastri.
+{"intent":{"type":"official_driver_results_comparison","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Norris"},{"text":"Piastri"}]}}
 Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying

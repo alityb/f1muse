@@ -3,6 +3,7 @@ import { ANSWER_FINAL_STANDINGS_SEASONS } from './answer-templates';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
+import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -13,6 +14,7 @@ export type AnswerCapabilitySource =
   | 'race_classification'
   | 'race_classification_event_metadata'
   | 'qualifying_classification'
+  | 'official_driver_results_comparison'
   | 'race_date_metadata';
 
 export type AnswerPolicyReason =
@@ -57,6 +59,12 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
   if (root.op === 'qualifying_season_position_h2h') {
     return authorizeQualifyingSeasonH2H(root);
   }
+  if (root.op === 'official_driver_results_comparison') {
+    if (!validOfficialDriverResultsComparisonRoot(root)) {
+      return { type: 'rejected', reason: 'capability_unsupported' };
+    }
+    return { type: 'approved', capability: { source: 'official_driver_results_comparison', operation: root.op, season: root.season, filters: ['driver'] } };
+  }
   if (root.op === 'event_classification') {
     return authorizeClassification(root, 'race_classification');
   }
@@ -79,6 +87,17 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
     return authorizeStandings(root.input, root.op, root);
   }
   return { type: 'rejected', reason: 'capability_unsupported' };
+}
+
+function validOfficialDriverResultsComparisonRoot(root: Extract<F1QLProgram['root'], { op: 'official_driver_results_comparison' }>): boolean {
+  return Object.keys(root).sort().join(',') === 'driver_a_id,driver_b_id,metric,op,season'
+    && root.metric === OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID
+    && Number.isSafeInteger(root.season) && root.season >= 1950 && root.season <= FINAL_STANDINGS_THROUGH_SEASON
+    && validDriverId(root.driver_a_id) && validDriverId(root.driver_b_id) && root.driver_a_id !== root.driver_b_id;
+}
+
+function validDriverId(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 100 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
 }
 
 function authorizeQualifyingSeasonH2H(root: Extract<F1QLProgram['root'], { op: 'qualifying_season_position_h2h' }>): AnswerPolicyDecision {
