@@ -11,12 +11,14 @@ export function createHealthRoutes(pool: Pool): Router {
       return res.status(200).json({
         status: 'healthy',
         database: 'connected',
+        answer_surfaces: answerSurfaceHealth(),
         timestamp: new Date().toISOString()
       });
     } catch (err) {
       return res.status(503).json({
         status: 'unhealthy',
         database: 'disconnected',
+        answer_surfaces: answerSurfaceHealth(),
         error: String(err),
         timestamp: new Date().toISOString()
       });
@@ -103,4 +105,12 @@ export function createHealthRoutes(pool: Pool): Router {
   });
 
   return router;
+}
+
+function answerSurfaceHealth(): { internal: 'enabled' | 'disabled'; public: 'enabled' | 'disabled' } {
+  const sharedEnabled = process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true';
+  return {
+    internal: sharedEnabled ? 'enabled' : 'disabled',
+    public: sharedEnabled && process.env.F1QL_PUBLIC_ANSWER_ENABLED === 'true' ? 'enabled' : 'disabled'
+  };
 }

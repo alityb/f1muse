@@ -100,7 +100,35 @@ describe('in-process API routes', () => {
     const response = await fetch(`${baseUrl}/health`);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ status: 'healthy' });
+    await expect(response.json()).resolves.toMatchObject({
+      status: 'healthy', answer_surfaces: { internal: 'disabled', public: 'disabled' }
+    });
+  });
+
+  it('reports and discovers internal and public answer availability independently', async () => {
+    process.env.F1QL_ANSWER_ENABLED = 'true';
+    delete process.env.F1QL_PUBLIC_ANSWER_ENABLED;
+    delete process.env.F1QL_ANSWER_KILL_SWITCH;
+    try {
+      const discovery = await fetch(`${baseUrl}/`);
+      const endpoints = (await discovery.json()).endpoints;
+      expect(endpoints).toHaveProperty('POST /program/answer');
+      expect(endpoints).not.toHaveProperty('POST /nl-query');
+
+      const health = await fetch(`${baseUrl}/health`);
+      await expect(health.json()).resolves.toMatchObject({
+        answer_surfaces: { internal: 'enabled', public: 'disabled' }
+      });
+
+      const malformedPublic = await fetch(`${baseUrl}/nl-query`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: '' })
+      });
+      expect(malformedPublic.status).toBe(503);
+      await expect(malformedPublic.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'public_answer_disabled' });
+    } finally {
+      delete process.env.F1QL_ANSWER_ENABLED;
+      delete process.env.F1QL_PUBLIC_ANSWER_ENABLED;
+    }
   });
 
   it('does not expose the removed QueryIntent execution route', async () => {

@@ -32,6 +32,8 @@ import {
   AnswerReleaseStatuses,
   answerReleaseTemporalPolicy,
   answerRuntimeCeilingsFromConfig,
+  ANSWER_PRINCIPAL_CLASSES,
+  AnswerPrincipalClass,
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationHash,
   getAnswerReleaseAttestationSigningPayload,
@@ -99,6 +101,7 @@ export function buildAnswerReleaseAttestationFile(
   validateResultFixture(resultFile.content);
 
   const allowedTemplateIds = parseTemplateAllowlist(env.F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS);
+  const allowedPrincipalClasses = parsePrincipalAllowlist(env.F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES);
   const observedTemplates = new Set(artifact.observations.flatMap(observation => observation.template_id ? [observation.template_id] : []));
   if ([...observedTemplates].some(templateId => !allowedTemplateIds.includes(templateId))) {
     throw new Error('answer_release_template_not_deployed');
@@ -160,7 +163,8 @@ export function buildAnswerReleaseAttestationFile(
     },
     statuses,
     runtime: answerRuntimeCeilingsFromConfig(getAnswerRuntimeConfig(env)),
-    deployment_template_ids: allowedTemplateIds
+    deployment_template_ids: allowedTemplateIds,
+    deployment_principal_classes: allowedPrincipalClasses
   };
   const privateKey = loadSigningKey(env.F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64);
   const unsigned = {
@@ -340,6 +344,17 @@ function parseTemplateAllowlist(raw: string | undefined): AnswerTemplateId[] {
     throw new Error('answer_release_template_allowlist_invalid');
   }
   return values as AnswerTemplateId[];
+}
+
+function parsePrincipalAllowlist(raw: string | undefined): AnswerPrincipalClass[] {
+  if (!raw) throw new Error('answer_release_principal_allowlist_invalid');
+  const values = raw.split(',').map(value => value.trim());
+  const known = new Set<string>(ANSWER_PRINCIPAL_CLASSES);
+  if (values.length === 0 || new Set(values).size !== values.length || values.some(value => !known.has(value)) ||
+      values.some((value, index) => index > 0 && values[index - 1] >= value)) {
+    throw new Error('answer_release_principal_allowlist_invalid');
+  }
+  return values as AnswerPrincipalClass[];
 }
 
 function parseCanaryMaximumStage(raw: string | undefined): number {

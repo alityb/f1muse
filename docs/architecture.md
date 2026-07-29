@@ -61,8 +61,9 @@ The answer pipeline requires all gates to agree:
 | Gate | Purpose |
 |---|---|
 | `F1QL_ANSWER_ENABLED` | Explicit route enablement |
+| `F1QL_PUBLIC_ANSWER_ENABLED` | Separate public-route enablement; remains false during internal canaries |
 | `F1QL_ANSWER_KILL_SWITCH` | Emergency stop, checked before and during execution |
-| Signed release attestation | Binds commit, deployment, evidence, template set, versions, runtime bounds, audience, and expiry |
+| Signed release attestation | Binds commit, deployment, evidence, template set, allowed principal classes, versions, runtime bounds, audience, and expiry |
 | Canary stage | Allows only stages `0,1,5,25,50,100` within the signed maximum |
 | Subject and template cohorts | Deterministic HMAC selection; both must be admitted |
 | Dedicated answer DB | `F1QL_ANSWER_DATABASE_URL` plus trusted CA; read-only least-privilege role |

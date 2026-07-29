@@ -15,6 +15,8 @@
 
 import { Router, Request, Response } from 'express';
 
+export type F1QLAnswerSurface = 'internal' | 'public';
+
 // Histogram bucket boundaries (milliseconds)
 const LATENCY_BUCKETS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
@@ -202,8 +204,8 @@ class MetricsCollector {
     this.recordHistogram(this.f1qlLatency, latencyMs);
   }
 
-  recordF1QLAnswer(stage: 'gate' | 'input' | 'translation' | 'derivation' | 'linking' | 'policy' | 'bounds' | 'execution' | 'formatting', outcome: string, reason: string): void {
-    const key = `${stage}:${outcome}:${reason}`;
+  recordF1QLAnswer(surface: F1QLAnswerSurface, stage: 'gate' | 'input' | 'translation' | 'derivation' | 'linking' | 'policy' | 'bounds' | 'execution' | 'formatting', outcome: string, reason: string): void {
+    const key = `${surface}:${stage}:${outcome}:${reason}`;
     this.f1qlAnswerOutcomes.set(key, (this.f1qlAnswerOutcomes.get(key) || 0) + 1);
   }
 
@@ -268,11 +270,11 @@ class MetricsCollector {
     for (const [reason, count] of this.f1qlTranslationReasons) {
       sections.push(`f1muse_f1ql_translation_reasons_total{reason="${reason}"} ${count}`);
     }
-    sections.push(`# HELP f1muse_f1ql_answer_outcomes_total Answer pipeline outcomes by low-cardinality stage and reason`);
+    sections.push(`# HELP f1muse_f1ql_answer_outcomes_total Answer pipeline outcomes by low-cardinality surface, stage, and reason`);
     sections.push(`# TYPE f1muse_f1ql_answer_outcomes_total counter`);
     for (const [key, count] of this.f1qlAnswerOutcomes) {
-      const [stage, outcome, reason] = key.split(':');
-      sections.push(`f1muse_f1ql_answer_outcomes_total{stage="${stage}",outcome="${outcome}",reason="${reason}"} ${count}`);
+      const [surface, stage, outcome, reason] = key.split(':');
+      sections.push(`f1muse_f1ql_answer_outcomes_total{surface="${surface}",stage="${stage}",outcome="${outcome}",reason="${reason}"} ${count}`);
     }
 
     // SQL execution latency

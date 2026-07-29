@@ -58,6 +58,7 @@ const context = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAns
   audience: 'f1muse-answer', deployment_id: 'test-deployment', evidence_hashes: evidence,
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256,
   statuses: passingStatuses, runtime, deployment_template_ids: ['final_standings_leader', 'race_date'],
+  deployment_principal_classes: ['internal_canary'],
   ...overrides
 });
 
@@ -67,7 +68,7 @@ const trustedKey = { key_id: 'release-key-1', public_key: trusted.publicKey };
 
 function signedFixture(active = context(), privateKey = trusted.privateKey, keyId = trustedKey.key_id) {
   const unsigned = {
-    version: 5 as const,
+    version: 6 as const,
     kind: 'f1ql_answer_release_attestation' as const,
     key_id: keyId,
     ...buildActiveAnswerReleaseBindings(active)
@@ -88,6 +89,7 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(Object.isFrozen(verified)).toBe(true);
     expect(Object.isFrozen(verified.statuses)).toBe(true);
     expect(Object.isFrozen(verified.allowed_template_ids)).toBe(true);
+    expect(Object.isFrozen(verified.allowed_principal_classes)).toBe(true);
     expect(verified).toMatchObject({ derivation_version: ANSWER_INTENT_DERIVATION_VERSION, deterministic_derivation_contract_sha256: getAnswerDeterministicDerivationContractSha256(), canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256 });
     expect(getAnswerReleaseAttestationHash(verified)).toMatch(/^[a-f0-9]{64}$/);
     expect(() => { (verified.statuses as { semantic: string }).semantic = 'fail'; }).toThrow();
@@ -140,7 +142,8 @@ describe('cryptographically rooted answer release attestation', () => {
       context({ canary_hmac_key_sha256: hash('f') }),
       context({ evidence_hashes: { ...evidence, report_sha256: hash('f') } }),
       context({ runtime: { ...runtime, max_rows: 99 } }),
-      context({ deployment_template_ids: ['race_date'] })
+      context({ deployment_template_ids: ['race_date'] }),
+      context({ deployment_principal_classes: ['public'] })
     ]) {
       expect(() => verifyAnswerReleaseAttestation(raw, trustedKey, changed, temporalPolicy)).toThrowError(expect.objectContaining({ code: 'binding_mismatch' }));
     }
@@ -153,7 +156,7 @@ describe('cryptographically rooted answer release attestation', () => {
   it('rejects an independently signed deterministic derivation contract mismatch', () => {
     const active = context();
     const unsigned = {
-      version: 5 as const,
+      version: 6 as const,
       kind: 'f1ql_answer_release_attestation' as const,
       key_id: trustedKey.key_id,
       ...buildActiveAnswerReleaseBindings(active),
@@ -194,7 +197,10 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), signature: nonCanonicalAlias(signedFixture().signature) })).toThrow(AnswerReleaseAttestationError);
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), signature: `${signedFixture().signature}\n` })).toThrow(AnswerReleaseAttestationError);
     expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), extra: true })).toThrow(AnswerReleaseAttestationError);
-    expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), version: 4 })).toThrow(AnswerReleaseAttestationError);
+    expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), version: 5 })).toThrow(AnswerReleaseAttestationError);
+    for (const allowed_principal_classes of [[], ['public', 'internal'], ['public', 'public'], ['unknown']]) {
+      expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), allowed_principal_classes })).toThrow(AnswerReleaseAttestationError);
+    }
   });
 
   it('loads deterministic production context without a provider credential', () => {
@@ -209,6 +215,7 @@ describe('cryptographically rooted answer release attestation', () => {
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: productionContext.audience,
       F1QL_ANSWER_DEPLOYMENT_ID: productionContext.deployment_id,
       F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: productionContext.deployment_template_ids.join(','),
+      F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: productionContext.deployment_principal_classes.join(','),
       F1QL_ANSWER_CANARY_MAXIMUM_STAGE: String(productionContext.maximum_canary_stage),
       F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
     };
@@ -228,6 +235,8 @@ describe('cryptographically rooted answer release attestation', () => {
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '10' })).toThrow();
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '050' })).toThrow();
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: `${CANARY_HMAC_KEY_BASE64}\n` })).toThrow();
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: undefined })).toThrow();
+    expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: 'public,internal_canary' })).toThrow();
   });
 });
 
@@ -238,9 +247,21 @@ describe('guarded answer release attestation files', () => {
       expect(built).toMatchObject({ output: paths.output, status: 'pass' });
       expect(statSync(paths.output).mode & 0o777).toBe(0o600);
       const attestation = JSON.parse(readFileSync(paths.output, 'utf8'));
+      expect(attestation.allowed_principal_classes).toEqual(['internal_canary']);
       expect(verifyAnswerReleaseAttestationFile(paths.output, verificationEnv(buildEnv, publicKey, attestation))).toEqual({
         status: 'pass', sha256: built.sha256, key_id: 'release-key-1'
       });
+    });
+  });
+
+  it('requires an explicit canonical deployment principal allowlist', () => {
+    withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
+      for (const value of [undefined, '', 'public,internal_canary', 'public,public', 'unknown']) {
+        expect(() => buildAnswerReleaseAttestationFile(paths, {
+          ...buildEnv,
+          F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: value
+        })).toThrow('answer_release_principal_allowlist_invalid');
+      }
     });
   });
 
@@ -538,7 +559,8 @@ function withReleaseFiles(
       F1QL_ANSWER_PRODUCTION_EVIDENCE_PUBLIC_KEY_BASE64: productionKeys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64'),
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: 'f1muse-answer',
       F1QL_ANSWER_DEPLOYMENT_ID: 'test-deployment',
-      F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: ANSWER_TEMPLATE_IDS.join(',')
+      F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: ANSWER_TEMPLATE_IDS.join(','),
+      F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: 'internal_canary'
     };
     run({
       directory,

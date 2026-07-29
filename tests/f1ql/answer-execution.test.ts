@@ -38,10 +38,10 @@ function release(templateId: string, deploymentId = 'execution-test-deployment')
       result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
     },
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-    runtime, deployment_template_ids: [templateId]
+    runtime, deployment_template_ids: [templateId], deployment_principal_classes: ['internal']
   };
   const unsigned = {
-    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };

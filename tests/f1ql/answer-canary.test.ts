@@ -27,12 +27,12 @@ const context: ActiveAnswerReleaseContext = {
     principal_audit_sha256: h('c'), production_evidence_sha256: h('d')
   },
   statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-  runtime, deployment_template_ids: ['race-v1'],
+  runtime, deployment_template_ids: ['race-v1'], deployment_principal_classes: ['internal_canary'],
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: hmacKeySha256
 };
 const keyPair = generateKeyPairSync('ed25519');
 const key = { key_id: 'canary-release-key', public_key: keyPair.publicKey };
-const unsigned = { version: 5 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(context) };
+const unsigned = { version: 6 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(context) };
 const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
 const attestation = verifyAnswerReleaseAttestation(raw, key, context, {
   now_ms: Date.parse('2026-07-24T00:01:00.000Z'), max_validity_ms: 600_000, max_age_ms: 300_000
@@ -99,7 +99,7 @@ describe('answer canary', () => {
 
   it('fails closed when the live stage or HMAC key is not release-attested', () => {
     const limitedContext = { ...context, maximum_canary_stage: 5 } as ActiveAnswerReleaseContext;
-    const limitedUnsigned = { version: 5 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(limitedContext) };
+    const limitedUnsigned = { version: 6 as const, kind: 'f1ql_answer_release_attestation' as const, key_id: key.key_id, ...buildActiveAnswerReleaseBindings(limitedContext) };
     const limitedRaw = { ...limitedUnsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(limitedUnsigned), keyPair.privateKey).toString('base64') };
     const limited = verifyAnswerReleaseAttestation(limitedRaw, key, limitedContext, {
       now_ms: Date.parse('2026-07-24T00:01:00.000Z'), max_validity_ms: 600_000, max_age_ms: 300_000

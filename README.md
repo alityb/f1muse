@@ -25,8 +25,14 @@ curl -X POST http://localhost:3000/nl-query \
   -d '{"question":"Who won the 2025 Australian Grand Prix?"}'
 ```
 
-`POST /nl-query` is unavailable unless every answer gate is satisfied. See
+`POST /nl-query` is unavailable unless every answer gate, including the
+independent `F1QL_PUBLIC_ANSWER_ENABLED` rollout gate, is satisfied. See
 `.env.example` and `docs/operations.md`.
+
+Release attestations also sign `allowed_principal_classes`. Internal-canary
+releases use `F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES=internal_canary`; public
+rollout requires a separately built attestation that explicitly includes
+`public` before the public runtime gate is enabled.
 
 ## Active Architecture
 

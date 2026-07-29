@@ -35,12 +35,12 @@ const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): Act
     result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
   },
   statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-  runtime, deployment_template_ids: ['final_standings_leader'], ...overrides
+  runtime, deployment_template_ids: ['final_standings_leader'], deployment_principal_classes: ['internal'], ...overrides
 });
 
 function release(context = activeContext()) {
   const unsigned = {
-    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
@@ -88,7 +88,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v19', release_attestation: 5 }
+      active_versions: { authorization: 'answer-authorization-v20', release_attestation: 6 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);
@@ -116,12 +116,14 @@ describe('one-time answer execution authorization', () => {
 
   it('issues distinct authority for the authenticated internal canary principal', async () => {
     const semanticProof = await proof();
-    const attestation = release();
+    const attestation = release(activeContext({ deployment_principal_classes: ['internal_canary', 'public'] }));
     const authorization = buildAnswerExecutionAuthorization(randomUUID(), 'internal_canary', semanticProof, attestation);
-    expect(authorization).toMatchObject({ version: 13, principal_class: 'internal_canary' });
+    expect(authorization).toMatchObject({ version: 14, principal_class: 'internal_canary' });
     expect(buildAnswerExecutionAuthorization(randomUUID(), 'public', semanticProof, attestation)).toMatchObject({
-      version: 13, principal_class: 'public'
+      version: 14, principal_class: 'public'
     });
+    const internalOnly = release(activeContext({ deployment_principal_classes: ['internal_canary'] }));
+    expect(() => buildAnswerExecutionAuthorization(randomUUID(), 'public', semanticProof, internalOnly)).toThrow(AnswerAuthorizationError);
     expect(() => buildAnswerExecutionAuthorization(randomUUID(), 'unknown' as never, semanticProof, attestation)).toThrow(AnswerAuthorizationError);
   });
 

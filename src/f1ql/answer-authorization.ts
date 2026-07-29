@@ -3,21 +3,22 @@ import { AnswerCapability, authorizeAnswerProgram } from './answer-policy';
 import { ANSWER_WORK_MODEL_VERSION } from './answer-bounds';
 import {
   ANSWER_AUTHORIZATION_CODE_VERSION,
+  AnswerPrincipalClass,
   ANSWER_RELEASE_ATTESTATION_VERSION,
   getAnswerReleaseAttestationHash,
   isVerifiedAnswerReleaseAttestation,
   VerifiedAnswerReleaseAttestation,
   verifyVerifiedAnswerReleaseAttestationValidity
 } from './answer-release-attestation';
+export type { AnswerPrincipalClass } from './answer-release-attestation';
 import { ANSWER_SEMANTIC_PROOF_VERSION, VerifiedAnswerSemanticProof, verifyAnswerSemanticProof } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION, materializeAnswerTemplate } from './answer-templates';
 import { F1QLProgram } from './ast';
 import { refreshF1QLDefinitionsVersion, validateF1QLProgram } from './validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION, getF1QLProgramHash, normalizeF1QLProgram } from './verified-programs';
 
-export const ANSWER_AUTHORIZATION_VERSION = 13 as const;
+export const ANSWER_AUTHORIZATION_VERSION = 14 as const;
 export const ANSWER_AUTHORIZATION_TTL_MS = 5_000;
-export type AnswerPrincipalClass = 'internal' | 'internal_canary' | 'public';
 type AuthorizedAnswerCapability = Readonly<Omit<AnswerCapability, 'filters'>> & {
   readonly filters: ReadonlyArray<AnswerCapability['filters'][number]>;
 };
@@ -92,8 +93,9 @@ export function buildAnswerExecutionAuthorization(
   let program: F1QLProgram;
   try {
     proof = verifyAnswerSemanticProof(proofInput);
-    if (!releaseAttestation.allowed_template_ids.includes(proof.template_id)) {
-      throw new Error('Template is not release-attested');
+    if (!releaseAttestation.allowed_principal_classes.includes(principalClass) ||
+        !releaseAttestation.allowed_template_ids.includes(proof.template_id)) {
+      throw new Error('Principal or template is not release-attested');
     }
     const materialized = materializeAnswerTemplate(proof.template_id, proof.template_variables);
     program = normalizeF1QLProgram(proof.program);

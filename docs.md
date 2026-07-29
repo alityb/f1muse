@@ -46,10 +46,16 @@ release, canary, authorization, bound, and database gates.
 Both answer routes require all of the following:
 
 - `F1QL_ANSWER_ENABLED=true`.
+- Public `/nl-query` additionally requires `F1QL_PUBLIC_ANSWER_ENABLED=true`;
+  keep it false during internal canaries.
 - `F1QL_ANSWER_KILL_SWITCH` is not `true`; the switch is rechecked before and
   during execution.
 - A valid signed release attestation matching the active code, definitions,
   compiler, fact-space, templates, runtime bounds, deployment, and evidence.
+- The request principal class must appear in the attestation's signed
+  `allowed_principal_classes`. Build internal-canary releases with only
+  `internal_canary`; build a separate attestation explicitly including
+  `public` for public rollout.
 - A nonzero allowed canary stage and deterministic subject/template cohort.
 - `F1QL_ANSWER_DATABASE_URL` and trusted CA for the dedicated read-only answer
   role.

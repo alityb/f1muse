@@ -60,6 +60,8 @@ function buildEndpointList(): Record<string, string> {
   }
   if (process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true') {
     endpoints['POST /program/answer'] = 'Gated natural-language F1QL answer pipeline';
+  }
+  if (process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_PUBLIC_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true') {
     endpoints['POST /nl-query'] = 'Public natural-language F1QL answer pipeline';
   }
 

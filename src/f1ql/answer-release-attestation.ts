@@ -7,9 +7,11 @@ import { ANSWER_QUESTION_CONTRACT_VERSION } from './answer-question';
 import { ANSWER_SEMANTIC_PROOF_VERSION } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
 
-export const ANSWER_RELEASE_ATTESTATION_VERSION = 5 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v19' as const;
+export const ANSWER_RELEASE_ATTESTATION_VERSION = 6 as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v20' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
+export const ANSWER_PRINCIPAL_CLASSES = ['internal', 'internal_canary', 'public'] as const;
+export type AnswerPrincipalClass = (typeof ANSWER_PRINCIPAL_CLASSES)[number];
 export const ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS = 10 * 60 * 1000;
 export const ANSWER_RELEASE_DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
 const ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS = 60 * 60 * 1000;
@@ -71,6 +73,7 @@ export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHash
   readonly runtime_ceilings: AnswerRuntimeCeilings;
   readonly runtime_evidence: AnswerRuntimeCeilings;
   readonly allowed_template_ids: readonly string[];
+  readonly allowed_principal_classes: readonly AnswerPrincipalClass[];
 }
 
 export interface AnswerReleaseAttestation extends AnswerReleaseBindings {
@@ -96,6 +99,7 @@ export interface ActiveAnswerReleaseContext {
   readonly statuses: AnswerReleaseStatuses;
   readonly runtime: AnswerRuntimeCeilings;
   readonly deployment_template_ids: readonly string[];
+  readonly deployment_principal_classes: readonly AnswerPrincipalClass[];
 }
 
 export interface TrustedAnswerReleaseKey {
@@ -153,7 +157,8 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
     statuses: context.statuses,
     runtime_ceilings: context.runtime,
     runtime_evidence: context.runtime,
-    allowed_template_ids: context.deployment_template_ids
+    allowed_template_ids: context.deployment_template_ids,
+    allowed_principal_classes: context.deployment_principal_classes
   };
   validateExpectedBindings(value);
   return deepFreeze(cloneBindings(value));
@@ -163,7 +168,7 @@ export function parseAnswerReleaseAttestation(input: unknown): AnswerReleaseAtte
   const value = strictRecord(input, [
     'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
-    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
+    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'allowed_principal_classes'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
       typeof value.key_id !== 'string' || !IDENTIFIER.test(value.key_id) ||
@@ -268,6 +273,7 @@ export function loadDeterministicAnswerReleaseVerificationInput(
   const maximumCanaryStage = parseCanaryMaximumStage(env.F1QL_ANSWER_CANARY_MAXIMUM_STAGE);
   const canaryHmacKeySha256 = getAnswerCanaryHmacKeySha256(env.F1QL_ANSWER_CANARY_HMAC_KEY_BASE64);
   const templateIds = parseEnvironmentTemplateIds(env.F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS);
+  const principalClasses = parseEnvironmentPrincipalClasses(env.F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES);
   if (!raw || Buffer.byteLength(raw, 'utf8') > 100_000 || !publicKeyBase64 || !keyId || !commitSha || !audience || !deploymentId || !releaseId) {
     throw new AnswerReleaseAttestationError('release_not_configured');
   }
@@ -310,7 +316,8 @@ export function loadDeterministicAnswerReleaseVerificationInput(
       evidence_hashes: evidenceHashes,
        statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
       runtime: answerRuntimeCeilingsFromConfig(runtimeConfig),
-      deployment_template_ids: templateIds
+      deployment_template_ids: templateIds,
+      deployment_principal_classes: principalClasses
     },
     temporal_policy: answerReleaseTemporalPolicy(env, nowMs)
   });
@@ -323,7 +330,7 @@ function parseUnsignedAttestation(input: unknown): UnsignedAnswerReleaseAttestat
   const value = strictRecord(candidate, [
     'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
-    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids'
+    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'allowed_principal_classes'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
       typeof value.key_id !== 'string' || !IDENTIFIER.test(value.key_id)) {
@@ -363,7 +370,8 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
     statuses: parseStatuses(value.statuses),
     runtime_ceilings: parseRuntime(value.runtime_ceilings),
     runtime_evidence: parseRuntime(value.runtime_evidence),
-    allowed_template_ids: parseTemplateIds(value.allowed_template_ids)
+    allowed_template_ids: parseTemplateIds(value.allowed_template_ids),
+    allowed_principal_classes: parsePrincipalClasses(value.allowed_principal_classes)
   };
 }
 
@@ -420,12 +428,35 @@ function parseTemplateIds(input: unknown): string[] {
   return values;
 }
 
+function parsePrincipalClasses(input: unknown): AnswerPrincipalClass[] {
+  if (!Array.isArray(input) || input.length === 0 ||
+      input.some(item => typeof item !== 'string' || !ANSWER_PRINCIPAL_CLASSES.includes(item as AnswerPrincipalClass))) {
+    invalid();
+  }
+  const values = [...input] as AnswerPrincipalClass[];
+  if (new Set(values).size !== values.length || values.some((value, index) => index > 0 && values[index - 1] >= value)) {
+    invalid();
+  }
+  return values;
+}
+
 function parseEnvironmentTemplateIds(value: string | undefined): string[] {
   if (!value) {
     throw new AnswerReleaseAttestationError('release_not_configured');
   }
   try {
     return parseTemplateIds(value.split(',').map(item => item.trim()));
+  } catch {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+}
+
+function parseEnvironmentPrincipalClasses(value: string | undefined): AnswerPrincipalClass[] {
+  if (!value) {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+  try {
+    return parsePrincipalClasses(value.split(',').map(item => item.trim()));
   } catch {
     throw new AnswerReleaseAttestationError('release_not_configured');
   }
@@ -448,7 +479,8 @@ function cloneBindings(value: AnswerReleaseBindings): AnswerReleaseBindings {
     statuses: { ...value.statuses },
     runtime_ceilings: { ...value.runtime_ceilings },
     runtime_evidence: { ...value.runtime_evidence },
-    allowed_template_ids: [...value.allowed_template_ids]
+    allowed_template_ids: [...value.allowed_template_ids],
+    allowed_principal_classes: [...value.allowed_principal_classes]
   };
 }
 
@@ -461,7 +493,8 @@ function sameBindings(left: AnswerReleaseBindings, right: AnswerReleaseBindings)
     left.canary_hmac_key_sha256 === right.canary_hmac_key_sha256 &&
     HASH_KEYS.every(key => left[key] === right[key]) && sameStatuses(left.statuses, right.statuses) &&
     sameRuntime(left.runtime_ceilings, right.runtime_ceilings) && sameRuntime(left.runtime_evidence, right.runtime_evidence) &&
-    sameStrings(left.allowed_template_ids, right.allowed_template_ids);
+    sameStrings(left.allowed_template_ids, right.allowed_template_ids) &&
+    sameStrings(left.allowed_principal_classes, right.allowed_principal_classes);
 }
 
 function sameRuntime(left: AnswerRuntimeCeilings, right: AnswerRuntimeCeilings): boolean {

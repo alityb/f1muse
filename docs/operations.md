@@ -24,6 +24,21 @@ Both `POST /nl-query` and `POST /program/answer` are unavailable unless:
    `F1QL_ANSWER_DATABASE_CA_CERT_BASE64` configure the dedicated read-only
    answer database.
 6. Runtime values match the signed release.
+7. The route's principal class is present in the release attestation's signed
+   `allowed_principal_classes`.
+
+Public `POST /nl-query` additionally requires
+`F1QL_PUBLIC_ANSWER_ENABLED=true`. Keep this independent gate false during
+stage-zero verification and internal canaries so public traffic cannot enter an
+execution cohort.
+
+The offline release builder requires the explicit, sorted, unique
+`F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES` allowlist. For stage-zero and the
+authenticated stage-one canary, set it to `internal_canary`; do not include
+`public`. Public rollout requires fresh evidence and a separately built,
+independently verified attestation whose allowlist explicitly includes
+`public`, followed by enabling `F1QL_PUBLIC_ANSWER_ENABLED`. An internal-only
+attestation cannot issue a public execution authorization.
 
 The kill switch is rechecked during execution. Set it to `true` to stop answer
 execution without enabling another natural-language path.
@@ -63,7 +78,10 @@ curl http://localhost:3000/metrics
 ```
 
 The root discovery response advertises F1QL program routes only when
-`F1QL_ENABLED=true`, and answer routes only when enabled and not kill-switched.
+`F1QL_ENABLED=true`. It advertises the internal answer route when the shared
+answer gate is enabled and not kill-switched, and advertises `/nl-query` only
+when the independent public gate is also enabled. `/health` reports separate
+non-secret `answer_surfaces.internal` and `answer_surfaces.public` states.
 
 Retained API routes:
 

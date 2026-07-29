@@ -68,7 +68,11 @@ function releaseRuntime(config: AnswerRuntimeConfig) {
   };
 }
 
-function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly string[] = ANSWER_TEMPLATE_IDS): AnswerReleaseVerificationInput {
+function createRelease(
+  config: AnswerRuntimeConfig,
+  allowedTemplateIds: readonly string[] = ANSWER_TEMPLATE_IDS,
+  allowedPrincipalClasses: ActiveAnswerReleaseContext['deployment_principal_classes'] = ['internal', 'internal_canary', 'public']
+): AnswerReleaseVerificationInput {
   const runtime = releaseRuntime(config);
   const activeContext: ActiveAnswerReleaseContext = {
     release_id: 'route-test-release', issued_at: '2026-07-24T00:00:00.000Z', expires_at: '2026-07-24T00:10:00.000Z',
@@ -76,10 +80,10 @@ function createRelease(config: AnswerRuntimeConfig, allowedTemplateIds: readonly
     audience: 'f1muse-answer', deployment_id: 'route-test-deployment', evidence_hashes: releaseEvidence,
     canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryHmacKeySha256,
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-    runtime, deployment_template_ids: [...allowedTemplateIds]
+    runtime, deployment_template_ids: [...allowedTemplateIds], deployment_principal_classes: [...allowedPrincipalClasses]
   };
   const unsigned = {
-    version: 5 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: releaseKey.key_id, ...buildActiveAnswerReleaseBindings(activeContext)
   };
   return {
@@ -198,6 +202,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   process.env.F1QL_ANSWER_ENABLED = 'true';
+  process.env.F1QL_PUBLIC_ANSWER_ENABLED = 'true';
   process.env.F1QL_ANSWER_INTERNAL_TOKEN = internalToken;
   process.env.F1QL_ANSWER_INTERNAL_CANARY_TOKEN = internalCanaryToken;
   process.env.F1QL_ANSWER_CANARY_STAGE = '100';
@@ -224,6 +229,7 @@ beforeEach(() => {
 
 afterAll(async () => {
   delete process.env.F1QL_ANSWER_ENABLED;
+  delete process.env.F1QL_PUBLIC_ANSWER_ENABLED;
   delete process.env.F1QL_ANSWER_KILL_SWITCH;
   delete process.env.F1QL_ANSWER_INTERNAL_TOKEN;
   delete process.env.F1QL_ANSWER_INTERNAL_CANARY_TOKEN;
@@ -300,6 +306,43 @@ function resolveLocalTypeScriptModule(importer: string, specifier: string): stri
 }
 
 describe('gated answer route', () => {
+  it('at stage one executes the authenticated internal canary but blocks malformed and valid public requests before parsing, release, or database work', async () => {
+    process.env.F1QL_ANSWER_CANARY_STAGE = '1';
+    delete process.env.F1QL_PUBLIC_ANSWER_ENABLED;
+    useReleaseOverride = true;
+    releaseOverride = createRelease(runtimeConfig, ANSWER_TEMPLATE_IDS, ['internal_canary']);
+
+    const canary = await ask('Who led the 2025 standings?', undefined, internalCanaryToken);
+    expect(canary.status).toBe(200);
+    expect(executedPrincipalClasses).toEqual(['internal_canary']);
+    const afterCanary = { releaseLoads, connectionAttempts, derivationAttempts, resolutionAttempts, executionAttempts };
+
+    for (const body of [{ question: '' }, { question: 'Who led the 2025 standings?' }]) {
+      const response = await askPublic('', body);
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'public_answer_disabled' });
+    }
+    expect({ releaseLoads, connectionAttempts, derivationAttempts, resolutionAttempts, executionAttempts }).toEqual(afterCanary);
+    expect(metrics.toJSON().f1ql.answer_outcomes).toMatchObject({
+      'internal:execution:succeeded:final_standings_leader': 1,
+      'public:gate:blocked:public_answer_disabled': 2
+    });
+    expect(metrics.toPrometheus()).toContain('surface="public",stage="gate",outcome="blocked",reason="public_answer_disabled"} 2');
+  });
+
+  it('rejects a public principal absent from the signed release before canary or database admission', async () => {
+    useReleaseOverride = true;
+    releaseOverride = createRelease(runtimeConfig, ANSWER_TEMPLATE_IDS, ['internal_canary']);
+
+    const response = await askPublic();
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'answer_unavailable', reason: 'release_not_approved' });
+    expect({ releaseLoads, connectionAttempts, derivationAttempts, resolutionAttempts, executionAttempts }).toEqual({
+      releaseLoads: 1, connectionAttempts: 0, derivationAttempts: 0, resolutionAttempts: 0, executionAttempts: 0
+    });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'public:gate:blocked:release_not_approved': 1 });
+  });
+
   it('executes the public natural-language route only through a public F1QL authorization', async () => {
     const response = await askPublic();
     expect(response.status).toBe(200);
@@ -483,7 +526,7 @@ describe('gated answer route', () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'clarification_required', reason: 'metric_ambiguous' });
     expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
-    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'derivation:clarification:metric_ambiguous': 1 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'internal:derivation:clarification:metric_ambiguous': 1 });
   });
 
   it('returns a derived unsupported outcome without proving or executing', async () => {
@@ -492,7 +535,7 @@ describe('gated answer route', () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({ error: 'capability_unsupported', reason: 'grid_source_unsupported' });
     expect({ connectionAttempts, derivationAttempts, resolutionAttempts }).toEqual({ connectionAttempts: 1, derivationAttempts: 1, resolutionAttempts: 0 });
-    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'derivation:unsupported:grid_source_unsupported': 1 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'internal:derivation:unsupported:grid_source_unsupported': 1 });
   });
 
   it('fails closed when deterministic derivation fails', async () => {
@@ -677,7 +720,7 @@ describe('gated answer route', () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'answer_bound_exceeded', reason: 'work_units' });
     expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 2 });
-    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'bounds:rejected:work_units': 1 });
+    expect(metrics.toJSON().f1ql.answer_outcomes).toEqual({ 'internal:bounds:rejected:work_units': 1 });
   });
 
   it('refuses an authorization envelope when active definitions do not match', async () => {
