@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v17', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v18', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v17',
+      version: 'answer-semantic-proof-v18',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -271,18 +271,34 @@ describe('independent answer semantic proof', () => {
     'Who was the final 2025 champion?',
     'Who was the final 2025 standings champion?',
     'Who was the 2025 championship champion?',
-    'Who was the final 2025 driver champion?'
+    'Who was the final 2025 driver champion?',
+    'Who won the 2021 FIA Formula 1 World Drivers Championship?'
   ])('hydrates, proves, and materializes the official final leader: %s', async question => {
     const contract = createAnswerQuestionContract(question);
+    const season = Number(contract.years[0].value);
     const intent = hydrateAndParseAnswerIntent({
-      type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' }
+      type: 'final_standings_leader', season, season_reference: { text: String(season) }
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
       template_id: 'final_standings_leader',
-      template_variables: { season: 2025 },
+      template_variables: { season },
       program: { root: { op: 'rank', by: 'championship_position', direction: 'asc', limit: 1 } }
     });
+  });
+
+  it.each([
+    ['Who was the 2021 MotoGP world champion?', 'template_mismatch'],
+    ['Who became the 2021 chess world champion?', 'template_mismatch'],
+    ['Who won the 2021 NASCAR Drivers Championship?', 'metric_mismatch'],
+    ['Who was the 2021 NASCAR championship leader?', 'metric_mismatch'],
+    ['Who was the 2021 NASCAR championship leader in an F1 comparison?', 'metric_mismatch']
+  ])('rejects a forged F1 leader intent for another domain: %s', async (question, reason) => {
+    const contract = createAnswerQuestionContract(question);
+    const intent = hydrateAndParseAnswerIntent({
+      type: 'final_standings_leader', season: 2021, season_reference: { text: '2021' }
+    }, contract);
+    await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason });
   });
 
   it('rejects an event champion as unsupported rather than mapping it to standings', async () => {
@@ -291,7 +307,7 @@ describe('independent answer semantic proof', () => {
     const intent = hydrateAndParseAnswerIntent({
       type: 'final_standings_leader', season: 2025, season_reference: { text: '2025' }
     }, contract);
-    await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason: 'template_mismatch' });
+    await expect(proveAnswerIntent(contract, intent, events, drivers)).rejects.toMatchObject({ reason: 'event_mismatch' });
   });
 
   it.each([

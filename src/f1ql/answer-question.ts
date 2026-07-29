@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v26' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v27' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
@@ -64,7 +64,7 @@ interface CuePattern<T extends string> {
 }
 
 const SOURCE_PATTERNS: readonly CuePattern<AnswerQuestionSourceCue>[] = [
-  { value: 'standings', pattern: /\b(?:driver\s+)?standings\b|\b(?:driver\s+)?championship\b|\bdriver\s+champion\b|\bwho\s+was\s+(?:the\s+)?(?:final\s+)?(?:19[5-9]\d|20\d{2}|2100)\s+(?:driver\s+)?champion\b/giu },
+  { value: 'standings', pattern: /\b(?:driver\s+)?standings\b|\b(?:driver\s+)?championship\b|\b(?:formula\s*1|f1)\s+(?:world\s+)?drivers?['’]?\s+championship\b|\bdriver\s+champion\b|\bwho\s+(?:was|became)\b[^.?!]{0,80}\bf(?:ormula\s*)?1\s+world\s+champion\b|\bwho\s+was\s+(?:the\s+)?(?:final\s+)?(?:19[5-9]\d|20\d{2}|2100)\s+(?:driver\s+)?champion\b/giu },
   { value: 'race_classification', pattern: /\brace\s+(?:classification|result|results)\b|\bfinishing\s+(?:order|position)\b/giu },
   { value: 'qualifying_classification', pattern: /\bqualifying\s+(?:classification|result|results|order)\b/giu },
   { value: 'race_date', pattern: /\b(?:race|grand\s+prix)\s+date\b/giu }
@@ -78,7 +78,7 @@ const SESSION_PATTERNS: readonly CuePattern<AnswerQuestionSessionCue>[] = [
 
 const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'points', pattern: /\bpoints?\b/giu },
-  { value: 'official_leader', pattern: /\b(?:championship|standings)\s+(?:champion|leader)\b|\bdriver\s+champion\b|\bwho\b[^.?!]{0,80}\bchampion\b|\bwho\s+(?:led|won)\s+(?:the\s+)?(?:(?:19[5-9]\d|20\d{2}|2100)\s+)?(?:driver\s+)?(?:championship|standings)\b/giu },
+  { value: 'official_leader', pattern: /\b(?:championship|standings)\s+(?:champion|leader)\b|\bdriver\s+champion\b|\bwho\b[^.?!]{0,80}\bchampion\b|\bwho\s+won\b[^.?!]{0,120}\b(?:formula\s*1|f1)\s+(?:world\s+)?drivers?['’]?\s+championship\b|\bwho\s+(?:led|won)\s+(?:the\s+)?(?:(?:19[5-9]\d|20\d{2}|2100)\s+)?(?:driver\s+)?(?:championship|standings)\b/giu },
   { value: 'official_driver_ranking', pattern: /\brank\b[^.?!]{1,240}\bby\s+(?:final\s+(?:19[5-9]\d|20\d{2}|2100)\s+championship\s+position|championship\s+position\s+in\s+the\s+final\s+(?:19[5-9]\d|20\d{2}|2100)\s+standings)\b/giu },
   { value: 'official_driver_results_comparison', pattern: /\bcompare\s+the\s+official\s+2025\s+results\s+of\s+norris\s+and\s+piastri\b/giu },
   { value: 'race_event_finishing_position_comparison', pattern: /\bwho\s+finished\s+ahead,\s+verstappen\s+or\s+norris,\s+at\s+silverstone\s+2025\b/giu },

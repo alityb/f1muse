@@ -8,6 +8,7 @@ const programs = {
   pair: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['lando-norris', 'oscar-piastri'] }),
   maxPoints: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['max-verstappen'] }),
   leader: materializeAnswerTemplate('final_standings_leader', { season: 2025 }),
+  worldChampion2021: materializeAnswerTemplate('final_standings_leader', { season: 2021 }),
   multiRanking: materializeAnswerTemplate('final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] }),
   current: materializeAnswerTemplate('current_standings', { season: 2026 }),
   seasonSummary: materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' }),
@@ -40,7 +41,6 @@ const programs = {
   date: materializeAnswerTemplate('race_date', { season: 2025, round: 1 }),
   emptyDate: materializeAnswerTemplate('race_date', { season: 2025, round: 30 })
   ,historicalPoints: materializeAnswerTemplate('final_standings_points', { season: 2024, driver_ids: ['charles-leclerc'] })
-  ,historicalLeader: materializeAnswerTemplate('final_standings_leader', { season: 2024 })
   ,historicalRaceAll: materializeAnswerTemplate('race_classification_all', { season: 2024, round: 1 })
   ,monacoCharles: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 2, driver_id: 'charles-leclerc' })
   ,raceClassified: materializeAnswerTemplate('race_classification_status', { season: 2025, round: 1, status: 'classified' })
@@ -106,7 +106,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   refuse('iid-empty', 'iid_holdout', 'What was the race date for round 30 in 2025?', 'abstain', 'source_coverage_missing', ['empty_result']),
   answer('iid-tie', 'iid_holdout', 'Final 2025 standings points for Oscar Piastri and Lando Norris.', 'final_standings_points', programs.pair, ['tie', 'filter_reordering']),
   answer('holdout-historical-points', 'temporal_entity_holdout', 'What were Charles Leclerc final standings points in 2024?', 'final_standings_points', programs.historicalPoints, ['temporal_holdout']),
-  answer('holdout-historical-leader', 'temporal_entity_holdout', 'Who was the final 2024 standings leader?', 'final_standings_leader', programs.historicalLeader, ['temporal_holdout']),
+  answer('online-world-drivers-champion', 'temporal_entity_holdout', 'Who won the 2021 FIA Formula 1 World Drivers Championship?', 'final_standings_leader', programs.worldChampion2021, ['online_wording', 'championship_alias']),
   answer('holdout-historical-race-all', 'temporal_entity_holdout', 'Give all race results for the 2024 Australian Grand Prix.', 'race_classification_all', programs.historicalRaceAll, ['temporal_holdout']),
   answer('holdout-monaco-charles', 'temporal_entity_holdout', 'Where did Charles Leclerc finish in the 2025 Monaco Grand Prix race result?', 'race_classification_driver', programs.monacoCharles, ['event_alias']),
   answer('holdout-race-classified', 'temporal_entity_holdout', 'Show all classified drivers in the 2025 Australian Grand Prix race results.', 'race_classification_status', programs.raceClassified, ['status_filter']),
@@ -181,7 +181,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   refuse('unsupported-sprint', 'adversarial', 'Show the 2025 Australian sprint classification.', 'abstain', 'sprint_source_unsupported', ['unsupported_source']),
   refuse('unsupported-grid', 'adversarial', 'Show the 2025 Australian starting grid.', 'abstain', 'grid_source_unsupported', ['unsupported_source']),
   refuse('unsupported-constructor', 'adversarial', 'Show final 2025 constructor standings.', 'abstain', 'constructor_source_unsupported', ['unsupported_source']),
-  refuse('unsupported-team', 'adversarial', 'Show the team result for the 2025 Australian race.', 'abstain', 'team_filter_unsupported', ['unsupported_source']),
+  refuse('online-first-ever-race', 'adversarial', 'Who was the winner of the first ever Formula 1 race?', 'abstain', 'capability_unsupported', ['missing_literal_scope']),
   refuse('unsupported-pace', 'adversarial', 'Show Max Verstappen lap times in the 2025 Australian race.', 'abstain', 'pace_source_disabled', ['unsupported_source']),
   answer('meta-year', 'development', 'For 2025, who was the standings leader?', 'final_standings_leader', programs.leader, ['year_placement']),
   answer('meta-alias', 'development', 'Where did Max finish in the 2025 Australian GP race result?', 'race_classification_driver', programs.raceMax, ['entity_alias']),

@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v17' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v18' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -76,11 +76,11 @@ export async function proveAnswerIntent(
   }
   const intent: ExecutableAnswerIntent = parsed;
   proveSeason(contract, intent);
-  proveSourceSessionAndMetric(contract, intent);
-  proveStatusAndCardinality(contract, intent);
   if (!('event_reference' in intent) && (contract.event_cues.length > 0 || contract.rounds.length > 0)) {
     throw new AnswerSemanticProofError('event_mismatch');
   }
+  proveSourceSessionAndMetric(contract, intent);
+  proveStatusAndCardinality(contract, intent);
 
   const mentions: AnswerProofMention[] = [];
   let round: number | undefined;
@@ -360,7 +360,7 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (intent.type === 'final_standings_points' && !metrics.has('points')) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
-  if (intent.type === 'final_standings_leader' && !metrics.has('official_leader')) {
+  if (intent.type === 'final_standings_leader' && (!metrics.has('official_leader') || !matchesSupportedLeaderQuestion(contract.normalized_question))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'final_standings_driver_ranking' && (!metrics.has('official_driver_ranking') || !matchesPinnedDriverRankingQuestion(contract, intent.driver_references))) {
@@ -404,6 +404,10 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (explicitSources.size === 0 && metrics.size === 0 && !statusSelectsClassification && !('selection_reference' in intent)) {
     throw new AnswerSemanticProofError('template_mismatch');
   }
+}
+
+function matchesSupportedLeaderQuestion(question: string): boolean {
+  return /^(?:who (?:was|became) (?:the )?(?:final )?(?:19[5-9]\d|20\d{2}|2100) (?:(?:standings|championship) (?:leader|champion)|driver champion|champion)|who became champion in the final (?:19[5-9]\d|20\d{2}|2100) standings|who (?:led|won) (?:the )?(?:19[5-9]\d|20\d{2}|2100) (?:driver )?(?:championship|standings)|(?:in|for) (?:19[5-9]\d|20\d{2}|2100), who was the standings leader|for context only, thanks; who was the (?:19[5-9]\d|20\d{2}|2100) standings leader|what's the final (?:19[5-9]\d|20\d{2}|2100) standings leader|who won the (?:19[5-9]\d|20\d{2}|2100) (?:fia )?(?:formula\s*1|f1) (?:world )?drivers?['’]? championship|who was the (?:19[5-9]\d|20\d{2}|2100) (?:formula\s*1|f1) world champion)\?\.?$/iu.test(question);
 }
 
 function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: ExecutableAnswerIntent): void {

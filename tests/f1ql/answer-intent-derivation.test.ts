@@ -30,6 +30,7 @@ describe('provider-free answer intent derivation', () => {
   const templates = [
     ['Final 2025 standings points for Lando Norris.', inventory('Lando Norris'), 'final_standings_points'],
     ['Who was the final 2025 standings leader?', inventory(), 'final_standings_leader'],
+    ['Who won the 2021 FIA Formula 1 World Drivers Championship?', inventory(), 'final_standings_leader'],
     ['Rank Verstappen, Norris, and Piastri by final 2025 championship position.', inventory('Verstappen', 'Norris', 'Piastri'), 'final_standings_driver_ranking'],
     ['Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings.', inventory('Verstappen', 'Norris', 'Piastri'), 'final_standings_driver_ranking'],
     ['Show all 2025 Monaco race results.', inventory(), 'race_classification_all'],
@@ -73,7 +74,7 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v13');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v14');
   });
 
   it.each([
@@ -214,6 +215,25 @@ describe('provider-free answer intent derivation', () => {
   ])('does not broaden latest-recorded standings: %s', async question => {
     const resolver = question.includes('Lando') ? inventory('Lando Norris') : inventory();
     await expect(deriveAnswerIntent(createAnswerQuestionContract(question), resolver)).resolves.toEqual({ type: 'unsupported', reason: 'capability_unsupported' });
+  });
+
+  it('does not invent season or event scope for first-ever race wording', async () => {
+    const question = 'Who was the winner of the first ever Formula 1 race?';
+    await expect(deriveAnswerIntent(createAnswerQuestionContract(question), inventory())).resolves.toEqual({
+      type: 'unsupported', reason: 'capability_unsupported'
+    });
+  });
+
+  it.each([
+    'Who was the 2021 MotoGP world champion?',
+    'Who became the 2021 chess world champion?',
+    'Who won the 2021 NASCAR Drivers Championship?',
+    'Who was the 2021 NASCAR championship leader?',
+    'Who was the 2021 NASCAR championship leader in an F1 comparison?'
+  ])('does not derive F1 standings semantics for another domain: %s', async question => {
+    await expect(deriveAnswerIntent(createAnswerQuestionContract(question), inventory())).resolves.toEqual({
+      type: 'unsupported', reason: 'capability_unsupported'
+    });
   });
 
   it('binds result cardinality to the trusted cue', async () => {

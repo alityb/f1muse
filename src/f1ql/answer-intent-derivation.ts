@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v13' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v14' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -319,8 +319,12 @@ function isLeaderSelection(
   drivers: LiteralMentionReference[],
   metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
 ): boolean {
-  return only(metrics, 'official_leader') && drivers.length === 0
+  return only(metrics, 'official_leader') && matchesSupportedLeaderQuestion(contract.normalized_question) && drivers.length === 0
     && contract.status_cues.length === 0 && contract.action_cues.length === 0;
+}
+
+function matchesSupportedLeaderQuestion(question: string): boolean {
+  return /^(?:who (?:was|became) (?:the )?(?:final )?(?:19[5-9]\d|20\d{2}|2100) (?:(?:standings|championship) (?:leader|champion)|driver champion|champion)|who became champion in the final (?:19[5-9]\d|20\d{2}|2100) standings|who (?:led|won) (?:the )?(?:19[5-9]\d|20\d{2}|2100) (?:driver )?(?:championship|standings)|(?:in|for) (?:19[5-9]\d|20\d{2}|2100), who was the standings leader|for context only, thanks; who was the (?:19[5-9]\d|20\d{2}|2100) standings leader|what's the final (?:19[5-9]\d|20\d{2}|2100) standings leader|who won the (?:19[5-9]\d|20\d{2}|2100) (?:fia )?(?:formula\s*1|f1) (?:world )?drivers?['’]? championship|who was the (?:19[5-9]\d|20\d{2}|2100) (?:formula\s*1|f1) world champion)\?\.?$/iu.test(question);
 }
 
 function dateIntent(

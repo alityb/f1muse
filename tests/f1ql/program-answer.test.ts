@@ -627,7 +627,8 @@ describe('gated answer route', () => {
     'Who was the final 2025 champion?',
     'Who was the final 2025 standings champion?',
     'Who was the 2025 championship champion?',
-    'Who was the final 2025 driver champion?'
+    'Who was the final 2025 driver champion?',
+    'Who won the 2021 FIA Formula 1 World Drivers Championship?'
   ])('hydrates and proves the champion route as the final standings leader: %s', async question => {
     const response = await ask(question);
     expect(response.status).toBe(200);
@@ -640,6 +641,12 @@ describe('gated answer route', () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({ error: 'capability_unsupported', reason: 'capability_unsupported' });
     expect({ derivationAttempts, resolutionAttempts }).toEqual({ derivationAttempts: 1, resolutionAttempts: 1 });
+  });
+
+  it('fails scope-less first-ever race wording closed', async () => {
+    const response = await ask('Who was the winner of the first ever Formula 1 race?');
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: 'capability_unsupported', reason: 'capability_unsupported' });
   });
 
   it('hydrates and proves all final standings points through the route', async () => {

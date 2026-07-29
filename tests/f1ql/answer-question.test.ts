@@ -12,7 +12,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v26');
+    expect(contract.version).toBe('answer-question-v27');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -102,6 +102,30 @@ describe('answer question contract', () => {
     const contract = createAnswerQuestionContract('Who won the 2025 championship?');
     expect(contract.result_cues).toEqual([]);
     expect(contract.metric_cues.map(cue => cue.value)).toContain('official_leader');
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+  });
+
+  it.each([
+    'Who won the 2021 FIA Formula 1 World Drivers Championship?',
+    "Who won the 2021 F1 World Drivers' Championship?",
+    'Who was the 2021 F1 world champion?'
+  ])('recognizes explicit world drivers championship wording: %s', question => {
+    const contract = createAnswerQuestionContract(question);
+    expect(contract.source_cues.map(cue => cue.value)).toEqual(['standings']);
+    expect(contract.metric_cues.map(cue => cue.value)).toEqual(['official_leader']);
+    expect(contract.result_cues).toEqual([]);
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+  });
+
+  it.each([
+    'Who was the 2021 MotoGP world champion?',
+    'Who became the 2021 chess world champion?',
+    'Who won the 2021 NASCAR Drivers Championship?'
+  ])('does not treat another domain world champion as an F1 standings cue: %s', question => {
+    const contract = createAnswerQuestionContract(question);
+    const hasStandingsSource = contract.source_cues.some(cue => cue.value === 'standings');
+    const hasLeaderMetric = contract.metric_cues.some(cue => cue.value === 'official_leader');
+    expect(hasStandingsSource && hasLeaderMetric).toBe(false);
     expect(contract.outcome).toEqual({ type: 'inspection_required' });
   });
 

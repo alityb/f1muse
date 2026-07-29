@@ -24,12 +24,14 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (2025, 'mercedes', 'mercedes', 'lewis_hamilton', false),
     (2025, 'ambiguous-one', 'ambiguous-one', 'alex_one', false),
     (2025, 'ambiguous-two', 'ambiguous-two', 'alex_two', false),
+    (2021, 'red-bull', 'red-bull', 'max_verstappen', false),
     (2024, 'ferrari', 'ferrari', 'charles_leclerc', false),
     (2024, 'mercedes', 'mercedes', 'lewis_hamilton', false)`);
   await pool.query(`INSERT INTO season_driver_standing (year, position_display_order, position_number, position_text, driver_id, points) VALUES
     (2025, 1, 1, '1', 'oscar_piastri', 300),
     (2025, 2, 2, '2', 'lando_norris', 300),
     (2025, 3, 3, '3', 'max_verstappen', 25),
+    (2021, 1, 1, '1', 'max_verstappen', 395.5),
     (2024, 1, 1, '1', 'lewis_hamilton', 389),
     (2023, 3, 3, '3', 'lewis_hamilton', 234),
     (2024, 2, 2, '2', 'charles_leclerc', 356),
