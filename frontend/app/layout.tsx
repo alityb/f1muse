@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'F1Muse — Structured F1 Analytics',
   description:
-    'Ask natural-language questions about Formula 1. Get answers computed from validated SQL templates against official timing data.',
+    'Ask reviewed natural-language questions about Formula 1. Get answers computed by authorized F1QL programs over official result data.',
   keywords: ['F1', 'Formula 1', 'analytics', 'statistics', 'lap times', 'driver comparison'],
 }
 

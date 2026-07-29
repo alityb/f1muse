@@ -7,8 +7,6 @@ import {
   getPoolConnectionInfo
 } from './db/pool';
 import { createRoutes } from './api/routes';
-import { createProductionNLQueryRouter } from './api/nl-query-production';
-import { startCacheMaintenanceInterval } from './cache/maintenance';
 import { startAutoSyncInterval, runSync, getSyncStatus, stopAutoSync } from './sync/auto-sync';
 import { initRedisCache, getRedisCache } from './cache/redis-cache';
 import { createMetricsRouter, metricsMiddleware } from './observability/metrics';
@@ -20,8 +18,6 @@ import {
   requestLogger,
   logError
 } from './api/middleware/production-safety';
-import { getConfig } from './llm/config';
-import { isLLMConfigured } from './llm/claude-client';
 import { logInvariantMode } from './execution/invariants';
 import { requireAdmin } from './api/middleware/admin-auth';
 
@@ -29,7 +25,7 @@ import { requireAdmin } from './api/middleware/admin-auth';
  * F1 Muse API - Production Entry Point
  *
  * Features:
- * - Claude API for NL parsing (no local LLM)
+ * - Deterministic F1QL natural-language answers
  * - Redis caching layer
  * - Prometheus-compatible metrics
  * - Rate limiting
@@ -41,17 +37,6 @@ async function main() {
   // Railway terminates one proxy hop before the application; preserve client IP rate-limit keys.
   app.set('trust proxy', 1);
   const port = process.env.PORT || 3000;
-
-  // log llm config at startup
-  const llmConfig = getConfig();
-  console.log('LLM configuration:');
-  console.log(`  Concurrency limit: ${llmConfig.maxConcurrency}`);
-  console.log(`  Queue timeout: ${llmConfig.queueTimeoutMs}ms`);
-  console.log(`  Max retries: ${llmConfig.maxRetries}`);
-  if (llmConfig.corpusTestMode) {
-    console.log('  ⚠️  CORPUS TEST MODE ENABLED');
-    console.log(`  Inter-call delay: ${llmConfig.corpusTestDelayMs}ms`);
-  }
 
   // Log invariant enforcement mode
   logInvariantMode();
@@ -72,7 +57,6 @@ async function main() {
   app.use(configureCORS());
 
   // Rate limiting
-  app.use('/query', apiRateLimiter);
   app.use('/program', apiRateLimiter);
   app.use('/program/translate', nlQueryRateLimiter);
   app.use('/nl-query', apiRateLimiter);
@@ -147,18 +131,6 @@ async function main() {
     }
   }
 
-  // Start background cache maintenance (Postgres cache, every 60 minutes)
-  let maintenanceInterval: NodeJS.Timeout | null = null;
-  try {
-    maintenanceInterval = startCacheMaintenanceInterval(primaryPool, 60 * 60 * 1000, {
-      max_entries: 250_000,
-      verbose: true
-    });
-    console.log('✓ Cache maintenance scheduled (every 60 minutes)');
-  } catch (err) {
-    logError(err, { context: 'cache_maintenance_startup_failed' });
-  }
-
   // Start auto-sync (Jolpica race results + standings, every 2 hours)
   // Lap data (FastF1 Python ETL) still needs to be triggered manually after each race.
   let autoSyncInterval: NodeJS.Timeout | null = null;
@@ -187,16 +159,12 @@ async function main() {
     res.json(getSyncStatus());
   });
 
-  // Clear all derived query data after an ingestion or methodology correction.
+  // Clear ephemeral distributed cache data after an ingestion or methodology correction.
   app.delete('/admin/cache', requireAdmin, async (_req, res) => {
     try {
-      const [queryCache, redisCleared] = await Promise.all([
-        primaryPool.query('DELETE FROM api_query_cache'),
-        getRedisCache().clearAll(),
-      ]);
+      const redisCleared = await getRedisCache().clearAll();
       res.json({
         ok: true,
-        postgres_entries_deleted: queryCache.rowCount ?? 0,
         redis_cleared: redisCleared,
       });
     } catch (err) {
@@ -209,15 +177,6 @@ async function main() {
   const routes = createRoutes(replicaPool, primaryPool, answerPool);
   app.use('/', routes);
 
-  // Register production NL query router when either supported provider is configured.
-  if (isLLMConfigured()) {
-    const nlRouter = createProductionNLQueryRouter(replicaPool, primaryPool);
-    app.use('/', nlRouter);
-    console.log('✓ Natural language query endpoint enabled (/nl-query)');
-  } else {
-    console.log('⚠ NL query endpoint disabled (configure Anthropic or an OpenAI-compatible LLM)');
-  }
-
   // Health check endpoint
   app.get('/health', async (_req, res) => {
     const redisCache = getRedisCache();
@@ -227,7 +186,7 @@ async function main() {
       status: 'healthy',
       database: 'connected',
       redis: redisHealthy ? 'connected' : 'unavailable',
-      llm: isLLMConfigured() ? 'configured' : 'not_configured',
+      answer: process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true' ? 'enabled' : 'disabled',
       timestamp: new Date().toISOString()
     });
   });
@@ -251,13 +210,10 @@ async function main() {
   const server = app.listen(port, () => {
     console.log(`\nF1 Muse API listening on port ${port}`);
     console.log(`\nEndpoints:`);
-    console.log(`  POST /query       - Execute QueryIntent`);
-    console.log(`  POST /nl-query    - Natural language query (Claude-powered)`);
+    console.log(`  POST /nl-query    - Natural-language F1QL answer`);
     console.log(`  GET  /health      - Health check`);
     console.log(`  GET  /metrics     - Prometheus metrics`);
     console.log(`  GET  /metrics/json - JSON metrics`);
-    console.log(`  GET  /capabilities - API capabilities`);
-    console.log(`  GET  /suggestions  - Query suggestions`);
   });
 
   // Graceful shutdown
@@ -266,11 +222,6 @@ async function main() {
 
     // Stop accepting new connections
     server.close();
-
-    // Clear maintenance interval
-    if (maintenanceInterval) {
-      clearInterval(maintenanceInterval);
-    }
 
     // Clear auto-sync interval
     if (autoSyncInterval) {

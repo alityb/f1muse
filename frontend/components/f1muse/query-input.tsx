@@ -9,12 +9,12 @@ import { ArrowRight, Command } from "lucide-react"
  * Placeholder queries for the cycling animation
  */
 const PLACEHOLDER_QUERIES = [
-  "antonelli vs russell 2026",
-  "who won miami 2026",
-  "fastest drivers at suzuka 2026",
-  "leclerc vs hamilton qualifying 2026",
-  "hamilton wins by circuit",
-  "head to head antonelli norris 2026",
+  "Who won the 2025 Australian Grand Prix?",
+  "Show the latest recorded 2026 driver standings.",
+  "At which circuits has Lewis Hamilton won races?",
+  "Who outqualified whom more often in 2025, Norris or Piastri?",
+  "How many poles did Lando Norris take in 2025?",
+  "Rank Verstappen, Norris, and Piastri by final 2025 championship position.",
 ]
 
 interface QueryInputProps {

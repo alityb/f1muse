@@ -12,49 +12,43 @@ interface SuggestedQueriesProps {
  */
 const SUGGESTED_QUERIES = [
   {
-    query: "antonelli vs russell 2026",
-    description: "Mercedes teammates, championship battle",
-    category: "comparison",
+    query: "Show the latest recorded 2026 driver standings.",
+    description: "Latest recorded standings",
   },
   {
-    query: "who won miami 2026",
-    description: "Race results summary",
-    category: "results",
+    query: "Who won the 2025 Australian Grand Prix?",
+    description: "Official race winner",
   },
   {
-    query: "fastest drivers at suzuka 2026",
-    description: "Track performance ranking",
-    category: "ranking",
+    query: "Show the podium for the 2025 Australian Grand Prix.",
+    description: "Official race podium",
   },
   {
-    query: "leclerc vs hamilton as teammates",
-    description: "Ferrari's new pairing, career H2H",
-    category: "comparison",
+    query: "Who took pole at the 2025 Australian Grand Prix?",
+    description: "Official qualifying pole",
   },
   {
-    query: "hamilton wins by circuit",
-    description: "Career wins breakdown",
-    category: "analysis",
+    query: "Who finished ahead more often in 2025, Lando Norris or Oscar Piastri?",
+    description: "Race classification head-to-head",
   },
   {
-    query: "qualifying results australia 2026",
-    description: "Season opener qualifying grid",
-    category: "results",
+    query: "Who outqualified whom more often in 2025, Norris or Piastri?",
+    description: "Qualifying classification head-to-head",
   },
   {
-    query: "head to head antonelli norris 2026",
-    description: "Championship leader vs challenger",
-    category: "comparison",
+    query: "At which circuits has Lewis Hamilton won races?",
+    description: "Official career race wins",
   },
   {
-    query: "compare norris and piastri at miami 2026",
-    description: "Track-specific teammate comparison",
-    category: "comparison",
+    query: "Compare the official 2025 results of Norris and Piastri.",
+    description: "Official results comparison",
   },
 ]
 
 export function SuggestedQueries({ onSelect, visible }: SuggestedQueriesProps) {
-  if (!visible) return null
+  if (!visible) {
+    return null
+  }
 
   return (
     <section className="w-full animate-fade-in-up" aria-label="Suggested queries">

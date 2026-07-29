@@ -28,6 +28,19 @@ export interface ProgramAnswerDependencies {
 }
 
 export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: ProgramAnswerDependencies = {}): Router {
+  return createAnswerRoutes('/program/answer', pool, dependencies, answerPrincipalGuard(dependencies.environment ?? (() => process.env)));
+}
+
+export function createPublicAnswerRoutes(pool: Pool | undefined, dependencies: ProgramAnswerDependencies = {}): Router {
+  return createAnswerRoutes('/nl-query', pool, dependencies, publicAnswerPrincipal);
+}
+
+function createAnswerRoutes(
+  path: '/program/answer' | '/nl-query',
+  pool: Pool | undefined,
+  dependencies: ProgramAnswerDependencies,
+  principalGuard: (req: Request, res: Response, next: NextFunction) => Response | void
+): Router {
   const router = Router();
   const config = dependencies.runtimeConfig ?? getAnswerRuntimeConfig();
   const admission = dependencies.admission ?? new AnswerAdmissionController(config);
@@ -41,7 +54,7 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
     message: { error: 'answer_unavailable', reason: 'rate_limit_exceeded' }
   });
 
-  router.post('/program/answer', answerAvailabilityGuard(environment), answerRateLimiter, answerPrincipalGuard(environment), answerQuestionGuard, async (req: Request, res: Response) => {
+  router.post(path, answerAvailabilityGuard(environment), answerRateLimiter, principalGuard, answerQuestionGuard, async (req: Request, res: Response) => {
     const contract = res.locals.answerQuestionContract as AnswerQuestionContract;
     if (contract.outcome.type !== 'inspection_required') {
       return respondToQuestionOutcome(contract.outcome, res);
@@ -248,6 +261,12 @@ export function createProgramAnswerRoutes(pool: Pool | undefined, dependencies: 
   });
 
   return router;
+}
+
+function publicAnswerPrincipal(req: Request, res: Response, next: NextFunction): void {
+  res.locals.answerCanarySubject = createHash('sha256').update(`public:${req.ip}`).digest('hex');
+  res.locals.answerPrincipalClass = 'public' satisfies AnswerPrincipalClass;
+  next();
 }
 
 function answerPrincipalGuard(environment: () => NodeJS.ProcessEnv) {

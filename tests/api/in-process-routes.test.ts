@@ -43,14 +43,14 @@ afterAll(async () => {
 });
 
 describe('in-process API routes', () => {
-  it('retains the legacy natural-language route for its supported Anthropic configuration', async () => {
+  it('mounts the public F1QL answer route independently of legacy provider configuration', async () => {
     const response = await fetch(`${baseUrl}/nl-query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({ error_type: 'routing_error' });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ reason: 'answer_disabled' });
   });
 
   it('registers the independently disabled answer route without constructing a provider', async () => {
@@ -103,7 +103,7 @@ describe('in-process API routes', () => {
     await expect(response.json()).resolves.toMatchObject({ status: 'healthy' });
   });
 
-  it('executes a valid deterministic query through HTTP', async () => {
+  it('does not expose the removed QueryIntent execution route', async () => {
     const response = await fetch(`${baseUrl}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -120,13 +120,10 @@ describe('in-process API routes', () => {
       })
     });
 
-    expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.result.payload.type).toBe('driver_season_summary');
-    expect(body.result.payload.driver_id).toBe('lando_norris');
+    expect(response.status).toBe(404);
   });
 
-  it('returns a structured error for an unknown driver', async () => {
+  it('does not restore QueryIntent execution for malformed legacy requests', async () => {
     const response = await fetch(`${baseUrl}/query`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -143,10 +140,7 @@ describe('in-process API routes', () => {
       })
     });
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'intent_resolution_failed'
-    });
+    expect(response.status).toBe(404);
   });
 
   it('executes a validated F1QL standings program through HTTP', async () => {

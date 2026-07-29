@@ -1,19 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { QueryExecutor } from '../../execution/query-executor';
 import { ShareService, SharedQuery, FEED_ORDER } from '../../share/share-service';
-import { buildInterpretationResponse } from '../../presentation/interpretation-builder';
-import { QueryIntent } from '../../types/query-intent';
-import { shareRateLimiter } from '../../middleware/rate-limiter';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const HTML_CACHE_MAX_AGE = 3600;
 const FEED_CACHE_MAX_AGE = 30;
 
-export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool?: Pool): Router {
+export function createShareRoutes(pool: Pool): Router {
   const router = Router();
-  const writePool = cachePool || pool;
-  const shareService = new ShareService(writePool);
+  const shareService = new ShareService(pool);
 
   // ensure table exists on startup (non-blocking)
   let tableReady = false;
@@ -53,69 +48,6 @@ export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool
       console.error('[Share] Feed error:', err);
       return res.status(500).json({
         error: 'feed_failed',
-        reason: err instanceof Error ? err.message : 'Unknown error'
-      });
-    }
-  });
-
-  router.post('/share', requireTable, shareRateLimiter.middleware(), async (req: Request, res: Response) => {
-    try {
-      const intent = req.body as QueryIntent;
-
-      if (!intent.kind) {
-        return res.status(400).json({
-          error: 'invalid_input',
-          reason: 'query_kind is required'
-        });
-      }
-
-      // execute query to get resolved answer
-      const interpretation = await buildInterpretationResponse({
-        pool,
-        executor,
-        intent
-      });
-
-      if ('error' in interpretation.result) {
-        return res.status(400).json({
-          error: 'query_failed',
-          reason: interpretation.result.reason,
-          answer: interpretation.answer
-        });
-      }
-
-      // extract headline and summary from answer
-      const headline = interpretation.answer.headline || `${intent.kind} result`;
-      const summary = interpretation.answer.bullets?.[0] ||
-                      interpretation.answer.coverage?.summary ||
-                      null;
-
-      // store resolved answer
-      const share = await shareService.create({
-        query_kind: intent.kind,
-        params: extractParams(intent),
-        season: intent.season,
-        answer: {
-          query_kind: interpretation.answer.query_kind,
-          headline: interpretation.answer.headline,
-          bullets: interpretation.answer.bullets,
-          coverage: interpretation.answer.coverage,
-          followups: interpretation.answer.followups
-        },
-        headline,
-        summary: summary || undefined
-      });
-
-      return res.status(201).json({
-        share_id: share.id,
-        url: `${BASE_URL}/share/${share.id}`,
-        headline: share.headline,
-        created_at: share.created_at.toISOString()
-      });
-    } catch (err) {
-      console.error('[Share] Create error:', err);
-      return res.status(500).json({
-        error: 'share_failed',
         reason: err instanceof Error ? err.message : 'Unknown error'
       });
     }
@@ -182,13 +114,6 @@ export function createShareRoutes(pool: Pool, executor: QueryExecutor, cachePool
   });
 
   return router;
-}
-
-function extractParams(intent: QueryIntent): Record<string, unknown> {
-  const params = { ...intent } as Record<string, unknown>;
-  delete params.kind;
-  delete params.raw_query;
-  return params;
 }
 
 // schema-version renderer: routes to version-specific render logic

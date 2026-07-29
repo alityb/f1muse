@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { Pool } from 'pg';
-import { createProgramAnswerRoutes } from '../../src/api/routes/program-answer';
+import { createProgramAnswerRoutes, createPublicAnswerRoutes, ProgramAnswerDependencies } from '../../src/api/routes/program-answer';
 import { AnswerIntent } from '../../src/f1ql/answer-intent';
 import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
 import { AnswerRuntimeConfig } from '../../src/f1ql/answer-runtime';
@@ -168,7 +168,7 @@ const fakePool = { connect: async () => { connectionAttempts++; return fakeClien
 beforeAll(async () => {
   const app = express();
   app.use(express.json());
-  app.use('/', createProgramAnswerRoutes(fakePool, {
+  const dependencies: ProgramAnswerDependencies = {
     derive: async (contract, resolver) => {
       derivationAttempts++;
       if (derivationError) throw derivationError;
@@ -189,7 +189,9 @@ beforeAll(async () => {
       }
       return executeAuthorizedAnswer(...args);
     }
-  }));
+  };
+  app.use('/', createProgramAnswerRoutes(fakePool, dependencies));
+  app.use('/', createPublicAnswerRoutes(fakePool, dependencies));
   await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -235,6 +237,14 @@ async function ask(question = 'Who led the 2025 standings?', body?: Record<strin
   return fetch(`${baseUrl}/program/answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body ?? { question })
+  });
+}
+
+async function askPublic(question = 'Who led the 2025 standings?', body?: Record<string, unknown>): Promise<Response> {
+  return fetch(`${baseUrl}/nl-query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? { question })
   });
 }
@@ -290,6 +300,17 @@ function resolveLocalTypeScriptModule(importer: string, specifier: string): stri
 }
 
 describe('gated answer route', () => {
+  it('executes the public natural-language route only through a public F1QL authorization', async () => {
+    const response = await askPublic();
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      mode: 'gated_execution',
+      answer: { facts: [{ subject: 'lando-norris' }] }
+    });
+    expect(executionAttempts).toBe(1);
+    expect(executedPrincipalClasses).toEqual(['public']);
+  });
+
   it('keeps evaluation and observation entrypoints structurally non-executing', () => {
     assertNoReachableExecution([
       'scripts/collect-answer-evaluation-observations.ts',

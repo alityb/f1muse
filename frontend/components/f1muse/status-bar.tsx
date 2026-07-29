@@ -31,7 +31,7 @@ export function StatusBar() {
         </span>
       </div>
       <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground/40">
-        <span>All answers computed from validated SQL templates</span>
+        <span>Answers computed from reviewed F1QL programs</span>
       </div>
     </footer>
   )

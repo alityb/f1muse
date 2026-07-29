@@ -10,14 +10,14 @@ import { EmptyState } from "@/components/f1muse/empty-state"
 import { F1MuseLogo } from "@/components/f1muse/logo"
 import {
   executeQuery,
-  type NLQueryResponse,
+  type AnswerEnvelope,
   type APIError,
 } from "@/lib/api-client"
 
 type QueryState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'success'; data: NLQueryResponse }
+  | { status: 'success'; data: AnswerEnvelope }
   | { status: 'error'; error: APIError }
 
 export default function Page() {
@@ -86,7 +86,7 @@ export default function Page() {
                 Structured F1 Analytics
               </h1>
               <p className="mt-2 text-sm text-muted-foreground text-center max-w-md leading-relaxed">
-                Ask natural-language questions about Formula 1. Answers are computed from validated SQL templates against official timing data.
+                Ask reviewed natural-language questions about Formula 1. Answers are computed by authorized F1QL programs over official result data.
               </p>
             </div>
           )}
@@ -170,9 +170,16 @@ function ErrorDisplay({ error }: { error: APIError }) {
               {error.suggestion}
             </p>
           )}
-          <p className="mt-3 text-[10px] font-mono text-muted-foreground/40">
-            Request ID: {error.request_id}
-          </p>
+          {error.options && error.options.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground/70">
+              Options: {error.options.join(", ")}
+            </p>
+          )}
+          {error.request_id && (
+            <p className="mt-3 text-[10px] font-mono text-muted-foreground/40">
+              Request ID: {error.request_id}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -192,6 +199,12 @@ function getErrorTitle(errorType: string): string {
     insufficient_data: 'Insufficient Data',
     no_data: 'No Data Found',
     internal_error: 'Internal Error',
+    clarification_required: 'Clarification Required',
+    capability_unsupported: 'Question Not Supported',
+    answer_unavailable: 'Answer Temporarily Unavailable',
+    answer_failed: 'Answer Failed',
+    answer_bound_exceeded: 'Answer Limit Reached',
+    invalid_answer_response: 'Invalid Answer Response',
   }
   return titles[errorType] || 'Error'
 }

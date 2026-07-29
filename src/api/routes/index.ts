@@ -1,38 +1,19 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { QueryExecutor } from '../../execution/query-executor';
-import { QueryLogger } from '../../execution/query-logger';
-import { createNLQueryRouter } from '../nl-query';
 import { createHealthRoutes } from './health';
-import { createCapabilitiesRoutes } from './capabilities';
-import { createQueryRoutes } from './query';
 import { createDriverRoutes } from './driver';
 import { createDebugRoutes } from './debug';
 import { createShareRoutes } from './share';
 import { createProgramRoutes } from './program';
 import { createProgramTranslateRoutes } from './program-translate';
-import { createProgramAnswerRoutes } from './program-answer';
+import { createProgramAnswerRoutes, createPublicAnswerRoutes } from './program-answer';
 
 export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): Router {
   const router = Router();
-  const executor = new QueryExecutor(pool, undefined, cachePool);
-  const logger = new QueryLogger();
-
-  const hasLocalLLM = process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID;
-  const hasAnthropicLLM = Boolean(process.env.ANTHROPIC_API_KEY);
-  if (hasAnthropicLLM || hasLocalLLM) {
-    const nlQueryRouter = createNLQueryRouter(pool, cachePool);
-    router.use('/', nlQueryRouter);
-    if (hasLocalLLM) {
-      console.log('[NL Query] Using LLM backend: mistral-rs (deprecated - use ANTHROPIC_API_KEY instead)');
-    }
-  }
 
   router.use('/', createHealthRoutes(pool));
-  router.use('/', createCapabilitiesRoutes());
-  router.use('/', createQueryRoutes(pool, executor, logger));
   router.use('/', createDriverRoutes(pool));
-  router.use('/', createShareRoutes(pool, executor, cachePool));
+  router.use('/', createShareRoutes(cachePool ?? pool));
   if (process.env.F1QL_ENABLED === 'true') {
     router.use('/', createProgramRoutes(pool));
   }
@@ -40,6 +21,7 @@ export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): R
     router.use('/', createProgramTranslateRoutes(pool));
   }
   router.use('/', createProgramAnswerRoutes(answerPool));
+  router.use('/', createPublicAnswerRoutes(answerPool));
 
   // Debug routes only in development
   if (process.env.NODE_ENV !== 'production') {
@@ -61,15 +43,11 @@ export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): R
 
 function buildEndpointList(): Record<string, string> {
   const endpoints: Record<string, string> = {
-    'POST /query': 'Execute a validated QueryIntent',
-    'POST /share': 'Create shareable link from query result',
     'GET /share/:id': 'Retrieve shared result (no recomputation)',
     'GET /share-feed': 'Discovery feed (trending + recent shares)',
     'GET /health': 'Health check',
     'GET /health/db': 'Database connection health',
     'GET /health/coverage/teammate-gap': 'Teammate gap coverage stats',
-    'GET /capabilities': 'System capabilities',
-    'GET /suggestions': 'Query suggestions',
     'GET /driver/:driver_id/profile': 'Driver profile summary',
     'GET /driver/:driver_id/trend': 'Driver trend analysis',
     'GET /': 'API information'
@@ -82,22 +60,12 @@ function buildEndpointList(): Record<string, string> {
   }
   if (process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true') {
     endpoints['POST /program/answer'] = 'Gated natural-language F1QL answer pipeline';
+    endpoints['POST /nl-query'] = 'Public natural-language F1QL answer pipeline';
   }
 
   // Debug endpoints only in development
   if (process.env.NODE_ENV !== 'production') {
     endpoints['GET /debug/coverage/teammate-gap'] = 'Teammate gap coverage introspection (dev only)';
-  }
-
-  const llmConfigured = Boolean(process.env.ANTHROPIC_API_KEY) ||
-                        Boolean(process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID);
-
-  if (llmConfigured) {
-    let backend = 'Claude';
-    if (process.env.MISTRAL_RS_URL && process.env.MISTRAL_RS_MODEL_ID) {
-      backend = 'Mistral-RS';
-    }
-    endpoints['POST /nl-query'] = `Natural language query (powered by ${backend})`;
   }
 
   return endpoints;
