@@ -23,7 +23,7 @@ export const launchParityManifest: readonly LaunchParityCase[] = [
   contracted('career-wins', 'driver_career_wins_by_circuit', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit'),
   clarify('teammate-career-replacement', 'teammate_comparison_career', 'Compare Hamilton and Russell over their teammate seasons.', 'classification_head_to_head'),
   clarify('season-pace-replacement', 'season_driver_vs_driver', 'Compare Verstappen and Norris in 2025.', 'classification_head_to_head'),
-  answer('event-pace-replacement', 'cross_team_track_scoped_driver_comparison', 'Who finished ahead, Verstappen or Norris, at Silverstone 2025?', 'explicit_event_classification_comparison'),
+  contracted('event-pace-replacement', 'cross_team_track_scoped_driver_comparison', 'Who finished ahead, Verstappen or Norris, at Silverstone 2025?', 'explicit_event_classification_comparison'),
   abstain('teammate-gap-retired', 'teammate_gap_summary_season', 'Show the 2025 teammate pace gap for Norris and Piastri.', 'teammate_gap_source_required'),
   abstain('dual-gap-retired', 'teammate_gap_dual_comparison', 'Compare Norris and Piastri qualifying and race pace gaps.', 'dual_session_gap_source_required'),
   abstain('track-fastest-retired', 'track_fastest_drivers', 'Rank the fastest drivers at Monaco in 2025.', 'multi_driver_official_pace_source_required'),

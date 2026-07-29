@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { AnswerDriverIdentityResolver } from '../../src/identity/answer-identity-resolvers';
+import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
+import { acceptedEventNames } from '../../src/identity/event-resolver';
+
+describe('answer event identity resolution', () => {
+  it('scopes the Silverstone to British Grand Prix alias to the contracted 2025 season', async () => {
+    const database = {
+      query: async (_statement: string, parameters: unknown[]) => ({ rows: [
+        { season: parameters[0], round: 12, identity: 'British Grand Prix' }
+      ] })
+    };
+    const resolver = new AnswerEventIdentityResolver(database as never);
+
+    expect(acceptedEventNames('Silverstone', 2025)).toContain('british grand prix');
+    expect(acceptedEventNames('Silverstone', 2020)).not.toContain('british grand prix');
+    await expect(resolver.resolve(2025, 'Silverstone')).resolves.toEqual({ type: 'resolved', season: 2025, round: 12 });
+    await expect(resolver.resolve(2020, 'Silverstone')).resolves.toEqual({ type: 'missing' });
+  });
+});
 
 describe('answer driver identity inventory', () => {
   it('ignores inactive function-word collisions without hiding active or material inactive identities', async () => {

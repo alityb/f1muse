@@ -53,6 +53,11 @@ describe('Phase 7 answer capability policy', () => {
       source: 'official_driver_results_comparison'
     },
     {
+      name: 'single-event race finishing-position comparison',
+      program: materializeAnswerTemplate('race_event_finishing_position_comparison', { season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' }),
+      source: 'race_classification'
+    },
+    {
       name: 'one-season final standings',
       program: standingsAggregate(2025),
       source: 'final_driver_standings'

@@ -70,7 +70,7 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'career-wins', 'comprehensive-replacement', 'current-standings', 'matchup-replacement', 'multi-ranking-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = ['career-summary', 'career-wins', 'comprehensive-replacement', 'current-standings', 'event-pace-replacement', 'matchup-replacement', 'multi-ranking-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));
@@ -89,7 +89,7 @@ describe('F1QL launch capability migration', () => {
       const intent = await deriveAnswerIntent(contract, inventory);
       expect(intent.type).not.toMatch(/clarification|unsupported/u);
       const proof = await proveAnswerIntent(contract, intent, {
-        resolve: async (season, name) => name === 'Australian Grand Prix' ? { type: 'resolved', season, round: 1 } : { type: 'missing' },
+        resolve: async (season, name) => name === 'Australian Grand Prix' ? { type: 'resolved', season, round: 1 } : name === 'Silverstone' ? { type: 'resolved', season, round: 12 } : { type: 'missing' },
         resolveRound: async (season, round) => ({ type: 'resolved', season, round })
       }, inventory);
       expect(getF1QLProgramHash(proof.program)).toBe(getF1QLProgramHash(evaluation!.expected.acceptable_programs![0]));

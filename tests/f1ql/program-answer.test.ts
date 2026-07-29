@@ -95,7 +95,7 @@ const fakeClient = {
     databaseStatements.push(sql.trim());
     if (sql.includes('f1ql.answer_event_identity')) {
       resolutionAttempts++;
-      return { rows: [{ season: 2025, round: 8, identity: 'Monaco' }] };
+      return { rows: [{ season: 2025, round: 8, identity: 'Monaco' }, { season: 2025, round: 12, identity: 'British Grand Prix' }] };
     }
     if (sql.includes('f1ql.answer_driver_identity')) {
       resolutionAttempts++;
@@ -104,10 +104,12 @@ const fakeClient = {
         { driver_id: 'driver-b', identity: 'Max', participation_source: 'entrant' },
         { driver_id: 'lando-norris', identity: 'Norris', participation_source: 'entrant' },
         { driver_id: 'oscar-piastri', identity: 'Piastri', participation_source: 'entrant' }
+        ,{ driver_id: 'max-verstappen', identity: 'Verstappen', participation_source: 'entrant' }
       ] };
     }
     if (sql.includes('f1ql.answer_season_participation')) {
-      return { rows: [{ driver_id: 'lando-norris' }, { driver_id: 'oscar-piastri' }] };
+      const requested = Array.isArray(params?.[1]) ? params[1] as string[] : [];
+      return { rows: requested.map(driver_id => ({ driver_id })) };
     }
     if (params?.includes('official_driver_results_comparison_v1')) {
       return { rows: [{
@@ -120,6 +122,14 @@ const fakeClient = {
           qualifying_metric_id: 'official_qualifying_position_shared_events_v1', qualifying_driver_a_ahead: 1, qualifying_driver_b_ahead: 1, qualifying_ties: 1, qualifying_shared_events: 3,
           qualifying_driver_a_source_rows: 6, qualifying_driver_b_source_rows: 4, qualifying_distinct_source_keys: 10, qualifying_duplicate_source_rows: 0,
           qualifying_source_presence_ok: true, qualifying_source_unique_keys_ok: true, qualifying_source_integrity_ok: true
+      }] };
+    }
+    if (params?.includes('official_race_finishing_position_single_event_v1')) {
+      return { rows: [{
+        metric_id: 'official_race_finishing_position_single_event_v1', season: 2025,
+        driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris', driver_a_ahead: 0, driver_b_ahead: 1, ties: 0, shared_events: 1,
+        driver_a_source_rows: 1, driver_b_source_rows: 1, distinct_source_keys: 2, duplicate_source_rows: 0,
+        source_presence_ok: true, source_unique_keys_ok: true, source_integrity_ok: true
       }] };
     }
     if (sql.startsWith('SELECT * FROM')) {
@@ -657,6 +667,17 @@ describe('gated answer route', () => {
         { subject: 'lando-norris vs oscar-piastri', values: { race_shared_events: '3', qualifying_shared_events: '3' } }
       ] },
       metadata: { source: 'official_driver_results_comparison' }
+    } });
+    expect(executionAttempts).toBe(1);
+  });
+
+  it('executes only the pinned Silverstone classification comparison contract', async () => {
+    const response = await ask('Who finished ahead, Verstappen or Norris, at Silverstone 2025?');
+    const body = await response.json();
+    expect({ status: response.status, body }).toMatchObject({ status: 200, body: {
+      program: { root: { op: 'race_event_finishing_position_comparison', season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' } },
+      answer: { headline: 'lando-norris finished ahead of max-verstappen in the official 2025 round 12 race classification.' },
+      metadata: { source: 'race_classification' }
     } });
     expect(executionAttempts).toBe(1);
   });

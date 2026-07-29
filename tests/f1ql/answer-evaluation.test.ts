@@ -21,7 +21,7 @@ describe('answer selective evaluation framework', () => {
     expect(new Set(answerEvaluationManifest.map(item => item.id)).size).toBe(answerEvaluationManifest.length);
     expect(new Set(answerEvaluationManifest.map(item => item.split))).toEqual(new Set(['development', 'iid_holdout', 'temporal_entity_holdout', 'adversarial']));
     for (const templateId of ANSWER_TEMPLATE_IDS) {
-      const minimum = templateId === 'official_driver_results_comparison' ? 1 : 2;
+      const minimum = templateId === 'official_driver_results_comparison' || templateId === 'race_event_finishing_position_comparison' ? 1 : 2;
       expect(answerEvaluationManifest.filter(item => item.split !== 'development' && item.expected.template_id === templateId).length).toBeGreaterThanOrEqual(minimum);
     }
     const tags = new Set(answerEvaluationManifest.flatMap(item => item.risk_tags));

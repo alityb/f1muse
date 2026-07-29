@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v15', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v16', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,7 +82,7 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v15',
+      version: 'answer-semantic-proof-v16',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
@@ -242,6 +242,29 @@ describe('independent answer semantic proof', () => {
       type: 'official_driver_results_comparison', season: 2025, season_reference: span(broader, '2025'),
       driver_references: [span(broader, 'Norris'), span(broader, 'Piastri')]
     }, events, reversedDrivers)).rejects.toMatchObject({ reason: 'metric_mismatch' });
+  });
+
+  it('resolves the pinned event and binds ordered driver roles by exact spans', async () => {
+    const question = 'Who finished ahead, Verstappen or Norris, at Silverstone 2025?';
+    const eventResolver: AnswerProofEventResolver = {
+      resolve: async (season, name) => name === 'Silverstone' ? { type: 'resolved', season, round: 12 } : { type: 'missing' },
+      resolveRound: async () => ({ type: 'missing' })
+    };
+    const reversedDrivers: AnswerProofDriverResolver = {
+      inventoryMentions: async () => [
+        { ...span(question, 'Norris'), candidates: ['lando_norris'], active_candidates: ['lando_norris'] },
+        { ...span(question, 'Verstappen'), candidates: ['max_verstappen'], active_candidates: ['max_verstappen'] }
+      ]
+    };
+    const proof = await proveAnswerIntent(createAnswerQuestionContract(question), {
+      type: 'race_event_finishing_position_comparison', season: 2025, season_reference: span(question, '2025'),
+      event_reference: span(question, 'Silverstone'), driver_references: [span(question, 'Verstappen'), span(question, 'Norris')]
+    }, eventResolver, reversedDrivers);
+    expect(proof).toMatchObject({
+      template_id: 'race_event_finishing_position_comparison',
+      template_variables: { season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' },
+      program: { root: { op: 'race_event_finishing_position_comparison', metric: 'official_race_finishing_position_single_event_v1', round: 12 } }
+    });
   });
 
   it.each([

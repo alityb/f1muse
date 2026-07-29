@@ -58,6 +58,9 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
   if (templateId === 'official_driver_results_comparison' && root.op === 'official_driver_results_comparison') {
     return { season: root.season, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };
   }
+  if (templateId === 'race_event_finishing_position_comparison' && root.op === 'race_event_finishing_position_comparison') {
+    return { season: root.season, round: root.round, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };
+  }
   if (templateId === 'race_date' && root.op === 'event_metadata') {
     return { season: root.season, round: root.round };
   }

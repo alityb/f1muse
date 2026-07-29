@@ -4,6 +4,7 @@ import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-fini
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
+import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -55,6 +56,15 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
   }
   if (root.op === 'race_season_finishing_position_h2h') {
     return authorizeRaceSeasonH2H(root);
+  }
+  if (root.op === 'race_event_finishing_position_comparison') {
+    const valid = Object.keys(root).sort().join(',') === 'driver_a_id,driver_b_id,metric,op,round,season'
+      && root.metric === RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID
+      && Number.isSafeInteger(root.season) && root.season >= 1950 && root.season <= FINAL_STANDINGS_THROUGH_SEASON
+      && Number.isSafeInteger(root.round) && root.round >= 1 && root.round <= 30
+      && validDriverId(root.driver_a_id) && validDriverId(root.driver_b_id) && root.driver_a_id !== root.driver_b_id;
+    return valid ? { type: 'approved', capability: { source: 'race_classification', operation: root.op, season: root.season, round: root.round, filters: ['driver'] } }
+      : { type: 'rejected', reason: 'capability_unsupported' };
   }
   if (root.op === 'qualifying_season_position_h2h') {
     return authorizeQualifyingSeasonH2H(root);

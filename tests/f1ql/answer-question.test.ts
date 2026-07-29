@@ -12,7 +12,7 @@ describe('answer question contract', () => {
   it('NFKC-normalizes, hashes, bounds, extracts explicit literals, and freezes the artifact', () => {
     const contract = createAnswerQuestionContract('  Race results for round ７ in ２０２５?  ');
     expect(contract.normalized_question).toBe('Race results for round 7 in 2025?');
-    expect(contract.version).toBe('answer-question-v23');
+    expect(contract.version).toBe('answer-question-v24');
     expect(contract.years).toEqual([{ value: 2025, start: 28, end: 32, text: '2025' }]);
     expect(contract.rounds).toEqual([{ value: 7, start: 23, end: 24, text: '7' }]);
     expect(contract.source_cues.map(cue => cue.value)).toEqual(['race_classification']);
@@ -27,6 +27,13 @@ describe('answer question contract', () => {
     expect(contract.metric_cues).toEqual([expect.objectContaining({ value: 'official_driver_results_comparison' })]);
     expect(contract.outcome).toEqual({ type: 'inspection_required' });
     expect(createAnswerQuestionContract('Compare the official 2024 results of Norris and Piastri.').metric_cues).toEqual([]);
+  });
+  it('records only the pinned named-event finishing-position comparison cue', () => {
+    const contract = createAnswerQuestionContract('Who finished ahead, Verstappen or Norris, at Silverstone 2025?');
+    expect(contract.metric_cues).toEqual([expect.objectContaining({ value: 'race_event_finishing_position_comparison' })]);
+    expect(contract.event_cues).toEqual([expect.objectContaining({ text: 'Silverstone' })]);
+    expect(contract.outcome).toEqual({ type: 'inspection_required' });
+    expect(createAnswerQuestionContract('Who finished ahead, Verstappen or Norris, at Silverstone 2024?').metric_cues).toEqual([]);
   });
 
   it.each([

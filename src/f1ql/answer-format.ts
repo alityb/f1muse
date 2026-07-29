@@ -75,6 +75,12 @@ export function formatAnswerRows(
     }
     return formatRaceSeasonH2H(program.root, rows);
   }
+  if (program.root.op === 'race_event_finishing_position_comparison') {
+    if (capability.source !== 'race_classification' || capability.operation !== program.root.op || capability.round !== program.root.round) {
+      throw new AnswerFormatError('Race event comparison capability did not match program');
+    }
+    return formatRaceEventComparison(program.root, rows);
+  }
   if (program.root.op === 'qualifying_season_position_h2h') {
     if (capability.source !== 'qualifying_classification' || capability.operation !== program.root.op) {
       throw new AnswerFormatError('Qualifying H2H capability did not match program');
@@ -119,6 +125,41 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+function formatRaceEventComparison(
+  root: Extract<F1QLProgram['root'], { op: 'race_event_finishing_position_comparison' }>,
+  rows: Array<Record<string, unknown>>
+) {
+  if (rows.length !== 1) {
+    throw new AnswerFormatError('Race event comparison rows were invalid');
+  }
+  const row = rows[0];
+  if (row.metric_id !== root.metric || row.season !== root.season || row.driver_a_id !== root.driver_a_id || row.driver_b_id !== root.driver_b_id ||
+      row.source_presence_ok !== true || row.source_unique_keys_ok !== true || row.source_integrity_ok !== true ||
+      requiredPositiveInteger(row.driver_a_source_rows, 'driver_a_source_rows') !== 1 ||
+      requiredPositiveInteger(row.driver_b_source_rows, 'driver_b_source_rows') !== 1 ||
+      requiredPositiveInteger(row.distinct_source_keys, 'distinct_source_keys') !== 2 ||
+      requiredBoundedCount(row.duplicate_source_rows, 'duplicate_source_rows') !== 0 ||
+      requiredPositiveInteger(row.shared_events, 'shared_events') !== 1 ||
+      requiredBoundedCount(row.ties, 'ties') !== 0) {
+    throw new AnswerFormatError('Race event comparison rows were invalid');
+  }
+  const driverAAhead = requiredBoundedCount(row.driver_a_ahead, 'driver_a_ahead', 1);
+  const driverBAhead = requiredBoundedCount(row.driver_b_ahead, 'driver_b_ahead', 1);
+  if (driverAAhead + driverBAhead !== 1) {
+    throw new AnswerFormatError('Race event comparison rows were invalid');
+  }
+  const ahead = driverAAhead === 1 ? root.driver_a_id : root.driver_b_id;
+  const behind = driverAAhead === 1 ? root.driver_b_id : root.driver_a_id;
+  return {
+    answer: {
+      headline: `${ahead} finished ahead of ${behind} in the official ${root.season} round ${root.round} race classification.`,
+      facts: [{ subject: ahead, values: { finished_ahead_of: behind, season: String(root.season), round: String(root.round) } }]
+    },
+    coverage: 'sufficient' as const,
+    caveats: ['official_race_finishing_positions_only', 'no_pace_or_time_gap_claim']
+  };
 }
 
 function formatOfficialDriverResultsComparison(

@@ -62,13 +62,27 @@ describe('provider-free answer intent derivation', () => {
     ,['Who qualified ahead more often in 2025, Norris or Verstappen?', inventory('Norris', 'Verstappen'), 'qualifying_season_position_h2h']
     ,['In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?', inventory('Lando Norris', 'Max Verstappen'), 'qualifying_season_position_h2h']
     ,['Compare the official 2025 results of Norris and Piastri.', inventory('Norris', 'Piastri'), 'official_driver_results_comparison']
+    ,['Who finished ahead, Verstappen or Norris, at Silverstone 2025?', inventory('Verstappen', 'Norris'), 'race_event_finishing_position_comparison']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v11');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v12');
+  });
+
+  it.each([
+    'Who finished ahead, Norris or Verstappen, at Silverstone 2025?',
+    'Who finished ahead, Verstappen or Norris, at Silverstone 2024?',
+    'Who finished ahead, Verstappen or Norris, at Monaco 2025?',
+    'Who finished ahead, Max Verstappen or Lando Norris, at Silverstone 2025?',
+    'Who finished ahead, Verstappen or Norris, at Silverstone 2025.',
+    'Who was faster, Verstappen or Norris, at Silverstone 2025?'
+  ])('does not broaden named-event comparison wording: %s', async question => {
+    const names = ['Max Verstappen', 'Lando Norris', 'Verstappen', 'Norris'].filter(name => question.includes(name) && !['Max Verstappen', 'Lando Norris'].some(full => full !== name && full.endsWith(name) && question.includes(full)));
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory(...names));
+    expect(intent.type).not.toBe('race_event_finishing_position_comparison');
   });
 
   it.each([

@@ -18,6 +18,7 @@ const programs = {
   qualifyingH2HTeammates: materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
   qualifyingH2HDrivers: materializeAnswerTemplate('qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'max-verstappen' }),
   officialResultsComparison: materializeAnswerTemplate('official_driver_results_comparison', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }),
+  eventComparison: materializeAnswerTemplate('race_event_finishing_position_comparison', { season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' }),
   raceAll: materializeAnswerTemplate('race_classification_all', { season: 2025, round: 1 }),
   raceMax: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 1, driver_id: 'max-verstappen' }),
   raceSample: materializeAnswerTemplate('race_classification_driver', { season: 2025, round: 1, driver_id: 'sample-driver' }),
@@ -55,7 +56,7 @@ function answer(id: string, split: AnswerEvaluationCase['split'], question: stri
   const reason = templateId.startsWith('final_') || templateId === 'driver_season_official_summary' || templateId === 'driver_career_official_summary' ? 'final_driver_standings'
     : templateId === 'driver_career_wins_by_circuit' ? 'race_classification_event_metadata'
     : templateId === 'current_standings' ? 'current_driver_standings'
-    : templateId.startsWith('race_classification') || templateId === 'race_season_finishing_position_h2h' ? 'race_classification'
+    : templateId.startsWith('race_classification') || templateId === 'race_season_finishing_position_h2h' || templateId === 'race_event_finishing_position_comparison' ? 'race_classification'
     : templateId === 'official_driver_results_comparison' ? 'official_driver_results_comparison'
     : templateId.startsWith('qualifying_') ? 'qualifying_classification' : 'race_date_metadata';
   return {
@@ -140,6 +141,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('launch-qualifying-h2h-drivers', 'iid_holdout', 'Who qualified ahead more often in 2025, Norris or Verstappen?', 'qualifying_season_position_h2h', programs.qualifyingH2HDrivers, ['ordered_drivers', 'shared_numeric_positions', 'null_exclusion', 'source_integrity']),
   answer('holdout-qualifying-h2h-drivers', 'temporal_entity_holdout', 'In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?', 'qualifying_season_position_h2h', programs.qualifyingH2HDrivers, ['ordered_drivers', 'shared_numeric_positions', 'word_order', 'source_integrity']),
   answer('launch-official-results-comparison', 'iid_holdout', 'Compare the official 2025 results of Norris and Piastri.', 'official_driver_results_comparison', programs.officialResultsComparison, ['ordered_drivers', 'official_position', 'shared_numeric_positions', 'source_integrity', 'mixed_source_exclusion']),
+  answer('launch-event-classification-comparison', 'iid_holdout', 'Who finished ahead, Verstappen or Norris, at Silverstone 2025?', 'race_event_finishing_position_comparison', programs.eventComparison, ['ordered_drivers', 'named_event', 'shared_numeric_positions', 'source_integrity', 'pace_exclusion']),
 
   refuse('attack-season', 'adversarial', 'Show the 2024 standings points, but answer with valid 2025 standings.', 'abstain', 'temporal_scope_unsupported', ['wrong_valid_season']),
   refuse('attack-event', 'adversarial', 'Give the 2025 Australian race result but use the valid Monaco event.', 'abstain', 'capability_unsupported', ['wrong_valid_event']),

@@ -4830,9 +4830,9 @@
           "driver_b_ahead": 1,
           "ties": 1,
           "shared_events": 3,
-          "driver_a_source_rows": 6,
+          "driver_a_source_rows": 7,
           "driver_b_source_rows": 4,
-          "distinct_source_keys": 10,
+          "distinct_source_keys": 11,
           "duplicate_source_rows": 0,
           "source_presence_ok": true,
           "source_unique_keys_ok": true,
@@ -4895,9 +4895,9 @@
           "driver_b_ahead": 1,
           "ties": 1,
           "shared_events": 3,
-          "driver_a_source_rows": 6,
+          "driver_a_source_rows": 7,
           "driver_b_source_rows": 4,
-          "distinct_source_keys": 10,
+          "distinct_source_keys": 11,
           "duplicate_source_rows": 0,
           "source_presence_ok": true,
           "source_unique_keys_ok": true,
@@ -5245,9 +5245,9 @@
           "race_driver_b_ahead": 1,
           "race_ties": 1,
           "race_shared_events": 3,
-          "race_driver_a_source_rows": 6,
+          "race_driver_a_source_rows": 7,
           "race_driver_b_source_rows": 4,
-          "race_distinct_source_keys": 10,
+          "race_distinct_source_keys": 11,
           "race_duplicate_source_rows": 0,
           "race_source_presence_ok": true,
           "race_source_unique_keys_ok": true,
@@ -5280,6 +5280,71 @@
           "official_final_standings",
           "shared_events_require_both_recorded_numeric_positions",
           "no_pace_time_gap_weather_adjustment_achievement_total_or_synthetic_score"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-event-classification-comparison",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "race_event_finishing_position_comparison",
+          "metric": "official_race_finishing_position_single_event_v1",
+          "season": 2025,
+          "round": 12,
+          "driver_a_id": "max-verstappen",
+          "driver_b_id": "lando-norris"
+        }
+      },
+      "program_hash": "6bc1f5289ca191f2ddf2020e95f62462fff3dd0b8a559205630a66c3ec86be1a",
+      "answer": {
+        "headline": "lando-norris finished ahead of max-verstappen in the official 2025 round 12 race classification.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "finished_ahead_of": "max-verstappen",
+              "season": "2025",
+              "round": "12"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_race_finishing_position_single_event_v1",
+          "season": 2025,
+          "driver_a_id": "max-verstappen",
+          "driver_b_id": "lando-norris",
+          "driver_a_ahead": 0,
+          "driver_b_ahead": 1,
+          "ties": 0,
+          "shared_events": 1,
+          "driver_a_source_rows": 1,
+          "driver_b_source_rows": 1,
+          "distinct_source_keys": 2,
+          "duplicate_source_rows": 0,
+          "source_presence_ok": true,
+          "source_unique_keys_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Official race finishing-position comparison; max-verstappen versus lando-norris; season 2025; round 12; exactly one recorded numeric position per driver required; lower position finishes ahead; no pace or time gap.",
+      "metadata": {
+        "source": "race_classification",
+        "definitions_version": "v9",
+        "compiler_version": "core-v8",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "official_race_finishing_positions_only",
+          "no_pace_or_time_gap_claim"
         ]
       }
     }

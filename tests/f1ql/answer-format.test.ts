@@ -58,6 +58,32 @@ describe('deterministic answer formatting', () => {
     qualifying_driver_a_source_rows: 6, qualifying_driver_b_source_rows: 4, qualifying_distinct_source_keys: 10, qualifying_duplicate_source_rows: 0,
     qualifying_source_presence_ok: true, qualifying_source_unique_keys_ok: true, qualifying_source_integrity_ok: true
   };
+  const eventComparison = materializeAnswerTemplate('race_event_finishing_position_comparison', {
+    season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris'
+  });
+  const eventComparisonRow = {
+    metric_id: 'official_race_finishing_position_single_event_v1', season: 2025,
+    driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris', driver_a_ahead: 0, driver_b_ahead: 1, ties: 0,
+    shared_events: 1, driver_a_source_rows: 1, driver_b_source_rows: 1, distinct_source_keys: 2,
+    duplicate_source_rows: 0, source_presence_ok: true, source_unique_keys_ok: true, source_integrity_ok: true
+  };
+
+  it('formats one official event classification winner without a pace claim', () => {
+    expect(formatAnswerRows(eventComparison, approved(eventComparison), [eventComparisonRow])).toEqual({
+      answer: {
+        headline: 'lando-norris finished ahead of max-verstappen in the official 2025 round 12 race classification.',
+        facts: [{ subject: 'lando-norris', values: { finished_ahead_of: 'max-verstappen', season: '2025', round: '12' } }]
+      },
+      coverage: 'sufficient',
+      caveats: ['official_race_finishing_positions_only', 'no_pace_or_time_gap_claim']
+    });
+    for (const mutation of [
+      { shared_events: 0 }, { ties: 1, driver_b_ahead: 0 }, { driver_a_source_rows: 2 }, { duplicate_source_rows: 1 },
+      { source_integrity_ok: false }, { driver_b_id: 'oscar-piastri' }
+    ]) {
+      expect(() => formatAnswerRows(eventComparison, approved(eventComparison), [{ ...eventComparisonRow, ...mutation }])).toThrow(AnswerFormatError);
+    }
+  });
 
   it('formats only official standings and shared-position H2Hs for the comprehensive replacement', () => {
     expect(formatAnswerRows(officialComparison, approved(officialComparison), [officialComparisonRow])).toEqual({

@@ -61,7 +61,7 @@ export class AnswerEventIdentityResolver {
     if (result.rows.length > ANSWER_EVENT_IDENTITY_MAX_ROWS) {
       throw new AnswerIdentityResolverError('event_identity_overflow');
     }
-    const accepted = acceptedEventNames(name);
+    const accepted = acceptedEventNames(name, season);
     const candidates = result.rows.filter(row => accepted.has(normalizeEventName(row.identity)))
       .map(row => ({ season: Number(row.season), round: Number(row.round) }));
     const unique = [...new Map(candidates.map(candidate => [`${candidate.season}:${candidate.round}`, candidate])).values()];

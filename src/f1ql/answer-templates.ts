@@ -6,8 +6,9 @@ import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-fini
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
+import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v11' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v12' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -31,6 +32,7 @@ export type AnswerTemplateId =
   | 'race_season_finishing_position_h2h'
   | 'qualifying_season_position_h2h'
   | 'official_driver_results_comparison'
+  | 'race_event_finishing_position_comparison'
   | 'race_classification_all' | 'race_classification_driver' | 'race_classification_status'
   | 'qualifying_classification_all' | 'qualifying_classification_driver' | 'qualifying_classification_status'
   | 'race_classification_position' | 'qualifying_classification_position'
@@ -98,6 +100,10 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
     variables: { season: finalSeasonConstraint, driver_a_id: driverIdConstraint, driver_b_id: driverIdConstraint },
     semantic: 'ordered two-driver final-season official standings plus race and qualifying shared-position H2Hs; no pace, time gap, achievement total, weather adjustment, or synthetic score'
   },
+  race_event_finishing_position_comparison: {
+    variables: { season: finalSeasonConstraint, round: roundConstraint, driver_a_id: driverIdConstraint, driver_b_id: driverIdConstraint },
+    semantic: 'ordered two-driver official race finishing-position comparison for exactly one resolved event; exactly one numeric source position per driver; no pace or time gap'
+  },
   race_classification_all: {
     variables: { season: allClassificationSeasonConstraint, round: roundConstraint },
     semantic: 'race event classification for one event; no entity filter; fixed limit 30'
@@ -149,6 +155,8 @@ const variableSchemas = {
   qualifying_season_position_h2h: z.object({ season: finalSeason, driver_a_id: resolvedDriverId, driver_b_id: resolvedDriverId }).strict()
     .refine(value => value.driver_a_id !== value.driver_b_id, 'Resolved driver IDs must be different'),
   official_driver_results_comparison: z.object({ season: finalSeason, driver_a_id: resolvedDriverId, driver_b_id: resolvedDriverId }).strict()
+    .refine(value => value.driver_a_id !== value.driver_b_id, 'Resolved driver IDs must be different'),
+  race_event_finishing_position_comparison: z.object({ season: finalSeason, round, driver_a_id: resolvedDriverId, driver_b_id: resolvedDriverId }).strict()
     .refine(value => value.driver_a_id !== value.driver_b_id, 'Resolved driver IDs must be different'),
   race_classification_all: z.object({ season: allClassificationSeason, round }).strict(),
   race_classification_driver: z.object({ season, round, driver_id: resolvedDriverId }).strict(),
@@ -238,6 +246,11 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
       op: 'official_driver_results_comparison', metric: OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID,
       season: scoped.season, driver_a_id: scoped.driver_a_id as string, driver_b_id: scoped.driver_b_id as string
     };
+  } else if (templateId === 'race_event_finishing_position_comparison') {
+    root = {
+      op: 'race_event_finishing_position_comparison', metric: RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID,
+      season: scoped.season, round: scoped.round as number, driver_a_id: scoped.driver_a_id as string, driver_b_id: scoped.driver_b_id as string
+    };
   } else if (templateId === 'final_standings_driver_ranking') {
     root = {
       op: 'rank',
@@ -291,6 +304,7 @@ const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> 
   race_season_finishing_position_h2h: [{ season: 2025, driver_a_id: 'sentinel-driver', driver_b_id: 'second-driver' }],
   qualifying_season_position_h2h: [{ season: 2025, driver_a_id: 'sentinel-driver', driver_b_id: 'second-driver' }],
   official_driver_results_comparison: [{ season: 2025, driver_a_id: 'sentinel-driver', driver_b_id: 'second-driver' }],
+  race_event_finishing_position_comparison: [{ season: 2025, round: 7, driver_a_id: 'sentinel-driver', driver_b_id: 'second-driver' }],
   race_classification_all: [{ season: 2025, round: 7 }],
   race_classification_driver: [{ season: 2025, round: 7, driver_id: 'sentinel-driver' }],
   race_classification_status: [{ season: 2025, round: 7, status: 'dsq' }],

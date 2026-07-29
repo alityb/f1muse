@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v10' as const;
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v11' as const;
 
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
@@ -52,6 +52,7 @@ export const answerIntentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('race_season_finishing_position_h2h'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('qualifying_season_position_h2h'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('official_driver_results_comparison'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
+  z.object({ type: z.literal('race_event_finishing_position_comparison'), ...finalSeasonFields, ...eventFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('race_classification_all'), ...seasonFields, ...eventFields }).strict(),
   z.object({ type: z.literal('race_classification_driver'), ...seasonFields, ...eventFields, ...driverFields }).strict(),
   z.object({ type: z.literal('race_classification_status'), ...seasonFields, ...eventFields, status: raceStatus, ...statusFields }).strict(),
@@ -81,6 +82,7 @@ export const untrustedAnswerIntentCandidateSchema = z.discriminatedUnion('type',
   z.object({ type: z.literal('race_season_finishing_position_h2h'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('qualifying_season_position_h2h'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('official_driver_results_comparison'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
+  z.object({ type: z.literal('race_event_finishing_position_comparison'), ...untrustedFinalSeasonFields, ...untrustedEventFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('race_classification_all'), ...untrustedSeasonFields, ...untrustedEventFields }).strict(),
   z.object({ type: z.literal('race_classification_driver'), ...untrustedSeasonFields, ...untrustedEventFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('race_classification_status'), ...untrustedSeasonFields, ...untrustedEventFields, status: raceStatus, status_reference: untrustedLiteralReferenceSchema }).strict(),
@@ -234,7 +236,7 @@ export function parseAnswerIntent(input: unknown, question: AnswerQuestionContra
   if ('season' in intent && Number(intent.season_reference.text) !== intent.season) {
     throw new z.ZodError([{ code: z.ZodIssueCode.custom, path: ['season_reference'], message: 'Season reference must literally identify season' }]);
   }
-  if ((intent.type === 'race_season_finishing_position_h2h' || intent.type === 'qualifying_season_position_h2h' || intent.type === 'official_driver_results_comparison') &&
+  if ((intent.type === 'race_season_finishing_position_h2h' || intent.type === 'race_event_finishing_position_comparison' || intent.type === 'qualifying_season_position_h2h' || intent.type === 'official_driver_results_comparison') &&
       (intent.driver_references[0].start >= intent.driver_references[1].start || intent.driver_references[0].text === intent.driver_references[1].text)) {
     throw new z.ZodError([{ code: z.ZodIssueCode.custom, path: ['driver_references'], message: 'H2H drivers must be two distinct literals in question order' }]);
   }

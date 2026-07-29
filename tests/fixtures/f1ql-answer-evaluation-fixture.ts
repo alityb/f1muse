@@ -41,6 +41,7 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     ('australian_grand_prix', 'Australian Grand Prix', 'Formula 1 Australian Grand Prix', 'Australian GP', 'AUS'),
     ('monaco_grand_prix', 'Monaco Grand Prix', 'Formula 1 Monaco Grand Prix', 'Monaco GP', 'MON'),
     ('belgian_grand_prix', 'Belgian Grand Prix', 'Formula 1 Belgian Grand Prix', 'Belgian GP', 'BEL'),
+    ('british_grand_prix', 'British Grand Prix', 'Formula 1 British Grand Prix', 'British GP', 'GBR'),
     ('ambiguous_grand_prix', 'Ambiguous Grand Prix', 'Formula 1 Ambiguous Grand Prix', 'Ambiguous GP', 'AMB')`);
   await pool.query(`INSERT INTO race (id, year, round, circuit_id, grand_prix_id, official_name, date) VALUES
     (1, 2025, 1, 'albert-park', 'australian_grand_prix', 'Formula 1 Australian Grand Prix', '2025-03-16'),
@@ -49,6 +50,7 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (4, 2025, 4, 'fixture-four', NULL, 'Formula 1 Fixture Four Grand Prix', '2025-06-08'),
     (5, 2025, 5, 'fixture-five', NULL, 'Formula 1 Fixture Five Grand Prix', '2025-06-15'),
     (6, 2025, 6, 'fixture-six', NULL, 'Formula 1 Fixture Six Grand Prix', '2025-06-22'),
+    (12, 2025, 12, 'silverstone', 'british_grand_prix', 'Formula 1 British Grand Prix', '2025-07-06'),
     (101, 2024, 1, 'albert-park', 'australian_grand_prix', 'Formula 1 Australian Grand Prix', '2024-03-24'),
     (8, 2025, 8, 'ambiguous-one', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-01'),
     (9, 2025, 9, 'ambiguous-two', 'ambiguous_grand_prix', 'Formula 1 Ambiguous Grand Prix', '2025-06-08'),
@@ -78,6 +80,8 @@ export async function seedAnswerEvaluationFixture(pool: Pool): Promise<void> {
     (5, 'RACE_RESULT', 'lando_norris', 'mclaren', NULL, 'R', 0, 'Engine'),
     (5, 'RACE_RESULT', 'oscar_piastri', 'mclaren', 3, '3', 15, NULL),
     (6, 'RACE_RESULT', 'lando_norris', 'mclaren', 1, '1', 25, NULL),
+    (12, 'RACE_RESULT', 'lando_norris', 'mclaren', 1, '1', 25, NULL),
+    (12, 'RACE_RESULT', 'max_verstappen', 'red-bull', 5, '5', 10, NULL),
     (101, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),
     (101, 'RACE_RESULT', 'charles_leclerc', 'ferrari', 2, '2', 18, NULL),
     (201, 'RACE_RESULT', 'lewis_hamilton', 'mercedes', 1, '1', 25, NULL),

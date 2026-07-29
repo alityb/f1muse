@@ -14,6 +14,7 @@ describe('answer template registry', () => {
     ['race_season_finishing_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'race_season_finishing_position_h2h'],
     ['qualifying_season_position_h2h', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'qualifying_season_position_h2h'],
     ['official_driver_results_comparison', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' }, 'official_driver_results_comparison'],
+    ['race_event_finishing_position_comparison', { season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' }, 'race_event_finishing_position_comparison'],
     ['race_classification_all', { season: 2025, round: 7 }, 'event_classification'],
     ['race_classification_driver', { season: 2025, round: 7, driver_id: 'max-verstappen' }, 'event_classification'],
     ['race_classification_status', { season: 2025, round: 7, status: 'dsq' }, 'event_classification'],
@@ -26,8 +27,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v11', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(19);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v12', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(20);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);

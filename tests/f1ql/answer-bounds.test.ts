@@ -25,7 +25,7 @@ function capability(program: F1QLProgram): AnswerCapability {
 describe('answer bounds', () => {
   it.each(['race_season_finishing_position_h2h', 'qualifying_season_position_h2h'] as const)('charges two complete season branches and requests one %s row', template => {
     const h2h = materializeAnswerTemplate(template, { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
-    expect(estimateAnswerWork(h2h, capability(h2h))).toEqual({ version: 'answer-work-v7', units: 60, requested_rows: 1 });
+    expect(estimateAnswerWork(h2h, capability(h2h))).toEqual({ version: 'answer-work-v8', units: 60, requested_rows: 1 });
   });
   it.each(programs)('estimates approved work deterministically for $root.op', program => {
     const first = estimateAnswerWork(program, capability(program));
@@ -44,27 +44,32 @@ describe('answer bounds', () => {
 
   it('bounds a driver season summary to one row and 36 work units', () => {
     const summary = materializeAnswerTemplate('driver_season_official_summary', { season: 2025, driver_id: 'max-verstappen' });
-    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v7', units: 36, requested_rows: 1 });
+    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v8', units: 36, requested_rows: 1 });
   });
 
   it('charges all 76 final seasons while bounding a driver career summary to one row', () => {
     const summary = materializeAnswerTemplate('driver_career_official_summary', { driver_id: 'lewis-hamilton' });
-    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v7', units: 107, requested_rows: 1 });
+    expect(estimateAnswerWork(summary, capability(summary))).toEqual({ version: 'answer-work-v8', units: 107, requested_rows: 1 });
   });
 
   it('charges both 76-season career-win sources and bounds grouped circuits', () => {
     const wins = materializeAnswerTemplate('driver_career_wins_by_circuit', { driver_id: 'lewis-hamilton' });
-    expect(estimateAnswerWork(wins, capability(wins))).toEqual({ version: 'answer-work-v7', units: 172, requested_rows: 100 });
+    expect(estimateAnswerWork(wins, capability(wins))).toEqual({ version: 'answer-work-v8', units: 172, requested_rows: 100 });
   });
 
   it('bounds the pinned three-driver final ranking to three rows', () => {
     const ranking = materializeAnswerTemplate('final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] });
-    expect(estimateAnswerWork(ranking, capability(ranking))).toEqual({ version: 'answer-work-v7', units: 38, requested_rows: 3 });
+    expect(estimateAnswerWork(ranking, capability(ranking))).toEqual({ version: 'answer-work-v8', units: 38, requested_rows: 3 });
   });
 
   it('charges the complete official comparison foundation and requests one row', () => {
     const comparison = materializeAnswerTemplate('official_driver_results_comparison', { season: 2025, driver_a_id: 'lando-norris', driver_b_id: 'oscar-piastri' });
-    expect(estimateAnswerWork(comparison, capability(comparison))).toEqual({ version: 'answer-work-v7', units: 122, requested_rows: 1 });
+    expect(estimateAnswerWork(comparison, capability(comparison))).toEqual({ version: 'answer-work-v8', units: 122, requested_rows: 1 });
+  });
+
+  it('charges two branches and one row for one event comparison', () => {
+    const comparison = materializeAnswerTemplate('race_event_finishing_position_comparison', { season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' });
+    expect(estimateAnswerWork(comparison, capability(comparison))).toEqual({ version: 'answer-work-v8', units: 2, requested_rows: 1 });
   });
 
   it('enforces row and exact UTF-8 byte boundaries', () => {
