@@ -295,7 +295,7 @@ function programSource(op: F1QLProgram['root']['op']): string {
   if (op === 'driver_career_wins_by_circuit') {
     return 'race_classification_event_metadata';
   }
-  if (op === 'event_classification' || op === 'race_season_finishing_position_h2h') {
+  if (op === 'event_classification' || op === 'race_season_finishing_position_h2h' || op === 'race_event_finishing_position_comparison') {
     return 'race_classification';
   }
   if (op === 'qualifying_classification') {
@@ -333,7 +333,7 @@ function programEntities(root: Exclude<F1QLProgram['root'], { op: 'aggregate' | 
   if (root.op === 'pace_summary') {
     return { driver_id: root.driver_id };
   }
-  if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
+  if (root.op === 'race_season_finishing_position_h2h' || root.op === 'race_event_finishing_position_comparison' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     return { driver_id: [root.driver_a_id, root.driver_b_id] };
   }
   if (root.op === 'driver_career_wins_by_circuit') {

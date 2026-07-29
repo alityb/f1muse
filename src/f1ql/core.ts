@@ -178,6 +178,7 @@ export interface CoreComparisonSummaryNode {
   lower_is_better: boolean;
   require_unique_source_keys: boolean;
   require_source_presence: boolean;
+  require_exactly_one_shared_event?: true;
 }
 
 export interface CoreComposeInput {

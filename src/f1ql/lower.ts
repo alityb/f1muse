@@ -56,6 +56,9 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   if (program.root.op === 'race_season_finishing_position_h2h') {
     return lowerSeasonPositionH2H(program.root, 'event_classification', 'finishing_position');
   }
+  if (program.root.op === 'race_event_finishing_position_comparison') {
+    return lowerPositionComparison(program.root, 'event_classification', 'finishing_position');
+  }
   if (program.root.op === 'official_event_mean_compare') {
     return {
       version: 1,
@@ -164,6 +167,15 @@ function lowerSeasonPositionH2H(
   source: 'event_classification' | 'qualifying_classification',
   field: 'finishing_position' | 'qualifying_position'
 ): CoreProgram {
+  return lowerPositionComparison(node, source, field);
+}
+
+function lowerPositionComparison(
+  node: Extract<F1QLProgram['root'], { op: 'race_season_finishing_position_h2h' | 'qualifying_season_position_h2h' | 'race_event_finishing_position_comparison' }>,
+  source: 'event_classification' | 'qualifying_classification',
+  field: 'finishing_position' | 'qualifying_position'
+): CoreProgram {
+  const scope = { season: node.season, ...('round' in node ? { round: node.round } : {}) };
   return {
     version: 1,
     root: {
@@ -172,8 +184,8 @@ function lowerSeasonPositionH2H(
         op: 'compare',
         input: {
           op: 'join',
-          left: { op: 'filter', input: { op: 'source', source }, where: { season: node.season, driver_id: node.driver_a_id } },
-          right: { op: 'filter', input: { op: 'source', source }, where: { season: node.season, driver_id: node.driver_b_id } },
+          left: { op: 'filter', input: { op: 'source', source }, where: { ...scope, driver_id: node.driver_a_id } },
+          right: { op: 'filter', input: { op: 'source', source }, where: { ...scope, driver_id: node.driver_b_id } },
           on: ['season', 'round'],
           type: 'inner'
         },
@@ -183,7 +195,8 @@ function lowerSeasonPositionH2H(
       metric_id: node.metric,
       lower_is_better: true,
       require_unique_source_keys: true,
-      require_source_presence: true
+      require_source_presence: true,
+      ...('round' in node ? { require_exactly_one_shared_event: true as const } : {})
     }
   };
 }

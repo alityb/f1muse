@@ -8,6 +8,7 @@ export const SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES = 30 * 2;
 export const RACE_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
 export const QUALIFYING_SEASON_H2H_SOURCE_ROUND_BRANCHES = SEASON_POSITION_H2H_SOURCE_ROUND_BRANCHES;
 export const OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES = 122;
+export const RACE_EVENT_FINISHING_POSITION_COMPARISON_SOURCE_ROUND_BRANCHES = 2;
 export const MAX_F1QL_RESPONSE_ROWS = 100;
 
 export class F1QLCostLimitError extends Error {}
@@ -28,6 +29,9 @@ export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   }
   if (root.op === 'official_driver_results_comparison') {
     return { source_round_branches: OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES };
+  }
+  if (root.op === 'race_event_finishing_position_comparison') {
+    return { source_round_branches: RACE_EVENT_FINISHING_POSITION_COMPARISON_SOURCE_ROUND_BRANCHES };
   }
   if (root.op === 'driver_career_wins_by_circuit') {
     return { source_round_branches: DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES };

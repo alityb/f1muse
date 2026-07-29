@@ -7,6 +7,7 @@ import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } fr
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
@@ -126,7 +127,8 @@ function validateOfficialComposePlan(node: CoreComposeNode): void {
       racePlan.table !== 'f1ql.event_classification' || qualifyingPlan.table !== 'f1ql.qualifying_classification' ||
       whereA.season !== racePlan.season || whereB.season !== racePlan.season || qualifyingPlan.season !== racePlan.season ||
       whereA.driver_id !== racePlan.leftId || whereB.driver_id !== racePlan.rightId ||
-      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId) {
+      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId ||
+      racePlan.round !== undefined || qualifyingPlan.round !== undefined) {
     throw new Error('Official driver results composition branches must share one season and ordered drivers');
   }
 }
@@ -272,19 +274,26 @@ const COMPARISON_SUMMARY_SQL_SOURCES: Record<keyof typeof CORE_COMPARISON_SUMMAR
 
 // eslint-disable-next-line max-lines-per-function
 function compileComparisonSummary(node: CoreComparisonSummaryNode): CompiledF1QL {
-  const { season, leftId, rightId, table, field } = comparisonSummaryPlan(node);
-  const params = [season, leftId, rightId, node.metric_id, node.lower_is_better];
+  const { season, round, leftId, rightId, table, field } = comparisonSummaryPlan(node);
+  const params = round === undefined
+    ? [season, leftId, rightId, node.metric_id, node.lower_is_better]
+    : [season, round, leftId, rightId, node.metric_id, node.lower_is_better];
+  const leftParam = round === undefined ? 2 : 3;
+  const rightParam = leftParam + 1;
+  const metricParam = rightParam + 1;
+  const directionParam = metricParam + 1;
+  const roundClause = round === undefined ? '' : ' AND round = $2';
   return {
     sql: `
       WITH scoped_source AS (
         SELECT season, round, driver_id, ${field} AS comparison_value
         FROM ${table}
-        WHERE season = $1 AND driver_id IN ($2, $3)
+        WHERE season = $1${roundClause} AND driver_id IN ($${leftParam}, $${rightParam})
       ),
       source_integrity AS (
         SELECT
-          count(*) FILTER (WHERE driver_id = $2)::integer AS driver_a_source_rows,
-          count(*) FILTER (WHERE driver_id = $3)::integer AS driver_b_source_rows,
+          count(*) FILTER (WHERE driver_id = $${leftParam})::integer AS driver_a_source_rows,
+          count(*) FILTER (WHERE driver_id = $${rightParam})::integer AS driver_b_source_rows,
           count(DISTINCT (season, round, driver_id))::integer AS distinct_source_keys,
           (count(*) - count(DISTINCT (season, round, driver_id)))::integer AS duplicate_source_rows
         FROM scoped_source
@@ -292,26 +301,26 @@ function compileComparisonSummary(node: CoreComparisonSummaryNode): CompiledF1QL
       unique_shared_rounds AS (
         SELECT
           round,
-          max(comparison_value) FILTER (WHERE driver_id = $2) AS driver_a_value,
-          max(comparison_value) FILTER (WHERE driver_id = $3) AS driver_b_value
+          max(comparison_value) FILTER (WHERE driver_id = $${leftParam}) AS driver_a_value,
+          max(comparison_value) FILTER (WHERE driver_id = $${rightParam}) AS driver_b_value
         FROM scoped_source
         GROUP BY round
-        HAVING count(*) FILTER (WHERE driver_id = $2) = 1
-           AND count(*) FILTER (WHERE driver_id = $3) = 1
+        HAVING count(*) FILTER (WHERE driver_id = $${leftParam}) = 1
+           AND count(*) FILTER (WHERE driver_id = $${rightParam}) = 1
       ),
       comparison AS (
         SELECT
-          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($5::boolean AND driver_a_value < driver_b_value) OR (NOT $5::boolean AND driver_a_value > driver_b_value)))::integer AS driver_a_ahead,
-          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($5::boolean AND driver_b_value < driver_a_value) OR (NOT $5::boolean AND driver_b_value > driver_a_value)))::integer AS driver_b_ahead,
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($${directionParam}::boolean AND driver_a_value < driver_b_value) OR (NOT $${directionParam}::boolean AND driver_a_value > driver_b_value)))::integer AS driver_a_ahead,
+          count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND (($${directionParam}::boolean AND driver_b_value < driver_a_value) OR (NOT $${directionParam}::boolean AND driver_b_value > driver_a_value)))::integer AS driver_b_ahead,
           count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL AND driver_a_value = driver_b_value)::integer AS ties,
           count(*) FILTER (WHERE driver_a_value IS NOT NULL AND driver_b_value IS NOT NULL)::integer AS shared_events
         FROM unique_shared_rounds
       )
       SELECT
-        $4::text AS metric_id,
+        $${metricParam}::text AS metric_id,
         $1::integer AS season,
-        $2::text AS driver_a_id,
-        $3::text AS driver_b_id,
+        $${leftParam}::text AS driver_a_id,
+        $${rightParam}::text AS driver_b_id,
         CASE WHEN integrity.source_integrity_ok THEN comparison.driver_a_ahead ELSE NULL END AS driver_a_ahead,
         CASE WHEN integrity.source_integrity_ok THEN comparison.driver_b_ahead ELSE NULL END AS driver_b_ahead,
         CASE WHEN integrity.source_integrity_ok THEN comparison.ties ELSE NULL END AS ties,
@@ -329,7 +338,7 @@ function compileComparisonSummary(node: CoreComparisonSummaryNode): CompiledF1QL
           source_integrity.*,
           driver_a_source_rows > 0 AND driver_b_source_rows > 0 AS source_presence_ok,
           duplicate_source_rows = 0 AS source_unique_keys_ok,
-          driver_a_source_rows > 0 AND driver_b_source_rows > 0 AND duplicate_source_rows = 0 AS source_integrity_ok
+          driver_a_source_rows > 0 AND driver_b_source_rows > 0 AND duplicate_source_rows = 0${node.require_exactly_one_shared_event ? ' AND comparison.shared_events = 1' : ''} AS source_integrity_ok
         FROM source_integrity
       ) AS integrity
     `,
@@ -339,6 +348,7 @@ function compileComparisonSummary(node: CoreComparisonSummaryNode): CompiledF1QL
 
 interface ComparisonSummaryPlan {
   season: number;
+  round?: number;
   leftId: string;
   rightId: string;
   table: string;
@@ -363,17 +373,26 @@ function comparisonSummaryPlan(node: CoreComparisonSummaryNode): ComparisonSumma
       node.input.left.as !== signature.comparison_aliases[0] || node.input.right.as !== signature.comparison_aliases[1]) {
     throw new Error('Expected a covered comparison-summary field');
   }
-  const leftWhere = left.where as { season?: number; driver_id?: string };
-  const rightWhere = right.where as { season?: number; driver_id?: string };
-  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
-      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+  const leftWhere = left.where as { season?: number; round?: number; driver_id?: string };
+  const rightWhere = right.where as { season?: number; round?: number; driver_id?: string };
+  const validKeys = (where: typeof leftWhere) => {
+    const keys = JSON.stringify(Object.keys(where).sort());
+    return keys === JSON.stringify(['driver_id', 'season']) || keys === JSON.stringify(['driver_id', 'round', 'season']);
+  };
+  const eventScoped = leftWhere.round !== undefined || rightWhere.round !== undefined;
+  if (!validKeys(leftWhere) || !validKeys(rightWhere) ||
       !Number.isInteger(leftWhere.season) || leftWhere.season! < 1950 || leftWhere.season! > 2100 || leftWhere.season !== rightWhere.season ||
+      leftWhere.round !== rightWhere.round || (leftWhere.round !== undefined && (!Number.isInteger(leftWhere.round) || leftWhere.round < 1 || leftWhere.round > 30)) ||
+      (eventScoped && (node.metric_id !== RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID || node.require_exactly_one_shared_event !== true)) ||
+      (!eventScoped && node.require_exactly_one_shared_event !== undefined) ||
+      (eventScoped && (source !== 'event_classification' || node.lower_is_better !== true || sqlSource.field !== 'finishing_position')) ||
       typeof leftWhere.driver_id !== 'string' || leftWhere.driver_id.trim().length === 0 ||
       typeof rightWhere.driver_id !== 'string' || rightWhere.driver_id.trim().length === 0 || leftWhere.driver_id === rightWhere.driver_id) {
     throw new Error('Expected shared season and ordered driver filters');
   }
   return {
     season: leftWhere.season!,
+    ...(leftWhere.round === undefined ? {} : { round: leftWhere.round }),
     leftId: leftWhere.driver_id,
     rightId: rightWhere.driver_id,
     table: sqlSource.table,

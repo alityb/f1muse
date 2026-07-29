@@ -6,6 +6,7 @@ import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } fr
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 
 export interface StandingsRow {
   season: number;
@@ -180,15 +181,14 @@ export function interpretComparisonSummary(program: CoreProgram, rows: Compariso
     throw new Error('Expected a comparison summary');
   }
   const node: CoreComparisonSummaryNode = program.root;
-  const { season, leftId, rightId, leftField, rightField } = referenceComparisonSummaryPlan(node);
-  const scoped = rows.filter(row => row.season === season && (row.driver_id === leftId || row.driver_id === rightId));
+  const { season, round, leftId, rightId, leftField, rightField } = referenceComparisonSummaryPlan(node);
+  const scoped = rows.filter(row => row.season === season && (round === undefined || row.round === round) && (row.driver_id === leftId || row.driver_id === rightId));
   const driverASourceRows = scoped.filter(row => row.driver_id === leftId).length;
   const driverBSourceRows = scoped.filter(row => row.driver_id === rightId).length;
   const distinctSourceKeys = new Set(scoped.map(row => JSON.stringify([row.season, row.round, row.driver_id]))).size;
   const duplicateSourceRows = scoped.length - distinctSourceKeys;
   const sourcePresenceOk = driverASourceRows > 0 && driverBSourceRows > 0;
   const sourceUniqueKeysOk = duplicateSourceRows === 0;
-  const sourceIntegrityOk = (!node.require_source_presence || sourcePresenceOk) && (!node.require_unique_source_keys || sourceUniqueKeysOk);
   const byRound = new Map<number, ComparisonSummaryRow[]>();
   for (const row of scoped) {
     const round = byRound.get(row.round) ?? [];
@@ -204,6 +204,8 @@ export function interpretComparisonSummary(program: CoreProgram, rows: Compariso
       ? [{ left: leftPosition, right: rightPosition }]
       : [];
   });
+  const sourceIntegrityOk = (!node.require_source_presence || sourcePresenceOk) && (!node.require_unique_source_keys || sourceUniqueKeysOk)
+    && (!node.require_exactly_one_shared_event || shared.length === 1);
   return [{
     metric_id: node.metric_id,
     season,
@@ -310,7 +312,8 @@ function validateReferenceOfficialCompositionPlan(node: CoreComposeNode): void {
       racePlan.source !== 'event_classification' || qualifyingPlan.source !== 'qualifying_classification' ||
       standingAWhere.season !== racePlan.season || standingBWhere.season !== racePlan.season || qualifyingPlan.season !== racePlan.season ||
       standingAWhere.driver_id !== racePlan.leftId || standingBWhere.driver_id !== racePlan.rightId ||
-      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId) {
+      qualifyingPlan.leftId !== racePlan.leftId || qualifyingPlan.rightId !== racePlan.rightId ||
+      racePlan.round !== undefined || qualifyingPlan.round !== undefined) {
     throw new Error('Official driver results composition branches must share one season and ordered drivers');
   }
 }
@@ -329,6 +332,7 @@ function validateReferenceOfficialCompositionResults(results: Map<string, Record
 // eslint-disable-next-line complexity
 function referenceComparisonSummaryPlan(node: CoreComparisonSummaryNode): {
   season: number;
+  round?: number;
   source: 'event_classification' | 'qualifying_classification';
   leftId: string;
   rightId: string;
@@ -350,17 +354,26 @@ function referenceComparisonSummaryPlan(node: CoreComparisonSummaryNode): {
       node.input.left.as !== signature.comparison_aliases[0] || node.input.right.as !== signature.comparison_aliases[1]) {
     throw new Error('Expected covered comparison fields');
   }
-  const leftWhere = left.where as { season?: number; driver_id?: string };
-  const rightWhere = right.where as { season?: number; driver_id?: string };
-  if (JSON.stringify(Object.keys(leftWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
-      JSON.stringify(Object.keys(rightWhere).sort()) !== JSON.stringify(['driver_id', 'season']) ||
+  const leftWhere = left.where as { season?: number; round?: number; driver_id?: string };
+  const rightWhere = right.where as { season?: number; round?: number; driver_id?: string };
+  const validKeys = (where: typeof leftWhere) => {
+    const keys = JSON.stringify(Object.keys(where).sort());
+    return keys === JSON.stringify(['driver_id', 'season']) || keys === JSON.stringify(['driver_id', 'round', 'season']);
+  };
+  const eventScoped = leftWhere.round !== undefined || rightWhere.round !== undefined;
+  if (!validKeys(leftWhere) || !validKeys(rightWhere) ||
       !Number.isInteger(leftWhere.season) || leftWhere.season! < 1950 || leftWhere.season! > 2100 || leftWhere.season !== rightWhere.season ||
+      leftWhere.round !== rightWhere.round || (leftWhere.round !== undefined && (!Number.isInteger(leftWhere.round) || leftWhere.round < 1 || leftWhere.round > 30)) ||
+      (eventScoped && (node.metric_id !== RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID || node.require_exactly_one_shared_event !== true)) ||
+      (!eventScoped && node.require_exactly_one_shared_event !== undefined) ||
+      (eventScoped && (source !== 'event_classification' || node.lower_is_better !== true || node.input.left.field !== 'finishing_position' || node.input.right.field !== 'finishing_position')) ||
       typeof leftWhere.driver_id !== 'string' || leftWhere.driver_id.trim().length === 0 ||
       typeof rightWhere.driver_id !== 'string' || rightWhere.driver_id.trim().length === 0 || leftWhere.driver_id === rightWhere.driver_id) {
     throw new Error('Expected shared season and ordered driver filters');
   }
   return {
     season: leftWhere.season!,
+    ...(leftWhere.round === undefined ? {} : { round: leftWhere.round }),
     source,
     leftId: leftWhere.driver_id,
     rightId: rightWhere.driver_id,

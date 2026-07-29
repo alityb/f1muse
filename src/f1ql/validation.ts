@@ -7,12 +7,13 @@ import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } fr
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MAX, OFFICIAL_DRIVER_RESULTS_COMPARISON_SEASON_MIN, OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 
-export const F1QL_DEFINITIONS_VERSION = 'v8';
+export const F1QL_DEFINITIONS_VERSION = 'v9';
 export const F1QL_SIGNATURES = {
   standings: { fields: ['season', 'driver_id', 'points', 'championship_position'], operators: ['source', 'filter', 'aggregate', 'sort', 'limit', 'rank', 'compose', 'official_driver_results_comparison'] },
   lap_pace: { fields: ['season', 'round', 'driver_id', 'lap_time_seconds', 'is_valid_lap', 'is_pit_lap', 'is_in_lap', 'is_out_lap', 'compound', 'clean_air_flag'], operators: ['source', 'filter', 'aggregate', 'join', 'compare', 'delta', 'pace_summary', 'pace_delta'] },
-  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'aggregate', 'compare', 'comparison_summary', 'compose', 'event_classification', 'race_season_finishing_position_h2h', 'official_driver_results_comparison', 'driver_career_wins_by_circuit'] },
+  event_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'finishing_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'aggregate', 'compare', 'comparison_summary', 'compose', 'event_classification', 'race_season_finishing_position_h2h', 'race_event_finishing_position_comparison', 'official_driver_results_comparison', 'driver_career_wins_by_circuit'] },
   qualifying_classification: { fields: ['season', 'round', 'driver_id', 'team_id', 'classification_status', 'qualifying_position'], operators: ['source', 'filter', 'sort', 'limit', 'join', 'compare', 'comparison_summary', 'compose', 'qualifying_classification', 'qualifying_season_position_h2h', 'official_driver_results_comparison'] },
   event_metadata: { fields: ['season', 'round', 'event_id', 'event_name', 'circuit_id', 'date', 'session_scope'], operators: ['source', 'filter', 'join', 'aggregate', 'event_metadata', 'driver_career_wins_by_circuit'] },
   official_lap_timing: {
@@ -71,7 +72,7 @@ function getParticipationScope(program: F1QLProgram): { season?: number; drivers
   if (root.op === 'pace_delta') {
     return { season: root.scope.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
-  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
+  if (root.op === 'official_lap_window_median_compare' || root.op === 'official_event_mean_compare' || root.op === 'race_season_finishing_position_h2h' || root.op === 'race_event_finishing_position_comparison' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     return { season: root.season, drivers: [root.driver_a_id, root.driver_b_id] };
   }
   if (root.op === 'pace_summary') {
@@ -106,7 +107,7 @@ export function validateF1QLProgram(program: F1QLProgram, options: F1QLValidatio
     throw new F1QLValidationError('complexity_exceeded', `Program exceeds the ${maxNodes}-node complexity budget`);
   }
   validateSignature(program);
-  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare') && program.root.round > 30) {
+  if ((program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare' || program.root.op === 'race_event_finishing_position_comparison') && program.root.round > 30) {
     throw new F1QLValidationError('coverage_unsupported', 'Round is outside supported event coverage');
   }
 }
@@ -208,7 +209,8 @@ function validateOfficialDriverResultsComposition(node: CoreComposeNode): void {
       standingAWhere.season !== raceLeft.where.season || standingBWhere.season !== raceLeft.where.season ||
       raceRight.where.season !== raceLeft.where.season || qualifyingLeft.where.season !== raceLeft.where.season || qualifyingRight.where.season !== raceLeft.where.season ||
       standingAWhere.driver_id !== raceLeft.where.driver_id || standingBWhere.driver_id !== raceRight.where.driver_id ||
-      qualifyingLeft.where.driver_id !== raceLeft.where.driver_id || qualifyingRight.where.driver_id !== raceRight.where.driver_id) {
+      qualifyingLeft.where.driver_id !== raceLeft.where.driver_id || qualifyingRight.where.driver_id !== raceRight.where.driver_id ||
+      raceLeft.where.round !== undefined || raceRight.where.round !== undefined || qualifyingLeft.where.round !== undefined || qualifyingRight.where.round !== undefined) {
     throw new F1QLValidationError('signature_invalid', 'Official driver results composition branches must share one season and ordered drivers');
   }
 }
@@ -269,11 +271,19 @@ function validateComparisonSummary(node: CoreComparisonSummaryNode): void {
   }
   const left = classificationComparisonBranch(join.left);
   const right = classificationComparisonBranch(join.right);
+  const eventScoped = left.where.round !== undefined || right.where.round !== undefined;
   if (left.source !== right.source || typeof left.where.season !== 'number' || !Number.isInteger(left.where.season) || left.where.season < 1950 || left.where.season > 2100 || left.where.season !== right.where.season ||
+      left.where.round !== right.where.round || (left.where.round !== undefined && (!Number.isInteger(left.where.round) || left.where.round < 1 || left.where.round > 30)) ||
+      (eventScoped && (node.metric_id !== RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID || node.require_exactly_one_shared_event !== true)) ||
+      (!eventScoped && node.require_exactly_one_shared_event !== undefined) ||
       !isNonemptyString(left.where.driver_id) || !isNonemptyString(right.where.driver_id) || left.where.driver_id === right.where.driver_id) {
     throw new F1QLValidationError('signature_invalid', 'Comparison summary requires one season, one shared source, and two distinct nonempty ordered driver IDs');
   }
   const signature = CORE_COMPARISON_SUMMARY_SIGNATURES[left.source];
+  if (eventScoped && (left.source !== 'event_classification' || node.lower_is_better !== true ||
+      leftComparison.field !== 'finishing_position' || rightComparison.field !== 'finishing_position')) {
+    throw new F1QLValidationError('signature_invalid', 'Race event comparison requires official finishing positions with lower position ahead');
+  }
   if (!signature.comparison_fields.includes(leftComparison.field as never) || !signature.comparison_fields.includes(rightComparison.field as never)) {
     throw new F1QLValidationError('signature_invalid', 'Comparison field is not covered by the classification summary signature');
   }
@@ -291,9 +301,10 @@ function classificationComparisonBranch(input: unknown): { source: keyof typeof 
   const branch = input as Record<string, unknown> | null;
   const source = branch?.input as Record<string, unknown> | undefined;
   const where = branch?.where as Record<string, unknown> | undefined;
+  const keys = JSON.stringify(Object.keys(where ?? {}).sort());
   if (branch?.op !== 'filter' || source?.op !== 'source' || !isComparisonSummarySource(source.source) || !where ||
-      JSON.stringify(Object.keys(where).sort()) !== JSON.stringify(['driver_id', 'season'])) {
-    throw new F1QLValidationError('signature_invalid', 'Comparison summary branches require exact season and driver filters over a covered classification source');
+      (keys !== JSON.stringify(['driver_id', 'season']) && keys !== JSON.stringify(['driver_id', 'round', 'season']))) {
+    throw new F1QLValidationError('signature_invalid', 'Comparison summary branches require exact season, optional round, and driver filters over a covered classification source');
   }
   return { source: source.source, where: where as CoreEventClassificationFilter };
 }
@@ -497,6 +508,10 @@ function validateSignature(program: F1QLProgram): void {
     return;
   }
   if (root.op === 'race_season_finishing_position_h2h') {
+    assertSignature('event_classification', root.op, ['season', 'round', 'driver_id', 'finishing_position']);
+    return;
+  }
+  if (root.op === 'race_event_finishing_position_comparison') {
     assertSignature('event_classification', root.op, ['season', 'round', 'driver_id', 'finishing_position']);
     return;
   }

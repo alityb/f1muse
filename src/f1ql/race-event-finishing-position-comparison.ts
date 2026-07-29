@@ -1,0 +1,1 @@
+export const RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID = 'official_race_finishing_position_single_event_v1' as const;

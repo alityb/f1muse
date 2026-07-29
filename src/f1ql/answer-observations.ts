@@ -573,11 +573,11 @@ export function canonicalProgramEntities(program: F1QLProgram): string[] {
     }
     return ids.map(id => `driver:${id}`).sort();
   }
-  const event = root.op === 'event_classification' || root.op === 'qualifying_classification' || root.op === 'event_metadata' ? [`event:${root.season}:${root.round}`] : [];
+  const event = root.op === 'event_classification' || root.op === 'qualifying_classification' || root.op === 'event_metadata' || root.op === 'race_event_finishing_position_comparison' ? [`event:${root.season}:${root.round}`] : [];
   let driver: string[] = [];
   if (root.op === 'pace_delta') {
     driver = [root.driver_a_id, root.driver_b_id];
-  } else if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
+  } else if (root.op === 'race_season_finishing_position_h2h' || root.op === 'race_event_finishing_position_comparison' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     driver = [root.driver_a_id, root.driver_b_id];
   } else if (root.op === 'driver_career_wins_by_circuit') {
     driver = [root.driver_id];
