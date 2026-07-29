@@ -72,7 +72,7 @@ export type F1QLProgramCandidate = F1QLProgram | NamedEventProgramCandidate;
 
 export function parseF1QLProgramCandidate(input: unknown): F1QLProgramCandidate {
   const canonical = f1qlProgramSchema.safeParse(input);
-  return canonical.success && canonical.data.root.op !== 'race_season_finishing_position_h2h' && canonical.data.root.op !== 'race_event_finishing_position_comparison' && canonical.data.root.op !== 'qualifying_season_position_h2h' && canonical.data.root.op !== 'official_driver_results_comparison' && canonical.data.root.op !== 'driver_career_wins_by_circuit'
+  return canonical.success && canonical.data.root.op !== 'race_season_finishing_position_h2h' && canonical.data.root.op !== 'race_event_finishing_position_comparison' && canonical.data.root.op !== 'qualifying_season_position_h2h' && canonical.data.root.op !== 'official_driver_results_comparison' && canonical.data.root.op !== 'driver_career_wins_by_circuit' && canonical.data.root.op !== 'driver_season_qualifying_p1_count' && canonical.data.root.op !== 'driver_career_qualifying_p1_count' && canonical.data.root.op !== 'driver_season_qualifying_top_ten_count' && canonical.data.root.op !== 'season_qualifying_top_ten_ranking'
     ? canonical.data as F1QLProgram
     : namedEventProgramSchema.parse(input);
 }

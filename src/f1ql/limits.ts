@@ -1,6 +1,7 @@
 import { F1QLProgram } from './ast';
 import { MAX_OFFICIAL_LAP_WINDOW_LAPS } from './official-lap-window';
 import { DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES } from './driver-career-wins-by-circuit';
+import { CAREER_QUALIFYING_COUNT_SOURCE_ROUND_BRANCHES, SEASON_QUALIFYING_COUNT_SOURCE_ROUND_BRANCHES } from './qualifying-counts';
 
 const MAX_REQUESTED_ROUNDS = 24;
 export const MAX_F1QL_SOURCE_ROUND_BRANCHES = 60;
@@ -36,6 +37,12 @@ export function estimateF1QLCost(program: F1QLProgram): F1QLCostEstimate {
   if (root.op === 'driver_career_wins_by_circuit') {
     return { source_round_branches: DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES };
   }
+  if (root.op === 'driver_career_qualifying_p1_count') {
+    return { source_round_branches: CAREER_QUALIFYING_COUNT_SOURCE_ROUND_BRANCHES };
+  }
+  if (root.op === 'driver_season_qualifying_p1_count' || root.op === 'driver_season_qualifying_top_ten_count' || root.op === 'season_qualifying_top_ten_ranking') {
+    return { source_round_branches: SEASON_QUALIFYING_COUNT_SOURCE_ROUND_BRANCHES };
+  }
   if (root.op === 'pace_delta' || root.op === 'pace_summary') {
     const rounds = root.scope.rounds?.length ?? MAX_REQUESTED_ROUNDS;
     return { source_round_branches: rounds * (root.op === 'pace_delta' ? 2 : 1) };
@@ -63,6 +70,8 @@ export function enforceF1QLCostLimits(program: F1QLProgram, options: F1QLCostLim
   let operationMaximum = MAX_F1QL_SOURCE_ROUND_BRANCHES;
   if (program.root.op === 'driver_career_wins_by_circuit') {
     operationMaximum = DRIVER_CAREER_WIN_SOURCE_ROUND_BRANCHES;
+  } else if (program.root.op === 'driver_career_qualifying_p1_count') {
+    operationMaximum = CAREER_QUALIFYING_COUNT_SOURCE_ROUND_BRANCHES;
   } else if (program.root.op === 'official_driver_results_comparison') {
     operationMaximum = OFFICIAL_DRIVER_RESULTS_COMPARISON_SOURCE_ROUND_BRANCHES;
   }

@@ -37,6 +37,10 @@ describe('F1QL launch capability migration', () => {
       ['qualifying-pole', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_result_selection'],
       ['qualifying-top-five', 'Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_result_selection'],
       ['qualifying-third', 'Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_result_selection']
+      ,['season-poles', 'How many poles did Lando Norris take in 2025?', 'driver_season_poles']
+      ,['career-poles', 'How many career poles does Lewis Hamilton have?', 'driver_career_poles']
+      ,['season-q3', 'How many times did Lando Norris qualify in the top ten in 2025?', 'driver_season_top_ten_qualifying']
+      ,['q3-ranking', 'Rank drivers by top-ten qualifying appearances in 2025.', 'season_top_ten_qualifying_ranking']
     ] as const;
     for (const [id, question, target] of requiredCases) {
       expect(launchParityManifest.find(testCase => testCase.id === id)).toMatchObject({ question, target, expected_decision: 'answer' });
@@ -54,7 +58,7 @@ describe('F1QL launch capability migration', () => {
 
   it('blocks legacy deletion until every reviewed prompt has a contracted implementation', () => {
     expect(LEGACY_REMOVAL_ALLOWED).toBe(false);
-    expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(true);
+    expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(false);
     const loader = new TemplateLoader();
     for (const kind of LEGACY_QUERY_KINDS) {
       const template = selectTemplate({ kind, normalization: 'none' } as QueryIntent);
@@ -70,11 +74,11 @@ describe('F1QL launch capability migration', () => {
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
-    const contractedIds = ['career-summary', 'career-wins', 'comprehensive-replacement', 'current-standings', 'event-pace-replacement', 'matchup-replacement', 'multi-ranking-replacement', 'profile-replacement', 'qualifying-h2h-drivers', 'qualifying-h2h-teammates', 'qualifying-pole', 'qualifying-third', 'qualifying-top-five', 'race-h2h', 'race-podium', 'race-second', 'race-top-five', 'race-winner', 'season-summary'];
+    const contractedIds = launchParityManifest.map(testCase => testCase.id).sort();
     expect(launchParityManifest.filter(testCase => testCase.implementation === 'contracted').map(testCase => testCase.id).sort()).toEqual(contractedIds);
     const emitted = JSON.parse(readFileSync('tests/fixtures/f1ql-answer-evaluation-results.json', 'utf8')) as Array<{ id: string }>;
     const emittedIds = new Set(emitted.map(item => item.id));
-    for (const parityCase of launchParityManifest.filter(testCase => testCase.implementation === 'contracted')) {
+    for (const parityCase of launchParityManifest.filter(testCase => testCase.expected_decision === 'answer')) {
       const evaluation = answerEvaluationManifest.find(item => item.question === parityCase.question);
       expect(evaluation).toMatchObject({ answerable: true, expected: { action: 'answer', proof_outcome: 'passed' } });
       const contract = createAnswerQuestionContract(parityCase.question);
@@ -96,8 +100,21 @@ describe('F1QL launch capability migration', () => {
       expect(authorizeAnswerProgram(proof.program).type).toBe('approved');
       expect(emittedIds.has(evaluation?.id ?? '')).toBe(true);
     }
+    const nonAnswerReasons: Readonly<Record<string, string>> = {
+      'trend-retired': 'capability_unsupported', 'vector-retired': 'capability_unsupported',
+      'teammate-career-replacement': 'session_ambiguous', 'season-pace-replacement': 'session_ambiguous',
+      'teammate-gap-retired': 'pace_source_disabled', 'dual-gap-retired': 'pace_source_disabled',
+      'track-fastest-retired': 'pace_source_disabled'
+    };
+    for (const parityCase of launchParityManifest.filter(testCase => testCase.expected_decision !== 'answer')) {
+      const outcome = createAnswerQuestionContract(parityCase.question).outcome;
+      expect(outcome).toMatchObject({
+        type: parityCase.expected_decision === 'clarify' ? 'clarification_required' : 'rejected',
+        reason: nonAnswerReasons[parityCase.id]
+      });
+    }
     expect(LEGACY_REMOVAL_ALLOWED).toBe(false);
-    expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(true);
+    expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(false);
   });
 
   it('retains only capabilities with an identified factual authority', () => {

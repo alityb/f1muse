@@ -65,16 +65,17 @@ describe('answer observation reporting', () => {
     expect(report.artifact).toEqual({ version: 4, observations: answerEvaluationManifest.reduce((count, item) => count + (item.answerable ? 3 : 1), 0), sha256: artifactHash, manifest_sha256: getAnswerEvaluationManifestHash(answerEvaluationManifest) });
     expect(report.contract).toMatchObject({ translator_prompt_hash: ANSWER_TRANSLATOR_PROMPT_SHA256, translator_schema_hash: ANSWER_TRANSLATOR_SCHEMA_SHA256, status: 'pass' });
     expect(report.provider_evidence).toEqual({ provider: 'groq', endpoint_sha256: '1'.repeat(64), reasoning_effort: 'disabled', status: 'pass' });
-    expect(Object.entries(report.templates).every(([template, value]) => value.cases >= (template === 'official_driver_results_comparison' || template === 'race_event_finishing_position_comparison' ? 1 : 2) && value.non_development_cases >= (template === 'official_driver_results_comparison' || template === 'race_event_finishing_position_comparison' ? 1 : 2) && value.exact === value.cases && value.proof_complete === value.cases)).toBe(true);
+    const exactOnly = new Set(['official_driver_results_comparison', 'race_event_finishing_position_comparison', 'driver_season_qualifying_p1_count', 'driver_career_qualifying_p1_count', 'driver_season_qualifying_top_ten_count', 'season_qualifying_top_ten_ranking']);
+    expect(Object.entries(report.templates).every(([template, value]) => value.cases >= (exactOnly.has(template) ? 1 : 2) && value.non_development_cases >= (exactOnly.has(template) ? 1 : 2) && value.exact === value.cases && value.proof_complete === value.cases)).toBe(true);
     expect(report.selection).toMatchObject({ observations_missing: 0, unsafe_answers: 0 });
     expect(report.metamorphic).toMatchObject({ groups_total: 8, groups_complete: 8, groups_consistent: 8 });
     expect(report.translation_latency).toMatchObject({ observations: report.artifact.observations, required_observations: report.artifact.observations, p95_ms: 100, max_ms: 100, status: 'pass' });
     expect(report.translation_timeouts).toEqual({ observations: report.artifact.observations, required_observations: report.artifact.observations, timed_out: 0, maximum_timeouts: 0, status: 'pass' });
     expect(report.release_gates).toMatchObject({ provider_diagnostics_zero: true, exact_templates_complete: true, exact_programs_complete: true, semantic_proofs_complete: true, status: 'pass' });
-    expect(report.artifact.observations).toBe(248);
-    expect(report.reliability).toMatchObject({ answerable_cases: 71, required_observations: 213, supplied_observations: 213, complete_cases: 71, status: 'pass' });
+    expect(report.artifact.observations).toBe(260);
+    expect(report.reliability).toMatchObject({ answerable_cases: 75, required_observations: 225, supplied_observations: 225, complete_cases: 75, status: 'pass' });
     for (const field of ['action', 'reason', 'template_id', 'program_hash'] as const) {
-      expect(report.reliability[field]).toEqual({ exact_cases: 71, drift_cases: 0 });
+      expect(report.reliability[field]).toEqual({ exact_cases: 75, drift_cases: 0 });
     }
     expect(report.release_gates).toMatchObject({ repetition_completeness: true, repeated_exactness: true, zero_repetition_drift: true });
     const serialized = JSON.stringify(report);
@@ -153,7 +154,7 @@ describe('answer observation reporting', () => {
     });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
     expect(report.selection.action_correct).toBe(report.selection.total);
-    expect(report.reliability[field].exact_cases).toBe(70);
+    expect(report.reliability[field].exact_cases).toBe(74);
     expect(report.reliability[field].drift_cases).toBe(1);
     expect(report.release_gates).toMatchObject({ zero_repetition_drift: false, status: 'fail' });
   });
@@ -164,7 +165,7 @@ describe('answer observation reporting', () => {
       for (const target of input.observations.filter((item: any) => item.id === id)) target.reason = 'race_classification';
     });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.reliability.reason).toEqual({ exact_cases: 70, drift_cases: 0 });
+    expect(report.reliability.reason).toEqual({ exact_cases: 74, drift_cases: 0 });
     expect(report.release_gates).toMatchObject({ repeated_exactness: false, zero_repetition_drift: true, status: 'fail' });
   });
 
@@ -174,7 +175,7 @@ describe('answer observation reporting', () => {
       input.observations = input.observations.filter((item: any) => item.id !== id || item.observation_index !== 2);
     });
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, artifact, artifactHash);
-    expect(report.reliability).toMatchObject({ supplied_observations: 212, complete_cases: 70, status: 'insufficient' });
+    expect(report.reliability).toMatchObject({ supplied_observations: 224, complete_cases: 74, status: 'insufficient' });
     expect(report.release_gates).toMatchObject({ repetition_completeness: false, repeated_exactness: false, zero_repetition_drift: true, status: 'insufficient' });
   });
 
@@ -263,7 +264,7 @@ describe('answer observation reporting', () => {
     const report = buildAnswerObservationReport(answerEvaluationManifest, answerMetamorphicGroups, legacy, artifactHash);
     expect(report.translation_latency.status).toBe('insufficient');
     expect(report.translation_timeouts.status).toBe('insufficient');
-    expect(report.reliability).toMatchObject({ supplied_observations: 71, complete_cases: 0, status: 'insufficient' });
+    expect(report.reliability).toMatchObject({ supplied_observations: 75, complete_cases: 0, status: 'insufficient' });
     expect(report.release_gates.semantic_proofs_complete).toBe(false);
     expect(report.release_gates.status).toBe('insufficient');
   });

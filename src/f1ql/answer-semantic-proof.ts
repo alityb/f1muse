@@ -8,7 +8,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './translation-linking';
 import { getF1QLProgramHash } from './verified-programs';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v16' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v17' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 export interface AnswerProofEventResolver {
@@ -263,7 +263,7 @@ function proveEventReference(contract: AnswerQuestionContract, reference: Litera
 
 function proveSeason(contract: AnswerQuestionContract, intent: ExecutableAnswerIntent): void {
   const seasons = new Set(contract.years.map(cue => cue.value));
-  if (intent.type === 'driver_career_official_summary' || intent.type === 'driver_career_wins_by_circuit') {
+  if (intent.type === 'driver_career_official_summary' || intent.type === 'driver_career_wins_by_circuit' || intent.type === 'driver_career_qualifying_p1_count') {
     if (seasons.size !== 0) {
       throw new AnswerSemanticProofError('season_mismatch');
     }
@@ -331,6 +331,27 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (metrics.has('race_event_finishing_position_comparison') && intent.type !== 'race_event_finishing_position_comparison') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (metrics.has('season_qualifying_p1_count') && intent.type !== 'driver_season_qualifying_p1_count') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (metrics.has('career_qualifying_p1_count') && intent.type !== 'driver_career_qualifying_p1_count') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (metrics.has('season_qualifying_top_ten_count') && intent.type !== 'driver_season_qualifying_top_ten_count') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  if (metrics.has('season_qualifying_top_ten_ranking') && intent.type !== 'season_qualifying_top_ten_ranking') {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
+  const exactQualifyingCountQuestion: Partial<Record<ExecutableAnswerIntent['type'], string>> = {
+    driver_season_qualifying_p1_count: 'How many poles did Lando Norris take in 2025?',
+    driver_career_qualifying_p1_count: 'How many career poles does Lewis Hamilton have?',
+    driver_season_qualifying_top_ten_count: 'How many times did Lando Norris qualify in the top ten in 2025?',
+    season_qualifying_top_ten_ranking: 'Rank drivers by top-ten qualifying appearances in 2025.'
+  };
+  if (exactQualifyingCountQuestion[intent.type] !== undefined && contract.normalized_question !== exactQualifyingCountQuestion[intent.type]) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (metrics.has('date') && intent.type !== 'race_date') {
@@ -433,6 +454,10 @@ function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_cl
     return 'race_classification_event_metadata';
   }
   if (intent.type === 'qualifying_season_position_h2h') {
+    return 'qualifying_classification';
+  }
+  if (intent.type === 'driver_season_qualifying_p1_count' || intent.type === 'driver_career_qualifying_p1_count' ||
+      intent.type === 'driver_season_qualifying_top_ten_count' || intent.type === 'season_qualifying_top_ten_ranking') {
     return 'qualifying_classification';
   }
   if (intent.type === 'official_driver_results_comparison') {

@@ -91,7 +91,7 @@ async function proveObservation(
   const decision = authorizeAnswerProgram(proof.program);
   if (decision.type === 'rejected') return observation(id, 'abstain', decision.reason, candidates, linked);
   try {
-    enforceAnswerWorkBudget(proof.program, decision.capability, 200, 100);
+    enforceAnswerWorkBudget(proof.program, decision.capability, 2_280, 100);
   } catch (error) {
     return observation(id, 'abstain', error instanceof AnswerBoundError ? error.bound : 'program_invalid', candidates, linked);
   }
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
   }
   const databaseUrl = getTestDatabaseUrl();
   assertDisposableDerivationDatabase(databaseUrl);
-  if (answerEvaluationManifest.length !== 106) throw new Error('Answer derivation evidence requires the complete manifest');
+  if (answerEvaluationManifest.length !== 110) throw new Error('Answer derivation evidence requires the complete manifest');
   const pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 2_000, options: '-c statement_timeout=5000' });
   try {
     await setupTestDatabase(pool, { seed: false });

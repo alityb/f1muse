@@ -298,7 +298,7 @@ function programSource(op: F1QLProgram['root']['op']): string {
   if (op === 'event_classification' || op === 'race_season_finishing_position_h2h' || op === 'race_event_finishing_position_comparison') {
     return 'race_classification';
   }
-  if (op === 'qualifying_classification') {
+  if (op === 'qualifying_classification' || op === 'driver_season_qualifying_p1_count' || op === 'driver_career_qualifying_p1_count' || op === 'driver_season_qualifying_top_ten_count' || op === 'season_qualifying_top_ten_ranking') {
     return 'qualifying_classification';
   }
   if (op === 'qualifying_season_position_h2h') {
@@ -320,7 +320,7 @@ function programScope(root: Exclude<F1QLProgram['root'], { op: 'aggregate' | 'ra
   if (root.op === 'race_season_finishing_position_h2h' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     return { season: root.season };
   }
-  if (root.op === 'driver_career_wins_by_circuit') {
+  if (root.op === 'driver_career_wins_by_circuit' || root.op === 'driver_career_qualifying_p1_count') {
     return { season: root.seasons };
   }
   return { season: root.season, round: root.round, session_scope: root.op === 'event_metadata' ? root.session_scope : undefined };
@@ -336,7 +336,7 @@ function programEntities(root: Exclude<F1QLProgram['root'], { op: 'aggregate' | 
   if (root.op === 'race_season_finishing_position_h2h' || root.op === 'race_event_finishing_position_comparison' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     return { driver_id: [root.driver_a_id, root.driver_b_id] };
   }
-  if (root.op === 'driver_career_wins_by_circuit') {
+  if (root.op === 'driver_career_wins_by_circuit' || root.op === 'driver_season_qualifying_p1_count' || root.op === 'driver_career_qualifying_p1_count' || root.op === 'driver_season_qualifying_top_ten_count') {
     return { driver_id: root.driver_id };
   }
   return { driver_id: filters.driver_id };

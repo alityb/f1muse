@@ -5,11 +5,15 @@ import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-po
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_SELECT } from './official-driver-results-comparison';
 import { MINIMUM_OFFICIAL_EVENT_MEAN_ELIGIBLE_LAPS } from './official-event-mean';
 import { MINIMUM_OFFICIAL_LAP_WINDOW_ELIGIBLE_LAPS } from './official-lap-window';
+import { QUALIFYING_POSITION_MAX, QUALIFYING_POSITION_MIN, QUALIFYING_TOP_TEN_MAX } from './qualifying-counts';
 
 export const MINIMUM_ELIGIBLE_LAPS_PER_EVENT = 2;
 
 // eslint-disable-next-line complexity,max-lines-per-function
 export function lowerF1QL(program: F1QLProgram): CoreProgram {
+  if (program.root.op === 'driver_season_qualifying_p1_count' || program.root.op === 'driver_career_qualifying_p1_count' || program.root.op === 'driver_season_qualifying_top_ten_count' || program.root.op === 'season_qualifying_top_ten_ranking') {
+    return lowerQualifyingCount(program.root);
+  }
   if (program.root.op === 'official_driver_results_comparison') {
     return lowerOfficialDriverResultsComparison(program.root);
   }
@@ -160,6 +164,47 @@ export function lowerF1QL(program: F1QLProgram): CoreProgram {
   }
 
   return { version: 1, root: coreAggregate };
+}
+
+function lowerQualifyingCount(
+  node: Extract<F1QLProgram['root'], { op: 'driver_season_qualifying_p1_count' | 'driver_career_qualifying_p1_count' | 'driver_season_qualifying_top_ten_count' | 'season_qualifying_top_ten_ranking' }>
+): CoreProgram {
+  const isRanking = node.op === 'season_qualifying_top_ten_ranking';
+  const isTopTen = node.op === 'driver_season_qualifying_top_ten_count' || isRanking;
+  const aggregate: CoreAggregateNode = {
+    op: 'aggregate',
+    input: {
+      op: 'filter',
+      input: { op: 'source', source: 'qualifying_classification' },
+      where: {
+        season: 'seasons' in node ? node.seasons : node.season,
+        ...('driver_id' in node ? { driver_id: node.driver_id } : {})
+      }
+    },
+    group_by: isRanking ? ['driver_id'] : [],
+    measures: [{
+      as: isTopTen ? 'qualifying_top_ten_count' : 'qualifying_p1_count',
+      function: 'count',
+      where: { field: 'qualifying_position', min: QUALIFYING_POSITION_MIN, max: isTopTen ? QUALIFYING_TOP_TEN_MAX : QUALIFYING_POSITION_MIN }
+    }],
+    source_record_integrity: {
+      key: ['season', 'round', 'driver_id'],
+      position_field: 'qualifying_position',
+      position_min: QUALIFYING_POSITION_MIN,
+      position_max: QUALIFYING_POSITION_MAX,
+      require_source_presence: true,
+      require_non_null_keys: true,
+      require_unique_keys: true,
+      require_unique_positions: true
+    },
+    metric_id: node.metric
+  };
+  return {
+    version: 1,
+    root: isRanking
+      ? { op: 'sort', input: aggregate, by: 'qualifying_top_ten_count', direction: 'desc' }
+      : aggregate
+  };
 }
 
 function lowerSeasonPositionH2H(

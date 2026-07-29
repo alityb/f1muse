@@ -93,6 +93,13 @@ export function formatAnswerRows(
     }
     return formatDriverCareerWinsByCircuit(program.root, rows);
   }
+  if (program.root.op === 'driver_season_qualifying_p1_count' || program.root.op === 'driver_career_qualifying_p1_count' ||
+      program.root.op === 'driver_season_qualifying_top_ten_count' || program.root.op === 'season_qualifying_top_ten_ranking') {
+    if (capability.source !== 'qualifying_classification' || capability.operation !== program.root.op) {
+      throw new AnswerFormatError('Qualifying count capability did not match program');
+    }
+    return formatQualifyingCounts(program.root, rows);
+  }
   if (program.root.op === 'rank' && program.root.input.measures.some(measure => measure.as === 'standing_rows')) {
     if (capability.source !== 'final_driver_standings' || capability.operation !== program.root.op) {
       throw new AnswerFormatError('Final driver ranking capability did not match program');
@@ -125,6 +132,79 @@ export function formatAnswerRows(
     return formatMetadata(rows);
   }
   throw new AnswerFormatError('Unsupported answer source');
+}
+
+function formatQualifyingCounts(
+  root: Extract<F1QLProgram['root'], { op: 'driver_season_qualifying_p1_count' | 'driver_career_qualifying_p1_count' | 'driver_season_qualifying_top_ten_count' | 'season_qualifying_top_ten_ranking' }>,
+  rows: Array<Record<string, unknown>>
+) {
+  const ranking = root.op === 'season_qualifying_top_ten_ranking';
+  if (rows.length === 0 || (!ranking && rows.length !== 1) || (ranking && rows.length > 30)) {
+    throw new AnswerFormatError('Qualifying count rows were invalid');
+  }
+  const countField = root.op === 'driver_season_qualifying_top_ten_count' || ranking ? 'qualifying_top_ten_count' : 'qualifying_p1_count';
+  let maximumSourceRows = 30;
+  if (root.op === 'driver_career_qualifying_p1_count') {
+    maximumSourceRows = 2280;
+  }
+  if (ranking) {
+    maximumSourceRows = 900;
+  }
+  const first = rows[0];
+  const sentinelFields = [
+    'qualifying_source_rows', 'distinct_qualifying_keys', 'missing_qualifying_key_rows',
+    'duplicate_qualifying_rows', 'invalid_qualifying_position_rows', 'duplicate_qualifying_position_rows', 'source_presence_ok',
+    'source_key_integrity_ok', 'position_integrity_ok', 'source_integrity_ok'
+  ] as const;
+  const sourceRows = requiredBoundedCount(first.qualifying_source_rows, 'qualifying_source_rows', maximumSourceRows, 1);
+  if (first.metric_id !== root.metric || first.source_presence_ok !== true || first.source_key_integrity_ok !== true ||
+      first.position_integrity_ok !== true || first.source_integrity_ok !== true ||
+      requiredBoundedCount(first.distinct_qualifying_keys, 'distinct_qualifying_keys', maximumSourceRows, 1) !== sourceRows ||
+       requiredBoundedCount(first.missing_qualifying_key_rows, 'missing_qualifying_key_rows', maximumSourceRows) !== 0 ||
+       requiredBoundedCount(first.duplicate_qualifying_rows, 'duplicate_qualifying_rows', maximumSourceRows) !== 0 ||
+       requiredBoundedCount(first.invalid_qualifying_position_rows, 'invalid_qualifying_position_rows', maximumSourceRows) !== 0 ||
+       requiredBoundedCount(first.duplicate_qualifying_position_rows, 'duplicate_qualifying_position_rows', maximumSourceRows) !== 0) {
+    throw new AnswerFormatError('Qualifying count rows were invalid');
+  }
+  const expectedDriver = ranking ? undefined : root.driver_id;
+  const seen = new Set<string>();
+  let previousCount = Number.POSITIVE_INFINITY;
+  let previousDriver = '';
+  const facts = rows.map(row => {
+    if (row.metric_id !== root.metric || sentinelFields.some(field => row[field] !== first[field])) {
+      throw new AnswerFormatError('Qualifying count rows were invalid');
+    }
+    const driverId = requiredString(row.driver_id, 'driver_id');
+    const count = requiredBoundedCount(row[countField], countField, sourceRows);
+    if ((expectedDriver !== undefined && driverId !== expectedDriver) || seen.has(driverId) ||
+        (ranking && (count > previousCount || (count === previousCount && Buffer.compare(Buffer.from(previousDriver, 'utf8'), Buffer.from(driverId, 'utf8')) >= 0)))) {
+      throw new AnswerFormatError('Qualifying count rows were invalid');
+    }
+    seen.add(driverId);
+    previousCount = count;
+    previousDriver = driverId;
+    return { subject: driverId, values: { [countField]: String(count) } };
+  });
+  let headline: string;
+  if (root.op === 'driver_season_qualifying_p1_count') {
+    headline = `${root.driver_id} has ${facts[0].values[countField]} recorded official qualifying P1 classifications in ${root.season}.`;
+  } else if (root.op === 'driver_career_qualifying_p1_count') {
+    headline = `${root.driver_id} has ${facts[0].values[countField]} recorded official qualifying P1 classifications across 1950-2025.`;
+  } else if (root.op === 'driver_season_qualifying_top_ten_count') {
+    headline = `${root.driver_id} has ${facts[0].values[countField]} recorded numeric top-ten positions in ${root.season}.`;
+  } else {
+    headline = `Drivers ranked by recorded numeric top-ten positions in ${root.season}.`;
+  }
+  return {
+    answer: { headline, facts },
+    coverage: 'sufficient' as const,
+    caveats: [
+      'recorded_qualifying_positions_only',
+      ...(root.op === 'driver_season_qualifying_p1_count' || root.op === 'driver_career_qualifying_p1_count'
+        ? ['qualifying_p1_not_post_penalty_grid'] : []),
+      ...(ranking ? ['ties_ordered_by_utf8_driver_id'] : [])
+    ]
+  };
 }
 
 function formatRaceEventComparison(

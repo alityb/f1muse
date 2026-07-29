@@ -20,7 +20,7 @@ export async function emitAnswerEvaluationResults(pool: Pool) {
     if (getF1QLProgramHash(program) !== getF1QLProgramHash(reviewedProgram)) throw new Error(`reviewed template mismatch for ${item.id}`);
     const decision = authorizeAnswerProgram(program);
     if (decision.type !== 'approved') throw new Error(`reviewed program denied for ${item.id}`);
-    enforceAnswerWorkBudget(program, decision.capability, 200, 100);
+    enforceAnswerWorkBudget(program, decision.capability, 2_280, 100);
     const result = await executeF1QL(pool, program, { statementTimeoutMs: 1000, maxRows: 100 });
     enforceAnswerRows(result.rows, 100);
     const envelope = buildAnswerEnvelope(result.program, decision.capability, result.rows);
@@ -60,6 +60,16 @@ function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): 
   }
   if (templateId === 'race_event_finishing_position_comparison' && root.op === 'race_event_finishing_position_comparison') {
     return { season: root.season, round: root.round, driver_a_id: root.driver_a_id, driver_b_id: root.driver_b_id };
+  }
+  if ((templateId === 'driver_season_qualifying_p1_count' && root.op === 'driver_season_qualifying_p1_count') ||
+      (templateId === 'driver_season_qualifying_top_ten_count' && root.op === 'driver_season_qualifying_top_ten_count')) {
+    return { season: root.season, driver_id: root.driver_id };
+  }
+  if (templateId === 'driver_career_qualifying_p1_count' && root.op === 'driver_career_qualifying_p1_count') {
+    return { driver_id: root.driver_id };
+  }
+  if (templateId === 'season_qualifying_top_ten_ranking' && root.op === 'season_qualifying_top_ten_ranking') {
+    return { season: root.season };
   }
   if (templateId === 'race_date' && root.op === 'event_metadata') {
     return { season: root.season, round: root.round };

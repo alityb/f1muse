@@ -8,6 +8,16 @@ import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESUL
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
+import {
+  COMPLETED_QUALIFYING_SEASONS,
+  DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID,
+  QUALIFYING_POSITION_MAX,
+  QUALIFYING_POSITION_MIN,
+  QUALIFYING_TOP_TEN_MAX,
+  SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID
+} from './qualifying-counts';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
@@ -22,6 +32,9 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
   }
   if (isDriverCareerWinsAggregate(program.root)) {
     return compileDriverCareerWinsByCircuit(program.root);
+  }
+  if (isQualifyingCountRoot(program.root)) {
+    return compileQualifyingCount(program.root);
   }
   if (program.root.op === 'comparison_summary') {
     return compileComparisonSummary(program.root);
@@ -61,6 +74,122 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
       ${whereSql}
       GROUP BY driver_id
       ${rankSql}
+    `,
+    params
+  };
+}
+
+function isQualifyingCountRoot(root: CoreProgram['root']): root is CoreAggregateNode | (Extract<CoreProgram['root'], { op: 'sort' }> & { input: CoreAggregateNode }) {
+  return (root.op === 'aggregate' && root.source_record_integrity !== undefined) ||
+    (root.op === 'sort' && root.input.op === 'aggregate' && root.input.source_record_integrity !== undefined);
+}
+
+// This compiler check intentionally does not rely on the validator's plan extraction.
+// eslint-disable-next-line complexity,max-lines-per-function
+function compileQualifyingCount(root: CoreAggregateNode | (Extract<CoreProgram['root'], { op: 'sort' }> & { input: CoreAggregateNode })): CompiledF1QL {
+  const ranked = root.op === 'sort';
+  const node = ranked ? root.input : root;
+  const input = node.input;
+  const where = input.op === 'filter' ? input.where as Record<string, unknown> : undefined;
+  const measure = node.measures[0];
+  const metric = node.metric_id;
+  const p1 = metric === DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID || metric === DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID;
+  const topTen = metric === DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID || metric === SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID;
+  if (input.op !== 'filter' || input.input.op !== 'source' || input.input.source !== 'qualifying_classification' || !where ||
+      node.measures.length !== 1 || (!p1 && !topTen) ||
+      JSON.stringify(measure) !== JSON.stringify({
+        as: p1 ? 'qualifying_p1_count' : 'qualifying_top_ten_count', function: 'count',
+        where: { field: 'qualifying_position', min: QUALIFYING_POSITION_MIN, max: p1 ? QUALIFYING_POSITION_MIN : QUALIFYING_TOP_TEN_MAX }
+      }) || JSON.stringify(node.source_record_integrity) !== JSON.stringify({
+        key: ['season', 'round', 'driver_id'], position_field: 'qualifying_position',
+        position_min: QUALIFYING_POSITION_MIN, position_max: QUALIFYING_POSITION_MAX,
+        require_source_presence: true, require_non_null_keys: true, require_unique_keys: true, require_unique_positions: true
+      }) || node.source_integrity !== undefined || JSON.stringify(node.group_by) !== JSON.stringify(ranked ? ['driver_id'] : []) ||
+      (ranked && (root.by !== 'qualifying_top_ten_count' || root.direction !== 'desc' || root.nulls !== undefined))) {
+    throw new Error('Expected the closed qualifying count aggregate');
+  }
+  const career = metric === DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID;
+  const keys = Object.keys(where).sort();
+  const season = where.season;
+  const driverId = where.driver_id;
+  if (ranked !== (metric === SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID) ||
+      JSON.stringify(keys) !== JSON.stringify(ranked ? ['season'] : ['driver_id', 'season']) ||
+      (career ? JSON.stringify(season) !== JSON.stringify(COMPLETED_QUALIFYING_SEASONS) :
+        typeof season !== 'number' || !Number.isSafeInteger(season) || season < 1950 || season > 2025) ||
+      (!ranked && (typeof driverId !== 'string' || !/^[a-z][a-z0-9-]{0,99}$/.test(driverId)))) {
+    throw new Error('Expected exact qualifying count scope and identity');
+  }
+  const countAlias = p1 ? 'qualifying_p1_count' : 'qualifying_top_ten_count';
+  const params: unknown[] = [season];
+  const driverClause = ranked ? '' : ` AND driver_id = $${params.push(driverId)}`;
+  const countMinParam = params.push(QUALIFYING_POSITION_MIN);
+  const countMaxParam = params.push(p1 ? QUALIFYING_POSITION_MIN : QUALIFYING_TOP_TEN_MAX);
+  const metricParam = params.push(metric);
+  const seasonClause = career ? 'season = ANY($1::integer[])' : 'season = $1';
+  const groupedDriver = ranked ? 'driver_id, ' : '';
+  const groupBy = ranked ? ' GROUP BY driver_id' : '';
+  const selectedDriver = ranked ? 'counts.driver_id' : `${driverClause ? '$2' : 'NULL'}::text`;
+  const invalidDriver = ranked ? 'NULL::text' : `${driverClause ? '$2' : 'NULL'}::text`;
+  return {
+    sql: `
+      WITH season_source AS (
+        SELECT season, round, driver_id, qualifying_position
+        FROM f1ql.qualifying_classification
+        WHERE ${seasonClause}
+      ),
+      scoped_source AS (
+        SELECT * FROM season_source
+        WHERE TRUE${driverClause}
+      ),
+      position_integrity AS (
+        SELECT COALESCE(sum(position_rows - 1), 0)::integer AS duplicate_qualifying_position_rows
+        FROM (
+          SELECT count(*)::integer AS position_rows
+          FROM season_source
+          WHERE round IS NOT NULL AND qualifying_position BETWEEN $${countMinParam} AND $${countMaxParam}
+          GROUP BY season, round, qualifying_position
+          HAVING count(*) > 1
+        ) AS duplicate_positions
+      ),
+      integrity AS (
+        SELECT
+          count(*)::integer AS qualifying_source_rows,
+          count(DISTINCT (season, round, driver_id)) FILTER (WHERE season IS NOT NULL AND round IS NOT NULL AND driver_id IS NOT NULL)::integer AS distinct_qualifying_keys,
+          count(*) FILTER (WHERE season IS NULL OR round IS NULL OR driver_id IS NULL)::integer AS missing_qualifying_key_rows,
+          (count(*) FILTER (WHERE season IS NOT NULL AND round IS NOT NULL AND driver_id IS NOT NULL) -
+            count(DISTINCT (season, round, driver_id)) FILTER (WHERE season IS NOT NULL AND round IS NOT NULL AND driver_id IS NOT NULL))::integer AS duplicate_qualifying_rows,
+           count(*) FILTER (WHERE qualifying_position IS NOT NULL AND (qualifying_position < ${QUALIFYING_POSITION_MIN} OR qualifying_position > ${QUALIFYING_POSITION_MAX}))::integer AS invalid_qualifying_position_rows,
+           (SELECT duplicate_qualifying_position_rows FROM position_integrity) AS duplicate_qualifying_position_rows
+        FROM scoped_source
+      ),
+      checked_integrity AS (
+        SELECT *,
+          qualifying_source_rows > 0 AS source_presence_ok,
+          missing_qualifying_key_rows = 0 AND duplicate_qualifying_rows = 0 AS source_key_integrity_ok,
+          invalid_qualifying_position_rows = 0 AND duplicate_qualifying_position_rows = 0 AS position_integrity_ok,
+          qualifying_source_rows > 0 AND missing_qualifying_key_rows = 0 AND duplicate_qualifying_rows = 0 AND invalid_qualifying_position_rows = 0 AND duplicate_qualifying_position_rows = 0 AS source_integrity_ok
+        FROM integrity
+      ),
+      counts AS (
+        SELECT ${groupedDriver}count(*) FILTER (WHERE qualifying_position BETWEEN $${countMinParam} AND $${countMaxParam})::integer AS ${countAlias}
+        FROM scoped_source CROSS JOIN checked_integrity
+        WHERE source_integrity_ok${groupBy}
+      )
+      SELECT * FROM (
+        SELECT $${metricParam}::text AS metric_id, ${selectedDriver} AS driver_id, counts.${countAlias},
+          integrity.qualifying_source_rows, integrity.distinct_qualifying_keys, integrity.missing_qualifying_key_rows,
+          integrity.duplicate_qualifying_rows, integrity.invalid_qualifying_position_rows, integrity.duplicate_qualifying_position_rows,
+          integrity.source_presence_ok, integrity.source_key_integrity_ok, integrity.position_integrity_ok, integrity.source_integrity_ok
+        FROM counts CROSS JOIN checked_integrity AS integrity
+        WHERE integrity.source_integrity_ok
+        UNION ALL
+        SELECT $${metricParam}::text, ${invalidDriver}, NULL::integer,
+          integrity.qualifying_source_rows, integrity.distinct_qualifying_keys, integrity.missing_qualifying_key_rows,
+          integrity.duplicate_qualifying_rows, integrity.invalid_qualifying_position_rows, integrity.duplicate_qualifying_position_rows,
+          integrity.source_presence_ok, integrity.source_key_integrity_ok, integrity.position_integrity_ok, integrity.source_integrity_ok
+        FROM checked_integrity AS integrity
+        WHERE NOT integrity.source_integrity_ok
+      ) AS qualifying_counts${ranked ? ` ORDER BY ${countAlias} DESC NULLS LAST, driver_id COLLATE "C" ASC NULLS LAST` : ''}
     `,
     params
   };

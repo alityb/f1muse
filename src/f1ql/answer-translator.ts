@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v12';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v15' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v13';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v16' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -63,6 +63,10 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
         closedIntent('driver_season_official_summary', { ...seasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
         closedIntent('driver_career_official_summary', { driver_reference: referenceSchema }, ['driver_reference']),
         closedIntent('driver_career_wins_by_circuit', { driver_reference: referenceSchema }, ['driver_reference']),
+        closedIntent('driver_season_qualifying_p1_count', { ...finalSeasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
+        closedIntent('driver_career_qualifying_p1_count', { driver_reference: referenceSchema }, ['driver_reference']),
+        closedIntent('driver_season_qualifying_top_ten_count', { ...finalSeasonProperties, driver_reference: referenceSchema }, ['season', 'season_reference', 'driver_reference']),
+        closedIntent('season_qualifying_top_ten_ranking', finalSeasonProperties, ['season', 'season_reference']),
         closedIntent('race_season_finishing_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('qualifying_season_position_h2h', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('official_driver_results_comparison', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 2, maxItems: 2, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
@@ -102,6 +106,10 @@ Decision table (follow literal wording):
 - qualifying_season_position_h2h: only the literal closed wording "Who outqualified whom more often in <year>, <driver A> or <driver B>?", "In <year>, who outqualified whom more often, <driver A> or <driver B>?", "Who qualified ahead more often in <year>, <driver A> or <driver B>?", or "In <year>, who qualified ahead more often, <driver A> or <driver B>?" for exactly two ordered literal drivers and a final season through 2025; this compares qualifying positions only on shared events where both have recorded numeric positions, never qualifying-time gaps or teammate identity.
 - official_driver_results_comparison: only the exact wording "Compare the official 2025 results of Norris and Piastri." with those two ordered literal references; this returns official final standings plus race and qualifying shared-position H2Hs, never pace, time gaps, achievement totals, weather adjustment, or a synthetic score.
 - race_event_finishing_position_comparison: only the exact wording "Who finished ahead, Verstappen or Norris, at Silverstone 2025?" with that event and those two ordered literal references; this compares only their official numeric race finishing positions at the uniquely resolved event, never pace, a time gap, qualifying, sprint, or grid.
+- driver_season_qualifying_p1_count: only "How many poles did Lando Norris take in 2025?"; count recorded official qualifying P1 classifications for that exact driver and season.
+- driver_career_qualifying_p1_count: only "How many career poles does Lewis Hamilton have?"; count recorded official qualifying P1 classifications for the exact seasonless, ambiguity-preserving driver reference across 1950-2025.
+- driver_season_qualifying_top_ten_count: only "How many times did Lando Norris qualify in the top ten in 2025?"; count recorded numeric top-ten positions for that exact driver and season.
+- season_qualifying_top_ten_ranking: only "Rank drivers by top-ten qualifying appearances in 2025."; rank by recorded numeric top-ten positions, allowing count ties and ordering tied driver IDs by UTF-8 bytes.
 - race_classification_all: literal full/all race classification.
 - race_classification_driver: race classification for exactly one literal driver.
 - race_classification_status: race classification filtered by exactly one literal supported status.
@@ -112,7 +120,7 @@ Decision table (follow literal wording):
 - qualifying_pole, qualifying_top_n, qualifying_exact_position: literal qualifying result selection; top_n and exact_position carry the literal bounded number as position.
 - race_date: literal race/Grand Prix date request.
 
-Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. The driver career summary and career circuit-wins intents are the only supported intents that do not require a year. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when a year-required intent has no year; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
+Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. The driver career summary, career circuit-wins, and career qualifying-P1-count intents are the only supported intents that do not require a year. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when a year-required intent has no year; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
 
 Valid examples:
 Question: Who led the 2025 standings?
@@ -139,6 +147,14 @@ Question: Compare the official 2025 results of Norris and Piastri.
 {"intent":{"type":"official_driver_results_comparison","season":2025,"season_reference":{"text":"2025"},"driver_references":[{"text":"Norris"},{"text":"Piastri"}]}}
 Question: Who finished ahead, Verstappen or Norris, at Silverstone 2025?
 {"intent":{"type":"race_event_finishing_position_comparison","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Silverstone"},"driver_references":[{"text":"Verstappen"},{"text":"Norris"}]}}
+Question: How many poles did Lando Norris take in 2025?
+{"intent":{"type":"driver_season_qualifying_p1_count","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Lando Norris"}}}
+Question: How many career poles does Lewis Hamilton have?
+{"intent":{"type":"driver_career_qualifying_p1_count","driver_reference":{"text":"Lewis Hamilton"}}}
+Question: How many times did Lando Norris qualify in the top ten in 2025?
+{"intent":{"type":"driver_season_qualifying_top_ten_count","season":2025,"season_reference":{"text":"2025"},"driver_reference":{"text":"Lando Norris"}}}
+Question: Rank drivers by top-ten qualifying appearances in 2025.
+{"intent":{"type":"season_qualifying_top_ten_ranking","season":2025,"season_reference":{"text":"2025"}}}
 Question: All 2025 Monaco race results
 {"intent":{"type":"race_classification_all","season":2025,"season_reference":{"text":"2025"},"event_reference":{"text":"Monaco"}}}
 Question: Show Max in 2025 Monaco qualifying

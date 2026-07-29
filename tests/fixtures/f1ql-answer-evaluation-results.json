@@ -70,8 +70,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -145,8 +145,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -199,8 +199,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -275,8 +275,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -357,8 +357,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -432,8 +432,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -507,8 +507,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -702,8 +702,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -897,8 +897,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -951,8 +951,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1005,8 +1005,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1061,8 +1061,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1117,8 +1117,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1278,8 +1278,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1439,8 +1439,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1495,8 +1495,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1551,8 +1551,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1609,8 +1609,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1667,8 +1667,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1718,8 +1718,8 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1769,8 +1769,8 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1845,8 +1845,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1910,8 +1910,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2024; drivers charles-leclerc.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -1985,8 +1985,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2024; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2052,8 +2052,8 @@
       "rendering": "Official race classification; season 2024; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2106,8 +2106,8 @@
       "rendering": "Official race classification; season 2025; round 2; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2226,8 +2226,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2282,8 +2282,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2338,8 +2338,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2394,8 +2394,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2450,8 +2450,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2521,8 +2521,8 @@
       "rendering": "Official qualifying classification; season 2024; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2577,8 +2577,8 @@
       "rendering": "Official qualifying classification; season 2025; round 2; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2707,8 +2707,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2765,8 +2765,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2816,8 +2816,8 @@
       "rendering": "Event metadata; season 2024; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2872,8 +2872,8 @@
       "rendering": "Official race classification; season 2025; round 1; position 1.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -2962,8 +2962,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 3.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3086,8 +3086,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 5.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3142,8 +3142,8 @@
       "rendering": "Official race classification; season 2025; round 1; position 2.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3200,8 +3200,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; position 1.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3334,8 +3334,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 5.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3392,8 +3392,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; position 3.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3503,8 +3503,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2026; rank by championship_position asc, top 30.",
       "metadata": {
         "source": "current_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3605,8 +3605,8 @@
       "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 2025; drivers lando-norris, max-verstappen, oscar-piastri; rank by championship_position asc, top 3.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3707,8 +3707,8 @@
       "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 2025; drivers lando-norris, max-verstappen, oscar-piastri; rank by championship_position asc, top 3.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3820,8 +3820,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2026; rank by championship_position asc, top 30.",
       "metadata": {
         "source": "current_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3897,8 +3897,8 @@
       "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers max-verstappen.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -3972,8 +3972,8 @@
       "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers max-verstappen.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4047,8 +4047,8 @@
       "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers lando-norris.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4122,8 +4122,8 @@
       "rendering": "From official driver standings: min championship_position, max points, count standings rows, grouped by driver; season 2025; drivers lando-norris.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4268,8 +4268,8 @@
       "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 1950, 1951, 1952, 1953, 1954, 1955, 1956, 1957, 1958, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025; drivers lewis-hamilton.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4416,8 +4416,8 @@
       "rendering": "From official driver standings: min championship_position, count standings rows, grouped by driver; season 1950, 1951, 1952, 1953, 1954, 1955, 1956, 1957, 1958, 1959, 1960, 1961, 1962, 1963, 1964, 1965, 1966, 1967, 1968, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025; drivers lewis-hamilton.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4596,8 +4596,8 @@
       "rendering": "Recorded official race P1 classifications for lewis-hamilton; completed seasons 1950-2025; grouped only by canonical circuit_id; unique winner and event-metadata keys required.",
       "metadata": {
         "source": "race_classification_event_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4777,8 +4777,8 @@
       "rendering": "Recorded official race P1 classifications for lewis-hamilton; completed seasons 1950-2025; grouped only by canonical circuit_id; unique winner and event-metadata keys required.",
       "metadata": {
         "source": "race_classification_event_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4842,8 +4842,8 @@
       "rendering": "Official race finishing-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position finishes ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4907,8 +4907,8 @@
       "rendering": "Official race finishing-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position finishes ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -4937,14 +4937,14 @@
       },
       "program_hash": "72db23b395fba42e9c58002d2743d04597a6f87032a97a2e1c62ade97ca20d78",
       "answer": {
-        "headline": "lando-norris and oscar-piastri qualified ahead equally often. Final 2025 qualifying-position H2H.",
+        "headline": "oscar-piastri qualified ahead more often. Final 2025 qualifying-position H2H.",
         "facts": [
           {
             "subject": "lando-norris vs oscar-piastri",
             "values": {
               "driver_a_ahead": "1",
-              "driver_b_ahead": "1",
-              "ties": "1",
+              "driver_b_ahead": "2",
+              "ties": "0",
               "shared_events": "3"
             }
           }
@@ -4957,8 +4957,8 @@
           "driver_a_id": "lando-norris",
           "driver_b_id": "oscar-piastri",
           "driver_a_ahead": 1,
-          "driver_b_ahead": 1,
-          "ties": 1,
+          "driver_b_ahead": 2,
+          "ties": 0,
           "shared_events": 3,
           "driver_a_source_rows": 6,
           "driver_b_source_rows": 4,
@@ -4972,8 +4972,8 @@
       "rendering": "Official qualifying-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5002,14 +5002,14 @@
       },
       "program_hash": "72db23b395fba42e9c58002d2743d04597a6f87032a97a2e1c62ade97ca20d78",
       "answer": {
-        "headline": "lando-norris and oscar-piastri qualified ahead equally often. Final 2025 qualifying-position H2H.",
+        "headline": "oscar-piastri qualified ahead more often. Final 2025 qualifying-position H2H.",
         "facts": [
           {
             "subject": "lando-norris vs oscar-piastri",
             "values": {
               "driver_a_ahead": "1",
-              "driver_b_ahead": "1",
-              "ties": "1",
+              "driver_b_ahead": "2",
+              "ties": "0",
               "shared_events": "3"
             }
           }
@@ -5022,8 +5022,8 @@
           "driver_a_id": "lando-norris",
           "driver_b_id": "oscar-piastri",
           "driver_a_ahead": 1,
-          "driver_b_ahead": 1,
-          "ties": 1,
+          "driver_b_ahead": 2,
+          "ties": 0,
           "shared_events": 3,
           "driver_a_source_rows": 6,
           "driver_b_source_rows": 4,
@@ -5037,8 +5037,8 @@
       "rendering": "Official qualifying-position head-to-head; lando-norris versus oscar-piastri; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5072,9 +5072,9 @@
           {
             "subject": "lando-norris vs max-verstappen",
             "values": {
-              "driver_a_ahead": "2",
+              "driver_a_ahead": "3",
               "driver_b_ahead": "1",
-              "ties": "1",
+              "ties": "0",
               "shared_events": "4"
             }
           }
@@ -5086,9 +5086,9 @@
           "season": 2025,
           "driver_a_id": "lando-norris",
           "driver_b_id": "max-verstappen",
-          "driver_a_ahead": 2,
+          "driver_a_ahead": 3,
           "driver_b_ahead": 1,
-          "ties": 1,
+          "ties": 0,
           "shared_events": 4,
           "driver_a_source_rows": 6,
           "driver_b_source_rows": 5,
@@ -5102,8 +5102,8 @@
       "rendering": "Official qualifying-position head-to-head; lando-norris versus max-verstappen; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5137,9 +5137,9 @@
           {
             "subject": "lando-norris vs max-verstappen",
             "values": {
-              "driver_a_ahead": "2",
+              "driver_a_ahead": "3",
               "driver_b_ahead": "1",
-              "ties": "1",
+              "ties": "0",
               "shared_events": "4"
             }
           }
@@ -5151,9 +5151,9 @@
           "season": 2025,
           "driver_a_id": "lando-norris",
           "driver_b_id": "max-verstappen",
-          "driver_a_ahead": 2,
+          "driver_a_ahead": 3,
           "driver_b_ahead": 1,
-          "ties": 1,
+          "ties": 0,
           "shared_events": 4,
           "driver_a_source_rows": 6,
           "driver_b_source_rows": 5,
@@ -5167,8 +5167,8 @@
       "rendering": "Official qualifying-position head-to-head; lando-norris versus max-verstappen; final season 2025; shared rounds with two non-null positions only; lower position qualifies ahead and equal positions tie; unique source rows required.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5221,8 +5221,8 @@
               "race_ties": "1",
               "race_shared_events": "3",
               "qualifying_driver_a_ahead": "1",
-              "qualifying_driver_b_ahead": "1",
-              "qualifying_ties": "1",
+              "qualifying_driver_b_ahead": "2",
+              "qualifying_ties": "0",
               "qualifying_shared_events": "3"
             }
           }
@@ -5254,8 +5254,8 @@
           "race_source_integrity_ok": true,
           "qualifying_metric_id": "official_qualifying_position_shared_events_v1",
           "qualifying_driver_a_ahead": 1,
-          "qualifying_driver_b_ahead": 1,
-          "qualifying_ties": 1,
+          "qualifying_driver_b_ahead": 2,
+          "qualifying_ties": 0,
           "qualifying_shared_events": 3,
           "qualifying_driver_a_source_rows": 6,
           "qualifying_driver_b_source_rows": 4,
@@ -5269,8 +5269,8 @@
       "rendering": "Official driver results comparison; lando-norris versus oscar-piastri; final season 2025; final championship position and points plus recorded shared-event race and qualifying position head-to-heads; unique source rows required; no pace, time-gap, weather, or synthetic score.",
       "metadata": {
         "source": "official_driver_results_comparison",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5335,8 +5335,8 @@
       "rendering": "Official race finishing-position comparison; max-verstappen versus lando-norris; season 2025; round 12; exactly one recorded numeric position per driver required; lower position finishes ahead; no pace or time gap.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5345,6 +5345,443 @@
         "caveats": [
           "official_race_finishing_positions_only",
           "no_pace_or_time_gap_claim"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-season-poles",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "driver_season_qualifying_p1_count",
+          "metric": "official_recorded_qualifying_p1_season_count_v1",
+          "season": 2025,
+          "driver_id": "lando-norris"
+        }
+      },
+      "program_hash": "930f1150237dff59e50acfaade405c6c4f18eca84b944273c1fc2b7c0ddfc171",
+      "answer": {
+        "headline": "lando-norris has 3 recorded official qualifying P1 classifications in 2025.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_p1_count": "3"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_recorded_qualifying_p1_season_count_v1",
+          "driver_id": "lando-norris",
+          "qualifying_p1_count": 3,
+          "qualifying_source_rows": 6,
+          "distinct_qualifying_keys": 6,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Recorded official qualifying P1 count for lando-norris; final season 2025; unique source keys and valid recorded positions required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "recorded_qualifying_positions_only",
+          "qualifying_p1_not_post_penalty_grid"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-career-poles",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "driver_career_qualifying_p1_count",
+          "metric": "official_recorded_qualifying_p1_1950_2025_count_v1",
+          "seasons": [
+            1950,
+            1951,
+            1952,
+            1953,
+            1954,
+            1955,
+            1956,
+            1957,
+            1958,
+            1959,
+            1960,
+            1961,
+            1962,
+            1963,
+            1964,
+            1965,
+            1966,
+            1967,
+            1968,
+            1969,
+            1970,
+            1971,
+            1972,
+            1973,
+            1974,
+            1975,
+            1976,
+            1977,
+            1978,
+            1979,
+            1980,
+            1981,
+            1982,
+            1983,
+            1984,
+            1985,
+            1986,
+            1987,
+            1988,
+            1989,
+            1990,
+            1991,
+            1992,
+            1993,
+            1994,
+            1995,
+            1996,
+            1997,
+            1998,
+            1999,
+            2000,
+            2001,
+            2002,
+            2003,
+            2004,
+            2005,
+            2006,
+            2007,
+            2008,
+            2009,
+            2010,
+            2011,
+            2012,
+            2013,
+            2014,
+            2015,
+            2016,
+            2017,
+            2018,
+            2019,
+            2020,
+            2021,
+            2022,
+            2023,
+            2024,
+            2025
+          ],
+          "driver_id": "lewis-hamilton"
+        }
+      },
+      "program_hash": "3803b4d2bf92c040ec9777315e27ea660a937cfde7ab8c6b4e81cd78a4670a0f",
+      "answer": {
+        "headline": "lewis-hamilton has 2 recorded official qualifying P1 classifications across 1950-2025.",
+        "facts": [
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_p1_count": "2"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_recorded_qualifying_p1_1950_2025_count_v1",
+          "driver_id": "lewis-hamilton",
+          "qualifying_p1_count": 2,
+          "qualifying_source_rows": 3,
+          "distinct_qualifying_keys": 3,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Recorded official qualifying P1 count for lewis-hamilton; exact completed seasons 1950-2025; unique source keys and valid recorded positions required; 2026 excluded.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "recorded_qualifying_positions_only",
+          "qualifying_p1_not_post_penalty_grid"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-season-top-ten-qualifying",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "driver_season_qualifying_top_ten_count",
+          "metric": "official_recorded_qualifying_top_ten_season_count_v1",
+          "season": 2025,
+          "driver_id": "lando-norris"
+        }
+      },
+      "program_hash": "893a3f79d774fee6d217af7620ddeca79e2da8c297e53f1a48cd254f4aebdcd8",
+      "answer": {
+        "headline": "lando-norris has 5 recorded numeric top-ten positions in 2025.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_top_ten_count": "5"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_count_v1",
+          "driver_id": "lando-norris",
+          "qualifying_top_ten_count": 5,
+          "qualifying_source_rows": 6,
+          "distinct_qualifying_keys": 6,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Recorded official qualifying top-ten count for lando-norris; final season 2025; positions P1-P10 only; unique source keys required.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 1
+        },
+        "caveats": [
+          "recorded_qualifying_positions_only"
+        ]
+      }
+    }
+  },
+  {
+    "id": "launch-season-top-ten-ranking",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "season_qualifying_top_ten_ranking",
+          "metric": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "season": 2025
+        }
+      },
+      "program_hash": "6081325612f1d6b4e06da74c1ae07b3bb42460f5f18ae6d521283ff8c1c28cd0",
+      "answer": {
+        "headline": "Drivers ranked by recorded numeric top-ten positions in 2025.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_top_ten_count": "5"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_top_ten_count": "5"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "qualifying_top_ten_count": "4"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_top_ten_count": "2"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_top_ten_count": "1"
+            }
+          },
+          {
+            "subject": "status-qual-dnf",
+            "values": {
+              "qualifying_top_ten_count": "0"
+            }
+          },
+          {
+            "subject": "status-qual-dns",
+            "values": {
+              "qualifying_top_ten_count": "0"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "lando-norris",
+          "qualifying_top_ten_count": 5,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "max-verstappen",
+          "qualifying_top_ten_count": 5,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "oscar-piastri",
+          "qualifying_top_ten_count": 4,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "charles-leclerc",
+          "qualifying_top_ten_count": 2,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "lewis-hamilton",
+          "qualifying_top_ten_count": 1,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "status-qual-dnf",
+          "qualifying_top_ten_count": 0,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        },
+        {
+          "metric_id": "official_recorded_qualifying_top_ten_season_ranking_v1",
+          "driver_id": "status-qual-dns",
+          "qualifying_top_ten_count": 0,
+          "qualifying_source_rows": 20,
+          "distinct_qualifying_keys": 20,
+          "missing_qualifying_key_rows": 0,
+          "duplicate_qualifying_rows": 0,
+          "invalid_qualifying_position_rows": 0,
+          "duplicate_qualifying_position_rows": 0,
+          "source_presence_ok": true,
+          "source_key_integrity_ok": true,
+          "position_integrity_ok": true,
+          "source_integrity_ok": true
+        }
+      ],
+      "rendering": "Recorded official qualifying top-ten ranking; final season 2025; positions P1-P10 only; ties allowed; count descending then UTF-8 byte driver_id order.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
+        "fact_space_version": "source-views-v2",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 7
+        },
+        "caveats": [
+          "recorded_qualifying_positions_only",
+          "ties_ordered_by_utf8_driver_id"
         ]
       }
     }
@@ -5403,8 +5840,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers max-verstappen.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5478,8 +5915,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5532,8 +5969,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5583,8 +6020,8 @@
       "rendering": "Event metadata; season 2025; round 1; race session.",
       "metadata": {
         "source": "race_date_metadata",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5778,8 +6215,8 @@
       "rendering": "Official race classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "race_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5854,8 +6291,8 @@
       "rendering": "From official driver standings: max points, grouped by driver; season 2025; drivers lando-norris, oscar-piastri.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5910,8 +6347,8 @@
       "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
       "metadata": {
         "source": "qualifying_classification",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",
@@ -5985,8 +6422,8 @@
       "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 1.",
       "metadata": {
         "source": "final_driver_standings",
-        "definitions_version": "v9",
-        "compiler_version": "core-v8",
+        "definitions_version": "v10",
+        "compiler_version": "core-v9",
         "fact_space_version": "source-views-v2",
         "coverage": {
           "status": "sufficient",

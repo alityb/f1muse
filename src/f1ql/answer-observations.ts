@@ -527,7 +527,7 @@ async function observeHardenedTranslation(
     return hardenedObservation(id, observationIndex, 'abstain', decision.reason, { translation_attempted: true, translation_latency_ms: latency, proof_status: 'failed', entity_candidates: candidates, linked_entities: linked });
   }
   try {
-    enforceAnswerWorkBudget(proof.program, decision.capability, 200, 100);
+    enforceAnswerWorkBudget(proof.program, decision.capability, 2_280, 100);
   } catch (error) {
     const reason = error instanceof AnswerBoundError ? error.bound : 'program_invalid';
     return hardenedObservation(id, observationIndex, 'abstain', reason, { translation_attempted: true, translation_latency_ms: latency, proof_status: 'failed', entity_candidates: candidates, linked_entities: linked });
@@ -579,7 +579,7 @@ export function canonicalProgramEntities(program: F1QLProgram): string[] {
     driver = [root.driver_a_id, root.driver_b_id];
   } else if (root.op === 'race_season_finishing_position_h2h' || root.op === 'race_event_finishing_position_comparison' || root.op === 'qualifying_season_position_h2h' || root.op === 'official_driver_results_comparison') {
     driver = [root.driver_a_id, root.driver_b_id];
-  } else if (root.op === 'driver_career_wins_by_circuit') {
+  } else if (root.op === 'driver_career_wins_by_circuit' || root.op === 'driver_season_qualifying_p1_count' || root.op === 'driver_career_qualifying_p1_count' || root.op === 'driver_season_qualifying_top_ten_count') {
     driver = [root.driver_id];
   } else if (root.op === 'pace_summary') {
     driver = [root.driver_id];

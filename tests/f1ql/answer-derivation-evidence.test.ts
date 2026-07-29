@@ -62,7 +62,7 @@ describe('deterministic answer derivation evidence', () => {
     const signed = signAnswerDerivationEvidence(answerEvaluationManifest, unsignedArtifact(), signer);
     const verified = verifyAnswerDerivationEvidence(answerEvaluationManifest, signed, trusted);
     expect(isVerifiedAnswerDerivationEvidence(verified)).toBe(true);
-    expect(verified.observations).toHaveLength(106);
+    expect(verified.observations).toHaveLength(110);
     expect(Object.isFrozen(verified)).toBe(true);
     expect(Object.isFrozen(verified.observations[0].entity_candidates)).toBe(true);
   });
@@ -89,7 +89,7 @@ describe('deterministic answer derivation evidence', () => {
     })).toThrow('answer_derivation_artifact_invalid');
   });
 
-  it('emits only aggregate passing gates at exact 106/106 and 71/71', () => {
+  it('emits only aggregate passing gates at exact 110/110 and 75/75', () => {
     const verified = verifyAnswerDerivationEvidence(
       answerEvaluationManifest,
       signAnswerDerivationEvidence(answerEvaluationManifest, unsignedArtifact(), signer),
@@ -97,8 +97,8 @@ describe('deterministic answer derivation evidence', () => {
     );
     const report = buildAnswerDerivationReport(answerEvaluationManifest, answerMetamorphicGroups, verified, 'a'.repeat(64));
     expect(report.counts).toMatchObject({
-      cases: 106, actions_correct: 106, reasons_correct: 106, programs_exact: 71,
-      programs_required: 71, templates_exact: 71, proofs_complete: 71,
+      cases: 110, actions_correct: 110, reasons_correct: 110, programs_exact: 75,
+      programs_required: 75, templates_exact: 75, proofs_complete: 75,
       unsafe_answers: 0, forbidden_answers: 0, missing_observations: 0
     });
     expect(report.release_gates.status).toBe('pass');

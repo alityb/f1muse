@@ -23,7 +23,7 @@ const runtimeConfig: AnswerRuntimeConfig = {
   rateLimitMax: 100,
   rateLimitWindowMs: 60_000,
   statementTimeoutMs: 50,
-  maxWorkUnits: 200,
+  maxWorkUnits: 2280,
   maxRows: 100,
   maxResponseBytes: 65_536
 };
@@ -103,8 +103,10 @@ const fakeClient = {
         { driver_id: 'driver-a', identity: 'Max', participation_source: 'entrant' },
         { driver_id: 'driver-b', identity: 'Max', participation_source: 'entrant' },
         { driver_id: 'lando-norris', identity: 'Norris', participation_source: 'entrant' },
+        { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
         { driver_id: 'oscar-piastri', identity: 'Piastri', participation_source: 'entrant' }
         ,{ driver_id: 'max-verstappen', identity: 'Verstappen', participation_source: 'entrant' }
+        ,{ driver_id: 'lewis-hamilton', identity: 'Lewis Hamilton', participation_source: 'entrant' }
       ] };
     }
     if (sql.includes('f1ql.answer_season_participation')) {
@@ -130,6 +132,28 @@ const fakeClient = {
         driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris', driver_a_ahead: 0, driver_b_ahead: 1, ties: 0, shared_events: 1,
         driver_a_source_rows: 1, driver_b_source_rows: 1, distinct_source_keys: 2, duplicate_source_rows: 0,
         source_presence_ok: true, source_unique_keys_ok: true, source_integrity_ok: true
+      }] };
+    }
+    const qualifyingMetric = params?.find(value => typeof value === 'string' && value.startsWith('official_recorded_qualifying_')) as string | undefined;
+    if (qualifyingMetric) {
+      const common = {
+        metric_id: qualifyingMetric, qualifying_source_rows: 12, distinct_qualifying_keys: 12,
+        missing_qualifying_key_rows: 0, duplicate_qualifying_rows: 0, invalid_qualifying_position_rows: 0,
+        duplicate_qualifying_position_rows: 0,
+        source_presence_ok: true, source_key_integrity_ok: true, position_integrity_ok: true, source_integrity_ok: true
+      };
+      if (qualifyingMetric === 'official_recorded_qualifying_top_ten_season_ranking_v1') {
+        return { rows: [
+          { ...common, driver_id: 'lando-norris', qualifying_top_ten_count: 5 },
+          { ...common, driver_id: 'max-verstappen', qualifying_top_ten_count: 5 },
+          { ...common, driver_id: 'oscar-piastri', qualifying_top_ten_count: 4 }
+        ] };
+      }
+      return { rows: [{
+        ...common,
+        driver_id: qualifyingMetric.includes('1950_2025') ? 'lewis-hamilton' : 'lando-norris',
+        [qualifyingMetric.includes('top_ten') ? 'qualifying_top_ten_count' : 'qualifying_p1_count']: qualifyingMetric.includes('1950_2025') ? 2 : qualifyingMetric.includes('top_ten') ? 5 : 3,
+        ...(qualifyingMetric.includes('1950_2025') ? { qualifying_source_rows: 2, distinct_qualifying_keys: 2 } : {})
       }] };
     }
     if (sql.startsWith('SELECT * FROM')) {
@@ -192,7 +216,7 @@ beforeEach(() => {
   executionAttempts = 0;
   executionError = undefined;
   executedPrincipalClasses = [];
-  runtimeConfig.maxWorkUnits = 200;
+  runtimeConfig.maxWorkUnits = 2280;
   metrics.reset();
 });
 
@@ -678,6 +702,20 @@ describe('gated answer route', () => {
       program: { root: { op: 'race_event_finishing_position_comparison', season: 2025, round: 12, driver_a_id: 'max-verstappen', driver_b_id: 'lando-norris' } },
       answer: { headline: 'lando-norris finished ahead of max-verstappen in the official 2025 round 12 race classification.' },
       metadata: { source: 'race_classification' }
+    } });
+    expect(executionAttempts).toBe(1);
+  });
+
+  it.each([
+    ['How many poles did Lando Norris take in 2025?', 'driver_season_qualifying_p1_count', 'lando-norris has 3 recorded official qualifying P1 classifications in 2025.'],
+    ['How many career poles does Lewis Hamilton have?', 'driver_career_qualifying_p1_count', 'lewis-hamilton has 2 recorded official qualifying P1 classifications across 1950-2025.'],
+    ['How many times did Lando Norris qualify in the top ten in 2025?', 'driver_season_qualifying_top_ten_count', 'lando-norris has 5 recorded numeric top-ten positions in 2025.'],
+    ['Rank drivers by top-ten qualifying appearances in 2025.', 'season_qualifying_top_ten_ranking', 'Drivers ranked by recorded numeric top-ten positions in 2025.']
+  ] as const)('executes the closed qualifying count API contract: %s', async (question, op, headline) => {
+    const response = await ask(question);
+    const body = await response.json();
+    expect({ status: response.status, body }).toMatchObject({ status: 200, body: {
+      program: { root: { op } }, answer: { headline }, metadata: { source: 'qualifying_classification' }
     } });
     expect(executionAttempts).toBe(1);
   });

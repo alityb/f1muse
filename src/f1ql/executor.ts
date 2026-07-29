@@ -154,6 +154,9 @@ function answerOrderBy(program: F1QLResult['program']): string | undefined {
   if (root.op === 'driver_career_wins_by_circuit') {
     return 'wins DESC NULLS LAST, circuit_id COLLATE "C" ASC NULLS LAST';
   }
+  if (root.op === 'season_qualifying_top_ten_ranking') {
+    return 'qualifying_top_ten_count DESC NULLS LAST, driver_id COLLATE "C" ASC NULLS LAST';
+  }
   return undefined;
 }
 

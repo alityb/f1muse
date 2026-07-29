@@ -154,9 +154,41 @@ export interface DriverCareerWinsByCircuitNode {
   driver_id: string;
 }
 
+export interface DriverSeasonQualifyingP1CountNode {
+  op: 'driver_season_qualifying_p1_count';
+  metric: 'official_recorded_qualifying_p1_season_count_v1';
+  season: number;
+  driver_id: string;
+  round?: never;
+}
+
+export interface DriverCareerQualifyingP1CountNode {
+  op: 'driver_career_qualifying_p1_count';
+  metric: 'official_recorded_qualifying_p1_1950_2025_count_v1';
+  seasons: number[];
+  driver_id: string;
+  season?: never;
+  round?: never;
+}
+
+export interface DriverSeasonQualifyingTopTenCountNode {
+  op: 'driver_season_qualifying_top_ten_count';
+  metric: 'official_recorded_qualifying_top_ten_season_count_v1';
+  season: number;
+  driver_id: string;
+  round?: never;
+}
+
+export interface SeasonQualifyingTopTenRankingNode {
+  op: 'season_qualifying_top_ten_ranking';
+  metric: 'official_recorded_qualifying_top_ten_season_ranking_v1';
+  season: number;
+  round?: never;
+}
+
 export interface F1QLProgram {
   version: 1;
-  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode | RaceEventFinishingPositionComparisonNode | QualifyingSeasonPositionH2HNode | OfficialDriverResultsComparisonNode | DriverCareerWinsByCircuitNode;
+  root: AggregateNode | RankNode | PaceDeltaNode | PaceSummaryNode | EventClassificationNode | QualifyingClassificationNode | EventMetadataNode | OfficialLapWindowMedianCompareNode | OfficialEventMeanCompareNode | RaceSeasonFinishingPositionH2HNode | RaceEventFinishingPositionComparisonNode | QualifyingSeasonPositionH2HNode | OfficialDriverResultsComparisonNode | DriverCareerWinsByCircuitNode | DriverSeasonQualifyingP1CountNode | DriverCareerQualifyingP1CountNode | DriverSeasonQualifyingTopTenCountNode | SeasonQualifyingTopTenRankingNode;
 }
 
 export interface F1QLResult {

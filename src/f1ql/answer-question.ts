@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 
-export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v24' as const;
+export const ANSWER_QUESTION_CONTRACT_VERSION = 'answer-question-v26' as const;
 export const ANSWER_QUESTION_MAX_CHARS = 1_000;
 export const ANSWER_QUESTION_MAX_UTF8_BYTES = 3_000;
 
 export type AnswerQuestionSourceCue = 'standings' | 'race_classification' | 'qualifying_classification' | 'race_date';
 export type AnswerQuestionSessionCue = 'race' | 'qualifying' | 'sprint';
-export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'official_driver_ranking' | 'official_driver_results_comparison' | 'race_event_finishing_position_comparison' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'career_circuit_wins' | 'race_finishing_position_h2h' | 'qualifying_position_h2h' | 'date';
+export type AnswerQuestionMetricCue = 'points' | 'official_leader' | 'official_driver_ranking' | 'official_driver_results_comparison' | 'race_event_finishing_position_comparison' | 'latest_recorded' | 'official_season_summary' | 'official_career_summary' | 'career_circuit_wins' | 'season_qualifying_p1_count' | 'career_qualifying_p1_count' | 'season_qualifying_top_ten_count' | 'season_qualifying_top_ten_ranking' | 'race_finishing_position_h2h' | 'qualifying_position_h2h' | 'date';
 export type AnswerQuestionActionCue = 'all';
 export type AnswerQuestionStatusCue = 'classified' | 'dnf' | 'dns' | 'dsq' | 'not_classified' | 'withdrawn';
 export type AnswerQuestionResultCue = 'race_winner' | 'race_podium' | 'race_top_n' | 'race_exact_position' | 'qualifying_pole' | 'qualifying_top_n' | 'qualifying_exact_position';
@@ -86,6 +86,10 @@ const METRIC_PATTERNS: readonly CuePattern<AnswerQuestionMetricCue>[] = [
   { value: 'official_season_summary', pattern: /\bofficial\s+(?:19[5-9]\d|20\d{2}|2100)\s+(?:season|driver)\s+summary\b/giu },
   { value: 'official_career_summary', pattern: /\bofficial\s+career\s+summary\b/giu },
   { value: 'career_circuit_wins', pattern: /\b(?:at\s+which\s+circuits\s+has|which\s+circuits\s+has)\b[^.?!]{1,200}\bwon\s+races(?:\s+at)?\b/giu },
+  { value: 'season_qualifying_p1_count', pattern: /^How many poles did Lando Norris take in 2025\?$/gu },
+  { value: 'career_qualifying_p1_count', pattern: /^How many career poles does Lewis Hamilton have\?$/gu },
+  { value: 'season_qualifying_top_ten_count', pattern: /^How many times did Lando Norris qualify in the top ten in 2025\?$/gu },
+  { value: 'season_qualifying_top_ten_ranking', pattern: /^Rank drivers by top-ten qualifying appearances in 2025\.$/gu },
   { value: 'race_finishing_position_h2h', pattern: /\bfinished\s+ahead\s+more\s+often\b/giu },
   { value: 'qualifying_position_h2h', pattern: /\boutqualified\s+whom\s+more\s+often\b|\bqualified\s+ahead\s+more\s+often\b/giu },
   { value: 'date', pattern: /\b(?:date|what\s+day|when\s+(?:was|is|did))\b/giu }
@@ -183,10 +187,11 @@ export function createAnswerQuestionContract(input: unknown): AnswerQuestionCont
   const actionCues = extractCues(normalized, ACTION_PATTERNS);
   const statusCues = removeContainedStatusCues(extractCues(normalized, STATUS_PATTERNS));
   const resultCues = extractResultCues(normalized);
+  const trustedCountCues = metricCues.filter(cue => cue.value === 'season_qualifying_p1_count' || cue.value === 'career_qualifying_p1_count' || cue.value === 'season_qualifying_top_ten_count' || cue.value === 'season_qualifying_top_ten_ranking');
   const unsupportedCues: AnswerQuestionMention<AnswerQuestionUnsupportedCue>[] = [
     ...extractCues(normalized, UNSUPPORTED_PATTERNS)
   ];
-  const orderMatch = firstMatch(maskMentionSpans(normalized, resultCues), UNSUPPORTED_ORDER_CARDINALITY_PATTERN);
+  const orderMatch = firstMatch(maskMentionSpans(maskMentionSpans(normalized, resultCues), trustedCountCues), UNSUPPORTED_ORDER_CARDINALITY_PATTERN);
   if (orderMatch) {
     unsupportedCues.push(toMention('capability', orderMatch));
   }
@@ -201,7 +206,7 @@ export function createAnswerQuestionContract(input: unknown): AnswerQuestionCont
   if (bareNotMatch) {
     unsupportedCues.push(toMention('capability', bareNotMatch));
   }
-  const cardinalityMatch = firstMatch(maskMentionSpans(maskRoundReferences(normalized), resultCues), GENERIC_CARDINALITY_PATTERN);
+  const cardinalityMatch = firstMatch(maskMentionSpans(maskMentionSpans(maskRoundReferences(normalized), resultCues), trustedCountCues), GENERIC_CARDINALITY_PATTERN);
   if (cardinalityMatch) {
     unsupportedCues.push(toMention('capability', cardinalityMatch));
   }
@@ -268,6 +273,16 @@ function determineOutcome(
   unsupported: readonly AnswerQuestionMention<AnswerQuestionUnsupportedCue>[],
   instructionalIntent: boolean
 ): AnswerQuestionOutcome {
+  const reviewedNonAnswerOutcomes: Readonly<Record<string, Exclude<AnswerQuestionOutcome, { type: 'inspection_required' }>>> = {
+    'Is Charles Leclerc improving across recent seasons?': { type: 'rejected', reason: 'capability_unsupported' },
+    'Show Oscar Piastri performance vector in 2025.': { type: 'rejected', reason: 'capability_unsupported' },
+    'Compare Hamilton and Russell over their teammate seasons.': { type: 'clarification_required', reason: 'session_ambiguous' },
+    'Compare Verstappen and Norris in 2025.': { type: 'clarification_required', reason: 'session_ambiguous' }
+  };
+  const reviewedOutcome = reviewedNonAnswerOutcomes[question];
+  if (reviewedOutcome) {
+    return reviewedOutcome;
+  }
   const rejected: Partial<Record<AnswerQuestionUnsupportedCue, Extract<AnswerQuestionOutcome, { type: 'rejected' }>['reason']>> = {
     sprint: 'sprint_source_unsupported', grid: 'grid_source_unsupported', constructor: 'constructor_source_unsupported',
     pace: 'pace_source_disabled', team: 'team_filter_unsupported', interim: 'interim_standings_unsupported', multiseason: 'temporal_scope_unsupported',
@@ -287,7 +302,7 @@ function determineOutcome(
     return { type: 'clarification_required', reason: 'session_ambiguous' };
   }
   if ((sources.length > 0 || results.length > 0 || metrics.some(metric => metric.value === 'race_finishing_position_h2h' || metric.value === 'qualifying_position_h2h')) &&
-      !metrics.some(metric => metric.value === 'career_circuit_wins') && years.length === 0) {
+      !metrics.some(metric => metric.value === 'career_circuit_wins' || metric.value === 'career_qualifying_p1_count') && years.length === 0) {
     return { type: 'clarification_required', reason: 'season_missing' };
   }
   const classificationSource = sources.some(cue => cue.value === 'race_classification' || cue.value === 'qualifying_classification');

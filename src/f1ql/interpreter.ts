@@ -7,6 +7,16 @@ import { OFFICIAL_DRIVER_RESULTS_COMPARISON_INPUT_ALIASES, OFFICIAL_DRIVER_RESUL
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
+import {
+  COMPLETED_QUALIFYING_SEASONS,
+  DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID,
+  QUALIFYING_POSITION_MAX,
+  QUALIFYING_POSITION_MIN,
+  QUALIFYING_TOP_TEN_MAX,
+  SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID
+} from './qualifying-counts';
 
 export interface StandingsRow {
   season: number;
@@ -85,6 +95,94 @@ export interface ComparisonSummaryRow {
   driver_id: string;
   finishing_position?: number | null;
   qualifying_position?: number | null;
+}
+
+// This reference path independently checks and evaluates the closed generic Core plan.
+// eslint-disable-next-line complexity,max-lines-per-function
+export function interpretQualifyingCount(program: CoreProgram, rows: QualifyingClassificationRow[]): Array<Record<string, unknown>> {
+  const root = program.root;
+  const ranked = root.op === 'sort';
+  if (root.op !== 'aggregate' && root.op !== 'sort') {
+    throw new Error('Expected a qualifying count aggregate');
+  }
+  const node = root.op === 'sort' ? root.input : root;
+  if (node.op !== 'aggregate') {
+    throw new Error('Expected an aggregate below qualifying count ordering');
+  }
+  const input = node.input;
+  const where = input.op === 'filter' ? input.where as Record<string, unknown> : undefined;
+  const measure = node.measures[0];
+  const metric = node.metric_id;
+  const p1 = metric === DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID || metric === DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID;
+  const topTen = metric === DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID || metric === SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID;
+  if (input.op !== 'filter' || input.input.op !== 'source' || input.input.source !== 'qualifying_classification' || !where ||
+      node.measures.length !== 1 || (!p1 && !topTen) || JSON.stringify(measure) !== JSON.stringify({
+        as: p1 ? 'qualifying_p1_count' : 'qualifying_top_ten_count', function: 'count',
+        where: { field: 'qualifying_position', min: QUALIFYING_POSITION_MIN, max: p1 ? QUALIFYING_POSITION_MIN : QUALIFYING_TOP_TEN_MAX }
+      }) || JSON.stringify(node.source_record_integrity) !== JSON.stringify({
+        key: ['season', 'round', 'driver_id'], position_field: 'qualifying_position',
+        position_min: QUALIFYING_POSITION_MIN, position_max: QUALIFYING_POSITION_MAX,
+        require_source_presence: true, require_non_null_keys: true, require_unique_keys: true, require_unique_positions: true
+      }) || node.source_integrity !== undefined || JSON.stringify(node.group_by) !== JSON.stringify(ranked ? ['driver_id'] : []) ||
+      (ranked && (root.op !== 'sort' || root.by !== 'qualifying_top_ten_count' || root.direction !== 'desc' || root.nulls !== undefined))) {
+    throw new Error('Expected the closed qualifying count integrity contract');
+  }
+  const career = metric === DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID;
+  const keys = Object.keys(where).sort();
+  const season = where.season;
+  const driverId = where.driver_id;
+  if (ranked !== (metric === SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID) ||
+      JSON.stringify(keys) !== JSON.stringify(ranked ? ['season'] : ['driver_id', 'season']) ||
+      (career ? JSON.stringify(season) !== JSON.stringify(COMPLETED_QUALIFYING_SEASONS) :
+        typeof season !== 'number' || !Number.isSafeInteger(season) || season < 1950 || season > 2025) ||
+      (!ranked && (typeof driverId !== 'string' || !/^[a-z][a-z0-9-]{0,99}$/.test(driverId)))) {
+    throw new Error('Expected exact qualifying count scope and identity');
+  }
+  const seasonScoped = rows.filter(row => Array.isArray(season) ? season.includes(row.season) : row.season === season);
+  const scoped = seasonScoped.filter(row => ranked || row.driver_id === driverId);
+  const completeKeyRows = scoped.filter(row => row.season !== null && row.season !== undefined &&
+    row.round !== null && row.round !== undefined && row.driver_id !== null && row.driver_id !== undefined);
+  const distinctKeys = new Set(completeKeyRows.map(row => JSON.stringify([row.season, row.round, row.driver_id]))).size;
+  const sentinels = {
+    qualifying_source_rows: scoped.length,
+    distinct_qualifying_keys: distinctKeys,
+    missing_qualifying_key_rows: scoped.length - completeKeyRows.length,
+    duplicate_qualifying_rows: completeKeyRows.length - distinctKeys,
+    invalid_qualifying_position_rows: scoped.filter(row => row.qualifying_position !== null &&
+      (!Number.isSafeInteger(row.qualifying_position) || row.qualifying_position < QUALIFYING_POSITION_MIN || row.qualifying_position > QUALIFYING_POSITION_MAX)).length,
+    duplicate_qualifying_position_rows: duplicateQualifyingPositionRows(seasonScoped, p1 ? QUALIFYING_POSITION_MIN : QUALIFYING_TOP_TEN_MAX)
+  };
+  const integrity = {
+    source_presence_ok: sentinels.qualifying_source_rows > 0,
+    source_key_integrity_ok: sentinels.missing_qualifying_key_rows === 0 && sentinels.duplicate_qualifying_rows === 0,
+    position_integrity_ok: sentinels.invalid_qualifying_position_rows === 0 && sentinels.duplicate_qualifying_position_rows === 0
+  };
+  const sourceIntegrityOk = integrity.source_presence_ok && integrity.source_key_integrity_ok && integrity.position_integrity_ok;
+  const common = { metric_id: metric, ...sentinels, ...integrity, source_integrity_ok: sourceIntegrityOk };
+  if (!sourceIntegrityOk) {
+    return [{ ...common, driver_id: ranked ? null : driverId, [p1 ? 'qualifying_p1_count' : 'qualifying_top_ten_count']: null }];
+  }
+  const countRows = (group: QualifyingClassificationRow[]) => group.filter(row => row.qualifying_position !== null &&
+    row.qualifying_position >= QUALIFYING_POSITION_MIN && row.qualifying_position <= (p1 ? QUALIFYING_POSITION_MIN : QUALIFYING_TOP_TEN_MAX)).length;
+  if (!ranked) {
+    return [{ ...common, driver_id: driverId, [p1 ? 'qualifying_p1_count' : 'qualifying_top_ten_count']: countRows(scoped) }];
+  }
+  return Array.from(groupRows(scoped, row => row.driver_id).entries())
+    .map(([rankedDriverId, group]) => ({ ...common, driver_id: rankedDriverId, qualifying_top_ten_count: countRows(group) }))
+    .sort((left, right) => Number(right.qualifying_top_ten_count) - Number(left.qualifying_top_ten_count) || compareUtf8Bytes(left.driver_id, right.driver_id));
+}
+
+function duplicateQualifyingPositionRows(rows: QualifyingClassificationRow[], maximum: number): number {
+  const positions = new Map<string, number>();
+  for (const row of rows) {
+    if (!Number.isSafeInteger(row.round) || row.qualifying_position === null || !Number.isSafeInteger(row.qualifying_position) ||
+        row.qualifying_position < QUALIFYING_POSITION_MIN || row.qualifying_position > maximum) {
+      continue;
+    }
+    const key = JSON.stringify([row.season, row.round, row.qualifying_position]);
+    positions.set(key, (positions.get(key) ?? 0) + 1);
+  }
+  return [...positions.values()].reduce((duplicates, count) => duplicates + Math.max(0, count - 1), 0);
 }
 
 // eslint-disable-next-line complexity,max-lines-per-function

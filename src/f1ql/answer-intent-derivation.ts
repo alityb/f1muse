@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v12' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v13' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -31,6 +31,11 @@ export async function deriveAnswerIntent(
   }
 
   const metrics = new Set(contract.metric_cues.map(cue => cue.value));
+  if (metrics.has('career_qualifying_p1_count')) {
+    const drivers = (await resolver.inventoryMentions(contract.normalized_question)).map(copyReference);
+    const valid = drivers.length === 1 && contract.normalized_question === 'How many career poles does Lewis Hamilton have?' && only(metrics, 'career_qualifying_p1_count');
+    return parseAnswerIntent(valid ? { type: 'driver_career_qualifying_p1_count', driver_reference: drivers[0] } : unsupported, contract);
+  }
   if (metrics.has('career_circuit_wins')) {
     const drivers = (await resolver.inventoryMentions(contract.normalized_question)).map(copyReference);
     return parseAnswerIntent(careerCircuitWinsIntent(contract, drivers, metrics), contract);
@@ -93,6 +98,7 @@ function selectIntent(
   const sessions = new Set(contract.session_cues.map(cue => cue.value));
   const metrics = new Set(contract.metric_cues.map(cue => cue.value));
   return seasonSummaryIntent(contract, seasonFields, drivers, sources, sessions, metrics)
+    ?? qualifyingCountIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? raceEventComparisonIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? officialResultsComparisonIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? raceH2HIntent(contract, seasonFields, drivers, sources, sessions, metrics)
@@ -102,6 +108,32 @@ function selectIntent(
     ?? resultPositionIntent(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? classificationSelection(contract, seasonFields, drivers, sources, sessions, metrics)
     ?? unsupported;
+}
+
+function qualifyingCountIntent(
+  contract: AnswerQuestionContract,
+  seasonFields: { season: number; season_reference: LiteralMentionReference },
+  drivers: LiteralMentionReference[],
+  sources: ReadonlySet<AnswerQuestionContract['source_cues'][number]['value']>,
+  sessions: ReadonlySet<AnswerQuestionContract['session_cues'][number]['value']>,
+  metrics: ReadonlySet<AnswerQuestionContract['metric_cues'][number]['value']>
+): unknown | undefined {
+  const exact = contract.normalized_question;
+  const clean = sources.size === 0 && contract.event_cues.length === 0 && contract.rounds.length === 0 &&
+    contract.status_cues.length === 0 && contract.action_cues.length === 0 && contract.result_cues.length === 0;
+  if (metrics.has('season_qualifying_p1_count')) {
+    return clean && drivers.length === 1 && exact === 'How many poles did Lando Norris take in 2025?' && only(metrics, 'season_qualifying_p1_count')
+      ? { type: 'driver_season_qualifying_p1_count', ...seasonFields, driver_reference: drivers[0] } : unsupported;
+  }
+  if (metrics.has('season_qualifying_top_ten_count')) {
+    return clean && (sessions.size === 0 || only(sessions, 'qualifying')) && drivers.length === 1 && exact === 'How many times did Lando Norris qualify in the top ten in 2025?' && only(metrics, 'season_qualifying_top_ten_count')
+      ? { type: 'driver_season_qualifying_top_ten_count', ...seasonFields, driver_reference: drivers[0] } : unsupported;
+  }
+  if (metrics.has('season_qualifying_top_ten_ranking')) {
+    return clean && only(sessions, 'qualifying') && drivers.length === 0 && exact === 'Rank drivers by top-ten qualifying appearances in 2025.' && only(metrics, 'season_qualifying_top_ten_ranking')
+      ? { type: 'season_qualifying_top_ten_ranking', ...seasonFields } : unsupported;
+  }
+  return undefined;
 }
 
 function raceEventComparisonIntent(

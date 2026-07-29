@@ -50,7 +50,7 @@ export interface CoreOfficialEventMeanFilter {
 }
 
 export interface CoreQualifyingClassificationFilter {
-  season?: number;
+  season?: number | number[];
   round?: number;
   classification_status?: string[];
   driver_id?: string;
@@ -106,6 +106,11 @@ export type CoreAggregateMeasure = AggregateMeasure | {
   as: string;
   function: 'median' | 'avg' | 'count';
   field?: string;
+  where?: {
+    field: string;
+    min: number;
+    max: number;
+  };
 };
 
 export interface CoreAggregateNode {
@@ -115,6 +120,19 @@ export interface CoreAggregateNode {
   measures: CoreAggregateMeasure[];
   minimum_rows?: number;
   source_integrity?: CoreAggregateSourceIntegrity;
+  source_record_integrity?: CoreSourceRecordIntegrity;
+  metric_id?: string;
+}
+
+export interface CoreSourceRecordIntegrity {
+  key: string[];
+  position_field: string;
+  position_min: number;
+  position_max: number;
+  require_source_presence: true;
+  require_non_null_keys: true;
+  require_unique_keys: true;
+  require_unique_positions: true;
 }
 
 export interface CoreAggregateSourceIntegrity {

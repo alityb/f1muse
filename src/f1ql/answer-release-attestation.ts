@@ -8,7 +8,7 @@ import { ANSWER_SEMANTIC_PROOF_VERSION } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
 
 export const ANSWER_RELEASE_ATTESTATION_VERSION = 5 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v17' as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v18' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS = 10 * 60 * 1000;
 export const ANSWER_RELEASE_DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;

@@ -41,11 +41,11 @@ describe('answer-specific strict translator', () => {
     expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('DNS/DNSs/did not start to dns');
     expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('server normalizes the candidate status enum and full status_reference');
     expect(ANSWER_TRANSLATOR_SYSTEM_PROMPT).toContain('one reference object per literal driver occurrence');
-    expect((ANSWER_TRANSLATOR_SYSTEM_PROMPT.match(/\{"intent":/g) ?? [])).toHaveLength(23);
+    expect((ANSWER_TRANSLATOR_SYSTEM_PROMPT.match(/\{"intent":/g) ?? [])).toHaveLength(27);
     expect((ANSWER_TRANSLATOR_SYSTEM_PROMPT.match(/"type":"(?:final_standings_leader|race_classification_all|qualifying_classification_driver)"/g) ?? [])).toHaveLength(3);
     const examples = ANSWER_TRANSLATOR_SYSTEM_PROMPT.split('\n').filter(line => line.startsWith('{"intent":')).map(line => JSON.parse(line) as { intent: unknown });
     expect(examples.map(example => parseUntrustedAnswerIntentCandidate(example.intent).type)).toEqual([
-      'final_standings_leader', 'final_standings_driver_ranking', 'current_standings', 'driver_season_official_summary', 'driver_season_official_summary', 'driver_career_official_summary', 'driver_career_wins_by_circuit', 'race_season_finishing_position_h2h', 'qualifying_season_position_h2h', 'qualifying_season_position_h2h', 'official_driver_results_comparison', 'race_event_finishing_position_comparison', 'race_classification_all', 'qualifying_classification_driver',
+      'final_standings_leader', 'final_standings_driver_ranking', 'current_standings', 'driver_season_official_summary', 'driver_season_official_summary', 'driver_career_official_summary', 'driver_career_wins_by_circuit', 'race_season_finishing_position_h2h', 'qualifying_season_position_h2h', 'qualifying_season_position_h2h', 'official_driver_results_comparison', 'race_event_finishing_position_comparison', 'driver_season_qualifying_p1_count', 'driver_career_qualifying_p1_count', 'driver_season_qualifying_top_ten_count', 'season_qualifying_top_ten_ranking', 'race_classification_all', 'qualifying_classification_driver',
       'race_winner', 'race_podium', 'race_top_n', 'race_exact_position', 'qualifying_pole', 'qualifying_top_n', 'qualifying_exact_position',
       'clarification', 'unsupported'
     ]);

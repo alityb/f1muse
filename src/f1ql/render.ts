@@ -37,6 +37,18 @@ export function renderF1QL(program: F1QLProgram): string {
   if (program.root.op === 'driver_career_wins_by_circuit') {
     return `Recorded official race P1 classifications for ${program.root.driver_id}; completed seasons 1950-2025; grouped only by canonical circuit_id; unique winner and event-metadata keys required.`;
   }
+  if (program.root.op === 'driver_season_qualifying_p1_count') {
+    return `Recorded official qualifying P1 count for ${program.root.driver_id}; final season ${program.root.season}; unique source keys and valid recorded positions required.`;
+  }
+  if (program.root.op === 'driver_career_qualifying_p1_count') {
+    return `Recorded official qualifying P1 count for ${program.root.driver_id}; exact completed seasons 1950-2025; unique source keys and valid recorded positions required; 2026 excluded.`;
+  }
+  if (program.root.op === 'driver_season_qualifying_top_ten_count') {
+    return `Recorded official qualifying top-ten count for ${program.root.driver_id}; final season ${program.root.season}; positions P1-P10 only; unique source keys required.`;
+  }
+  if (program.root.op === 'season_qualifying_top_ten_ranking') {
+    return `Recorded official qualifying top-ten ranking; final season ${program.root.season}; positions P1-P10 only; ties allowed; count descending then UTF-8 byte driver_id order.`;
+  }
   return renderStandings(program);
 }
 
@@ -69,7 +81,7 @@ function renderPaceSummary(node: PaceSummaryNode): string {
 
 // eslint-disable-next-line complexity
 function renderStandings(program: F1QLProgram): string {
-  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare' || program.root.op === 'race_season_finishing_position_h2h' || program.root.op === 'race_event_finishing_position_comparison' || program.root.op === 'qualifying_season_position_h2h' || program.root.op === 'official_driver_results_comparison' || program.root.op === 'driver_career_wins_by_circuit') {
+  if (program.root.op === 'pace_delta' || program.root.op === 'pace_summary' || program.root.op === 'event_classification' || program.root.op === 'qualifying_classification' || program.root.op === 'event_metadata' || program.root.op === 'official_lap_window_median_compare' || program.root.op === 'official_event_mean_compare' || program.root.op === 'race_season_finishing_position_h2h' || program.root.op === 'race_event_finishing_position_comparison' || program.root.op === 'qualifying_season_position_h2h' || program.root.op === 'official_driver_results_comparison' || program.root.op === 'driver_career_wins_by_circuit' || program.root.op === 'driver_season_qualifying_p1_count' || program.root.op === 'driver_career_qualifying_p1_count' || program.root.op === 'driver_season_qualifying_top_ten_count' || program.root.op === 'season_qualifying_top_ten_ranking') {
     throw new Error('renderStandings does not accept pace programs');
   }
   const aggregate = program.root.op === 'rank' ? program.root.input : program.root;

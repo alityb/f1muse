@@ -5,6 +5,7 @@ import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-po
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
 import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
+import { COMPLETED_QUALIFYING_SEASONS, DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID, SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID } from './qualifying-counts';
 
 export const MAX_ANSWER_DRIVERS = 4;
 export const FINAL_STANDINGS_THROUGH_SEASON = 2025;
@@ -74,6 +75,37 @@ export function authorizeAnswerProgram(program: F1QLProgram): AnswerPolicyDecisi
       return { type: 'rejected', reason: 'capability_unsupported' };
     }
     return { type: 'approved', capability: { source: 'official_driver_results_comparison', operation: root.op, season: root.season, filters: ['driver'] } };
+  }
+  if (root.op === 'driver_season_qualifying_p1_count' || root.op === 'driver_season_qualifying_top_ten_count' ||
+      root.op === 'driver_career_qualifying_p1_count' || root.op === 'season_qualifying_top_ten_ranking') {
+    const expectedMetrics = {
+      driver_season_qualifying_p1_count: DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID,
+      driver_career_qualifying_p1_count: DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID,
+      driver_season_qualifying_top_ten_count: DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID,
+      season_qualifying_top_ten_ranking: SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID
+    } as const;
+    const expectedMetric = expectedMetrics[root.op];
+    const career = root.op === 'driver_career_qualifying_p1_count';
+    const ranking = root.op === 'season_qualifying_top_ten_ranking';
+    const validScope = career ? JSON.stringify(root.seasons) === JSON.stringify(COMPLETED_QUALIFYING_SEASONS)
+      : Number.isSafeInteger(root.season) && root.season >= 1950 && root.season <= FINAL_STANDINGS_THROUGH_SEASON;
+    let expectedKeys = 'driver_id,metric,op,season';
+    if (career) {
+      expectedKeys = 'driver_id,metric,op,seasons';
+    }
+    if (ranking) {
+      expectedKeys = 'metric,op,season';
+    }
+    const validKeys = Object.keys(root).sort().join(',') === expectedKeys;
+    const validDriver = ranking || validDriverId(root.driver_id);
+    if (!validKeys || root.metric !== expectedMetric || !validScope || !validDriver) {
+      return { type: 'rejected', reason: 'capability_unsupported' };
+    }
+    return { type: 'approved', capability: {
+      source: 'qualifying_classification', operation: root.op,
+      season: career ? root.seasons : root.season,
+      filters: ranking ? [] : ['driver']
+    } };
   }
   if (root.op === 'event_classification') {
     return authorizeClassification(root, 'race_classification');

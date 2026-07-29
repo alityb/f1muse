@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v11' as const;
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v12' as const;
 
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
@@ -49,6 +49,10 @@ export const answerIntentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('driver_season_official_summary'), ...seasonFields, ...driverFields }).strict(),
   z.object({ type: z.literal('driver_career_official_summary'), ...driverFields }).strict(),
   z.object({ type: z.literal('driver_career_wins_by_circuit'), ...driverFields }).strict(),
+  z.object({ type: z.literal('driver_season_qualifying_p1_count'), ...finalSeasonFields, ...driverFields }).strict(),
+  z.object({ type: z.literal('driver_career_qualifying_p1_count'), ...driverFields }).strict(),
+  z.object({ type: z.literal('driver_season_qualifying_top_ten_count'), ...finalSeasonFields, ...driverFields }).strict(),
+  z.object({ type: z.literal('season_qualifying_top_ten_ranking'), ...finalSeasonFields }).strict(),
   z.object({ type: z.literal('race_season_finishing_position_h2h'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('qualifying_season_position_h2h'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('official_driver_results_comparison'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(2) }).strict(),
@@ -79,6 +83,10 @@ export const untrustedAnswerIntentCandidateSchema = z.discriminatedUnion('type',
   z.object({ type: z.literal('driver_season_official_summary'), ...untrustedSeasonFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('driver_career_official_summary'), driver_reference: untrustedLiteralReferenceSchema }).strict(),
   z.object({ type: z.literal('driver_career_wins_by_circuit'), driver_reference: untrustedLiteralReferenceSchema }).strict(),
+  z.object({ type: z.literal('driver_season_qualifying_p1_count'), ...untrustedFinalSeasonFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
+  z.object({ type: z.literal('driver_career_qualifying_p1_count'), driver_reference: untrustedLiteralReferenceSchema }).strict(),
+  z.object({ type: z.literal('driver_season_qualifying_top_ten_count'), ...untrustedFinalSeasonFields, driver_reference: untrustedLiteralReferenceSchema }).strict(),
+  z.object({ type: z.literal('season_qualifying_top_ten_ranking'), ...untrustedFinalSeasonFields }).strict(),
   z.object({ type: z.literal('race_season_finishing_position_h2h'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('qualifying_season_position_h2h'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),
   z.object({ type: z.literal('official_driver_results_comparison'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(2) }).strict(),

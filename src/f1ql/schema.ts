@@ -7,6 +7,13 @@ import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import { DRIVER_CAREER_WINS_BY_CIRCUIT_METRIC_ID, DRIVER_CAREER_WIN_SEASONS } from './driver-career-wins-by-circuit';
 import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-results-comparison';
+import {
+  COMPLETED_QUALIFYING_SEASONS,
+  DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID,
+  DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID,
+  SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID
+} from './qualifying-counts';
 
 const identifier = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const season = z.number().int().min(1950).max(2100);
@@ -237,9 +244,43 @@ export const driverCareerWinsByCircuitNodeSchema = z.object({
   }
 });
 
+const canonicalDriverId = z.string().regex(/^[a-z][a-z0-9-]{0,99}$/);
+const completedSeason = season.max(2025);
+
+export const driverSeasonQualifyingP1CountNodeSchema = z.object({
+  op: z.literal('driver_season_qualifying_p1_count'),
+  metric: z.literal(DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID),
+  season: completedSeason,
+  driver_id: canonicalDriverId
+}).strict();
+
+export const driverCareerQualifyingP1CountNodeSchema = z.object({
+  op: z.literal('driver_career_qualifying_p1_count'),
+  metric: z.literal(DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID),
+  seasons: z.array(completedSeason).length(COMPLETED_QUALIFYING_SEASONS.length),
+  driver_id: canonicalDriverId
+}).strict().superRefine((node, context) => {
+  if (node.seasons.some((value, index) => value !== COMPLETED_QUALIFYING_SEASONS[index])) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'career qualifying scope must be the exact ordered 1950-2025 season set' });
+  }
+});
+
+export const driverSeasonQualifyingTopTenCountNodeSchema = z.object({
+  op: z.literal('driver_season_qualifying_top_ten_count'),
+  metric: z.literal(DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID),
+  season: completedSeason,
+  driver_id: canonicalDriverId
+}).strict();
+
+export const seasonQualifyingTopTenRankingNodeSchema = z.object({
+  op: z.literal('season_qualifying_top_ten_ranking'),
+  metric: z.literal(SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID),
+  season: completedSeason
+}).strict();
+
 export const f1qlProgramSchema = z.object({
   version: z.literal(1),
-  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, raceEventFinishingPositionComparisonNodeSchema, qualifyingSeasonPositionH2HNodeSchema, officialDriverResultsComparisonNodeSchema, driverCareerWinsByCircuitNodeSchema])
+  root: z.union([aggregateNodeSchema, rankNodeSchema, paceDeltaNodeSchema, paceSummaryNodeSchema, eventClassificationNodeSchema, qualifyingClassificationNodeSchema, eventMetadataNodeSchema, officialLapWindowMedianCompareNodeSchema, officialEventMeanCompareNodeSchema, raceSeasonFinishingPositionH2HNodeSchema, raceEventFinishingPositionComparisonNodeSchema, qualifyingSeasonPositionH2HNodeSchema, officialDriverResultsComparisonNodeSchema, driverCareerWinsByCircuitNodeSchema, driverSeasonQualifyingP1CountNodeSchema, driverCareerQualifyingP1CountNodeSchema, driverSeasonQualifyingTopTenCountNodeSchema, seasonQualifyingTopTenRankingNodeSchema])
 }).strict();
 
 export function parseF1QLProgram(input: unknown): F1QLProgram {

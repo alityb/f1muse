@@ -31,10 +31,10 @@ export const launchParityManifest: readonly LaunchParityCase[] = [
   contracted('race-podium', 'race_results_summary', 'Show the podium for the 2025 Australian Grand Prix.', 'race_result_selection'),
   contracted('race-top-five', 'race_results_summary', 'Show the top five finishers at the 2025 Australian Grand Prix.', 'race_result_selection'),
   contracted('race-second', 'race_results_summary', 'Who finished second at the 2025 Australian Grand Prix?', 'race_result_selection'),
-  answer('season-poles', 'driver_pole_count', 'How many poles did Lando Norris take in 2025?', 'driver_season_poles'),
-  answer('career-poles', 'driver_career_pole_count', 'How many career poles does Lewis Hamilton have?', 'driver_career_poles'),
-  answer('season-q3', 'driver_q3_count', 'How many times did Lando Norris qualify in the top ten in 2025?', 'driver_season_top_ten_qualifying'),
-  answer('q3-ranking', 'season_q3_rankings', 'Rank drivers by top-ten qualifying appearances in 2025.', 'season_top_ten_qualifying_ranking'),
+  contracted('season-poles', 'driver_pole_count', 'How many poles did Lando Norris take in 2025?', 'driver_season_poles'),
+  contracted('career-poles', 'driver_career_pole_count', 'How many career poles does Lewis Hamilton have?', 'driver_career_poles'),
+  contracted('season-q3', 'driver_q3_count', 'How many times did Lando Norris qualify in the top ten in 2025?', 'driver_season_top_ten_qualifying'),
+  contracted('q3-ranking', 'season_q3_rankings', 'Rank drivers by top-ten qualifying appearances in 2025.', 'season_top_ten_qualifying_ranking'),
   contracted('qualifying-h2h-teammates', 'qualifying_gap_teammates', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'),
   contracted('qualifying-h2h-drivers', 'qualifying_gap_drivers', 'Who qualified ahead more often in 2025, Norris or Verstappen?', 'qualifying_season_position_h2h'),
   contracted('qualifying-pole', 'qualifying_results_summary', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_result_selection'),
@@ -51,9 +51,9 @@ function contracted(id: string, legacy_kind: LegacyQueryKind, question: string, 
 }
 
 function clarify(id: string, legacy_kind: LegacyQueryKind, question: string, target: string): LaunchParityCase {
-  return { id, legacy_kind, question, expected_decision: 'clarify', target, implementation: 'pending' };
+  return { id, legacy_kind, question, expected_decision: 'clarify', target, implementation: 'contracted' };
 }
 
 function abstain(id: string, legacy_kind: LegacyQueryKind, question: string, target: string): LaunchParityCase {
-  return { id, legacy_kind, question, expected_decision: 'abstain', target, implementation: 'pending' };
+  return { id, legacy_kind, question, expected_decision: 'abstain', target, implementation: 'contracted' };
 }

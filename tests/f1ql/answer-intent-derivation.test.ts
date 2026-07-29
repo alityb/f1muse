@@ -63,13 +63,17 @@ describe('provider-free answer intent derivation', () => {
     ,['In 2025, who qualified ahead more often, Lando Norris or Max Verstappen?', inventory('Lando Norris', 'Max Verstappen'), 'qualifying_season_position_h2h']
     ,['Compare the official 2025 results of Norris and Piastri.', inventory('Norris', 'Piastri'), 'official_driver_results_comparison']
     ,['Who finished ahead, Verstappen or Norris, at Silverstone 2025?', inventory('Verstappen', 'Norris'), 'race_event_finishing_position_comparison']
+    ,['How many poles did Lando Norris take in 2025?', inventory('Lando Norris'), 'driver_season_qualifying_p1_count']
+    ,['How many career poles does Lewis Hamilton have?', inventory('Lewis Hamilton'), 'driver_career_qualifying_p1_count']
+    ,['How many times did Lando Norris qualify in the top ten in 2025?', inventory('Lando Norris'), 'driver_season_qualifying_top_ten_count']
+    ,['Rank drivers by top-ten qualifying appearances in 2025.', inventory(), 'season_qualifying_top_ten_ranking']
   ] as const;
 
   it.each(templates)('derives %s as %s', async (question, resolver, type) => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v12');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v13');
   });
 
   it.each([
