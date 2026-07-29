@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildAnswerReleaseAttestationFile as buildReleaseAtClock, getAnswerProductionEvidenceSigningPayload } from '../../scripts/build-answer-release-attestation';
+import { buildAnswerReleaseAttestationFile as buildReleaseAtClock, getAnswerProductionEvidenceSigningPayload, requireEvidenceBackedTemplates } from '../../scripts/build-answer-release-attestation';
 import { getAnswerPrincipalAuditSigningPayload } from '../../scripts/audit-answer-principal';
 import { verifyAnswerReleaseAttestationFile as verifyReleaseAtClock } from '../../scripts/verify-answer-release-attestation';
 import { buildAnswerDerivationReport } from '../../src/f1ql/answer-derivation-report';
@@ -252,6 +252,22 @@ describe('guarded answer release attestation files', () => {
         status: 'pass', sha256: built.sha256, key_id: 'release-key-1'
       });
     });
+  });
+
+  it('allows an evidence-backed subset of templates to be deployed', () => {
+    withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
+      const built = buildAnswerReleaseAttestationFile(paths, {
+        ...buildEnv,
+        F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: 'final_standings_leader'
+      });
+      const attestation = JSON.parse(readFileSync(built.output, 'utf8'));
+      expect(attestation.allowed_template_ids).toEqual(['final_standings_leader']);
+    });
+  });
+
+  it('rejects a deployed template absent from signed evidence', () => {
+    expect(() => requireEvidenceBackedTemplates(['final_standings_leader'], new Set(['race_date'])))
+      .toThrow('answer_release_template_not_deployed');
   });
 
   it('requires an explicit canonical deployment principal allowlist', () => {

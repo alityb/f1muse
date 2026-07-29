@@ -103,9 +103,7 @@ export function buildAnswerReleaseAttestationFile(
   const allowedTemplateIds = parseTemplateAllowlist(env.F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS);
   const allowedPrincipalClasses = parsePrincipalAllowlist(env.F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES);
   const observedTemplates = new Set(artifact.observations.flatMap(observation => observation.template_id ? [observation.template_id] : []));
-  if ([...observedTemplates].some(templateId => !allowedTemplateIds.includes(templateId))) {
-    throw new Error('answer_release_template_not_deployed');
-  }
+  requireEvidenceBackedTemplates(allowedTemplateIds, observedTemplates);
 
   const requestedCommitSha = env.F1QL_ANSWER_RELEASE_COMMIT_SHA;
   const currentCommitSha = env.RAILWAY_GIT_COMMIT_SHA ?? env.GIT_COMMIT_SHA;
@@ -189,6 +187,12 @@ export function buildAnswerReleaseAttestationFile(
   }
   writeExclusive(paths.output, bytes);
   return { output: paths.output, status: 'pass', sha256: getAnswerReleaseAttestationHash(verified) };
+}
+
+export function requireEvidenceBackedTemplates(allowedTemplateIds: readonly AnswerTemplateId[], observedTemplates: ReadonlySet<string>): void {
+  if (allowedTemplateIds.some(templateId => !observedTemplates.has(templateId))) {
+    throw new Error('answer_release_template_not_deployed');
+  }
 }
 
 function requireBuildGuard(env: NodeJS.ProcessEnv): void {
