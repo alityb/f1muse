@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
-import { QueryExecutor } from '../../src/execution/query-executor';
 import { runMatchupSync } from '../../src/etl/matchup-matrix';
-import { QueryIntent } from '../../src/types/query-intent';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 let pool: Pool;
@@ -38,26 +36,15 @@ afterAll(async () => {
 });
 
 describe('matchup ETL writer-to-reader contract', () => {
-  it('writes qualifying matchups that the public lookup template returns', async () => {
-    const executor = new QueryExecutor(pool);
-    const intent: QueryIntent = {
-      kind: 'driver_matchup_lookup',
-      season: 2026,
-      driver_a_id: 'max_verstappen',
-      driver_b_id: 'sergio_perez',
-      h2h_metric: 'qualifying_position'
-    } as QueryIntent;
+  it('writes the requested season qualifying matchup facts', async () => {
+    const response = await pool.query(
+      `SELECT shared_events, driver_a_wins, driver_b_wins, coverage_status
+       FROM driver_matchup_matrix_2025
+       WHERE season = $1 AND driver_a_id = $2 AND driver_b_id = $3 AND metric = $4`,
+      [2026, 'max_verstappen', 'sergio_perez', 'qualifying_position']
+    );
 
-    const response = await executor.execute(intent);
-
-    expect('error' in response).toBe(false);
-    if (!('error' in response)) {
-      expect(response.result.type).toBe('driver_matchup_lookup');
-      expect(response.result.payload.shared_events).toBe(4);
-      expect(response.result.payload.primary_wins).toBe(4);
-      expect(response.result.payload.secondary_wins).toBe(0);
-      expect(response.result.payload.coverage_status).toBe('low_coverage');
-    }
+    expect(response.rows[0]).toMatchObject({ shared_events: 4, driver_a_wins: 4, driver_b_wins: 0, coverage_status: 'low_coverage' });
   });
 
   it('honors the requested season instead of the module default', async () => {

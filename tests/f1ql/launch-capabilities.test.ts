@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { selectTemplate } from '../../src/execution/pipeline/select-template';
-import { TemplateLoader } from '../../src/execution/template-loader';
+import { existsSync, readFileSync } from 'node:fs';
 import { LAUNCH_CAPABILITY_DISPOSITIONS, LEGACY_QUERY_KINDS, LEGACY_REMOVAL_ALLOWED } from '../../src/f1ql/launch-capabilities';
-import type { QueryIntent } from '../../src/types/query-intent';
 import { launchParityManifest } from '../fixtures/f1ql-launch-parity-manifest';
 import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-manifest';
 import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
@@ -56,21 +53,31 @@ describe('F1QL launch capability migration', () => {
     }
   });
 
-  it('blocks legacy deletion until every reviewed prompt has a contracted implementation', () => {
-    expect(LEGACY_REMOVAL_ALLOWED).toBe(false);
+  it('physically removes the legacy architecture after every reviewed prompt is contracted', () => {
+    expect(LEGACY_REMOVAL_ALLOWED).toBe(true);
     expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(false);
-    const loader = new TemplateLoader();
-    for (const kind of LEGACY_QUERY_KINDS) {
-      const template = selectTemplate({ kind, normalization: 'none' } as QueryIntent);
-      expect(loader.load(template).trim()).not.toHaveLength(0);
+
+    for (const removedPath of [
+      'src/api/nl-query.ts',
+      'src/api/nl-query-production.ts',
+      'src/api/routes/query.ts',
+      'src/types/query-intent.ts',
+      'src/execution/pipeline/select-template.ts',
+      'src/execution/template-loader.ts',
+      'templates'
+    ]) {
+      expect(existsSync(removedPath), removedPath).toBe(false);
     }
-    const dynamicIntents = [
-      { kind: 'season_driver_vs_driver', normalization: 'session_median_percent' },
-      { kind: 'driver_head_to_head_count', normalization: 'none', filters: { exclude_dnfs: true } }
-    ] as QueryIntent[];
-    for (const intent of dynamicIntents) {
-      expect(loader.load(selectTemplate(intent)).trim()).not.toHaveLength(0);
-    }
+
+    const routeIndex = readFileSync('src/api/routes/index.ts', 'utf8');
+    const answerRouter = readFileSync('src/api/routes/program-answer.ts', 'utf8');
+    expect(routeIndex.match(/router\.use\('\/', createPublicAnswerRoutes\(answerPool\)\)/gu)).toHaveLength(1);
+    expect(answerRouter.match(/createAnswerRoutes\('\/nl-query'/gu)).toHaveLength(1);
+
+    const shadowRouter = readFileSync('src/api/routes/program-translate.ts', 'utf8');
+    expect(shadowRouter).toContain('_executor?: () => never');
+    expect(shadowRouter).not.toMatch(/_executor\s*\(/u);
+    expect(shadowRouter).not.toMatch(/from ['"]\.\.\/\.\.\/f1ql\/executor['"]/u);
   });
 
   it('contracts only deterministic proof cases with reviewed generated evidence', async () => {
@@ -113,7 +120,7 @@ describe('F1QL launch capability migration', () => {
         reason: nonAnswerReasons[parityCase.id]
       });
     }
-    expect(LEGACY_REMOVAL_ALLOWED).toBe(false);
+    expect(LEGACY_REMOVAL_ALLOWED).toBe(true);
     expect(launchParityManifest.some(testCase => testCase.implementation === 'pending')).toBe(false);
   });
 

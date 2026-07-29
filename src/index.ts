@@ -159,20 +159,6 @@ async function main() {
     res.json(getSyncStatus());
   });
 
-  // Clear ephemeral distributed cache data after an ingestion or methodology correction.
-  app.delete('/admin/cache', requireAdmin, async (_req, res) => {
-    try {
-      const redisCleared = await getRedisCache().clearAll();
-      res.json({
-        ok: true,
-        redis_cleared: redisCleared,
-      });
-    } catch (err) {
-      logError(err, { context: 'admin_cache_clear_failed' });
-      res.status(500).json({ ok: false, error: 'cache_clear_failed' });
-    }
-  });
-
   // Register routes
   const routes = createRoutes(replicaPool, primaryPool, answerPool);
   app.use('/', routes);

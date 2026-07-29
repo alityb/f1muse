@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
-import { TemplateLoader } from '../../src/execution/template-loader';
+import { executeF1QL } from '../../src/f1ql/executor';
 import { syncResults } from '../../src/sync/jolpica-sync';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 let pool: Pool;
-const loader = new TemplateLoader();
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getTestDatabaseUrl() });
@@ -48,13 +47,12 @@ afterAll(async () => {
 });
 
 describe('Jolpica race-results writer-to-reader contract', () => {
-  it('writes a result the public race-results template returns', async () => {
-    const sql = loader.load('race_results_summary_v1');
-    const result = await pool.query(sql, [2026, 'bahrain']);
+  it('writes a result the F1QL race-classification reader returns', async () => {
+    const result = await executeF1QL(pool, { version: 1, root: { op: 'event_classification', season: 2026, round: 1, limit: 30 } });
 
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0].driver_id).toBe('lewis-hamilton');
     expect(Number(result.rows[0].points)).toBe(25);
-    expect(result.rows[0].position).toBe('1');
+    expect(result.rows[0].finishing_position).toBe(1);
   });
 });

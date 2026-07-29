@@ -1,119 +1,91 @@
-# F1Muse Capability Matrix
+# F1QL Launch Capability Matrix
 
-Status: Phase 0 baseline
-Purpose: Define what the current template architecture can answer, what data
-authorities it uses, and where F1QL must extend it.
+Status: Phase 10 launch architecture complete.
 
-## Coverage Boundaries
+## Public Answer Authorities
 
-| Data class | Current coverage | Authority | Notes |
+| Capability | Scope | Authority | Launch status |
 |---|---|---|---|
-| Race classification | 1950-present, source-dependent | F1DB; Jolpica for current season | Includes finish classification and race points |
-| Official season standings | 1950-present, source-dependent | `season_driver_standing` | Authoritative for championship points and rank |
-| Qualifying classification | historical coverage varies; robust current pipeline | F1DB / FastF1 | Pole is qualifying P1, not necessarily official grid P1 |
-| Lap pace, stints, compounds | Observed production serving coverage: 2026 rounds 1-10 | FastF1-derived application fact product | Historical coverage and filtered-pace factual validation remain unsupported |
-| Official raw lap windows | Local sealed Belgian 2022 fixture only | FIA Race History Chart, classification, and deleted-lap decision | Fixed two-driver median metric; not clean-air pace; no production data or grant |
-| Current-season results and standings | Latest successful sync | Jolpica | Subject to upstream publication and pagination completeness |
-| Current-season laps/qualifying | Latest successful FastF1 ETL | FastF1 | May lag race results |
+| Race classification | One resolved event; all, winner, podium, top-N, exact position, one driver, or reviewed status | Official race classification plus event metadata | Retained |
+| Qualifying classification | One resolved event; all, pole, top-N, exact position, one driver, or reviewed status | Recorded qualifying classification plus event metadata | Retained |
+| Final driver standings | Explicit final seasons 1950-2025 | Recorded final standings | Retained |
+| Current driver standings | Explicit latest-recorded 2026 only | Latest successful Jolpica standings snapshot | Retained with `season_in_progress` caveat |
+| Driver season official summary | One driver, one final season | Recorded final position and points only | Retained |
+| Driver career official summary | One driver, fixed 1950-2025 final-season scope | Best recorded final position and recorded standings-row count | Retained |
+| Final multi-driver ranking | Exact reviewed three-driver 2025 form | Official championship position | Retained |
+| Career wins by circuit | One driver, 1950-2025 | Race P1 classification joined to canonical circuit identity | Retained |
+| Race season H2H | Two ordered drivers, one final season, shared numeric positions | Race classification | Retained |
+| Qualifying season H2H | Two ordered drivers, one final season, shared numeric positions | Qualifying classification | Retained |
+| Official two-driver results comparison | Exact reviewed 2025 Norris/Piastri form | Final standings plus race and qualifying position H2H | Retained |
+| Named-event race comparison | Exact reviewed Silverstone 2025 Verstappen/Norris form | Race classification plus event metadata | Retained |
+| Qualifying P1 counts | One driver/season or one driver over 1950-2025 | `qualifying_position = 1` | Retained |
+| Qualifying top-ten counts/ranking | One driver/season or one season ranking | Recorded P1-P10 qualifying positions | Retained |
 
-## Current Query Surface
+All 30 launch-parity cases are contracted. Exact accepted wording remains
+closed and versioned; the table describes semantics, not permission to accept
+arbitrary paraphrases.
 
-| Statistical family | Current implementation | Main limitation |
+## Public Retirement Boundary
+
+| Family | Status | Reason |
 |---|---|---|
-| Race/qualifying result lookup | Result-summary templates | Fixed season + event shape |
-| Official driver season totals | `driver_season_summary` | No arbitrary filters or intervals |
-| Career totals | Career templates | Fixed aggregation definitions |
-| Driver-vs-driver season pace | Normalized/raw season templates | No arbitrary round, stint, compound, or weather scopes |
-| Track comparison/ranking | Track templates | One track scope at a time |
-| Teammate gap | Precomputed teammate templates | Full-season or fixed scope only |
-| Head-to-head counts | Conditional H2H template | Has filters, but only classification H2H |
-| Pole/Q3 counts | Qualifying templates | Fixed aggregation shapes |
-| Multi-driver pace ranking | Multi-comparison template | Fixed metrics and small driver sets |
+| Pace gaps, fastest-driver rankings, tyre/stint/clean-air analytics | Retired from launch answers | No reviewed public answer authority; classification is not a pace proxy |
+| Weather-conditioned comparisons | Retired | No single reviewed factual contract |
+| Teammate gap and dual-session gap products | Retired | Legacy derived products are not equivalent to reviewed official metrics |
+| Trend summaries | Retired | No reviewed longitudinal metric contract |
+| Synthetic performance vectors and broad profiles | Replaced/retired | Mixed authorities and synthetic scores |
+| Position-to-time qualifying gaps | Replaced | Launch uses position H2H only |
+| Legacy Q3 proxy | Replaced | Launch counts explicit recorded top-ten qualifying positions |
+| Sprint, post-penalty grid, constructor, interim standings | Unsupported | Outside launch source/policy contract |
+| Arbitrary windows, multi-season comparisons, team filters, broad composites | Unsupported | Outside reviewed launch scope |
 
-## Current Correctness Authorities
+The Phase 8/9 sealed official lap fixtures and pace operations remain research
+and regression assets. Their existence does not authorize public execution.
 
-| Fact | Current authoritative relation | Regression concern |
+## Legacy Family Dispositions
+
+The former 24-family inventory has an exhaustive Phase 10 disposition:
+
+| Historical family | Disposition | Launch replacement/boundary |
 |---|---|---|
-| Championship points | `season_driver_standing.points` | Never substitute summed race rows when official standing exists |
-| Wins, podiums, classified finishes | `race_data` / race classification | `Lapped` is classified; DNS/W are not positions |
-| Pole positions | `qualifying_results.qualifying_position = 1` | Do not confuse with post-penalty grid position |
-| Pace | `laps_normalized_v2` | Race session only; valid non-pit/non-in-out laps; at least two eligible laps per event; active methodology version required |
-| Seasonal eligibility | `season_driver_standing` today; future `f1.season_entries` | Do not emit zero-filled comparisons for absent entrants |
+| `driver_season_summary` | Port | Final-season official summary or explicit current standings |
+| `driver_career_summary` | Port | Standings-only career summary |
+| `driver_profile_summary` | Replace | Final-season official summary only |
+| `driver_trend_summary` | Retire | No launch replacement |
+| `driver_head_to_head_count` | Port | Race or qualifying position H2H |
+| `driver_performance_vector` | Retire | No synthetic vector |
+| `driver_multi_comparison` | Replace | Exact official final-position ranking |
+| `driver_matchup_lookup` | Replace | Qualifying position H2H |
+| `driver_vs_driver_comprehensive` | Replace | Pinned official-results comparison |
+| `driver_career_wins_by_circuit` | Port | Official race wins by canonical circuit |
+| `teammate_comparison_career` | Replace | Explicit season classification H2H; no teammate inference |
+| `season_driver_vs_driver` | Replace | Explicit race/qualifying position H2H |
+| `cross_team_track_scoped_driver_comparison` | Replace | Pinned named-event race classification comparison |
+| `teammate_gap_summary_season` | Retire | No launch replacement |
+| `teammate_gap_dual_comparison` | Retire | No launch replacement |
+| `track_fastest_drivers` | Retire | No launch replacement |
+| `race_results_summary` | Port | Reviewed race result selections |
+| `driver_pole_count` | Port | Season qualifying P1 count |
+| `driver_career_pole_count` | Port | Career qualifying P1 count through 2025 |
+| `driver_q3_count` | Replace | Season top-ten qualifying count |
+| `season_q3_rankings` | Replace | Season top-ten qualifying ranking |
+| `qualifying_gap_teammates` | Replace | Qualifying position H2H; no teammate/time-gap claim |
+| `qualifying_gap_drivers` | Replace | Qualifying position H2H |
+| `qualifying_results_summary` | Port | Reviewed qualifying result selections |
 
-## Explicit Current Limitations
+There is no legacy execution fallback after cutover.
 
-1. Query capability grows by adding an intent plus a template. It does not
-   compose filters across query families.
-2. A natural-language model can only route to existing query kinds; it cannot
-   create a new deterministic calculation safely.
-3. Historical classification and current lap data have different coverage.
-   A query can be answerable for results but not for pace.
-4. Raw table identity formats still vary by source (hyphen/underscore driver
-   IDs and circuit/grand-prix track IDs).
-5. F1QL pace reads only the audited `f1ql.lap_pace` selection over v2 original,
-   replacement, and rebuild facts. Legacy rows are not silently backfilled, so
-   pace fails closed until an explicitly reviewed v2 ingestion has supplied the
-   active clean-air methodology version.
-6. The Phase 8 `f1ql.lap_pace` lap-number migration remains structural and
-   unapplied. A separate local-only sealed official-timing view and closed raw
-   lap-window operation now exist; no production application or answer-route
-   capability exists.
-7. The hash-pinned FIA Belgian 2022 fixture retains all 790 reconciled completed
-   laps, all 20 reviewed canonical identities, and the five deleted-time mappings.
-8. Unapplied private-storage and sealed-serving migrations plus a localhost
-   writer prove append-only persistence, exact replay, rollback, complete
-   coverage, least-privilege view reads, and exact compiler/reference metric
-   equivalence. No persistent runtime grant, answer capability, production
-   migration application, or production ingestion exists.
+## Route Capability
 
-## F1QL v1 Target Delta
+| Route | Execution boundary |
+|---|---|
+| `POST /nl-query` | Public reviewed `AnswerEnvelope`; all answer/release/canary/read-only gates apply |
+| `POST /program/answer` | Internal bearer principal; same deterministic answer gates |
+| `POST /program/translate` | Permanently shadow-only and non-executing |
+| `POST /program` | Caller-supplied F1QL, separately enabled and fully validated |
+| `POST /program/verified/:id` | Curated registry only; guarded verified execution |
+| `GET /share/:id`, `GET /share-feed` | Immutable retrieval only; no query execution |
+| Direct driver GET routes | Non-NL endpoint contracts retained |
 
-| Capability | Current | F1QL v1 target |
-|---|---|---|
-| Scope | Fixed per template | Composable season, round, event, session, and entity filters |
-| Calculation | Template-specific SQL | Typed composition of source/filter/group/aggregate/compare/delta/rank/window |
-| Coverage | Inconsistent per template | One participation and coverage gate before execution |
-| Explanation | Bespoke formatter text | Renderer derived from the program AST |
-| Cache key | Intent/query-shape dependent | Normalized program + data/definition/ontology versions |
-| LLM role | Intent classification | Optional language-to-program translation only |
-
-## Phase 0 Inventory
-
-- Query templates: 27 SQL files.
-- Public query abstraction: `QueryIntent` union with legacy per-kind routing.
-- Existing validation: metric registry, query validator, driver/track
-  resolvers, template selection, parameter binding, coverage/confidence.
-- Existing cache layers: Redis result/intent cache and Postgres
-  `api_query_cache`.
-- Existing sync sources: F1DB import, FastF1 ETL, Jolpica current-season sync.
-- Existing operational protections: authenticated admin endpoints,
-  `ADMIN_API_KEY`, optional Redis, Railway health checks.
-
-## Test Evidence Status
-
-- The current incident registry is intentionally **provisional**. Its values
-  are not release-blocking until each case has independent evidence, a local
-  fixture/snapshot, and an executable runner.
-- The initial local runner uses adversarial synthetic data to prove source
-  authority and refusal behavior at the SQL-template boundary.
-- A future production runner must use a dedicated read-only endpoint or
-  snapshot database. It must never run test writes against production.
-
-### Local Contract Gate
-
-Run the complete local golden suite with Docker Desktop running:
-
-```bash
-npm run test:golden:db
-```
-
-The command starts a disposable PostgreSQL 16 instance, waits on an actual
-database readiness probe, runs `tests/golden`, and tears the instance down
-even when the test command fails.
-
-## Phase 0 Exit Criteria
-
-- Every new F1QL feature cites a row in this matrix as its source capability
-  or explicitly extends the matrix.
-- Every missing-data response identifies whether the limit is coverage,
-  participation, source freshness, or language expressibility.
+Removed: `/query`, `POST /share`, suggestions, capabilities, legacy
+natural-language routers, and natural-language intent/result caches.

@@ -1,5 +1,3 @@
-import type { QueryIntentKind } from '../types/query-intent';
-
 export const LEGACY_QUERY_KINDS = [
   'driver_season_summary',
   'driver_career_summary',
@@ -29,7 +27,7 @@ export const LEGACY_QUERY_KINDS = [
 
 export type LegacyQueryKind = typeof LEGACY_QUERY_KINDS[number];
 export type LaunchCapabilityDecision = 'port' | 'replace' | 'retire';
-export const LEGACY_REMOVAL_ALLOWED = false as const;
+export const LEGACY_REMOVAL_ALLOWED = true as const;
 export type LaunchAuthority = 'standings' | 'race_classification' | 'qualifying_classification' | 'event_metadata' | 'none';
 
 export interface LaunchCapabilityDisposition {
@@ -64,12 +62,7 @@ export const LAUNCH_CAPABILITY_DISPOSITIONS: Readonly<Record<LegacyQueryKind, La
   qualifying_gap_teammates: replace('qualifying_season_position_h2h', 'qualifying_classification', 'Replace position-to-time proxies with recorded shared-event qualifying-position H2H without asserting teammate identity.'),
   qualifying_gap_drivers: replace('qualifying_season_position_h2h', 'qualifying_classification', 'Use recorded shared-event qualifying-position H2H rather than a synthetic time gap.'),
   qualifying_results_summary: port('qualifying_result_selection', ['qualifying_classification', 'event_metadata'], 'Support full classification, pole, top-N, exact position, driver, and status selection.')
-} satisfies Record<QueryIntentKind, LaunchCapabilityDisposition>);
-
-type MissingLegacyKinds = Exclude<QueryIntentKind, LegacyQueryKind>;
-type RemovedLegacyKinds = Exclude<LegacyQueryKind, QueryIntentKind>;
-const exhaustiveLegacyKinds: [MissingLegacyKinds, RemovedLegacyKinds] extends [never, never] ? true : never = true;
-void exhaustiveLegacyKinds;
+} satisfies Record<LegacyQueryKind, LaunchCapabilityDisposition>);
 
 function port(targets: string | readonly string[], authorities: LaunchAuthority | readonly LaunchAuthority[], reason: string): LaunchCapabilityDisposition {
   return { decision: 'port', targets: asTargets(targets), authorities: asAuthorities(authorities), reason };

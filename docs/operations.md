@@ -1,411 +1,151 @@
-# operations
+# F1Muse Operations
 
-## etl pipelines
+## Safety Boundary
 
-### lap data ingestion
+- Never run database-backed tests with bare `vitest`; production credentials
+  may exist in `.env`. Use the wrapped npm scripts.
+- All F1QL answer access is read-only and statement-timeout bounded.
+- `POST /program/translate` is shadow-only and must never execute.
+- Do not deploy from an uncommitted or failing tree.
+- Do not run production schema, evidence, pace, or audit commands casually;
+  each has explicit guards and its own operational procedure.
 
-source: fastf1 python library
+## Answer Route Configuration
 
-```bash
-# install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+Both `POST /nl-query` and `POST /program/answer` are unavailable unless:
 
-# load all races
-npm run etl:laps:all
+1. `F1QL_ANSWER_ENABLED=true`.
+2. `F1QL_ANSWER_KILL_SWITCH` is not `true`.
+3. The signed release attestation and all referenced evidence verify for the
+   active commit/deployment and have not expired.
+4. `F1QL_ANSWER_CANARY_STAGE` is nonzero, does not exceed the signed maximum,
+   and admits both the subject and selected template.
+5. `F1QL_ANSWER_DATABASE_URL` and
+   `F1QL_ANSWER_DATABASE_CA_CERT_BASE64` configure the dedicated read-only
+   answer database.
+6. Runtime values match the signed release.
 
-# load specific round
-npm run etl:laps:round 1
-```
+The kill switch is rechecked during execution. Set it to `true` to stop answer
+execution without enabling another natural-language path.
 
-output table: `laps_normalized`
+`POST /program/answer` additionally requires
+`Authorization: Bearer <F1QL_ANSWER_INTERNAL_TOKEN>`. The public
+`POST /nl-query` route does not use this token.
 
-properties:
-- idempotent (skips already-loaded races)
-- transactional per race
-- audited in `etl_runs_laps_normalized`
+## Runtime Bounds
 
-runtime:
-- single race (cached): 5-10 seconds
-- single race (uncached): 30-60 seconds
-- full season: 30-60 minutes
+Defaults from the active runtime contract:
 
-### pace metrics
+| Setting | Default |
+|---|---:|
+| `F1QL_ANSWER_MAX_CONCURRENCY` | 2 |
+| `F1QL_ANSWER_QUEUE_TIMEOUT_MS` | 2000 |
+| `F1QL_ANSWER_REQUEST_TIMEOUT_MS` | 12000 |
+| `F1QL_ANSWER_RATE_LIMIT_MAX` | 10 |
+| `F1QL_ANSWER_RATE_LIMIT_WINDOW_MS` | 900000 |
+| `F1QL_ANSWER_STATEMENT_TIMEOUT_MS` | 3000 |
+| `F1QL_ANSWER_MAX_WORK_UNITS` | 2280 |
+| `F1QL_ANSWER_MAX_ROWS` | 100 |
+| `F1QL_ANSWER_MAX_RESPONSE_BYTES` | 65536 |
 
-```bash
-npm run etl:pace-metrics
-```
+Configuration parsing enforces lower and upper bounds. Statement timeout may
+not exceed request timeout. The signed release binds the effective values.
 
-computes aggregated pace statistics from lap data.
+Redis provides distributed production rate limiting. Its absence must be
+treated as degraded protection, not as permission to add answer/intent caches.
 
-### qualifying ingestion
-
-```bash
-npm run etl:qualifying:2022
-npm run etl:qualifying:2023
-npm run etl:qualifying:2024
-npm run etl:qualifying:2025
-npm run etl:qualifying:all
-```
-
-loads q1/q2/q3 times, eliminated-in-round tracking.
-
-### teammate gap ingestion
-
-```bash
-npm run ingest:teammate-gap:2025
-```
-
-computes season-level teammate gaps for race and qualifying pace.
-
----
-
-## grid corrections
-
-### background
-
-fastf1 returns qualifying classification (ordered by lap time), not official fia starting grid (ordered by race start position). these differ due to:
-
-- engine penalties (e.g., verstappen spa 2022: p1 → p14)
-- gearbox penalties
-- impeding penalties
-- pit lane starts
-- disqualifications
-
-### data model
-
-**qualifying_grid_corrections table**
-
-```sql
-create table qualifying_grid_corrections (
-  season integer not null,
-  round integer not null,
-  driver_id text not null,
-  qualifying_position integer not null,   -- by lap time
-  official_grid_position integer not null, -- fia starting position
-  reason text not null,
-  source text default 'FIA',
-  primary key (season, round, driver_id)
-);
-```
-
-**qualifying_results_official view**
-
-provides fia-accurate grid positions:
-
-```sql
-select
-  qr.*,
-  coalesce(gc.official_grid_position, qr.qualifying_position) as official_grid_position,
-  gc.official_grid_position is not null as has_grid_correction
-from qualifying_results qr
-left join qualifying_grid_corrections gc
-  on qr.season = gc.season and qr.round = gc.round and qr.driver_id = gc.driver_id
-where qr.session_type = 'RACE_QUALIFYING';
-```
-
-### correction counts
-
-| season | corrections | rounds affected |
-|--------|-------------|-----------------|
-| 2022 | 156 | 15 |
-| 2023 | 108 | 13 |
-| 2024 | 107 | 16 |
-| 2025 | 17 | 3 |
-| total | 388 | - |
-
-### key races
-
-**belgian gp (spa)** - engine penalty races:
-- 2022 r14: verstappen p1→p14, leclerc p4→p15
-- 2023 r12: verstappen p1→p6
-- 2024 r14: verstappen p1→p11
-
-**italian gp (monza)** - 2022 r16:
-- verstappen p2→p7, sainz p3→p18, hamilton p5→p19
-
-**qatar gp** - 2024 r23:
-- verstappen p1→p2 (impeding penalty)
-
-### populating corrections
+## Route Checks
 
 ```bash
-# fetch from jolpica api + apply manual corrections
-source .env && npx ts-node scripts/populate-grid-corrections.ts
-
-# validate all corrections against api
-source .env && npx ts-node scripts/validate-grid-corrections.ts
-
-# sql verification queries
-source .env && psql "$DATABASE_URL" -f scripts/verify-grid-corrections.sql
-```
-
-### data sources
-
-primary: jolpica api (ergast successor)
-- url: `https://api.jolpi.ca/ergast/f1/{season}/{round}/results.json`
-- field: `Results[].grid` contains official starting position
-
-secondary: manual corrections from fia documents
-
----
-
-## migrations
-
-### running migrations
-
-```bash
-psql $DATABASE_URL < migrations/<filename>.sql
-```
-
-### migration files
-
-| file | purpose |
-|------|---------|
-| 20260126_create_qualifying_tables.sql | qualifying schema |
-| 20260128_add_qualifying_grid_corrections.sql | grid corrections |
-
-### creating migrations
-
-naming convention:
-```
-YYYYMMDD_description.sql
-```
-
-requirements:
-- idempotent (use `if not exists`, `on conflict do nothing`)
-- include rollback comments
-- document purpose in header
-
----
-
-## testing
-
-### test database setup
-
-```bash
-createdb f1muse_test
-export TEST_DATABASE_URL="postgresql://localhost:5432/f1muse_test"
-```
-
-### running tests
-
-```bash
-# all tests
-npm test
-
-# with coverage
-npm run test:coverage
-
-# specific file
-npx vitest src/test/<file>.test.ts
-
-# single test by name
-npx vitest -t "test name"
-
-# watch mode
-npx vitest --watch
-```
-
-### test categories
-
-1. driver identity resolution
-2. track identity resolution
-3. required context rules
-4. teammate comparison rules
-5. cross-team comparison rules
-6. track-scoped comparison
-7. ranking validation
-8. template safety (sql injection prevention)
-
-### production validation tests
-
-```bash
-npm test -- --run tests/production/grid-position-historical.test.ts
-npm test -- --run tests/production/pole-count-historical.test.ts
-npm test -- --run tests/production/qualifying-session-type.test.ts
-```
-
----
-
-## validation scripts
-
-### verify pole counts
-
-validates pole position statistics match official fia results:
-
-```bash
-source .env && psql "$DATABASE_URL" -f scripts/verify-pole-counts.sql
-```
-
-### verify grid corrections
-
-validates all grid corrections are complete and accurate:
-
-```bash
-source .env && npx ts-node scripts/validate-grid-corrections.ts
-```
-
-expected output:
-```
-✅ All grid corrections are complete and accurate!
-
-2022: 0 missing, 0 incorrect
-2023: 0 missing, 0 incorrect
-2024: 0 missing, 0 incorrect
-2025: 0 missing, 0 incorrect
-```
-
----
-
-## data quality checks
-
-### lap data validation
-
-```sql
--- lap counts per race
-select round, count(*) as total_laps, count(distinct driver_id) as drivers
-from laps_normalized
-where season = 2025
-group by round order by round;
-
--- pit lap ratio (target: 5-7%)
-select round,
-  100.0 * sum(case when is_pit_lap then 1 else 0 end) / count(*) as pit_lap_pct
-from laps_normalized
-where season = 2025
-group by round order by round;
-
--- clean air ratio
-select round,
-  100.0 * sum(case when clean_air_flag then 1 else 0 end) / count(*) as clean_air_pct
-from laps_normalized
-where season = 2025 and is_valid_lap and not is_pit_lap
-group by round order by round;
-```
-
-### qualifying data validation
-
-```sql
--- qualifying results per season
-select season, count(*) from qualifying_results
-where session_type = 'RACE_QUALIFYING'
-group by season order by season;
-
--- grid corrections per season
-select season, count(*) from qualifying_grid_corrections
-group by season order by season;
-
--- verstappen pole count verification
-select season,
-  count(*) filter (where official_grid_position = 1) as official_poles,
-  count(*) filter (where qualifying_position = 1) as fastest_times
-from qualifying_results_official
-where driver_id = 'max_verstappen'
-group by season order by season;
-```
-
----
-
-## troubleshooting
-
-### fastf1 download fails
-
-```
-✗ HTTPError 503
-```
-
-causes: api rate limiting, server unavailable
-
-solutions:
-1. wait 5-10 minutes and retry
-2. check fastf1 cache: `ls -la cache/fastf1/`
-3. clear cache and retry: `rm -rf cache/fastf1/`
-
-### missing lap data
-
-```
-✗ No lap data available
-```
-
-causes: race hasn't occurred, session type incorrect
-
-solutions:
-1. verify race has occurred
-2. check fastf1 documentation for session types
-
-### database connection failed
-
-solutions:
-1. verify postgresql is running
-2. check DATABASE_URL in .env
-3. verify database exists: `psql -l`
-
-### grid corrections validation fails
-
-```
-❌ Missing corrections: X
-```
-
-solutions:
-1. re-run population script: `npx ts-node scripts/populate-grid-corrections.ts`
-2. check jolpica api availability
-3. add manual corrections for edge cases
-
----
-
-## monitoring
-
-### health endpoints
-
-```bash
-# basic health
 curl http://localhost:3000/health
-
-# detailed health with db stats
-curl http://localhost:3000/health/detailed
+curl http://localhost:3000/health/db
+curl http://localhost:3000/metrics
 ```
 
-### key metrics
+The root discovery response advertises F1QL program routes only when
+`F1QL_ENABLED=true`, and answer routes only when enabled and not kill-switched.
 
-- query execution time
-- validation failure rate
-- llm translation success rate
-- cache hit rate
+Retained API routes:
 
-### logs
+```text
+POST /nl-query
+POST /program/answer
+POST /program/translate
+POST /program
+GET  /program/verified
+POST /program/verified/:id
+GET  /share/:id
+GET  /share-feed
+GET  /driver/:driver_id/profile
+GET  /driver/:driver_id/trend
+```
 
-query logging in `src/execution/query-logger.ts`:
-- queryintent json
-- execution time
-- result row count
-- errors
+`/query`, `POST /share`, suggestions, capabilities, and natural-language cache
+diagnostics are not mounted.
 
----
-
-## backup and recovery
-
-### database backup
+## Testing
 
 ```bash
-pg_dump $DATABASE_URL > backup_$(date +%Y%m%d).sql
+# Fast static checks
+npm run typecheck
+npm run lint
+
+# Wrapped database suites; run sequentially because they share Docker state
+npm run test:unit:db:docker
+npm run test:integration:db
+npm run test:f1ql
+npm run test:api:inprocess
+npm run test:golden:db
+npm run test:schema:db
+
+# Complete current package gate
+npm run validate:full
 ```
 
-### restore
+`npm test` runs only the non-F1QL unit selection. It is not the complete gate.
+Database-backed suites deliberately fail if their disposable PostgreSQL
+dependency is unavailable.
+
+The permanent shadow non-execution invariant, answer release/canary gates,
+least-privilege execution, launch capability corpus, SQL/reference
+differentials, and immutable-share behavior are covered by the wrapped suites.
+
+## Schema Snapshot Caveat
+
+`tests/schema/snapshots/production-schema.json` is a historical read-only
+capture. It includes `laps_normalized_v2` with its 18 columns and
+session-inclusive key, but predates the later pace-v2 replacement and rebuild
+relations and their immutable triggers. Therefore it does not match the full
+current production pace-v2 schema and is not the authority for current
+serving/audit readiness. The retained fresh pace-v2 preflight evidence is the
+current authority for those relations and triggers.
+
+Refresh the snapshot only through the guarded command with intentionally
+configured production credentials:
 
 ```bash
-psql $DATABASE_URL < backup_20260128.sql
+npm run schema:snapshot:production
 ```
 
-### etl recovery
+The command is read-only, queries `information_schema`, uses a transaction-local
+statement timeout, and rolls back. Refreshing it is an evidence operation, not
+a routine local test and not a schema migration.
 
-all etl scripts are idempotent. to re-ingest:
+## Data Sync Boundary
 
-```bash
-# delete existing data
-psql $DATABASE_URL -c "delete from laps_normalized where season = 2025"
+Routine Jolpica sync refreshes current-season results and transactionally
+replaces current-season standings. It may update latest-recorded 2026 answers
+but cannot promote 2026 to a final-season capability. Such promotion requires
+new versioned question, intent, template, policy, corpus, fixture, release, and
+evidence contracts.
 
-# re-run etl
-npm run etl:laps:all
-```
+FastF1 lap ingestion is outside routine auto-sync. Pace-v2 writes require an
+explicit reviewed manifest and the dedicated guarded commands documented by
+the pace evidence procedures. Pace remains unauthorized for public Phase 10
+answers.
+
+## Immutable Shares
+
+`GET /share/:id` reads the stored answer and may increment only its view count;
+it never recomputes the answer. `GET /share-feed` reads recent/trending stored
+shares. There is no API share-creation operation after Phase 10 cutover.

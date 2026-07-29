@@ -1,450 +1,139 @@
-# F1Muse Documentation
+# F1Muse API Documentation
 
-## Overview
+## Public Natural-Language Contract
 
-F1Muse is a natural language query API for Formula 1 statistics. It supports 24 query types across performance comparisons, career statistics, qualifying data, and race results.
+`POST /nl-query` is the only public natural-language analytics route.
 
-## Blog
+```http
+POST /nl-query
+Content-Type: application/json
 
-For methodology, architecture decisions, and implementation details, see the full write-up:
-[Latency to Insight](https://tperm.bearblog.dev/latency-to-insight/)
+{"question":"Who took pole at the 2025 Australian Grand Prix?"}
+```
 
----
-
-## Supported Queries
-
-### Performance Comparisons
-
-These queries use lap-level telemetry from FastF1 (2018-2025). All pace values are session-median normalized percentages.
-
-#### season_driver_vs_driver
-
-Cross-team pace comparison for a full season.
-
-**Example queries:**
-- "Verstappen vs Norris 2024"
-- "Compare Hamilton and Leclerc pace in 2023"
-- "Who was faster, Alonso or Sainz in 2024?"
-
-**Response includes:**
-- Normalized pace for each driver
-- Gap percentage
-- Number of shared races
-- Coverage status
-
----
-
-#### cross_team_track_scoped_driver_comparison
-
-Cross-team pace comparison at a specific circuit.
-
-**Example queries:**
-- "Verstappen vs Norris at Monaco 2024"
-- "Hamilton vs Leclerc Silverstone pace 2023"
-
-**Response includes:**
-- Track-specific normalized pace
-- Gap percentage
-- Session count
-
----
-
-#### teammate_gap_summary_season
-
-Season-long pace gap between teammates. This is the primary metric for isolating driver skill from car performance.
-
-**Example queries:**
-- "Norris vs Piastri 2024"
-- "Teammate gap Hamilton Russell 2023"
-- "McLaren teammate battle 2024"
-
-**Response includes:**
-- Gap percentage (negative = first driver faster)
-- Shared races count
-- Qualifying gap vs race gap breakdown
-
----
-
-#### teammate_gap_dual_comparison
-
-Compares qualifying pace gap to race pace gap for the same teammate pair.
-
-**Example queries:**
-- "Compare qualifying vs race pace Norris Piastri 2024"
-- "Where does Leclerc beat Sainz, qualifying or race?"
-
-**Response includes:**
-- Qualifying gap percentage
-- Race pace gap percentage
-- Session breakdown
-
----
-
-#### track_fastest_drivers
-
-Ranks all drivers by pace at a specific circuit.
-
-**Example queries:**
-- "Fastest drivers at Monaco 2024"
-- "Who is quickest at Spa?"
-- "Monza pace rankings 2023"
-
-**Response includes:**
-- Ranked list of drivers
-- Normalized pace for each
-- Gap to leader
-
----
-
-#### driver_multi_comparison
-
-Compare 2-6 drivers on a single metric within a season.
-
-**Example queries:**
-- "Compare Verstappen, Norris, and Leclerc race pace 2024"
-- "Rank Hamilton, Russell, Sainz, Alonso by qualifying pace"
-- "Who is faster between the top 4 drivers?"
-
-**Response includes:**
-- Ranked comparison
-- Metric value for each driver
-- Gap to leader
-
----
-
-#### driver_vs_driver_comprehensive
-
-Full comparison combining pace data with achievement stats.
-
-**Example queries:**
-- "Verstappen vs Norris full comparison 2024"
-- "Complete head to head Leclerc Hamilton 2023"
-- "Compare all stats Sainz vs Alonso 2024"
-
-**Response includes:**
-- Pace comparison
-- Wins, podiums, poles, points
-- Head-to-head qualifying count
-- Head-to-head race finish count
-- DNF counts
-
----
-
-### Career and Season Statistics
-
-These queries use official records from F1DB (1950-present).
-
-#### driver_season_summary
-
-Single driver statistics for a specific season.
-
-**Example queries:**
-- "Verstappen 2024 stats"
-- "Hamilton season summary 2020"
-- "How did Norris do in 2024?"
-
-**Response includes:**
-- Wins, podiums, poles
-- Points, championship position
-- DNFs, fastest laps
-
----
-
-#### driver_career_summary
-
-Career-spanning statistics for a driver.
-
-**Example queries:**
-- "Hamilton career stats"
-- "Verstappen career summary"
-- "Schumacher all-time statistics"
-
-**Response includes:**
-- Total wins, podiums, poles
-- Championships
-- Career points
-- First/last race dates
-
----
-
-#### driver_profile_summary
-
-Comprehensive driver profile including performance trends.
-
-**Example queries:**
-- "Norris profile"
-- "Tell me about Leclerc"
-- "Verstappen driver summary"
-
-**Response includes:**
-- Career stats
-- Best/worst tracks
-- Latest season teammate gap
-- Performance trend (last 3 seasons)
-
----
-
-#### driver_trend_summary
-
-Multi-season performance trend analysis.
-
-**Example queries:**
-- "Is Leclerc improving?"
-- "Verstappen trend 2021-2024"
-- "Hamilton performance over time"
-
-**Response includes:**
-- Slope per season (improvement/decline rate)
-- Volatility measure
-- Classification: improving, declining, or stable
-
----
-
-#### driver_career_wins_by_circuit
-
-Career wins breakdown by circuit.
-
-**Example queries:**
-- "Hamilton wins by circuit"
-- "Where has Verstappen won?"
-- "Schumacher circuit victories"
-
-**Response includes:**
-- List of circuits with win counts
-- Last win year for each circuit
-- Total career wins
-
----
-
-#### driver_performance_vector
-
-Cross-metric performance profile for a single season.
-
-**Example queries:**
-- "Norris performance profile 2024"
-- "Verstappen strengths and weaknesses"
-- "How consistent is Leclerc?"
-
-**Response includes:**
-- Qualifying percentile (0-100)
-- Race pace percentile (0-100)
-- Consistency score
-- Street circuit delta
-- Wet weather delta
-
----
-
-### Head-to-Head Comparisons
-
-Position-based comparisons (not pace-based).
-
-#### driver_head_to_head_count
-
-Counts how often one driver finished/qualified ahead of another.
-
-**Example queries:**
-- "How many times did Norris outqualify Piastri in 2024?"
-- "Who finished ahead more often, Verstappen or Hamilton?"
-- "Head to head Leclerc vs Sainz qualifying 2024"
-
-**Supports filters:**
-- Session (Q1, Q2, Q3)
-- Track type (street, permanent)
-- Weather (dry, wet, mixed)
-- Specific rounds
-- Exclude DNFs
-
-**Response includes:**
-- Win count for each driver
-- Total comparable events
-- Percentage
-
----
-
-#### teammate_comparison_career
-
-Multi-season teammate comparison with automatic season detection.
-
-**Example queries:**
-- "Hamilton vs Russell as teammates"
-- "Norris vs Piastri all seasons"
-- "Verstappen Ricciardo teammate history"
-
-**Response includes:**
-- Per-season breakdown
-- Aggregated head-to-head counts
-- Pace gaps per season
-
----
-
-### Qualifying Statistics
-
-#### qualifying_results_summary
-
-Full qualifying grid with times and grid penalties.
-
-**Example queries:**
-- "Monaco 2024 qualifying results"
-- "Who got pole at Silverstone 2023?"
-- "Qualifying grid Monza 2024"
-
-**Response includes:**
-- Qualifying position (by time)
-- Grid position (after penalties)
-- Qualifying time / gap to pole
-- Penalty details if applicable
-
----
-
-#### driver_pole_count
-
-Pole positions for a driver in a specific season.
-
-**Example queries:**
-- "How many poles did Verstappen get in 2024?"
-- "Norris pole positions 2024"
-- "Leclerc poles 2022"
-
-**Response includes:**
-- Pole count
-- List of pole circuits
-
----
-
-#### driver_career_pole_count
-
-Career pole position count.
-
-**Example queries:**
-- "Hamilton career poles"
-- "How many poles does Verstappen have?"
-- "Schumacher total pole positions"
-
-**Response includes:**
-- Career pole count
-- Pole percentage
-
----
-
-#### driver_q3_count
-
-Q3 appearances for a driver in a season.
-
-**Example queries:**
-- "How many times did Sainz make Q3 in 2024?"
-- "Q3 appearances Hamilton 2023"
-- "Albon Q3 count 2024"
-
-**Response includes:**
-- Q3 appearance count
-- Total qualifying sessions
-- Percentage
-
----
-
-#### season_q3_rankings
-
-Rank all drivers by Q3 appearances in a season.
-
-**Example queries:**
-- "Q3 rankings 2024"
-- "Who made Q3 most often in 2023?"
-- "Rank drivers by Q3 appearances"
-
-**Response includes:**
-- Ranked list of drivers
-- Q3 count for each
-- Total sessions
-
----
-
-#### qualifying_gap_teammates
-
-Qualifying time gap between teammates over a season.
-
-**Example queries:**
-- "Qualifying gap Norris vs Piastri 2024"
-- "Who outqualified whom, Verstappen or Perez?"
-- "Hamilton Russell qualifying gap 2023"
-
-**Response includes:**
-- Average gap (percentage)
-- Head-to-head count
-- Median gap
-
----
-
-#### qualifying_gap_drivers
-
-Qualifying position gap between any two drivers (cross-team).
-
-**Example queries:**
-- "Qualifying positions Verstappen vs Leclerc 2024"
-- "Who qualifies higher, Norris or Hamilton?"
-
-**Response includes:**
-- Average position gap
-- Head-to-head qualifying count
-
----
-
-### Race Results
-
-#### race_results_summary
-
-Official race classification from F1DB.
-
-**Example queries:**
-- "Monaco 2024 results"
-- "Who won Silverstone 2023?"
-- "Monza race results 2024"
-
-**Response includes:**
-- Full classification
-- Finishing positions
-- Time gaps / laps down
-- DNF reasons
-
----
-
-## Data Coverage
-
-| Source | Years | Volume | Use Case |
-|--------|-------|--------|----------|
-| FastF1 | 2018-2025 | ~161k laps | Pace analysis, telemetry |
-| F1DB | 1950-2025 | ~243k results | Career stats, official records |
-
-## Query Limits
-
-- Driver multi-comparison: 2-6 drivers
-- Trend analysis: Default 3 seasons, configurable
-- Head-to-head filters: All optional, combinable
-
-## Response Fields
-
-All pace-based responses include:
-
-| Field | Description |
-|-------|-------------|
-| `normalized_pace` | Session-median normalized percentage |
-| `coverage_status` | `valid`, `low_coverage`, or `insufficient` |
-| `shared_races` | Number of races included in comparison |
-| `clean_air_only` | Whether traffic laps were filtered |
-
-## Error Handling
-
-Invalid queries return structured errors:
+A successful response is an `AnswerEnvelope`:
 
 ```json
 {
-  "error": "DRIVER_NOT_FOUND",
-  "message": "Driver 'leclerk' not found. Did you mean 'leclerc'?",
-  "suggestions": ["leclerc", "leclerc_sr"]
+  "mode": "gated_execution",
+  "program": {},
+  "program_hash": "sha256...",
+  "answer": { "headline": "...", "facts": [] },
+  "rows": [],
+  "rendering": "...",
+  "metadata": {
+    "source": "qualifying_classification",
+    "definitions_version": "...",
+    "compiler_version": "...",
+    "fact_space_version": "...",
+    "coverage": { "status": "sufficient", "rows_returned": 1 },
+    "caveats": []
+  }
 }
 ```
 
-Common error codes:
-- `DRIVER_NOT_FOUND`: Invalid driver name
-- `SEASON_OUT_OF_RANGE`: Season not available (pace: 2018-2025, career: 1950-2025)
-- `INSUFFICIENT_DATA`: Not enough laps/races for reliable comparison
-- `INVALID_COMPARISON`: Drivers never raced in same season
+The route is deterministic after question interpretation: exact-reference
+proof, immutable program materialization, authorization, bounded read-only SQL,
+and formatting all fail closed. Unsupported wording returns a typed
+clarification or abstention, not a nearest legacy calculation.
+
+`POST /program/answer` is the internal counterpart. It requires the internal
+bearer token and uses a separate internal principal while retaining the same
+release, canary, authorization, bound, and database gates.
+
+## Answer Availability
+
+Both answer routes require all of the following:
+
+- `F1QL_ANSWER_ENABLED=true`.
+- `F1QL_ANSWER_KILL_SWITCH` is not `true`; the switch is rechecked before and
+  during execution.
+- A valid signed release attestation matching the active code, definitions,
+  compiler, fact-space, templates, runtime bounds, deployment, and evidence.
+- A nonzero allowed canary stage and deterministic subject/template cohort.
+- `F1QL_ANSWER_DATABASE_URL` and trusted CA for the dedicated read-only answer
+  role.
+- Rate, concurrency, queue, request deadline, statement timeout, work, row,
+  and response-byte admission.
+
+Public requests use an IP-derived opaque canary subject. Internal requests use
+their authenticated principal identity. Neither route falls back to a general
+database credential.
+
+## Supported Launch Families
+
+All 30 reviewed launch-parity cases are contracted. The supported semantic
+families are:
+
+| Family | Authority and exact boundary |
+|---|---|
+| Race results | Official race classification by one resolved event: all rows, winner, podium, top-N, exact position, one driver, or reviewed status |
+| Qualifying results | Recorded qualifying classification by one resolved event: all rows, pole, top-N, exact position, one driver, or reviewed status |
+| Final standings | Official final driver standings for 1950-2025; includes leader/full table and one exact reviewed three-driver rank form |
+| Current standings | Latest recorded 2026 driver standings only; labeled season-in-progress |
+| Driver season summary | One driver's recorded final championship position and points only |
+| Driver career summary | Best recorded final position and count of recorded final-standings rows through 2025 only |
+| Career wins | Official race P1 rows grouped by canonical circuit through 2025 |
+| Race H2H | Lower finishing position ahead over shared events with two recorded numeric positions in one final season |
+| Qualifying H2H | Lower qualifying position ahead over shared events with two recorded numeric positions in one final season |
+| Official comparison | The pinned 2025 Norris/Piastri official standings plus race and qualifying position-H2H composition |
+| Named-event comparison | The pinned Silverstone 2025 Verstappen/Norris official race finishing-position comparison |
+| Qualifying counts | One-driver season/career P1 counts, one-driver season top-ten count, and season top-ten ranking |
+
+Exact question forms and aliases remain versioned in the answer question,
+intent, semantic-proof, and template registries. A semantically similar phrase
+is not automatically accepted.
+
+## Explicit Retirement Boundary
+
+The Phase 10 public answer route does not answer or approximate:
+
+- pace, time-gap, fastest-driver, tyre, stint, clean-air, or weather analytics;
+- synthetic profiles, performance vectors, trends, or mixed-authority scores;
+- legacy teammate-gap products or automatic teammate assumptions;
+- sprint, post-penalty grid, constructor, or interim-standings requests;
+- arbitrary ranges, arbitrary multi-driver composites, or unreviewed aliases;
+- claims that convert qualifying position into grid position or position into
+  time.
+
+These families were retired where their old authority was weak, or left
+unsupported pending a separately reviewed source contract. Historical pace
+fixtures and F1QL operators do not imply public answer authorization.
+
+## Program Routes
+
+| Route | Contract |
+|---|---|
+| `POST /program` | Parses, validates, costs, compiles, and executes caller-supplied F1QL when `F1QL_ENABLED=true` |
+| `GET /program/verified` | Lists the curated immutable verified-program registry |
+| `POST /program/verified/:id` | Executes only a registry program and reruns the guarded F1QL pipeline |
+| `POST /program/translate` | Shadow translation, linking, validation, and observability only; permanently non-executing |
+
+`/program/translate` is independent from both answer routes. Enabling it does
+not make translated programs executable. The test suite injects a throwing
+executor and requires zero calls.
+
+## Shares And Direct Endpoints
+
+- `GET /share/:id` returns a stored immutable answer as JSON or HTML. It does
+  not translate, execute, or recompute.
+- `GET /share-feed` returns recent and trending immutable shares.
+- Share creation is not exposed. There is no `POST /share`.
+- `GET /driver/:driver_id/profile` and `GET /driver/:driver_id/trend` remain
+  direct non-natural-language endpoints with their own response contracts.
+
+## Removed Surface
+
+The following are not mounted: `/query`, legacy natural-language routers,
+legacy suggestions, legacy capabilities, query-executing share creation, and
+natural-language query-result or intent-cache diagnostics. Redis remains for
+distributed rate limiting and operational health; it is not a Phase 10 answer
+or interpretation cache.
+
+## Errors
+
+Common fail-closed responses include `answer_disabled`, `kill_switch_active`,
+`release_not_approved`, `canary_control`, `answer_database_not_configured`,
+`rate_limit_exceeded`, `answer_busy`, `request_timeout`, `statement_timeout`,
+`answer_bound_exceeded`, `clarification_required`, and
+`capability_unsupported`. Error details never contain credentials or SQL.

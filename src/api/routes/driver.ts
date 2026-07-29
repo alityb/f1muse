@@ -41,8 +41,6 @@ export function createDriverRoutes(pool: Pool): Router {
       const driver = driverResult.rows[0];
       tracer.setIdentityResolution('driver_a', driverId, driver.id);
       tracer.addRoutingStep(`Driver found: ${driver.full_name}`);
-      tracer.setSqlTemplate('driver_profile_summary_v1');
-
       const profileResult = await pool.query(buildProfileQuery(), [driverId]);
       tracer.setRowsReturned(profileResult.rows.length);
 

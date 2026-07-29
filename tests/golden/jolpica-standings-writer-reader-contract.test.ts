@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
-import { QueryExecutor } from '../../src/execution/query-executor';
+import { executeF1QL } from '../../src/f1ql/executor';
 import { syncStandings } from '../../src/sync/jolpica-sync';
-import { QueryIntent } from '../../src/types/query-intent';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { getGoldenAssertion, getGoldenCase } from './golden-registry';
 
@@ -45,6 +44,11 @@ beforeAll(async () => {
       }
     };
   });
+  await pool.query(
+    `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver)
+     VALUES (2025, 'mercedes', 'mercedes', 'george-russell', false)
+     ON CONFLICT DO NOTHING`
+  );
 });
 
 afterAll(async () => {
@@ -55,25 +59,16 @@ describe('Jolpica standings writer-to-reader contract', () => {
   it('writes official points that the public season-summary query returns', async () => {
     const golden = getGoldenCase('russell-2025-sprint-inclusive-points');
     const expectedPoints = getGoldenAssertion(golden, 'george-russell', 'championship_points');
-    const executor = new QueryExecutor(pool);
-    const intent: QueryIntent = {
-      kind: 'driver_season_summary',
-      driver_id: 'george_russell',
-      season: 2025,
-      metric: 'avg_true_pace',
-      normalization: 'none',
-      clean_air_only: false,
-      compound_context: 'mixed',
-      session_scope: 'race',
-      raw_query: 'George Russell 2025 season'
-    };
+    const response = await executeF1QL(pool, {
+      version: 1,
+      root: {
+        op: 'aggregate',
+        input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025, driver_id: 'george-russell' } },
+        group_by: ['driver_id'],
+        measures: [{ as: 'points', function: 'max', field: 'points' }]
+      }
+    });
 
-    const response = await executor.execute(intent);
-
-    expect('error' in response).toBe(false);
-    if (!('error' in response)) {
-      expect(response.result.type).toBe('driver_season_summary');
-      expect(response.result.payload.points).toBe(expectedPoints);
-    }
+    expect(response.rows).toEqual([{ driver_id: 'george-russell', points: String(expectedPoints) }]);
   });
 });

@@ -8,8 +8,6 @@ import {
 import { runIngestion as runRaceIngestion } from '../src/etl/teammate-gap/race';
 import { runIngestion as runQualifyingIngestion } from '../src/etl/teammate-gap/qualifying';
 import { validateTableSchema } from '../src/etl/teammate-gap/utils';
-import { QueryExecutor } from '../src/execution/query-executor';
-import { QueryIntent } from '../src/types/query-intent';
 
 let pool: Pool;
 
@@ -218,31 +216,6 @@ describe('Teammate gap ingestion pipelines', () => {
 
     expect(parseInt(result.rows[0].shared_races, 10)).toBe(4);
     expect(result.rows[0].coverage_status).toBe('low_coverage');
-  });
-
-  it('writes a race summary the public teammate query can read', async () => {
-    const executor = new QueryExecutor(pool);
-    const intent: QueryIntent = {
-      kind: 'teammate_gap_summary_season',
-      driver_a_id: 'lando_norris',
-      driver_b_id: 'oscar_piastri',
-      season: 2025,
-      metric: 'teammate_gap_raw',
-      normalization: 'team_baseline',
-      clean_air_only: false,
-      compound_context: 'mixed',
-      session_scope: 'race',
-      raw_query: 'Lando Norris vs Oscar Piastri 2025 race pace'
-    };
-
-    const response = await executor.execute(intent);
-
-    expect('error' in response).toBe(false);
-    if (!('error' in response)) {
-      expect(response.result.type).toBe('teammate_gap_summary_season');
-      expect(response.result.payload.shared_races).toBe(4);
-      expect(response.result.payload.coverage_status).toBe('low_coverage');
-    }
   });
 
   it('fails schema validation when required columns are missing', async () => {

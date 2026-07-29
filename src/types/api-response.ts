@@ -160,9 +160,6 @@ export interface DebugTrace {
   /** Routing decisions made during execution */
   routing_path: string[];
 
-  /** SQL template ID used (if any) */
-  sql_template: string | null;
-
   /** Total execution time in milliseconds */
   execution_time_ms: number;
 

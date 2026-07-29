@@ -9,7 +9,6 @@
  *   tracer.start();
  *   tracer.addRoutingStep('Validated intent');
  *   tracer.setIntent(parsedIntent);
- *   tracer.setSqlTemplate('teammate_gap_summary_season_v1');
  *   tracer.setRowsReturned(5);
  *   const trace = tracer.finish();
  */
@@ -26,7 +25,6 @@ export class DebugTracer {
   private startTime: number = 0;
   private parsedIntent: Record<string, unknown> = {};
   private routingPath: string[] = [];
-  private sqlTemplate: string | null = null;
   private sqlQueryPattern: string | undefined;
   private sqlParameters: string[] | undefined;
   private rowsReturned: number | undefined;
@@ -103,17 +101,6 @@ export class DebugTracer {
     // Deep clone to avoid mutation
     this.parsedIntent = JSON.parse(JSON.stringify(intent));
     this.addRoutingStep(`Intent parsed: ${(intent as any).kind || 'unknown'}`);
-  }
-
-  /**
-   * Set the SQL template used
-   *
-   * @param templateId - The SQL template identifier
-   */
-  setSqlTemplate(templateId: string): void {
-    if (!this.enabled) { return; }
-    this.sqlTemplate = templateId;
-    this.addRoutingStep(`SQL template selected: ${templateId}`);
   }
 
   /**
@@ -344,7 +331,6 @@ export class DebugTracer {
     const trace: DebugTrace = {
       parsed_intent: this.parsedIntent,
       routing_path: this.routingPath,
-      sql_template: this.sqlTemplate,
       execution_time_ms: executionTimeMs,
       sql_query_pattern: this.sqlQueryPattern,
       rows_returned: this.rowsReturned

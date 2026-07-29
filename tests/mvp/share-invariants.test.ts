@@ -148,34 +148,6 @@ describe('Share Route Structure Verification', () => {
     });
   });
 
-  describe('POST /share response contract', () => {
-    it('should define success response shape', () => {
-      const expectedFields = ['share_id', 'url', 'headline', 'created_at'];
-
-      expect(expectedFields).toContain('share_id');
-      expect(expectedFields).toContain('url');
-    });
-
-    it('should define error response for invalid input', () => {
-      const expectedShape = {
-        error: 'invalid_input',
-        reason: 'query_kind is required',
-      };
-
-      expect(expectedShape).toHaveProperty('error');
-    });
-
-    it('should define error response for query failure', () => {
-      const expectedShape = {
-        error: 'query_failed',
-        reason: 'reason from executor',
-        answer: 'formatted error answer',
-      };
-
-      expect(expectedShape).toHaveProperty('error', 'query_failed');
-    });
-  });
-
   describe('GET /share-feed response contract', () => {
     it('should define feed response shape', () => {
       const expectedShape = {
@@ -203,13 +175,6 @@ describe('Retrieval Isolation from Execution', () => {
    * share creation (which executes queries) and share retrieval
    * (which only reads stored snapshots).
    */
-
-  it('should document that POST /share executes queries', () => {
-    // POST /share calls buildInterpretationResponse to execute the query
-    // and store the result snapshot
-    const creationPath = 'POST /share → buildInterpretationResponse → shareService.create';
-    expect(creationPath).toContain('buildInterpretationResponse');
-  });
 
   it('should document that GET /share/:id only reads stored data', () => {
     // GET /share/:id calls shareService.lookup which is a simple SELECT

@@ -1,5 +1,4 @@
 import { Pool } from 'pg';
-import crypto from 'crypto';
 
 // immutability invariants:
 // - once created, answer payload is never modified
@@ -7,7 +6,6 @@ import crypto from 'crypto';
 // - params are resolved identities, not raw user input
 // - no recomputation on retrieval - stored answer is returned as-is
 export const SCHEMA_VERSION = 1;
-const MAX_ID_RETRIES = 5;
 
 // feed display limits
 const HEADLINE_MAX_LENGTH = 70;
@@ -47,16 +45,6 @@ export interface SharedQuery {
   view_count: number;
 }
 
-export interface CreateShareInput {
-  query_kind: string;
-  params: Record<string, unknown>;
-  season: number;
-  answer: Record<string, unknown>;
-  headline: string;
-  summary?: string;
-  expires_at?: Date;
-}
-
 export type ShareLookupResult =
   | { found: true; expired: false; share: SharedQuery }
   | { found: true; expired: true; share: SharedQuery }
@@ -75,50 +63,8 @@ export interface ShareFeed {
   trending: ShareFeedItem[];
 }
 
-function generateShareId(): string {
-  const bytes = crypto.randomBytes(6);
-  return bytes.toString('base64url').slice(0, 8).toLowerCase();
-}
-
 export class ShareService {
   constructor(private pool: Pool) {}
-
-  async create(input: CreateShareInput): Promise<SharedQuery> {
-    const summary = input.summary || this.extractSummary(input.answer);
-
-    // retry on id collision (unlikely but possible)
-    for (let attempt = 0; attempt < MAX_ID_RETRIES; attempt++) {
-      const id = generateShareId();
-
-      try {
-        const result = await this.pool.query<SharedQuery>(
-          `INSERT INTO shared_queries (id, version, query_kind, params, season, answer, headline, summary, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           RETURNING *`,
-          [
-            id,
-            SCHEMA_VERSION,
-            input.query_kind,
-            JSON.stringify(input.params),
-            input.season,
-            JSON.stringify(input.answer),
-            input.headline,
-            summary,
-            input.expires_at || null
-          ]
-        );
-
-        return this.parseRow(result.rows[0]);
-      } catch (err: any) {
-        const isConflict = err.code === '23505';
-        if (!isConflict || attempt === MAX_ID_RETRIES - 1) {
-          throw err;
-        }
-      }
-    }
-
-    throw new Error('failed to generate unique share id after max retries');
-  }
 
   async lookup(id: string): Promise<ShareLookupResult> {
     const result = await this.pool.query<any>(
@@ -145,24 +91,6 @@ export class ShareService {
       `UPDATE shared_queries SET view_count = view_count + 1 WHERE id = $1`,
       [id]
     );
-  }
-
-  async ensureTable(): Promise<void> {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS shared_queries (
-        id VARCHAR(12) PRIMARY KEY,
-        version INTEGER NOT NULL DEFAULT 1,
-        query_kind VARCHAR(64) NOT NULL,
-        params JSONB NOT NULL,
-        season INTEGER NOT NULL,
-        answer JSONB NOT NULL,
-        headline VARCHAR(512) NOT NULL,
-        summary VARCHAR(1024),
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-        expires_at TIMESTAMP WITH TIME ZONE,
-        view_count INTEGER NOT NULL DEFAULT 0
-      )
-    `);
   }
 
   async getFeed(): Promise<ShareFeed> {
@@ -223,18 +151,5 @@ export class ShareService {
       expires_at: row.expires_at ? new Date(row.expires_at) : null,
       view_count: row.view_count
     };
-  }
-
-  private extractSummary(answer: Record<string, unknown>): string | null {
-    // extract first bullet or coverage summary
-    const bullets = answer.bullets as string[] | undefined;
-    if (bullets && bullets.length > 0) {
-      return bullets[0].slice(0, 200);
-    }
-    const coverage = answer.coverage as { summary?: string } | undefined;
-    if (coverage?.summary) {
-      return coverage.summary.slice(0, 200);
-    }
-    return null;
   }
 }

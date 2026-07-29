@@ -12,35 +12,12 @@
  */
 
 import { createClient, RedisClientType } from 'redis';
-import { createHash } from 'crypto';
-import { QueryIntent } from '../types/query-intent';
-import { metrics } from '../observability/metrics';
 
 // Configuration
 const CONFIG = {
-  CACHE_VERSION: 'v3',
-  TTL_DEFAULT_SECONDS: 600, // 10 min default
-  TTL_HISTORICAL_SECONDS: 3600, // 1 hour for career/historical
-  TTL_CURRENT_SEASON_SECONDS: 300, // 5 min for current season
-  CURRENT_SEASON: 2026,
   CONNECTION_TIMEOUT_MS: 5000,
   OPERATION_TIMEOUT_MS: 1000,
 };
-
-// Query kinds that should get longer TTLs (career/historical)
-const CAREER_QUERY_KINDS = [
-  'driver_career_summary',
-  'driver_career_pole_count',
-  'driver_career_wins_by_circuit',
-  'teammate_comparison_career',
-];
-
-export interface CacheResult<T> {
-  hit: boolean;
-  data?: T;
-  key?: string;
-  ttl?: number;
-}
 
 /**
  * Redis Cache Manager
@@ -121,116 +98,6 @@ export class RedisCache {
   }
 
   /**
-   * Generate cache key from QueryIntent
-   */
-  generateCacheKey(intent: QueryIntent): string {
-    const kind = intent.kind;
-    const season = intent.season;
-
-    // Create normalized params object for hashing
-    const params: Record<string, any> = { ...intent };
-    delete params.raw_query; // Don't include raw query in cache key
-
-    // Sort keys for deterministic hashing
-    const sortedParams = Object.keys(params)
-      .sort()
-      .reduce((obj: Record<string, any>, key) => {
-        obj[key] = params[key];
-        return obj;
-      }, {});
-
-    const paramsHash = createHash('sha256')
-      .update(JSON.stringify(sortedParams))
-      .digest('hex')
-      .substring(0, 16);
-
-    return `f1muse:query:${CONFIG.CACHE_VERSION}:${kind}:${season}:${paramsHash}`;
-  }
-
-  /**
-   * Get TTL based on season and query kind
-   * - Career queries: 1 hour (stable data)
-   * - Historical seasons (< 2026): 1 hour
-   * - Current season (2026): 5 minutes
-   * - Default: 10 minutes
-   */
-  private getTTL(season: number, kind?: string): number {
-    // Career queries get longer TTL regardless of season
-    if (kind && CAREER_QUERY_KINDS.includes(kind)) {
-      return CONFIG.TTL_HISTORICAL_SECONDS;
-    }
-
-    // Historical seasons get longer TTL
-    if (season < CONFIG.CURRENT_SEASON) {
-      return CONFIG.TTL_HISTORICAL_SECONDS;
-    }
-
-    // Current season gets shorter TTL
-    if (season === CONFIG.CURRENT_SEASON) {
-      return CONFIG.TTL_CURRENT_SEASON_SECONDS;
-    }
-
-    return CONFIG.TTL_DEFAULT_SECONDS;
-  }
-
-  /**
-   * Get cached result
-   */
-  async get<T>(key: string): Promise<CacheResult<T>> {
-    if (!this.isAvailable()) {
-      metrics.incrementCacheMiss();
-      return { hit: false };
-    }
-
-    try {
-      const data = await Promise.race([
-        this.client!.get(key),
-        this.timeout(CONFIG.OPERATION_TIMEOUT_MS),
-      ]);
-
-      if (data) {
-        metrics.incrementCacheHit();
-        return {
-          hit: true,
-          data: JSON.parse(data as string),
-          key,
-        };
-      }
-
-      metrics.incrementCacheMiss();
-      return { hit: false, key };
-    } catch (error: any) {
-      console.warn(`[Redis] Get error for ${key}: ${error.message}`);
-      metrics.incrementCacheMiss();
-      return { hit: false };
-    }
-  }
-
-  /**
-   * Set cached result
-   */
-  async set<T>(key: string, data: T, season: number, kind?: string): Promise<boolean> {
-    if (!this.isAvailable()) {
-      return false;
-    }
-
-    try {
-      const ttl = this.getTTL(season, kind);
-      const serialized = JSON.stringify(data);
-
-      await Promise.race([
-        this.client!.setEx(key, ttl, serialized),
-        this.timeout(CONFIG.OPERATION_TIMEOUT_MS),
-      ]);
-
-      return true;
-    } catch (error: any) {
-      console.warn(`[Redis] Set error for ${key}: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
    * Increment a key atomically (for rate limiting)
    */
   async incr(key: string): Promise<number | null> {
@@ -287,102 +154,6 @@ export class RedisCache {
     } catch (error: any) {
       console.warn(`[Redis] TTL error for ${key}: ${error.message}`);
       return -2;
-    }
-  }
-
-  /**
-   * Delete cached result
-   */
-  async delete(key: string): Promise<boolean> {
-    if (!this.isAvailable()) {
-      return false;
-    }
-
-    try {
-      await this.client!.del(key);
-      return true;
-    } catch (error: any) {
-      console.warn(`[Redis] Delete error for ${key}: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Clear all cache for a specific query kind
-   */
-  async clearByKind(kind: string): Promise<number> {
-    if (!this.isAvailable()) {
-      return 0;
-    }
-
-    try {
-      const pattern = `f1muse:query:${CONFIG.CACHE_VERSION}:${kind}:*`;
-      const keys = await this.client!.keys(pattern);
-
-      if (keys.length > 0) {
-        await this.client!.del(keys);
-      }
-
-      return keys.length;
-    } catch (error: any) {
-      console.warn(`[Redis] Clear error for kind ${kind}: ${error.message}`);
-      return 0;
-    }
-  }
-
-  /**
-   * Clear all cache
-   */
-  async clearAll(): Promise<boolean> {
-    if (!this.isAvailable()) {
-      return false;
-    }
-
-    try {
-      const keyGroups = await Promise.all([
-        this.client!.keys('f1muse:query:*'),
-        this.client!.keys('intent:*'),
-      ]);
-      const keys = keyGroups.flat();
-
-      if (keys.length > 0) {
-        await this.client!.del(keys);
-      }
-
-      console.log(`[Redis] Cleared ${keys.length} cache entries`);
-      return true;
-    } catch (error: any) {
-      console.warn(`[Redis] Clear all error: ${error.message}`);
-      return false;
-    }
-  }
-
-  /**
-   * Get cache statistics
-   */
-  async getStats(): Promise<{
-    connected: boolean;
-    keyCount: number;
-    memoryUsage?: string;
-  }> {
-    if (!this.isAvailable()) {
-      return { connected: false, keyCount: 0 };
-    }
-
-    try {
-      const pattern = `f1muse:query:${CONFIG.CACHE_VERSION}:*`;
-      const keys = await this.client!.keys(pattern);
-      const info = await this.client!.info('memory');
-
-      const memMatch = info.match(/used_memory_human:(\S+)/);
-
-      return {
-        connected: true,
-        keyCount: keys.length,
-        memoryUsage: memMatch ? memMatch[1] : undefined,
-      };
-    } catch (error: any) {
-      return { connected: false, keyCount: 0 };
     }
   }
 

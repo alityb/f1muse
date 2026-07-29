@@ -170,7 +170,6 @@ describe('DebugTracer', () => {
       tracer.start();
 
       tracer.setIntent({ kind: 'test', season: 2025 });
-      tracer.setSqlTemplate('test_v1');
       tracer.setCacheLookupMs(2);
       tracer.setSqlExecutionMs(50);
       tracer.setRowsReturned(10);
@@ -183,7 +182,6 @@ describe('DebugTracer', () => {
       expect(trace?.sql_execution_ms).toBe(50);
       expect(trace?.rows_returned).toBe(10);
       expect(trace?.source).toBe('database');
-      expect(trace?.sql_template).toBe('test_v1');
       expect(trace?.execution_time_ms).toBeGreaterThanOrEqual(0);
     });
 

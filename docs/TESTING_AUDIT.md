@@ -1,90 +1,106 @@
 # Testing Audit
 
-Status: Baseline audit, 2026-07-18
+Status: Active Phase 10 test map, 2026-07-29.
 
-## Required Release Gates
+## Required Commands
 
-| Gate | Command | Status |
+| Gate | Current package command | Coverage |
 |---|---|---|
-| Static types | `npm run typecheck` | Required |
-| Lint errors | `npm run lint` | Required; complexity/size warnings are tracked debt |
-| Unit and database behavior | `npm run test:unit:db:docker` | Required |
-| Known incident contracts | `npm run test:golden:db` | Required |
+| Static types | `npm run typecheck` | TypeScript compilation without emit |
+| Lint | `npm run lint` | ESLint errors; warnings remain tracked debt |
+| Non-F1QL unit | `npm run test:unit` | Unit selection excluding separately wrapped suites |
+| Unit plus DB shares | `npm run test:unit:db:docker` | Unit selection and immutable-share database behavior |
+| DB integration | `npm run test:integration:db` | Current teammate-gap ingestion/coverage integration |
+| F1QL | `npm run test:f1ql` | F1QL language, answer, shadow, release, canary, database, and evidence contracts |
+| In-process API | `npm run test:api:inprocess` | Mounted route and HTTP contract behavior |
+| Golden DB | `npm run test:golden:db` | Current source/sync golden contracts |
+| Schema DB | `npm run test:schema:db` | Disposable schema against captured production-column subset |
+| Full gate | `npm run validate:full` | Runs the required commands above in package order |
 
-The GitHub Actions workflow runs these gates for pull requests and `main`.
+`npm test` aliases only `test:unit`; it is not a release gate by itself.
 
-## Test Categories
+## Database Safety
 
-| Category | Command | Meaning |
-|---|---|---|
-| Unit, DB-backed | `test:unit:db:docker` | Uses disposable local PostgreSQL; database unavailability is a failure |
-| Golden contracts | `test:golden:db` | Source authority, participation refusal, pagination, and status semantics |
-| DB integration | `test:integration:db` | Matchup, multi-driver, response contract, and cache integration |
-| Template compatibility | `test:schema:db` | Every approved SQL template prepares against the current test schema |
-| In-process HTTP | `test:api:inprocess` | Express routes tested with an ephemeral local listener, no manually started API |
-| External HTTP | `test:api:external` | Requires an explicitly started local API; not a CI gate yet |
+Never invoke bare `vitest` for database-backed suites. The wrapped commands:
 
-## Findings Fixed By This Audit
+- start disposable PostgreSQL 16 on the fixed localhost test URL;
+- force all database environment aliases to that localhost URL;
+- set `REQUIRE_TEST_DATABASE` where applicable;
+- tear down Docker even after a failing test command.
 
-1. Postgres cache keys omitted nested parameters, allowing collisions.
-2. High-confidence answers mapped to `insufficient` and were not persisted.
-3. Tests could inherit a Supabase URL from `.env`; DB commands now force a
-   localhost-only disposable database.
-4. `it.skipIf(!dbAvailable)` was evaluated before `beforeAll`, silently
-   skipping database tests. Required DB commands set `REQUIRE_TEST_DATABASE`.
-5. Shared fixtures omitted `qualifying_results`, `season_driver_standing`, and
-   current `race_data` fields.
-6. Shared fixtures used IDs incompatible with current F1DB/lap normalization.
-7. Teammate validation failed across hyphen/underscore ID forms.
-8. Teammate public templates read unsuffixed tables while ETLs wrote `_2025`
-   tables.
-9. Npm glob patterns meant the original golden and integration commands ran
-   zero tests.
-10. Matchup lookup read an unsuffixed table while matchup ingestion writes
-    `driver_matchup_matrix_2025`.
-11. Jolpica standings are now covered end to end: deterministic upstream
-    payload -> standings sync -> public season-summary points.
-12. Jolpica race results are now covered end to end: deterministic upstream
-    payload -> result sync -> public race-results template.
-13. Matchup sync now honors its explicit season argument instead of silently
-    writing every invocation into the module-default season.
-14. Cache keys now include recursively normalized nested filters, preventing
-    result collisions between scoped queries.
+Run wrapped DB suites sequentially. Parallel wrappers share one Compose project
+and can remove each other's database container before tests begin.
 
-## Known Remaining Gaps
+Missing PostgreSQL or Docker is a failure, not a skipped or passing suite.
 
-1. **External HTTP tests:** legacy `test:api:external` still skips unless a
-   separately deployed/local server is available. Core HTTP behavior now has
-   an in-process CI harness; retain external tests for smoke testing only.
-2. **External fact evidence:** full Jolpica driver standings snapshots for
-   2018–2025 are verified through the real sync path, covering more than 100
-   driver-season position/points facts. Remaining incident cases for status
-   semantics and pagination stay provisional until backed by immutable upstream
-   result snapshots or reviewed source references.
-3. **Complexity/size warnings:** lint now has zero errors and is a CI gate,
-   but 116 warnings remain. Treat warning reduction as tracked refactoring
-   work; do not weaken the rules.
-4. **Test schema provenance:** run `npm run schema:snapshot:production` with
-   production credentials intentionally configured to refresh the committed
-   read-only `information_schema` snapshot. Compare it before changing the
-   canonical test bootstrap.
+## Phase 10 Safety Coverage
 
-## Current Verified Baseline
+The F1QL and API suites prove:
 
-On the disposable PostgreSQL 16 environment:
+- `/program/translate` calls an injected throwing executor zero times and is
+  permanently non-executing;
+- `/nl-query` and `/program/answer` share deterministic derivation, proof,
+  immutable-template, authorization, bounded execution, and `AnswerEnvelope`
+  formatting while using distinct principals;
+- disabled, killed, unsigned/expired release, stage-zero/control cohort,
+  absent dedicated DB, rate, queue, timeout, work, row, and byte branches fail
+  closed;
+- authorization is bound to release, template, proof, principal, request, and
+  short expiry and is rechecked before execution;
+- dedicated answer execution is read-only and statement-timeout bounded;
+- all 30 launch-parity cases are contracted and the 24 historical families
+  have exhaustive port/replace/retire dispositions;
+- unsupported pace, sprint, grid, constructor, interim-standing, team-filter,
+  temporal-scope, and composite requests do not broaden into an answer;
+- SQL compiler and reference interpreter agree for retained classification,
+  standings, H2H, career-win, and qualifying-count operations;
+- immutable share retrieval/feed do not recompute or execute a query;
+- `/query`, query-executing share creation, suggestions, and capabilities are
+  absent from the mounted API.
 
-- `test:unit:db:docker`: 30 files, 556 tests, 0 skipped, 0 failed.
-- `test:golden:db`: 8 files, 26 tests, 0 skipped, 0 failed.
-- `test:integration:db`: 5 files, 86 tests, 0 skipped, 0 failed.
-- `test:schema:db`: 27 approved SQL templates prepare successfully and
-  canonical test columns are a subset of the captured production
-  `information_schema` snapshot.
-- `test:api:inprocess`: 3 HTTP route tests pass against an ephemeral server.
+## Generated Fixtures
 
-## Rule
+Fixtures representing emitted output must be regenerated by their real emitter,
+not edited by hand. Relevant commands include:
 
-No suite may silently skip because a required dependency is missing. Either:
+```bash
+npm run golden:snapshot:f1ql-corpus
+npm run golden:snapshot:f1ql-corpus-results
+npm run golden:snapshot:answer-evaluation
+```
 
-- it belongs to a required command and fails closed, or
-- it is explicitly classified as an external/manual test and excluded from
-  release coverage.
+The database-backed snapshot commands use their own wrapped disposable
+PostgreSQL lifecycle. Review every generated diff.
+
+## Production Schema Snapshot Caveat
+
+The committed `tests/schema/snapshots/production-schema.json` is historical.
+It captured `laps_normalized_v2` with 18 columns and its session-inclusive key,
+but it predates later pace-v2 replacement/rebuild relations and immutable
+triggers. Consequently `test:schema:db` currently fails on 58
+replacement/rebuild columns that are absent from the historical snapshot. This
+pre-existing mismatch remains visible in `validate:full` rather than being
+skipped or treated as a pass. The retained fresh pace-v2 preflight, not this
+snapshot, is the authority for current replacement/rebuild serving and audit
+readiness.
+
+Refresh only through `npm run schema:snapshot:production` with production
+credentials intentionally configured. The guarded command reads
+`information_schema` in a read-only, timeout-bounded transaction and rolls
+back. A refresh is a production evidence operation; do not run it as routine
+local validation.
+
+## Current Local Baseline
+
+At the start of this documentation update, `npm run typecheck` and wrapped
+`npm run test:f1ql` passed. The F1QL run completed 75 files and 1,170 tests with
+zero failures. This count is an observation, not a permanently fixed release
+threshold; command success and required semantic gates are authoritative.
+
+## Remaining Test Risks
+
+- Production behavior still requires a deploy/request/fetch verification; no
+  documentation-only change establishes production behavior.
+- External providers, Railway, and production database evidence remain guarded
+  manual/nightly concerns and are not simulated as production proof.
+- Lint warning counts are tracked debt; zero lint errors remains mandatory.
