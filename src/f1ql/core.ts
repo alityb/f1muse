@@ -223,3 +223,119 @@ export interface CoreProgram {
   version: 1;
   root: CoreAggregateNode | CoreFilterNode | CoreSortNode | CoreLimitNode | CoreDeltaNode | CoreComparisonSummaryNode | CoreComposeNode;
 }
+
+export type PlannedCoreSourceId = 'driver_standings' | 'event_classification' | 'event_metadata' | 'qualifying_classification';
+export type PlannedCorePhysicalType = 'boolean' | 'date' | 'integer' | 'numeric' | 'text';
+export type PlannedCoreSemanticType = 'boolean' | 'circuit_id' | 'date' | 'driver_id' | 'duration_ms' | 'event_id' |
+  'number' | 'position' | 'round' | 'season' | 'status' | 'team_id' | 'text';
+
+export interface PlannedCoreConceptRef {
+  source_id: PlannedCoreSourceId;
+  concept_id: string;
+  physical_field: string;
+  physical_type: PlannedCorePhysicalType;
+  semantic_type: PlannedCoreSemanticType;
+  nullable: boolean;
+}
+
+export type PlannedCorePredicate =
+  | { concept: PlannedCoreConceptRef; operator: 'eq'; value: string | number | boolean }
+  | { concept: PlannedCoreConceptRef; operator: 'in'; values: Array<string | number | boolean> }
+  | { concept: PlannedCoreConceptRef; operator: 'range'; min: number | string; max: number | string };
+
+export interface PlannedCoreSourceNode {
+  op: 'source';
+  source_id: PlannedCoreSourceId;
+  view: string;
+  grain: PlannedCoreConceptRef[];
+  integrity: string[];
+}
+
+export interface PlannedCoreFilterNode {
+  op: 'filter';
+  input: PlannedCoreSourceNode;
+  predicates: PlannedCorePredicate[];
+  integrity: string[];
+}
+
+export type PlannedCoreRowBranch = PlannedCoreSourceNode | PlannedCoreFilterNode;
+
+export interface PlannedCoreJoinNode {
+  op: 'join';
+  relationship_id: string;
+  left: PlannedCoreRowBranch;
+  right: PlannedCoreRowBranch;
+  type: 'inner' | 'left';
+  cardinality: 'many_to_many' | 'many_to_one' | 'one_to_many' | 'one_to_one';
+  left_keys: PlannedCoreConceptRef[];
+  right_keys: PlannedCoreConceptRef[];
+  output_grain: PlannedCoreConceptRef[];
+  integrity: string[];
+}
+
+export interface PlannedCoreAggregateMeasure {
+  source_id: PlannedCoreSourceId;
+  concept_id: string;
+  physical_field: string;
+  physical_type: PlannedCorePhysicalType;
+  semantic_type: PlannedCoreSemanticType;
+  function: 'count' | 'max' | 'min' | 'sum';
+  as: string;
+}
+
+export interface PlannedCoreAggregateNode {
+  op: 'aggregate';
+  input: PlannedCoreRowBranch;
+  group_by: PlannedCoreConceptRef[];
+  measures: PlannedCoreAggregateMeasure[];
+  output_grain: PlannedCoreConceptRef[];
+  integrity: string[];
+}
+
+export type PlannedCoreProjectOutput =
+  | { kind: 'concept'; as: string; concept: PlannedCoreConceptRef }
+  | { kind: 'aggregate'; as: string; measure_as: string; physical_type: PlannedCorePhysicalType; semantic_type: PlannedCoreSemanticType; nullable: boolean };
+
+export interface PlannedCoreProjectNode {
+  op: 'project';
+  input: PlannedCoreRowBranch | PlannedCoreJoinNode | PlannedCoreAggregateNode;
+  outputs: PlannedCoreProjectOutput[];
+  output_grain: string[];
+  integrity: string[];
+}
+
+export interface PlannedCoreSortKey {
+  output_id: string;
+  direction: 'asc' | 'desc';
+  nulls: 'first' | 'last';
+  physical_type: PlannedCorePhysicalType;
+  semantic_type: PlannedCoreSemanticType;
+}
+
+export interface PlannedCoreSortNode {
+  op: 'sort';
+  input: PlannedCoreProjectNode;
+  keys: PlannedCoreSortKey[];
+}
+
+export interface PlannedCoreLimitNode {
+  op: 'limit';
+  input: PlannedCoreSortNode;
+  count: number;
+}
+
+export interface PlannedCoreResultField {
+  id: string;
+  physical_type: PlannedCorePhysicalType;
+  semantic_type: PlannedCoreSemanticType;
+  nullable: boolean;
+}
+
+export interface PlannedCoreProgram {
+  version: 1;
+  dialect: 'planned_f1ql_v1';
+  catalog_hash: string;
+  parent_program_hash: string;
+  root: PlannedCoreLimitNode;
+  result_schema: PlannedCoreResultField[];
+}

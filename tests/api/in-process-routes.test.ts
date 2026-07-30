@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { AddressInfo } from 'net';
 import { Pool } from 'pg';
 import { createRoutes } from '../../src/api/routes';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { metrics } from '../../src/observability/metrics';
+import { SEMANTIC_CATALOG_HASH } from '../../src/f1ql/semantic-catalog';
 
 let pool: Pool;
 let server: ReturnType<ReturnType<typeof express>['listen']>;
@@ -203,6 +204,54 @@ describe('in-process API routes', () => {
     expect(body.rendering).toContain('official driver standings');
   });
 
+  it('rejects internal planned F1QL at the public parser boundary before database work', async () => {
+    const querySpy = vi.spyOn(pool, 'query');
+    try {
+      const response = await fetch(`${baseUrl}/program`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'internal_planned_f1ql',
+          version: 1,
+          catalog_hash: SEMANTIC_CATALOG_HASH,
+          root: {
+            op: 'limit',
+            count: 1,
+            input: {
+              op: 'sort',
+              keys: [
+                { output_id: 'round', direction: 'asc', nulls: 'last' },
+                { output_id: 'season', direction: 'asc', nulls: 'last' }
+              ],
+              input: {
+                op: 'project',
+                input: {
+                  op: 'filter',
+                  input: { op: 'source', source_id: 'event_metadata' },
+                  predicates: [
+                    { concept: { source_id: 'event_metadata', concept_id: 'round' }, operator: 'eq', value: 1 },
+                    { concept: { source_id: 'event_metadata', concept_id: 'season' }, operator: 'eq', value: 2025 }
+                  ]
+                },
+                outputs: [
+                  { kind: 'concept', concept: { source_id: 'event_metadata', concept_id: 'round' }, as: 'round' },
+                  { kind: 'concept', concept: { source_id: 'event_metadata', concept_id: 'season' }, as: 'season' },
+                  { kind: 'concept', concept: { source_id: 'event_metadata', concept_id: 'event_name' }, as: 'event_name' }
+                ]
+              }
+            }
+          }
+        })
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: 'validation_failed' });
+      expect(querySpy).not.toHaveBeenCalled();
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
   it('lists and executes curated verified F1QL programs through the same validation pipeline', async () => {
     const listed = await fetch(`${baseUrl}/program/verified`);
     expect(listed.status).toBe(200);
@@ -298,8 +347,8 @@ describe('in-process API routes', () => {
   it('records F1QL operation metrics without query values', () => {
     const snapshot = metrics.toJSON();
     expect(snapshot.f1ql).toMatchObject({
-      requests: expect.objectContaining({ aggregate: 2, pace_delta: 1, invalid: 1, pace_summary: 2 }),
-      failures: expect.objectContaining({ 'invalid:rejected': 1, 'pace_summary:rejected': 2 })
+      requests: expect.objectContaining({ aggregate: 2, pace_delta: 1, invalid: 2, pace_summary: 2 }),
+      failures: expect.objectContaining({ 'invalid:rejected': 2, 'pace_summary:rejected': 2 })
     });
     expect(metrics.toPrometheus()).toContain('f1muse_f1ql_requests_total{operation="pace_delta"} 1');
   });
