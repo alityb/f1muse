@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import {
   PlannedCoreAggregateNode,
+  PlannedCoreComposeNode,
   PlannedCoreConceptRef,
   PlannedCoreFilterNode,
   PlannedCoreJoinNode,
@@ -20,10 +21,11 @@ import {
 } from './core';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH, SemanticCatalogSource } from './semantic-catalog';
 
-export const PLANNED_F1QL_VERSION = 1 as const;
-export const PLANNED_F1QL_DIALECT = 'planned_f1ql_v1' as const;
+export const PLANNED_F1QL_VERSION = 2 as const;
+export const PLANNED_F1QL_DIALECT = 'planned_f1ql_v2' as const;
 export const PLANNED_F1QL_MAX_ROWS = 100;
 export const PLANNED_F1QL_MAX_WORK_UNITS = 60;
+export const PLANNED_SCALAR_INPUT_CARDINALITY = 'scalar_input_cardinality' as const;
 
 const idSchema = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const sourceIdSchema = z.enum(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']);
@@ -58,13 +60,18 @@ const aggregateSchema = z.object({
   group_by: z.array(conceptRefSchema).max(3),
   measures: z.array(aggregateMeasureSchema).min(1).max(4)
 }).strict();
+const composeSchema = z.object({
+  op: z.literal('compose'),
+  inputs: z.array(aggregateSchema).min(2).max(4)
+}).strict();
 const projectOutputSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('concept'), concept: conceptRefSchema, as: idSchema }).strict(),
-  z.object({ kind: z.literal('aggregate'), measure_as: idSchema, as: idSchema }).strict()
+  z.object({ kind: z.literal('aggregate'), measure_as: idSchema, as: idSchema }).strict(),
+  z.object({ kind: z.literal('composed_aggregate'), source_id: sourceIdSchema, measure_as: idSchema, as: idSchema }).strict()
 ]);
 const projectSchema = z.object({
   op: z.literal('project'),
-  input: z.union([rowBranchSchema, joinSchema, aggregateSchema]),
+  input: z.union([rowBranchSchema, joinSchema, aggregateSchema, composeSchema]),
   outputs: z.array(projectOutputSchema).min(1).max(8)
 }).strict();
 const sortSchema = z.object({
@@ -131,15 +138,23 @@ const coreAggregateSchema = z.object({
   group_by: z.array(coreConceptSchema).max(3), measures: z.array(coreAggregateMeasureSchema).min(1).max(4),
   output_grain: z.array(coreConceptSchema).max(3), integrity: coreIntegritySchema
 }).strict();
+const coreComposeSchema = z.object({
+  op: z.literal('compose'), inputs: z.array(coreAggregateSchema).min(2).max(4),
+  output_grain: z.tuple([]), integrity: coreIntegritySchema
+}).strict();
 const coreProjectOutputSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('concept'), as: idSchema, concept: coreConceptSchema }).strict(),
   z.object({
     kind: z.literal('aggregate'), as: idSchema, measure_as: idSchema,
     physical_type: corePhysicalTypeSchema, semantic_type: coreSemanticTypeSchema, nullable: z.boolean()
+  }).strict(),
+  z.object({
+    kind: z.literal('composed_aggregate'), source_id: sourceIdSchema, as: idSchema, measure_as: idSchema,
+    physical_type: corePhysicalTypeSchema, semantic_type: coreSemanticTypeSchema, nullable: z.boolean()
   }).strict()
 ]);
 const coreProjectSchema = z.object({
-  op: z.literal('project'), input: z.union([coreFilterSchema, coreJoinSchema, coreAggregateSchema]),
+  op: z.literal('project'), input: z.union([coreFilterSchema, coreJoinSchema, coreAggregateSchema, coreComposeSchema]),
   outputs: z.array(coreProjectOutputSchema).min(1).max(8), output_grain: z.array(idSchema).max(5),
   integrity: coreIntegritySchema
 }).strict();
@@ -151,7 +166,7 @@ const coreSortSchema = z.object({
   }).strict()).min(1).max(4)
 }).strict();
 const coreProgramSchema = z.object({
-  version: z.literal(1), dialect: z.literal(PLANNED_F1QL_DIALECT),
+  version: z.literal(PLANNED_F1QL_VERSION), dialect: z.literal(PLANNED_F1QL_DIALECT),
   catalog_hash: z.string().regex(/^[a-f0-9]{64}$/), parent_program_hash: z.string().regex(/^[a-f0-9]{64}$/),
   root: z.object({ op: z.literal('limit'), input: coreSortSchema, count: z.number().int().min(1).max(PLANNED_F1QL_MAX_ROWS) }).strict(),
   result_schema: z.array(z.object({
@@ -165,6 +180,7 @@ export type PlannedPredicate = z.infer<typeof predicateSchema>;
 export type PlannedRowBranch = z.infer<typeof rowBranchSchema>;
 export type PlannedJoin = z.infer<typeof joinSchema>;
 export type PlannedAggregate = z.infer<typeof aggregateSchema>;
+export type PlannedCompose = z.infer<typeof composeSchema>;
 export type PlannedProject = z.infer<typeof projectSchema>;
 
 type CatalogDimension = SemanticCatalogSource['dimensions'][number];
@@ -202,12 +218,15 @@ export function estimatePlannedF1QLCost(input: unknown): PlannedF1QLCost {
   const projectInput = program.root.input.input.input;
   const branches = inputBranches(projectInput);
   const units = branches.reduce((total, branch) => total + branchWork(branch), 0);
+  let depth = 4;
+  if (projectInput.op === 'compose') {depth = 6;}
+  else if (projectInput.op === 'join' || projectInput.op === 'aggregate') {depth = 5;}
   const cost: PlannedF1QLCost = {
     version: 'planned-cost-v1',
     units,
     sources: branches.length,
     joins: projectInput.op === 'join' ? 1 : 0,
-    depth: projectInput.op === 'join' || projectInput.op === 'aggregate' ? 5 : 4,
+    depth,
     requested_rows: program.root.count
   };
   if (cost.units < 1 || cost.units > PLANNED_F1QL_MAX_WORK_UNITS) {
@@ -253,7 +272,7 @@ export function lowerPlannedF1QL(input: unknown): PlannedCoreProgram {
   };
   const root: PlannedCoreLimitNode = { op: 'limit', input: sort, count: program.root.count };
   const core: PlannedCoreProgram = {
-    version: 1,
+    version: PLANNED_F1QL_VERSION,
     dialect: PLANNED_F1QL_DIALECT,
     catalog_hash: SEMANTIC_CATALOG_HASH,
     parent_program_hash: programHash,
@@ -274,6 +293,9 @@ export function validatePlannedCoreProgram(input: unknown): PlannedCoreProgram {
   const project = program.root.input.input;
   const rankedSources = rankedSourcesForCore(project, program.root.input.keys.map(key => key.output_id));
   validateCoreInput(project.input, rankedSources);
+  if (project.input.op === 'compose' && program.root.count !== 1) {
+    throw new Error('planned Core scalar composition requires limit 1');
+  }
   assertUnique(project.outputs.map(output => output.as), 'planned Core outputs');
   assertUnique(program.root.input.keys.map(key => key.output_id), 'planned Core sort keys');
   validateCoreProject(project);
@@ -302,18 +324,24 @@ function validatePlannedSemantics(program: PlannedF1QLProgram): void {
   const project = program.root.input.input;
   const input = project.input;
   if (input.op === 'join') {validateJoin(input);}
+  else if (input.op === 'compose') {validateCompose(input, program.root.count);}
   else if (input.op === 'aggregate') {validateAggregate(input);}
   else {validateBranch(input);}
 
   let availableConcepts: PlannedCoreSourceId[];
   if (input.op === 'join') {
     availableConcepts = [...branchSources(input.left), ...branchSources(input.right)];
+  } else if (input.op === 'compose') {
+    availableConcepts = input.inputs.flatMap(item => branchSources(item.input));
   } else if (input.op === 'aggregate') {
     availableConcepts = branchSources(input.input);
   } else {
     availableConcepts = branchSources(input);
   }
   const aggregateMeasures = input.op === 'aggregate' ? new Map(input.measures.map(measure => [measure.as, measure])) : new Map();
+  const composedMeasures = input.op === 'compose'
+    ? new Map(input.inputs.flatMap(item => item.measures.map(measure => [composedMeasureKey(branchSource(item.input), measure.as), measure] as const)))
+    : new Map<string, PlannedAggregate['measures'][number]>();
   const aggregateGroups = input.op === 'aggregate' ? input.group_by.map(refKey) : [];
   assertUnique(project.outputs.map(output => output.as), 'planned output IDs');
   for (const output of project.outputs) {
@@ -325,8 +353,26 @@ function validatePlannedSemantics(program: PlannedF1QLProgram): void {
       if (input.op === 'aggregate' && !aggregateGroups.includes(refKey(output.concept))) {
         throw new Error(`planned aggregate output ${output.as} is not grouped`);
       }
-    } else if (input.op !== 'aggregate' || !aggregateMeasures.has(output.measure_as) || output.as !== output.measure_as) {
-      throw new Error(`planned aggregate output ${output.as} is unavailable or noncanonical`);
+    } else if (output.kind === 'aggregate') {
+      if (input.op !== 'aggregate' || !aggregateMeasures.has(output.measure_as) || output.as !== output.measure_as) {
+        throw new Error(`planned aggregate output ${output.as} is unavailable or noncanonical`);
+      }
+    } else {
+      const key = composedMeasureKey(output.source_id, output.measure_as);
+      if (input.op !== 'compose' || !composedMeasures.has(key) || output.as !== key) {
+        throw new Error(`planned composed output ${output.as} is unavailable or noncanonical`);
+      }
+    }
+  }
+  if (input.op === 'compose') {
+    if (project.outputs.some(output => output.kind !== 'composed_aggregate')) {
+      throw new Error('planned composition may project only composed child measures');
+    }
+    const actual = project.outputs.filter((output): output is Extract<typeof output, { kind: 'composed_aggregate' }> => output.kind === 'composed_aggregate')
+      .map(output => composedMeasureKey(output.source_id, output.measure_as));
+    const expected = [...composedMeasures.keys()].sort(compareText);
+    if (stableSerialize(actual) !== stableSerialize(expected)) {
+      throw new Error('planned composition must project every child measure exactly once');
     }
   }
   const outputIds = project.outputs.map(output => output.as);
@@ -403,10 +449,34 @@ function validateAggregate(aggregate: PlannedAggregate): void {
   }
 }
 
+function validateCompose(compose: PlannedCompose, limit: number): void {
+  if (limit !== 1) {throw new Error('planned scalar composition requires limit 1');}
+  const sourceIds = compose.inputs.map(item => branchSource(item.input));
+  assertUnique(sourceIds, 'planned composition sources');
+  assertCanonicalOrder(sourceIds, 'planned composition sources');
+  const seasons = compose.inputs.map(item => {
+    validateAggregate(item);
+    if (item.group_by.length !== 0) {throw new Error('planned composition inputs must be ungrouped aggregates');}
+    return scalarEqualityPredicate(item.input, 'season');
+  });
+  if (!seasons.every(season => season === seasons[0])) {
+    throw new Error('planned composition inputs must have the same scalar season');
+  }
+  const eventInputs = compose.inputs.filter(item => sourceFor(branchSource(item.input)).dimensions.some(concept => concept.id === 'round'));
+  const rounds = eventInputs.map(item => optionalScalarEqualityPredicate(item.input, 'round'));
+  const allOmitted = rounds.every(round => round === undefined);
+  const allEqual = rounds.length > 0 && rounds.every(round => round !== undefined && round === rounds[0]);
+  if (!allOmitted && !allEqual) {
+    throw new Error('planned composition event inputs must omit round or share the same scalar round');
+  }
+}
+
 function lowerProject(project: PlannedProject, rankedSources: ReadonlySet<string>): PlannedCoreProjectNode {
   let input: PlannedCoreProjectNode['input'];
   if (project.input.op === 'join') {
     input = lowerJoin(project.input, rankedSources);
+  } else if (project.input.op === 'compose') {
+    input = lowerCompose(project.input, rankedSources);
   } else if (project.input.op === 'aggregate') {
     input = lowerAggregate(project.input, rankedSources.has(branchSource(project.input.input)));
   } else {
@@ -414,21 +484,29 @@ function lowerProject(project: PlannedProject, rankedSources: ReadonlySet<string
   }
   const outputs: PlannedCoreProjectOutput[] = project.outputs.map(output => {
     if (output.kind === 'concept') {return { kind: 'concept', as: output.as, concept: lowerConcept(output.concept) };}
-    const aggregate = input as PlannedCoreAggregateNode;
+    const aggregate = output.kind === 'aggregate'
+      ? input as PlannedCoreAggregateNode
+      : (input as PlannedCoreComposeNode).inputs.find(item => coreAggregateSourceId(item) === output.source_id)!;
     const measure = aggregate.measures.find(item => item.as === output.measure_as)!;
-    return {
-      kind: 'aggregate', as: output.as, measure_as: output.measure_as,
-      physical_type: measure.function === 'count' ? 'integer' : measure.physical_type,
-      semantic_type: measure.function === 'count' ? 'number' : measure.semantic_type,
-      nullable: measure.function !== 'count'
-    };
+    const type = aggregateOutputType(measure);
+    return output.kind === 'composed_aggregate'
+      ? { kind: 'composed_aggregate', source_id: output.source_id, as: output.as, measure_as: output.measure_as, ...type }
+      : { kind: 'aggregate', as: output.as, measure_as: output.measure_as, ...type };
   });
-  const grainRefs = input.op === 'aggregate' || input.op === 'join'
+  const grainRefs = input.op === 'aggregate' || input.op === 'join' || input.op === 'compose'
     ? input.output_grain
-    : input.input.grain;
+    : residualCoreBranchGrain(input);
   const outputGrain = grainRefs.map(ref => outputs.find(output => output.kind === 'concept' &&
     output.concept.source_id === ref.source_id && output.concept.concept_id === ref.concept_id)?.as).filter((id): id is string => !!id);
   return { op: 'project', input, outputs, output_grain: outputGrain, integrity: input.integrity };
+}
+
+function lowerCompose(compose: PlannedCompose, rankedSources: ReadonlySet<string>): PlannedCoreComposeNode {
+  const inputs = compose.inputs.map(item => lowerAggregate(item, rankedSources.has(branchSource(item.input))));
+  return {
+    op: 'compose', inputs, output_grain: [],
+    integrity: sortedUnique([...inputs.flatMap(item => item.integrity), PLANNED_SCALAR_INPUT_CARDINALITY])
+  };
 }
 
 function lowerBranch(branch: PlannedRowBranch, ranking: boolean): PlannedCoreFilterNode {
@@ -462,7 +540,7 @@ function lowerJoin(join: PlannedJoin, rankedSources: ReadonlySet<string>): Plann
     cardinality: relationship.cardinality,
     left_keys: relationship.from_keys.map(conceptId => lowerConcept({ source_id: relationship.from_source as PlannedCoreSourceId, concept_id: conceptId })),
     right_keys: relationship.to_keys.map(conceptId => lowerConcept({ source_id: relationship.to_source as PlannedCoreSourceId, concept_id: conceptId })),
-    output_grain: left.input.grain,
+    output_grain: residualCoreBranchGrain(left),
     integrity
   };
 }
@@ -527,7 +605,7 @@ function validateCoreInput(input: PlannedCoreProjectNode['input'], rankedSources
         left.input.source_id !== relationship.from_source || right.input.source_id !== relationship.to_source ||
         stableSerialize(input.left_keys) !== stableSerialize(relationship.from_keys.map(conceptId => lowerConcept({ source_id: relationship.from_source as PlannedCoreSourceId, concept_id: conceptId }))) ||
         stableSerialize(input.right_keys) !== stableSerialize(relationship.to_keys.map(conceptId => lowerConcept({ source_id: relationship.to_source as PlannedCoreSourceId, concept_id: conceptId }))) ||
-        stableSerialize(input.output_grain) !== stableSerialize(left.input.grain) ||
+        stableSerialize(input.output_grain) !== stableSerialize(residualCoreBranchGrain(left)) ||
         stableSerialize(input.integrity) !== stableSerialize(sortedUnique([...left.integrity, ...right.integrity, ...relationship.required_checks]))) {
       throw new Error('planned Core join does not match the active catalog relationship');
     }
@@ -535,44 +613,73 @@ function validateCoreInput(input: PlannedCoreProjectNode['input'], rankedSources
       op: 'join', relationship_id: input.relationship_id,
       left: plannedBranchFromCore(left), right: plannedBranchFromCore(right)
     });
+  } else if (input.op === 'compose') {
+    validateCoreCompose(input, rankedSources);
   } else if (input.op === 'aggregate') {
-    const filter = requireCoreFilter(input.input);
-    validateCoreBranch(filter, rankedSources.has(filter.input.source_id));
-    assertUnique(input.group_by.map(refKey), 'planned Core aggregate group keys');
-    assertUnique(input.measures.map(measure => measure.as), 'planned Core aggregate measure IDs');
-    assertCanonicalOrder(input.group_by.map(refKey), 'planned Core aggregate group keys');
-    assertCanonicalOrder(input.measures.map(measure => measure.as), 'planned Core aggregate measure IDs');
-    for (const group of input.group_by) {
-      assertCoreConcept(group);
-      const concept = conceptFor(group);
-      if (group.source_id !== filter.input.source_id || concept.kind !== 'dimension' || !concept.value.groupable) {
-        throw new Error('planned Core aggregate group is not catalog-authorized');
-      }
-    }
-    for (const measure of input.measures) {
-      const catalogMeasure = conceptFor({ source_id: measure.source_id, concept_id: measure.concept_id });
-      if (catalogMeasure.kind !== 'measure' || !catalogMeasure.value.allowed_aggregations.includes(measure.function) ||
-          measure.source_id !== filter.input.source_id || measure.as !== `${measure.function}_${measure.concept_id}` ||
-          measure.physical_field !== catalogMeasure.value.physical_field || measure.physical_type !== catalogMeasure.value.physical_type ||
-          measure.semantic_type !== catalogMeasure.value.semantic_type) {
-        throw new Error('planned Core aggregate is not catalog-authorized');
-      }
-    }
-    if (stableSerialize(input.output_grain) !== stableSerialize(input.group_by) ||
-        stableSerialize(input.integrity) !== stableSerialize(input.input.integrity)) {
-      throw new Error('planned Core aggregate grain or integrity is invalid');
-    }
-    validateAggregate({
-      op: 'aggregate', input: plannedBranchFromCore(filter),
-      group_by: input.group_by.map(group => ({ source_id: group.source_id, concept_id: group.concept_id })),
-      measures: input.measures.map(measure => ({
-        concept: { source_id: measure.source_id, concept_id: measure.concept_id }, function: measure.function, as: measure.as
-      }))
-    });
+    validateCoreAggregate(input, rankedSources.has(coreAggregateSourceId(input)));
   } else {
     const filter = requireCoreFilter(input);
     validateCoreBranch(filter, rankedSources.has(filter.input.source_id));
   }
+}
+
+function validateCoreAggregate(input: PlannedCoreAggregateNode, ranking: boolean): void {
+  const filter = requireCoreFilter(input.input);
+  validateCoreBranch(filter, ranking);
+  assertUnique(input.group_by.map(refKey), 'planned Core aggregate group keys');
+  assertUnique(input.measures.map(measure => measure.as), 'planned Core aggregate measure IDs');
+  assertCanonicalOrder(input.group_by.map(refKey), 'planned Core aggregate group keys');
+  assertCanonicalOrder(input.measures.map(measure => measure.as), 'planned Core aggregate measure IDs');
+  for (const group of input.group_by) {
+    assertCoreConcept(group);
+    const concept = conceptFor(group);
+    if (group.source_id !== filter.input.source_id || concept.kind !== 'dimension' || !concept.value.groupable) {
+      throw new Error('planned Core aggregate group is not catalog-authorized');
+    }
+  }
+  for (const measure of input.measures) {
+    const catalogMeasure = conceptFor({ source_id: measure.source_id, concept_id: measure.concept_id });
+    if (catalogMeasure.kind !== 'measure' || !catalogMeasure.value.allowed_aggregations.includes(measure.function) ||
+        measure.source_id !== filter.input.source_id || measure.as !== `${measure.function}_${measure.concept_id}` ||
+        measure.physical_field !== catalogMeasure.value.physical_field || measure.physical_type !== catalogMeasure.value.physical_type ||
+        measure.semantic_type !== catalogMeasure.value.semantic_type) {
+      throw new Error('planned Core aggregate is not catalog-authorized');
+    }
+  }
+  if (stableSerialize(input.output_grain) !== stableSerialize(input.group_by) ||
+      stableSerialize(input.integrity) !== stableSerialize(input.input.integrity)) {
+    throw new Error('planned Core aggregate grain or integrity is invalid');
+  }
+  validateAggregate({
+    op: 'aggregate', input: plannedBranchFromCore(filter),
+    group_by: input.group_by.map(group => ({ source_id: group.source_id, concept_id: group.concept_id })),
+    measures: input.measures.map(measure => ({
+      concept: { source_id: measure.source_id, concept_id: measure.concept_id }, function: measure.function, as: measure.as
+    }))
+  });
+}
+
+function validateCoreCompose(compose: PlannedCoreComposeNode, rankedSources: ReadonlySet<string>): void {
+  const sourceIds = compose.inputs.map(coreAggregateSourceId);
+  assertUnique(sourceIds, 'planned Core composition sources');
+  assertCanonicalOrder(sourceIds, 'planned Core composition sources');
+  for (const item of compose.inputs) {
+    validateCoreAggregate(item, rankedSources.has(coreAggregateSourceId(item)));
+    if (item.group_by.length !== 0) {throw new Error('planned Core composition inputs must be ungrouped aggregates');}
+  }
+  const expectedIntegrity = sortedUnique([...compose.inputs.flatMap(item => item.integrity), PLANNED_SCALAR_INPUT_CARDINALITY]);
+  if (compose.output_grain.length !== 0 || stableSerialize(compose.integrity) !== stableSerialize(expectedIntegrity)) {
+    throw new Error('planned Core composition grain or integrity is invalid');
+  }
+  validateCompose({
+    op: 'compose',
+    inputs: compose.inputs.map(item => ({
+      op: 'aggregate', input: plannedBranchFromCore(requireCoreFilter(item.input)), group_by: [],
+      measures: item.measures.map(measure => ({
+        concept: { source_id: measure.source_id, concept_id: measure.concept_id }, function: measure.function, as: measure.as
+      }))
+    }))
+  }, 1);
 }
 
 function validateCoreBranch(branch: PlannedCoreRowBranch, ranking: boolean): void {
@@ -601,11 +708,19 @@ function validateCoreBranch(branch: PlannedCoreRowBranch, ranking: boolean): voi
 }
 
 function validateCoreProject(project: PlannedCoreProjectNode): void {
-  const sourceIds = project.input.op === 'join'
-    ? [requireCoreFilter(project.input.left).input.source_id, requireCoreFilter(project.input.right).input.source_id]
-    : [requireCoreFilter(project.input.op === 'aggregate' ? project.input.input : project.input).input.source_id];
+  let sourceIds: PlannedCoreSourceId[];
+  if (project.input.op === 'join') {
+    sourceIds = [requireCoreFilter(project.input.left).input.source_id, requireCoreFilter(project.input.right).input.source_id];
+  } else if (project.input.op === 'compose') {
+    sourceIds = project.input.inputs.map(coreAggregateSourceId);
+  } else {
+    sourceIds = [requireCoreFilter(project.input.op === 'aggregate' ? project.input.input : project.input).input.source_id];
+  }
   const grouped = project.input.op === 'aggregate' ? project.input.group_by.map(refKey) : [];
   const measures = project.input.op === 'aggregate' ? new Map(project.input.measures.map(measure => [measure.as, measure])) : new Map();
+  const composedMeasures = project.input.op === 'compose'
+    ? new Map(project.input.inputs.flatMap(item => item.measures.map(measure => [composedMeasureKey(coreAggregateSourceId(item), measure.as), measure] as const)))
+    : new Map<string, PlannedCoreAggregateNode['measures'][number]>();
   for (const output of project.outputs) {
     if (output.kind === 'concept') {
       assertCoreConcept(output.concept);
@@ -613,7 +728,7 @@ function validateCoreProject(project: PlannedCoreProjectNode): void {
           (project.input.op === 'aggregate' && !grouped.includes(refKey(output.concept)))) {
         throw new Error(`planned Core concept output ${output.as} is unavailable or noncanonical`);
       }
-    } else {
+    } else if (output.kind === 'aggregate') {
       const measure = measures.get(output.measure_as);
       const expected = measure && {
         physical_type: measure.function === 'count' ? 'integer' : measure.physical_type,
@@ -624,13 +739,35 @@ function validateCoreProject(project: PlannedCoreProjectNode): void {
           output.semantic_type !== expected.semantic_type || output.nullable !== expected.nullable) {
         throw new Error(`planned Core aggregate output ${output.as} is unavailable or noncanonical`);
       }
+    } else {
+      const measure = composedMeasures.get(composedMeasureKey(output.source_id, output.measure_as));
+      const expected = measure && aggregateOutputType(measure);
+      if (!measure || !expected || output.as !== composedMeasureKey(output.source_id, output.measure_as) ||
+          output.physical_type !== expected.physical_type || output.semantic_type !== expected.semantic_type ||
+          output.nullable !== expected.nullable) {
+        throw new Error(`planned Core composed output ${output.as} is unavailable or noncanonical`);
+      }
     }
   }
-  const grain = project.input.op === 'aggregate' || project.input.op === 'join'
+  if (project.input.op === 'compose') {
+    if (project.outputs.some(output => output.kind !== 'composed_aggregate')) {
+      throw new Error('planned Core composition may project only composed child measures');
+    }
+    const actual = project.outputs.filter(output => output.kind === 'composed_aggregate')
+      .map(output => composedMeasureKey(output.source_id, output.measure_as));
+    if (stableSerialize(actual) !== stableSerialize([...composedMeasures.keys()].sort(compareText))) {
+      throw new Error('planned Core composition must project every child measure exactly once');
+    }
+  }
+  const grain = project.input.op === 'aggregate' || project.input.op === 'join' || project.input.op === 'compose'
     ? project.input.output_grain
-    : requireCoreFilter(project.input).input.grain;
-  const expectedOutputGrain = grain.map(ref => project.outputs.find(output => output.kind === 'concept' &&
-    output.concept.source_id === ref.source_id && output.concept.concept_id === ref.concept_id)?.as).filter((id): id is string => !!id);
+    : residualCoreBranchGrain(requireCoreFilter(project.input));
+  const expectedOutputGrain = grain.map(ref => {
+    const output = project.outputs.find(item => item.kind === 'concept' &&
+      item.concept.source_id === ref.source_id && item.concept.concept_id === ref.concept_id);
+    if (!output) {throw new Error(`planned Core projection must include grain key ${ref.concept_id}`);}
+    return output.as;
+  });
   if (stableSerialize(project.output_grain) !== stableSerialize(expectedOutputGrain) ||
       stableSerialize(project.integrity) !== stableSerialize(project.input.integrity)) {
     throw new Error('planned Core projection grain or integrity is invalid');
@@ -640,6 +777,10 @@ function validateCoreProject(project: PlannedCoreProjectNode): void {
 function requireCoreFilter(branch: PlannedCoreRowBranch): PlannedCoreFilterNode {
   if (branch.op !== 'filter') {throw new Error('planned Core sources require explicit filters');}
   return branch;
+}
+
+function coreAggregateSourceId(aggregate: PlannedCoreAggregateNode): PlannedCoreSourceId {
+  return requireCoreFilter(aggregate.input).input.source_id;
 }
 
 function plannedBranchFromCore(branch: PlannedCoreFilterNode): PlannedRowBranch {
@@ -658,6 +799,14 @@ function resultField(output: PlannedCoreProjectOutput): PlannedCoreResultField {
   return output.kind === 'concept'
     ? { id: output.as, physical_type: output.concept.physical_type, semantic_type: output.concept.semantic_type, nullable: output.concept.nullable }
     : { id: output.as, physical_type: output.physical_type, semantic_type: output.semantic_type, nullable: output.nullable };
+}
+
+function aggregateOutputType(measure: PlannedCoreAggregateNode['measures'][number]): Pick<PlannedCoreResultField, 'physical_type' | 'semantic_type' | 'nullable'> {
+  return {
+    physical_type: measure.function === 'count' ? 'integer' : measure.physical_type,
+    semantic_type: measure.function === 'count' ? 'number' : measure.semantic_type,
+    nullable: measure.function !== 'count'
+  };
 }
 
 function sourceIntegrity(source: SemanticCatalogSource, positionFiltered: boolean, ranking: boolean): string[] {
@@ -684,16 +833,16 @@ function conceptFor(ref: PlannedConceptRef): CatalogConcept {
 
 function inputGrain(input: PlannedProject['input']): PlannedConceptRef[] {
   if (input.op === 'aggregate') {return input.group_by;}
+  if (input.op === 'compose') {return [];}
   if (input.op === 'join') {
-    const source = sourceFor(branchSource(input.left));
-    return source.grain.key.map(conceptId => ({ source_id: source.id as PlannedCoreSourceId, concept_id: conceptId }));
+    return residualPlannedBranchGrain(input.left);
   }
-  const source = sourceFor(branchSource(input));
-  return source.grain.key.map(conceptId => ({ source_id: source.id as PlannedCoreSourceId, concept_id: conceptId }));
+  return residualPlannedBranchGrain(input);
 }
 
 function inputBranches(input: PlannedProject['input']): PlannedRowBranch[] {
   if (input.op === 'join') {return [input.left, input.right];}
+  if (input.op === 'compose') {return input.inputs.map(item => item.input);}
   if (input.op === 'aggregate') {return [input.input];}
   return [input];
 }
@@ -725,6 +874,22 @@ function scalarPredicate(branch: PlannedRowBranch, conceptId: string): number {
   const values = predicateValues(branch, conceptId);
   if (values.length !== 1 || !Number.isSafeInteger(values[0])) {throw new Error(`planned branch requires one scalar ${conceptId}`);}
   return values[0] as number;
+}
+
+function scalarEqualityPredicate(branch: PlannedRowBranch, conceptId: string): number {
+  const value = optionalScalarEqualityPredicate(branch, conceptId);
+  if (value === undefined) {throw new Error(`planned branch requires one scalar equality ${conceptId}`);}
+  return value;
+}
+
+function optionalScalarEqualityPredicate(branch: PlannedRowBranch, conceptId: string): number | undefined {
+  if (branch.op !== 'filter') {return undefined;}
+  const predicate = branch.predicates.find(item => item.concept.concept_id === conceptId);
+  if (!predicate) {return undefined;}
+  if (predicate.operator !== 'eq' || !Number.isSafeInteger(predicate.value)) {
+    throw new Error(`planned branch ${conceptId} predicate must be scalar equality when present`);
+  }
+  return predicate.value as number;
 }
 
 function validateLiteral(concept: CatalogDimension | CatalogMeasure, value: string | number | boolean): void {
@@ -767,7 +932,15 @@ function rankedSourcesForPlan(project: PlannedProject, sortOutputIds: string[]):
       if (conceptFor(output.concept).value.semantic_type === 'position') {ranked.add(output.concept.source_id);}
       continue;
     }
-    if (project.input.op !== 'aggregate') {continue;}
+    if (output.kind === 'composed_aggregate' && project.input.op === 'compose') {
+      const aggregate = project.input.inputs.find(item => branchSource(item.input) === output.source_id);
+      const measure = aggregate?.measures.find(item => item.as === output.measure_as);
+      if (measure && conceptFor(measure.concept).value.semantic_type === 'position' && measure.function !== 'count') {
+        ranked.add(measure.concept.source_id);
+      }
+      continue;
+    }
+    if (output.kind !== 'aggregate' || project.input.op !== 'aggregate') {continue;}
     const measure = project.input.measures.find(item => item.as === output.measure_as);
     if (measure && conceptFor(measure.concept).value.semantic_type === 'position' && measure.function !== 'count') {
       ranked.add(measure.concept.source_id);
@@ -781,12 +954,33 @@ function rankedSourcesForCore(project: PlannedCoreProjectNode, sortOutputIds: st
   for (const output of project.outputs) {
     if (!sortOutputIds.includes(output.as)) {continue;}
     if (output.kind === 'concept' && output.concept.semantic_type === 'position') {ranked.add(output.concept.source_id);}
+    if (output.kind === 'composed_aggregate' && output.semantic_type === 'position' && project.input.op === 'compose') {
+      ranked.add(output.source_id);
+    }
     if (output.kind === 'aggregate' && output.semantic_type === 'position' && project.input.op === 'aggregate') {
       const measure = project.input.measures.find(item => item.as === output.measure_as);
       if (measure) {ranked.add(measure.source_id);}
     }
   }
   return ranked;
+}
+
+function residualPlannedBranchGrain(branch: PlannedRowBranch): PlannedConceptRef[] {
+  const source = sourceFor(branchSource(branch));
+  const fixed = branch.op === 'filter'
+    ? new Set(branch.predicates.filter(predicate => predicate.operator === 'eq').map(predicate => predicate.concept.concept_id))
+    : new Set<string>();
+  return source.grain.key.filter(conceptId => !fixed.has(conceptId))
+    .map(conceptId => ({ source_id: source.id as PlannedCoreSourceId, concept_id: conceptId }));
+}
+
+function residualCoreBranchGrain(branch: PlannedCoreFilterNode): PlannedCoreConceptRef[] {
+  const fixed = new Set(branch.predicates.filter(predicate => predicate.operator === 'eq').map(predicate => predicate.concept.concept_id));
+  return branch.input.grain.filter(concept => !fixed.has(concept.concept_id));
+}
+
+function composedMeasureKey(sourceId: string, measureAs: string): string {
+  return `${sourceId}__${measureAs}`;
 }
 
 function assertCoreConcept(concept: PlannedCoreConceptRef): void {

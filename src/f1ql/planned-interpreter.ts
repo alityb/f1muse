@@ -39,6 +39,8 @@ function evaluateProject(project: PlannedCoreProjectNode, database: PlannedRefer
   let input: EvaluatedRow[];
   if (project.input.op === 'join') {
     input = evaluateJoin(project.input, database);
+  } else if (project.input.op === 'compose') {
+    input = evaluateCompose(project.input, database);
   } else if (project.input.op === 'aggregate') {
     input = evaluateAggregate(project.input, database);
   } else {
@@ -47,11 +49,38 @@ function evaluateProject(project: PlannedCoreProjectNode, database: PlannedRefer
   return input.map(row => {
     const output: EvaluatedRow = {};
     for (const field of project.outputs) {
-      output[field.as] = field.kind === 'concept' ? row[coreColumn(field.concept)] : row[field.measure_as];
+      if (field.kind === 'concept') {output[field.as] = row[coreColumn(field.concept)];}
+      else if (field.kind === 'composed_aggregate') {output[field.as] = row[`${field.source_id}__${field.measure_as}`];}
+      else {output[field.as] = row[field.measure_as];}
     }
     output[PLANNED_INTEGRITY_FIELD] = row[PLANNED_INTEGRITY_FIELD] === true;
     return output;
   });
+}
+
+function evaluateCompose(
+  compose: Extract<PlannedCoreProjectNode['input'], { op: 'compose' }>,
+  database: PlannedReferenceDatabase
+): EvaluatedRow[] {
+  const children = compose.inputs.map(input => {
+    if (input.input.op !== 'filter') {throw new Error('planned interpreter requires filtered scalar inputs');}
+    return {
+      sourceId: input.input.input.source_id,
+      rows: evaluateAggregate(input, database),
+      measures: input.measures
+    };
+  });
+  const output: EvaluatedRow = {};
+  let integrity = children.every(child => child.rows.length === 1);
+  for (const child of children) {
+    const row = child.rows[0] ?? {};
+    for (const measure of child.measures) {
+      output[`${child.sourceId}__${measure.as}`] = row[measure.as];
+    }
+    integrity = integrity && row[PLANNED_INTEGRITY_FIELD] === true;
+  }
+  output[PLANNED_INTEGRITY_FIELD] = integrity;
+  return [output];
 }
 
 function evaluateJoin(join: Extract<PlannedCoreProjectNode['input'], { op: 'join' }>, database: PlannedReferenceDatabase): EvaluatedRow[] {

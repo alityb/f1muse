@@ -292,13 +292,21 @@ export interface PlannedCoreAggregateNode {
   integrity: string[];
 }
 
+export interface PlannedCoreComposeNode {
+  op: 'compose';
+  inputs: PlannedCoreAggregateNode[];
+  output_grain: [];
+  integrity: string[];
+}
+
 export type PlannedCoreProjectOutput =
   | { kind: 'concept'; as: string; concept: PlannedCoreConceptRef }
-  | { kind: 'aggregate'; as: string; measure_as: string; physical_type: PlannedCorePhysicalType; semantic_type: PlannedCoreSemanticType; nullable: boolean };
+  | { kind: 'aggregate'; as: string; measure_as: string; physical_type: PlannedCorePhysicalType; semantic_type: PlannedCoreSemanticType; nullable: boolean }
+  | { kind: 'composed_aggregate'; source_id: PlannedCoreSourceId; as: string; measure_as: string; physical_type: PlannedCorePhysicalType; semantic_type: PlannedCoreSemanticType; nullable: boolean };
 
 export interface PlannedCoreProjectNode {
   op: 'project';
-  input: PlannedCoreRowBranch | PlannedCoreJoinNode | PlannedCoreAggregateNode;
+  input: PlannedCoreRowBranch | PlannedCoreJoinNode | PlannedCoreAggregateNode | PlannedCoreComposeNode;
   outputs: PlannedCoreProjectOutput[];
   output_grain: string[];
   integrity: string[];
@@ -332,8 +340,8 @@ export interface PlannedCoreResultField {
 }
 
 export interface PlannedCoreProgram {
-  version: 1;
-  dialect: 'planned_f1ql_v1';
+  version: 2;
+  dialect: 'planned_f1ql_v2';
   catalog_hash: string;
   parent_program_hash: string;
   root: PlannedCoreLimitNode;

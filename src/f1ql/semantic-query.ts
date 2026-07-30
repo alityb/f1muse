@@ -8,8 +8,8 @@ import {
   SemanticCatalogSource
 } from './semantic-catalog';
 
-export const SEMANTIC_QUERY_VERSION = 1 as const;
-export const SEMANTIC_EVIDENCE_VERSION = 1 as const;
+export const SEMANTIC_QUERY_VERSION = 2 as const;
+export const SEMANTIC_EVIDENCE_VERSION = 2 as const;
 export const SEMANTIC_QUERY_MAX_CANDIDATES = 5;
 
 const sourceIdSchema = z.enum(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']);
@@ -38,7 +38,7 @@ const entitySchema = z.object({
 const scopeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('season'), value: z.number().int().min(1950).max(2100), evidence: evidenceSchema }).strict(),
   z.object({ kind: z.literal('round'), value: z.number().int().min(1).max(30), evidence: evidenceSchema }).strict(),
-  z.object({ kind: z.literal('session'), value: z.enum(['season', 'race', 'qualifying']), evidence: evidenceSchema }).strict(),
+  z.object({ kind: z.literal('session'), source_id: sourceIdSchema, value: z.enum(['season', 'race', 'qualifying']), evidence: evidenceSchema }).strict(),
   z.object({ kind: z.literal('temporal'), value: z.enum(['final', 'latest_recorded']), evidence: evidenceSchema }).strict(),
   z.object({ kind: z.literal('event'), entity_index: z.number().int().min(0).max(7), evidence: evidenceSchema }).strict()
 ]);
@@ -68,7 +68,7 @@ const limitSchema = z.object({ value: z.number().int().min(1).max(100), evidence
 const semanticQuerySchema = z.object({
   version: z.literal(SEMANTIC_QUERY_VERSION),
   outputs: z.array(outputSchema).min(1).max(8),
-  scopes: z.array(scopeSchema).min(3).max(5),
+  scopes: z.array(scopeSchema).min(3).max(8),
   entities: z.array(entitySchema).max(8),
   filters: z.array(filterSchema).max(8),
   group_by: z.array(groupingSchema).max(3),
@@ -99,7 +99,10 @@ export type SemanticAbstentionReason =
   | 'unknown_language'
   | 'unsupported_comparison'
   | 'unsupported_concept'
+  | 'unsupported_source_combination'
   | 'unsupported_scope';
+
+const verifiedSemanticAdmissionBrand: unique symbol = Symbol('verifiedSemanticAdmission');
 
 export type SemanticEvidence =
   | {
@@ -121,9 +124,19 @@ export type SemanticEvidence =
     };
 
 export type SemanticCandidateAdmission =
-  | { readonly type: 'admitted'; readonly query: SemanticQuery; readonly query_hash: string; readonly candidate_set_hash: string }
+  | VerifiedSemanticQueryAdmission
   | { readonly type: 'clarification_required'; readonly reason: SemanticAmbiguityReason; readonly candidate_set_hash: string }
   | { readonly type: 'abstention'; readonly reason: SemanticAbstentionReason };
+
+export interface VerifiedSemanticQueryAdmission {
+  readonly [verifiedSemanticAdmissionBrand]: true;
+  readonly type: 'admitted';
+  readonly question_sha256: string;
+  readonly catalog_hash: string;
+  readonly query: SemanticQuery;
+  readonly query_hash: string;
+  readonly candidate_set_hash: string;
+}
 
 interface LexicalMatch {
   readonly span: SemanticLiteralSpan;
@@ -133,12 +146,14 @@ interface LexicalMatch {
 
 interface OperationEvidence {
   readonly count?: SemanticLiteralSpan;
+  readonly count_spans: readonly SemanticLiteralSpan[];
   readonly rank?: SemanticLiteralSpan;
   readonly limit?: { readonly value: number; readonly span: SemanticLiteralSpan };
   readonly temporal: readonly { readonly value: 'final' | 'latest_recorded'; readonly span: SemanticLiteralSpan }[];
 }
 
 const activeSemanticEvidence = new WeakSet<object>();
+const activeSemanticAdmissions = new WeakSet<object>();
 
 export function parseSemanticQueryCandidateSet(
   input: unknown,
@@ -226,6 +241,40 @@ export function enumerateSemanticQueries(
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   const explicitSourceIds = new Set(sourceMatches.map(match => match.source_id));
+  const compositionSourceIds = requestedCompositionSourceIds(sourceMatches, conceptMatches);
+  if (compositionSourceIds.length > 1) {
+    let compositionAmbiguity: SemanticAmbiguityReason | undefined;
+    if (hasEntityTypeAmbiguity(entities)) {
+      compositionAmbiguity = 'entity_ambiguous';
+    } else if (question.years.length > 1 || question.rounds.length > 1) {
+      compositionAmbiguity = 'scope_ambiguous';
+    } else if (entities.filter(entity => entity.type === 'event').length > 1 ||
+        hasAmbiguousEntityAttachment(entities, conceptMatches, catalog)) {
+      compositionAmbiguity = 'attachment_ambiguous';
+    } else if (hasOutputAlternative(question.normalized_question, conceptMatches)) {
+      compositionAmbiguity = 'output_shape_ambiguous';
+    }
+    const years = question.years.length > 0 ? question.years : [];
+    const rounds = question.rounds.length > 0 ? question.rounds : [undefined];
+    const eventEntities = entities.filter(entity => entity.type === 'event');
+    const entityChoices = eventEntities.length > 1
+      ? eventEntities.map(event => entities.filter(entity => entity.type !== 'event' || entity === event))
+      : [entities];
+    const composition = years.flatMap(year => rounds.flatMap(round => entityChoices.flatMap(entityChoice =>
+      enumeratePromotedComposition(
+        { ...question, years: [year], rounds: round ? [round] : [] },
+        entityChoice,
+        compositionSourceIds,
+        sourceMatches,
+        conceptMatches,
+        operations,
+        catalog
+      ))));
+    if (composition.length === 0) {
+      return verifiedEvidence(abstention(question, catalogHash, 'unsupported_source_combination'));
+    }
+    return verifiedEvidence(candidateSetEvidence(question, catalogHash, composition, maxCandidates, compositionAmbiguity));
+  }
   const sourceCompatibility = sourceIds.map(sourceId => {
     const source = catalog.sources.find(item => item.id === sourceId && item.usage === 'answer_fact');
     const compatible = Boolean(source) && !question.years.some(year => source!.scope.season_min === null || source!.scope.season_max === null || year.value < source!.scope.season_min || year.value > source!.scope.season_max) &&
@@ -331,10 +380,6 @@ export function admitSemanticQueryCandidates(
     throw new Error('semantic evidence candidate-set hash is invalid');
   }
   const provider = parseSemanticQueryCandidateSet(providerInput, questionInput, catalog);
-  const enumeratedHashes = new Set(evidence.candidates.map(computeSemanticQueryHash));
-  if (provider.candidates.some(candidate => !enumeratedHashes.has(computeSemanticQueryHash(candidate)))) {
-    return deepFreeze({ type: 'abstention', reason: 'provider_candidate_not_enumerated' });
-  }
   if (evidence.candidates.length !== 1 || evidence.ambiguity_reason) {
     return deepFreeze({
       type: 'clarification_required',
@@ -342,15 +387,50 @@ export function admitSemanticQueryCandidates(
       candidate_set_hash: evidence.candidate_set_hash
     });
   }
+  const enumeratedHashes = new Set(evidence.candidates.map(computeSemanticQueryHash));
+  if (provider.candidates.some(candidate => !enumeratedHashes.has(computeSemanticQueryHash(candidate)))) {
+    return deepFreeze({ type: 'abstention', reason: 'provider_candidate_not_enumerated' });
+  }
   if (provider.candidates.length !== 1 || computeSemanticQueryHash(provider.candidates[0]) !== computeSemanticQueryHash(evidence.candidates[0])) {
     return deepFreeze({ type: 'abstention', reason: 'provider_candidate_not_enumerated' });
   }
-  return deepFreeze({
+  const admission: VerifiedSemanticQueryAdmission = deepFreeze({
+    [verifiedSemanticAdmissionBrand]: true as const,
     type: 'admitted',
+    question_sha256: question.sha256,
+    catalog_hash: catalogHash,
     query: evidence.candidates[0],
     query_hash: computeSemanticQueryHash(evidence.candidates[0]),
     candidate_set_hash: evidence.candidate_set_hash
   });
+  activeSemanticAdmissions.add(admission);
+  return admission;
+}
+
+export function verifySemanticQueryAdmission(
+  input: unknown,
+  questionInput: unknown,
+  catalog: SemanticCatalog = SEMANTIC_CATALOG
+): VerifiedSemanticQueryAdmission {
+  if (!input || typeof input !== 'object' || !activeSemanticAdmissions.has(input)) {
+    throw new Error('semantic query admission provenance is invalid');
+  }
+  const admission = input as VerifiedSemanticQueryAdmission;
+  const question = createAnswerQuestionContract(questionInput);
+  const catalogHash = computeSemanticCatalogHash(catalog);
+  if (admission[verifiedSemanticAdmissionBrand] !== true || admission.type !== 'admitted' ||
+      admission.question_sha256 !== question.sha256 || admission.catalog_hash !== catalogHash) {
+    throw new Error('semantic query admission binding is invalid');
+  }
+  const query = parseSemanticQueryCandidateSet(
+    { version: SEMANTIC_QUERY_VERSION, candidates: [admission.query] }, questionInput, catalog
+  ).candidates[0];
+  const queryHash = computeSemanticQueryHash(query);
+  const candidateSetHash = computeSemanticCandidateSetHash([query], question.sha256, catalogHash);
+  if (admission.query_hash !== queryHash || admission.candidate_set_hash !== candidateSetHash) {
+    throw new Error('semantic query admission binding is invalid');
+  }
+  return admission;
 }
 
 function normalizeSemanticQuery(query: SemanticQuery): SemanticQuery {
@@ -387,11 +467,10 @@ function validateSemanticQuery(query: SemanticQuery, question: AnswerQuestionCon
   const temporals = query.scopes.filter(scope => scope.kind === 'temporal');
   const rounds = query.scopes.filter(scope => scope.kind === 'round');
   const events = query.scopes.filter(scope => scope.kind === 'event');
-  if (seasons.length !== 1 || sessions.length !== 1 || temporals.length !== 1 || rounds.length > 1 || events.length > 1 || (rounds.length > 0 && events.length > 0)) {
-    throw new Error('semantic query scope must contain one season, session, temporal mode, and at most one event selector');
+  if (seasons.length !== 1 || sessions.length < 1 || temporals.length !== 1 || rounds.length > 1 || events.length > 1 || (rounds.length > 0 && events.length > 0)) {
+    throw new Error('semantic query scope must contain one season, source session, temporal mode, and at most one event selector');
   }
   const season = seasons[0].value;
-  const session = sessions[0].value;
   const temporal = temporals[0].value;
   const sourceIds = new Set<string>();
 
@@ -441,9 +520,14 @@ function validateSemanticQuery(query: SemanticQuery, question: AnswerQuestionCon
       }
     }
   }
+  assertUnique(sessions.map(scope => scope.source_id), 'semantic source sessions');
+  if (sessions.length !== sourceIds.size || sessions.some(scope => !sourceIds.has(scope.source_id))) {
+    throw new Error('semantic query requires exactly one session scope for every source');
+  }
   for (const sourceId of sourceIds) {
     const source = catalog.sources.find(item => item.id === sourceId)!;
-    if (source.usage !== 'answer_fact' || !source.scope.sessions.includes(session) || source.scope.season_min === null || source.scope.season_max === null || season < source.scope.season_min || season > source.scope.season_max) {
+    const session = sessions.find(scope => scope.source_id === sourceId)!;
+    if (source.usage !== 'answer_fact' || !source.scope.sessions.includes(session.value) || source.scope.season_min === null || source.scope.season_max === null || season < source.scope.season_min || season > source.scope.season_max) {
       throw new Error(`semantic scope is not supported by ${source.id}`);
     }
     if (temporal === 'final' && (source.scope.final_season_through === null || season > source.scope.final_season_through)) {
@@ -453,7 +537,7 @@ function validateSemanticQuery(query: SemanticQuery, question: AnswerQuestionCon
       throw new Error(`semantic latest-recorded scope is not supported by ${source.id}`);
     }
   }
-  if ((rounds.length > 0 || events.length > 0) && session === 'season') {
+  if ((rounds.length > 0 || events.length > 0) && sessions.some(session => session.value === 'season')) {
     throw new Error('semantic season scope cannot include an event selector');
   }
   if (!literalHasEvidence(season, seasons[0].evidence) || rounds.some(round => !literalHasEvidence(round.value, round.evidence))) {
@@ -478,7 +562,7 @@ function validateSemanticQuery(query: SemanticQuery, question: AnswerQuestionCon
     throw new Error('semantic ordering references a missing output');
   }
   assertUnique(query.outputs.map(output => stableSerialize({ kind: output.kind, concept: output.concept, ...('function' in output ? { function: output.function } : {}) })), 'semantic outputs');
-  assertUnique(query.scopes.map(scope => scope.kind), 'semantic scope kinds');
+  assertUnique(query.scopes.filter(scope => scope.kind !== 'session').map(scope => scope.kind), 'semantic scope kinds');
   assertUnique(query.filters.map(filter => stableSerialize(filter)), 'semantic filters');
   assertUnique(query.group_by.map(group => stableSerialize(group.concept)), 'semantic groupings');
 }
@@ -588,7 +672,7 @@ function buildCandidate(
   const queryEntities = canonicalEntities(entities);
   const scopes: SemanticQuery['scopes'] = [
     { kind: 'season', value: year.value, evidence: [copyMention(year)] },
-    { kind: 'session', value: session, evidence: [sourceEvidence(outputs)] },
+    { kind: 'session', source_id: source.id as z.infer<typeof sourceIdSchema>, value: session, evidence: [sourceEvidence(outputs)] },
     { kind: 'temporal', value: temporal.value, evidence: [temporal.span] }
   ];
   if (round) {
@@ -642,6 +726,185 @@ function buildCandidate(
   };
 }
 
+function requestedCompositionSourceIds(
+  sourceMatches: readonly LexicalMatch[],
+  _conceptMatches: readonly LexicalMatch[]
+): z.infer<typeof sourceIdSchema>[] {
+  const explicit = [...new Set(sourceMatches.map(match => match.source_id))].sort(compareText);
+  return explicit.length > 1 ? explicit : [];
+}
+
+function enumeratePromotedComposition(
+  question: AnswerQuestionContract,
+  inventory: readonly SemanticEntityInventoryItem[],
+  sourceIds: readonly z.infer<typeof sourceIdSchema>[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  catalog: SemanticCatalog
+): SemanticQuery[] {
+  if (question.years.length !== 1 || question.rounds.length > 1 || operations.temporal.length > 1) {
+    return [];
+  }
+  const sources = sourceIds.map(sourceId => catalog.sources.find(source => source.id === sourceId && source.usage === 'answer_fact'));
+  if (sources.some(source => !source)) {return [];}
+  const year = question.years[0];
+  const temporal = temporalChoices(year, operations, sources[0]!);
+  if (temporal.length !== 1 || sources.some(source => !sourceSupportsTemporal(source!, year.value, temporal[0].value))) {
+    return [];
+  }
+  const entities = canonicalEntities(inventory);
+  if (!compositionSupportsEntities(sources as SemanticCatalogSource[], entities)) {
+    return [];
+  }
+  const selectedConceptMatches = conceptMatches.filter(match => sourceIds.includes(match.source_id));
+  const hasUnselectedSpecificConcept = conceptMatches.some(match => !sourceIds.includes(match.source_id) &&
+    !selectedConceptMatches.some(selected => selected.span.start <= match.span.start && selected.span.end >= match.span.end));
+  if (hasUnselectedSpecificConcept) {return [];}
+  const scopedMatches = selectedConceptMatches;
+  const longestByConcept = new Map<string, number>();
+  for (const match of scopedMatches) {
+    const key = `${match.source_id}.${match.concept_id}`;
+    longestByConcept.set(key, Math.max(longestByConcept.get(key) ?? 0, match.span.end - match.span.start));
+  }
+  const canonicalMatches = canonicalConceptMatches(scopedMatches.filter(match =>
+    match.span.end - match.span.start === longestByConcept.get(`${match.source_id}.${match.concept_id}`)));
+  const matches = canonicalMatches.filter(match => !canonicalMatches.some(other =>
+    other.span.start <= match.span.start && other.span.end >= match.span.end &&
+    (other.span.start < match.span.start || other.span.end > match.span.end)));
+  const rowJoin = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'event_metadata']);
+  const scalarCompose = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'qualifying_classification']);
+  if (!rowJoin && !scalarCompose) {return [];}
+  if (rowJoin && (operations.count || operations.rank || (question.rounds.length === 0 && !entities.some(entity => entity.type === 'event')))) {
+    return [];
+  }
+  if (scalarCompose && (!operations.count || operations.rank)) {return [];}
+
+  const outputs: SemanticQuery['outputs'] = scalarCompose
+    ? compositionAggregateOutputs(matches, operations, catalog)
+    : matches.map(match => ({
+        kind: 'concept' as const,
+        concept: { source_id: match.source_id, concept_id: match.concept_id! },
+        evidence: [match.span]
+      }));
+  if (outputs.length === 0 || sourceIds.some(sourceId => !outputs.some(output => output.concept.source_id === sourceId)) ||
+      (scalarCompose && (outputs.length !== sourceIds.length || outputs.some(output => output.kind !== 'aggregate')))) {
+    return [];
+  }
+  const scopes: SemanticQuery['scopes'] = [
+    { kind: 'season', value: year.value, evidence: [copyMention(year)] },
+    ...sourceIds.map(sourceId => {
+      const source = sources.find(item => item!.id === sourceId)!;
+      const session = source!.scope.sessions.find(value => value === 'season' || value === 'race' || value === 'qualifying')!;
+      const evidence = sourceMatches.find(match => match.source_id === sourceId)?.span ?? outputs.find(output => output.concept.source_id === sourceId)!.evidence[0];
+      return { kind: 'session' as const, source_id: sourceId, value: session, evidence: [evidence] };
+    }),
+    { kind: 'temporal', value: temporal[0].value, evidence: [temporal[0].span] }
+  ];
+  if (question.rounds[0]) {
+    scopes.push({ kind: 'round', value: question.rounds[0].value, evidence: [copyMention(question.rounds[0])] });
+  }
+  const eventIndex = entities.findIndex(entity => entity.type === 'event');
+  if (eventIndex >= 0) {
+    scopes.push({ kind: 'event', entity_index: eventIndex, evidence: [entities[eventIndex].span] });
+  }
+  const driverIndices = entities.flatMap((entity, index) => entity.type === 'driver' ? [index] : []);
+  const filters: SemanticQuery['filters'] = sourceIds.flatMap(sourceId => {
+    const source = sources.find(item => item!.id === sourceId)!;
+    return driverIndices.length > 0 && source!.dimensions.some(dimension => dimension.id === 'driver_id')
+      ? [{
+          kind: 'entity' as const,
+          concept: { source_id: sourceId, concept_id: 'driver_id' },
+          operator: driverIndices.length === 1 ? 'eq' as const : 'in' as const,
+          entity_indices: driverIndices,
+          evidence: driverIndices.map(index => entities[index].span)
+        }]
+      : [];
+  });
+  const candidate: SemanticQuery = {
+    version: SEMANTIC_QUERY_VERSION,
+    outputs,
+    scopes,
+    entities,
+    filters,
+    group_by: [],
+    ...(scalarCompose ? { comparison: { relation: 'count' as const, evidence: [...operations.count_spans] } } : {}),
+    order_by: [],
+    ...(rowJoin && operations.limit ? { limit: { value: operations.limit.value, evidence: [operations.limit.span] } } : {})
+  };
+  const parsed = semanticQuerySchema.safeParse(candidate);
+  if (!parsed.success) {return [];}
+  const normalized = normalizeSemanticQuery(parsed.data);
+  try {
+    validateSemanticQuery(normalized, question, catalog);
+  } catch {
+    return [];
+  }
+  return [normalized];
+}
+
+function compositionAggregateOutputs(
+  matches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  catalog: SemanticCatalog
+): SemanticQuery['outputs'] {
+  const measureMatches = matches.filter(match => {
+    const source = catalog.sources.find(item => item.id === match.source_id);
+    return source?.measures.some(measure => measure.id === match.concept_id && measure.allowed_aggregations.includes('count'));
+  });
+  const usedCounts = new Set<string>();
+  return measureMatches.flatMap(match => {
+    const count = [...operations.count_spans].reverse().find(span => span.end <= match.span.start && !usedCounts.has(stableSerialize(span)));
+    if (!count) {return [];}
+    usedCounts.add(stableSerialize(count));
+    return [{
+      kind: 'aggregate' as const,
+      function: 'count' as const,
+      concept: { source_id: match.source_id, concept_id: match.concept_id! },
+      evidence: [count, match.span]
+    }];
+  });
+}
+
+function compositionSupportsEntities(
+  sources: readonly SemanticCatalogSource[],
+  entities: readonly SemanticEntityInventoryItem[]
+): boolean {
+  return entities.every(entity => entity.type === 'driver'
+    ? sources.some(source => source.dimensions.some(dimension => dimension.id === 'driver_id'))
+    : sources.some(source => source.scope.sessions.some(session => session === 'race' || session === 'qualifying')));
+}
+
+function candidateSetEvidence(
+  question: AnswerQuestionContract,
+  catalogHash: string,
+  candidates: readonly SemanticQuery[],
+  maxCandidates: number,
+  ambiguityReason?: SemanticAmbiguityReason
+): SemanticEvidence {
+  const unique = new Map(candidates.map(candidate => [computeSemanticQueryHash(candidate), candidate]));
+  const sorted = [...unique.values()].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
+  if (sorted.length > maxCandidates) {
+    return deepFreeze({
+      version: SEMANTIC_EVIDENCE_VERSION,
+      type: 'abstention',
+      question_sha256: question.sha256,
+      catalog_hash: catalogHash,
+      reason: 'candidate_overflow',
+      candidate_count_lower_bound: sorted.length
+    });
+  }
+  return deepFreeze({
+    version: SEMANTIC_EVIDENCE_VERSION,
+    type: 'candidate_set',
+    question_sha256: question.sha256,
+    catalog_hash: catalogHash,
+    candidate_set_hash: computeSemanticCandidateSetHash(sorted, question.sha256, catalogHash, ambiguityReason),
+    candidates: sorted,
+    ...(ambiguityReason ? { ambiguity_reason: ambiguityReason } : {})
+  });
+}
+
 function collectSourceMatches(question: string, catalog: SemanticCatalog): LexicalMatch[] {
   return catalog.sources.flatMap(source => source.usage === 'answer_fact'
     ? [...source.language.names, ...source.language.synonyms, ...source.language.abbreviations]
@@ -668,7 +931,8 @@ function collectConceptMatches(question: string, catalog: SemanticCatalog, sourc
 }
 
 function collectOperationEvidence(question: string): OperationEvidence {
-  const count = firstRegexSpan(question, /\b(?:count(?:\s+of)?|number\s+of)\b/iu);
+  const countSpans = regexSpans(question, /\b(?:count(?:\s+of)?|number\s+of)\b/giu);
+  const count = countSpans[0];
   const rank = firstRegexSpan(question, /\b(?:rank|top\s+\d{1,3})\b/iu);
   const limitMatch = [...question.matchAll(/\btop\s+(\d{1,3})\b/giu)][0];
   const temporal = [
@@ -677,6 +941,7 @@ function collectOperationEvidence(question: string): OperationEvidence {
   ].sort((left, right) => compareSpans(left.span, right.span));
   return {
     ...(count ? { count } : {}),
+    count_spans: countSpans,
     ...(rank ? { rank } : {}),
     ...(limitMatch ? {
       limit: {
@@ -808,6 +1073,12 @@ function hasAmbiguousEntityAttachment(
   return attachmentRegions.size > 1;
 }
 
+function hasOutputAlternative(question: string, conceptMatches: readonly LexicalMatch[]): boolean {
+  return regexSpans(question, /\bor\b/giu).some(orSpan =>
+    conceptMatches.some(match => match.span.end <= orSpan.start) &&
+    conceptMatches.some(match => match.span.start >= orSpan.end));
+}
+
 function hasInvalidOrderingTargets(
   sourceIds: readonly string[],
   conceptMatches: readonly LexicalMatch[],
@@ -839,7 +1110,7 @@ function containsUnknownLanguage(
     ...question.years.map(copyMention),
     ...question.rounds.map(copyMention),
     ...entities.map(entity => entity.span),
-    ...(operations.count ? [operations.count] : []),
+    ...operations.count_spans,
     ...(operations.rank ? [operations.rank] : []),
     ...(operations.limit ? [operations.limit.span] : []),
     ...operations.temporal.map(item => item.span)

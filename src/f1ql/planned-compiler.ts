@@ -41,6 +41,8 @@ function compileProject(project: PlannedCoreProjectNode, context: SqlContext): S
   let input: SqlFragment;
   if (project.input.op === 'join') {
     input = compileJoin(project.input, context);
+  } else if (project.input.op === 'compose') {
+    input = compileCompose(project.input, context);
   } else if (project.input.op === 'aggregate') {
     input = compileAggregate(project.input, context);
   } else {
@@ -48,10 +50,29 @@ function compileProject(project: PlannedCoreProjectNode, context: SqlContext): S
   }
   const outputs = project.outputs.map(output => {
     if (output.kind === 'aggregate') {return `${quoteId(output.measure_as)} AS ${quoteId(output.as)}`;}
+    if (output.kind === 'composed_aggregate') {return `${quoteId(`${output.source_id}__${output.measure_as}`)} AS ${quoteId(output.as)}`;}
     return `${quoteId(coreColumn(output.concept))} AS ${quoteId(output.as)}`;
   });
   return {
     sql: `SELECT ${outputs.join(', ')}, ${quoteId(input.integrity_field)} AS ${quoteId(PLANNED_INTEGRITY_FIELD)} FROM (${input.sql}) AS planned_project_input`,
+    integrity_field: PLANNED_INTEGRITY_FIELD
+  };
+}
+
+function compileCompose(compose: Extract<PlannedCoreProjectNode['input'], { op: 'compose' }>, context: SqlContext): SqlFragment {
+  const inputs = compose.inputs.map(input => {
+    if (input.input.op !== 'filter') {throw new Error('planned compiler requires filtered scalar inputs');}
+    const sourceId = input.input.input.source_id;
+    return { sourceId, alias: `planned_scalar_${sourceId}`, fragment: compileAggregate(input, context), input };
+  });
+  const outputs = inputs.flatMap(({ sourceId, alias, input }) => input.measures.map(measure =>
+    `${quoteId(alias)}.${quoteId(measure.as)} AS ${quoteId(`${sourceId}__${measure.as}`)}`));
+  const integrity = inputs.map(({ alias, fragment }) =>
+    `${quoteId(alias)}.${quoteId(fragment.integrity_field)}`).join(' AND ');
+  const from = inputs.map(({ alias, fragment }, index) =>
+    `${index === 0 ? '' : 'CROSS JOIN '}(${fragment.sql}) AS ${quoteId(alias)}`).join(' ');
+  return {
+    sql: `SELECT ${[...outputs, `(${integrity}) AS ${quoteId(PLANNED_INTEGRITY_FIELD)}`].join(', ')} FROM ${from}`,
     integrity_field: PLANNED_INTEGRITY_FIELD
   };
 }

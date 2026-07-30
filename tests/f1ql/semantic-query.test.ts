@@ -9,13 +9,16 @@ import {
   parseSemanticQueryCandidateSet,
   SemanticEvidence,
   SemanticLiteralSpan,
-  SemanticQuery
+  SemanticQuery,
+  verifySemanticQueryAdmission
 } from '../../src/f1ql/semantic-query';
 import { SEMANTIC_CATALOG_HASH } from '../../src/f1ql/semantic-catalog';
 
 const STANDINGS_QUESTION = 'List driver and championship points from final 2025 driver standings.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
+const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 
 describe('semantic query candidates and independent evidence', () => {
   it('enumerates one catalog-bound explicit standings query and freezes all evidence', () => {
@@ -23,14 +26,14 @@ describe('semantic query candidates and independent evidence', () => {
     expect(evidence.catalog_hash).toBe(SEMANTIC_CATALOG_HASH);
     expect(evidence.candidates).toHaveLength(1);
     expect(evidence.candidates[0]).toMatchObject({
-      version: 1,
+      version: 2,
       outputs: [
         { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
         { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'points' } }
       ],
       scopes: expect.arrayContaining([
         { kind: 'season', value: 2025, evidence: [span(STANDINGS_QUESTION, '2025')] },
-        { kind: 'session', value: 'season', evidence: expect.any(Array) },
+        expect.objectContaining({ kind: 'session', source_id: 'driver_standings', value: 'season', evidence: expect.any(Array) }),
         { kind: 'temporal', value: 'final', evidence: [span(STANDINGS_QUESTION, 'final')] }
       ]),
       entities: [],
@@ -47,7 +50,7 @@ describe('semantic query candidates and independent evidence', () => {
     const race = candidateEvidence(RACE_QUESTION).candidates[0];
     expect(race.scopes).toEqual(expect.arrayContaining([
       { kind: 'round', value: 1, evidence: [span(RACE_QUESTION, '1')] },
-      { kind: 'session', value: 'race', evidence: expect.any(Array) }
+      expect.objectContaining({ kind: 'session', source_id: 'event_classification', value: 'race', evidence: expect.any(Array) })
     ]));
 
     const ranking = candidateEvidence(QUALIFYING_RANK_QUESTION).candidates[0];
@@ -61,6 +64,101 @@ describe('semantic query candidates and independent evidence', () => {
     expect(ranking.comparison).toMatchObject({ relation: 'rank' });
     expect(ranking.order_by).toEqual([expect.objectContaining({ output_index: 1, direction: 'desc' })]);
     expect(ranking.limit).toMatchObject({ value: 10 });
+  });
+
+  it('enumerates only the promoted row join and aggregate-local scalar composition', () => {
+    const rowJoin = candidateEvidence(RACE_METADATA_QUESTION).candidates[0];
+    expect([...new Set(rowJoin.outputs.map(output => output.concept.source_id))]).toEqual([
+      'event_classification', 'event_metadata'
+    ]);
+    expect(rowJoin.scopes.filter(scope => scope.kind === 'session')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source_id: 'event_classification', value: 'race' }),
+      expect.objectContaining({ source_id: 'event_metadata', value: 'race' })
+    ]));
+
+    const norris = { type: 'driver', span: span(RACE_QUALIFYING_COUNT_QUESTION, 'Norris') };
+    const aggregate = candidateEvidence(RACE_QUALIFYING_COUNT_QUESTION, [norris]).candidates[0];
+    expect(aggregate.outputs).toEqual([
+      expect.objectContaining({ kind: 'aggregate', function: 'count', concept: { source_id: 'event_classification', concept_id: 'finishing_position' } }),
+      expect.objectContaining({ kind: 'aggregate', function: 'count', concept: { source_id: 'qualifying_classification', concept_id: 'qualifying_position' } })
+    ]);
+    expect(aggregate.scopes.filter(scope => scope.kind === 'session')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source_id: 'event_classification', value: 'race' }),
+      expect.objectContaining({ source_id: 'qualifying_classification', value: 'qualifying' })
+    ]));
+    expect(aggregate.filters).toEqual([
+      expect.objectContaining({ concept: { source_id: 'event_classification', concept_id: 'driver_id' }, entity_indices: [0] }),
+      expect.objectContaining({ concept: { source_id: 'qualifying_classification', concept_id: 'driver_id' }, entity_indices: [0] })
+    ]);
+  });
+
+  it('fails closed on every unpromoted explicit source combination', () => {
+    expect(enumerateSemanticQueries('List championship points and finishing position from final 2025 driver standings and race classification.')).toMatchObject({
+      type: 'abstention', reason: 'unsupported_source_combination'
+    });
+    expect(enumerateSemanticQueries('List finishing position and qualifying position from final 2025 race classification and qualifying classification.')).toMatchObject({
+      type: 'abstention', reason: 'unsupported_source_combination'
+    });
+    expect(enumerateSemanticQueries('List championship points and event name for round 1 of final 2025 race classification and event metadata.')).toMatchObject({
+      type: 'abstention', reason: 'unsupported_source_combination'
+    });
+  });
+
+  it('does not collapse multi-source entity attachment or entity-type ambiguity', () => {
+    const attached = 'Show count of finishing position for Norris from race classification and count of qualifying position for Piastri from qualifying classification in final 2025.';
+    const attachedEvidence = enumerateSemanticQueries(attached, [
+      { type: 'driver', span: span(attached, 'Norris') },
+      { type: 'driver', span: span(attached, 'Piastri') }
+    ]);
+    expect(attachedEvidence).toMatchObject({ type: 'candidate_set', ambiguity_reason: 'attachment_ambiguous' });
+    if (attachedEvidence.type !== 'candidate_set') throw new Error('missing attachment candidates');
+    const attachedAlternative = structuredClone(attachedEvidence.candidates[0]);
+    attachedAlternative.filters = attachedAlternative.filters.map((filter, index) => filter.kind === 'entity'
+      ? { ...filter, operator: 'eq', entity_indices: [index], evidence: [attachedAlternative.entities[index].span] }
+      : filter);
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: [attachedAlternative] }, attached, attachedEvidence)).toMatchObject({
+      type: 'clarification_required', reason: 'attachment_ambiguous'
+    });
+
+    const ambiguous = 'List finishing position and event name from final 2025 race classification and event metadata at Monaco.';
+    const monaco = span(ambiguous, 'Monaco');
+    const entityEvidence = enumerateSemanticQueries(ambiguous, [
+      { type: 'driver', span: monaco },
+      { type: 'event', span: monaco }
+    ]);
+    expect(entityEvidence).toMatchObject({ type: 'candidate_set', ambiguity_reason: 'entity_ambiguous' });
+    if (entityEvidence.type !== 'candidate_set') throw new Error('missing entity candidates');
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: entityEvidence.candidates }, ambiguous, entityEvidence)).toMatchObject({
+      type: 'clarification_required', reason: 'entity_ambiguous'
+    });
+
+    expect(enumerateSemanticQueries('Show count of race classification status from race classification and count of qualifying position from qualifying classification in final 2025.')).toMatchObject({
+      type: 'abstention', reason: 'unsupported_source_combination'
+    });
+  });
+
+  it('retains multi-source scope, event, and output alternatives for clarification', () => {
+    const events = 'List driver and finishing position and event name from final 2025 race classification and event metadata at Monaco or Silverstone.';
+    const eventEvidence = candidateEvidence(events, [
+      { type: 'event', span: span(events, 'Monaco') },
+      { type: 'event', span: span(events, 'Silverstone') }
+    ]);
+    expect(eventEvidence).toMatchObject({ ambiguity_reason: 'attachment_ambiguous' });
+    expect(eventEvidence.candidates).toHaveLength(2);
+
+    const years = 'List driver and finishing position and event name for round 1 of final 2024 or 2025 race classification and event metadata.';
+    const yearEvidence = candidateEvidence(years);
+    expect(yearEvidence).toMatchObject({ ambiguity_reason: 'scope_ambiguous' });
+    expect(yearEvidence.candidates).toHaveLength(2);
+
+    const outputs = 'List driver and finishing position or event name for round 1 of final 2025 race classification and event metadata.';
+    const outputEvidence = candidateEvidence(outputs);
+    expect(outputEvidence).toMatchObject({ ambiguity_reason: 'output_shape_ambiguous' });
+    const outputAlternative = structuredClone(outputEvidence.candidates[0]);
+    outputAlternative.outputs = outputAlternative.outputs.filter(output => output.concept.concept_id !== 'finishing_position');
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: [outputAlternative] }, outputs, outputEvidence)).toMatchObject({
+      type: 'clarification_required', reason: 'output_shape_ambiguous'
+    });
   });
 
   it('retains metric, output-shape, scope, attachment, and entity ambiguity', () => {
@@ -80,7 +178,7 @@ describe('semantic query candidates and independent evidence', () => {
       ['driver_id', 'points'],
       ['driver_id', 'championship_position']
     ]));
-    expect(admitSemanticQueryCandidates({ version: 1, candidates: [outputAlternatives.candidates[0]] }, outputAlternativeQuestion, outputAlternatives)).toMatchObject({
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: [outputAlternatives.candidates[0]] }, outputAlternativeQuestion, outputAlternatives)).toMatchObject({
       type: 'clarification_required', reason: 'output_shape_ambiguous'
     });
     expect(candidateEvidence('List championship points from final 2024 or 2025 driver standings.')).toMatchObject({ ambiguity_reason: 'scope_ambiguous', candidates: expect.any(Array) });
@@ -119,7 +217,7 @@ describe('semantic query candidates and independent evidence', () => {
 
   it('keeps provider omission from collapsing independent ambiguity', () => {
     const evidence = candidateEvidence('List position for final 2025.');
-    const provider = { version: 1, candidates: [evidence.candidates[0]] };
+    const provider = { version: 2, candidates: [evidence.candidates[0]] };
     expect(admitSemanticQueryCandidates(provider, 'List position for final 2025.', evidence)).toEqual({
       type: 'clarification_required',
       reason: 'metric_ambiguous',
@@ -129,23 +227,27 @@ describe('semantic query candidates and independent evidence', () => {
 
   it('admits only an equivalent independently enumerated singleton', () => {
     const evidence = candidateEvidence(STANDINGS_QUESTION);
-    const provider = { version: 1, candidates: [evidence.candidates[0]] };
-    expect(admitSemanticQueryCandidates(provider, STANDINGS_QUESTION, evidence)).toMatchObject({
+    const provider = { version: 2, candidates: [evidence.candidates[0]] };
+    const admission = admitSemanticQueryCandidates(provider, STANDINGS_QUESTION, evidence);
+    expect(admission).toMatchObject({
       type: 'admitted',
       query_hash: computeSemanticQueryHash(evidence.candidates[0]),
       candidate_set_hash: evidence.candidate_set_hash
     });
+    expect(verifySemanticQueryAdmission(admission, STANDINGS_QUESTION)).toBe(admission);
+    expect(() => verifySemanticQueryAdmission({ ...admission }, STANDINGS_QUESTION)).toThrow('provenance');
+    expect(() => verifySemanticQueryAdmission(admission, `🏁 ${STANDINGS_QUESTION}`)).toThrow('binding');
 
     const wrong = structuredClone(evidence.candidates[0]);
     wrong.outputs[1].concept.concept_id = 'championship_position';
-    expect(admitSemanticQueryCandidates({ version: 1, candidates: [wrong] }, STANDINGS_QUESTION, evidence)).toEqual({
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: [wrong] }, STANDINGS_QUESTION, evidence)).toEqual({
       type: 'abstention', reason: 'provider_candidate_not_enumerated'
     });
   });
 
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {
     const evidence = candidateEvidence(STANDINGS_QUESTION);
-    const provider = { version: 1, candidates: [evidence.candidates[0]] };
+    const provider = { version: 2, candidates: [evidence.candidates[0]] };
     expect(() => admitSemanticQueryCandidates(provider, STANDINGS_QUESTION, structuredClone(evidence))).toThrow('not active');
     expect(() => admitSemanticQueryCandidates(provider, `🏁 ${STANDINGS_QUESTION}`, evidence)).toThrow('not active');
   });
@@ -161,7 +263,7 @@ describe('semantic query candidates and independent evidence', () => {
       { type: 'event', span: monaco }
     ]);
     expect(entityEvidence).toMatchObject({ ambiguity_reason: 'entity_ambiguous', candidates: expect.any(Array) });
-    expect(admitSemanticQueryCandidates({ version: 1, candidates: entityEvidence.candidates }, entityQuestion, entityEvidence)).toMatchObject({
+    expect(admitSemanticQueryCandidates({ version: 2, candidates: entityEvidence.candidates }, entityQuestion, entityEvidence)).toMatchObject({
       type: 'clarification_required', reason: 'entity_ambiguous'
     });
 
@@ -201,15 +303,15 @@ describe('semantic query candidates and independent evidence', () => {
   it('strictly parses one to five declarative candidates and rejects forbidden fields', () => {
     const evidence = candidateEvidence(STANDINGS_QUESTION);
     const candidate = evidence.candidates[0];
-    expect(parseSemanticQueryCandidateSet({ version: 1, candidates: [candidate] }, STANDINGS_QUESTION).candidates).toEqual([candidate]);
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [] }, STANDINGS_QUESTION)).toThrow();
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: Array(6).fill(candidate) }, STANDINGS_QUESTION)).toThrow();
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [{ ...candidate, sql: 'SELECT 1' }] }, STANDINGS_QUESTION)).toThrow();
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [{
+    expect(parseSemanticQueryCandidateSet({ version: 2, candidates: [candidate] }, STANDINGS_QUESTION).candidates).toEqual([candidate]);
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [] }, STANDINGS_QUESTION)).toThrow();
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: Array(6).fill(candidate) }, STANDINGS_QUESTION)).toThrow();
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [{ ...candidate, sql: 'SELECT 1' }] }, STANDINGS_QUESTION)).toThrow();
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [{
       ...candidate,
       outputs: [{ ...candidate.outputs[0], concept: { ...candidate.outputs[0].concept, table: 'driver' } }, ...candidate.outputs.slice(1)]
     }] }, STANDINGS_QUESTION)).toThrow();
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [{
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [{
       ...candidate,
       entities: [{ type: 'driver', span: span(STANDINGS_QUESTION, 'driver'), driver_id: 'norris' }]
     }] }, STANDINGS_QUESTION)).toThrow();
@@ -224,14 +326,14 @@ describe('semantic query candidates and independent evidence', () => {
       value: 1,
       evidence: [span(RACE_QUESTION, '1')]
     }];
-    expect(parseSemanticQueryCandidateSet({ version: 1, candidates: [candidate] }, RACE_QUESTION).candidates[0].filters).toHaveLength(1);
+    expect(parseSemanticQueryCandidateSet({ version: 2, candidates: [candidate] }, RACE_QUESTION).candidates[0].filters).toHaveLength(1);
     const invalidType = structuredClone(candidate);
     invalidType.filters[0] = { ...invalidType.filters[0], value: 'first' } as typeof invalidType.filters[0];
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [invalidType] }, RACE_QUESTION)).toThrow('does not match');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [invalidType] }, RACE_QUESTION)).toThrow('does not match');
     const unknownConcept = structuredClone(candidate);
     unknownConcept.outputs[0].concept.concept_id = 'missing_concept';
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [unknownConcept] }, RACE_QUESTION)).toThrow('unknown concept');
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [candidate, candidate] }, RACE_QUESTION)).toThrow('duplicate normalized queries');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [unknownConcept] }, RACE_QUESTION)).toThrow('unknown concept');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [candidate, candidate] }, RACE_QUESTION)).toThrow('duplicate normalized queries');
 
     const identityLiteral = structuredClone(candidate);
     identityLiteral.filters = [{
@@ -241,17 +343,17 @@ describe('semantic query candidates and independent evidence', () => {
       value: 'driver',
       evidence: [span(RACE_QUESTION, 'driver')]
     }];
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [identityLiteral] }, RACE_QUESTION)).toThrow('deterministic entity linking');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [identityLiteral] }, RACE_QUESTION)).toThrow('deterministic entity linking');
 
     const ungroundedLiteral = structuredClone(candidate);
     ungroundedLiteral.filters[0] = { ...ungroundedLiteral.filters[0], value: 2 } as typeof ungroundedLiteral.filters[0];
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [ungroundedLiteral] }, RACE_QUESTION)).toThrow('not grounded');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [ungroundedLiteral] }, RACE_QUESTION)).toThrow('not grounded');
 
     const standings = structuredClone(candidateEvidence(STANDINGS_QUESTION).candidates[0]);
     const temporal = standings.scopes.find(scope => scope.kind === 'temporal')!;
     if (temporal.kind !== 'temporal') throw new Error('missing temporal scope');
     temporal.value = 'latest_recorded';
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [standings] }, STANDINGS_QUESTION)).toThrow('latest-recorded');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [standings] }, STANDINGS_QUESTION)).toThrow('latest-recorded');
 
     const currentQuestion = 'List championship points from current 2026 driver standings.';
     const forgedQuestion = 'List championship points from current 2025 driver standings.';
@@ -263,7 +365,7 @@ describe('semantic query candidates and independent evidence', () => {
     seasonScope.evidence = [span(forgedQuestion, '2025')];
     temporalScope.value = 'final';
     temporalScope.evidence = [span(forgedQuestion, '2025')];
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [forgedTemporal] }, forgedQuestion)).toThrow('temporal value is not grounded');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [forgedTemporal] }, forgedQuestion)).toThrow('temporal value is not grounded');
   });
 
   it('uses exact Unicode-code-point spans and rejects UTF-16-style or forged references', () => {
@@ -273,13 +375,13 @@ describe('semantic query candidates and independent evidence', () => {
     const forged = structuredClone(evidence.candidates[0]);
     forged.outputs[0].evidence[0].start += 1;
     forged.outputs[0].evidence[0].end += 1;
-    expect(() => parseSemanticQueryCandidateSet({ version: 1, candidates: [forged] }, question)).toThrow('does not exactly match');
+    expect(() => parseSemanticQueryCandidateSet({ version: 2, candidates: [forged] }, question)).toThrow('does not exactly match');
   });
 
   it('normalizes provider candidate order without changing candidate-set identity', () => {
     const question = 'List position for final 2025.';
     const evidence = candidateEvidence(question);
-    const parsed = parseSemanticQueryCandidateSet({ version: 1, candidates: [...evidence.candidates].reverse() }, question);
+    const parsed = parseSemanticQueryCandidateSet({ version: 2, candidates: [...evidence.candidates].reverse() }, question);
     expect(parsed.candidates.map(computeSemanticQueryHash)).toEqual(evidence.candidates.map(computeSemanticQueryHash));
     expect(computeSemanticCandidateSetHash([...evidence.candidates].reverse(), evidence.question_sha256, evidence.catalog_hash, evidence.ambiguity_reason)).toBe(evidence.candidate_set_hash);
     const reordered = structuredClone(evidence.candidates[0]);

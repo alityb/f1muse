@@ -26,7 +26,7 @@ const predicate = (source_id: string, concept_id: string, value: string | number
 
 function qualifyingRankPlan() {
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 10,
       input: {
@@ -69,16 +69,14 @@ function raceMetadataPlan() {
     predicate('event_metadata', 'season', 2025)
   ];
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 30,
       input: {
         op: 'sort',
         keys: [
           { output_id: 'finishing_position', direction: 'asc', nulls: 'last' },
-          { output_id: 'driver_id', direction: 'asc', nulls: 'last' },
-          { output_id: 'round', direction: 'asc', nulls: 'last' },
-          { output_id: 'season', direction: 'asc', nulls: 'last' }
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
         ],
         input: {
           op: 'project',
@@ -90,8 +88,6 @@ function raceMetadataPlan() {
           outputs: [
             { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
             { kind: 'concept', concept: ref('event_classification', 'finishing_position'), as: 'finishing_position' },
-            { kind: 'concept', concept: ref('event_classification', 'round'), as: 'round' },
-            { kind: 'concept', concept: ref('event_classification', 'season'), as: 'season' },
             { kind: 'concept', concept: ref('event_metadata', 'event_name'), as: 'event_name' },
             { kind: 'concept', concept: ref('event_metadata', 'circuit_id'), as: 'circuit_id' }
           ]
@@ -103,7 +99,7 @@ function raceMetadataPlan() {
 
 function standingsRankPlan() {
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 2,
       input: {
@@ -137,14 +133,13 @@ function standingsRankPlan() {
 
 function eventMetadataRowsPlan() {
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 10,
       input: {
         op: 'sort', keys: [
           { output_id: 'event_name', direction: 'desc', nulls: 'last' },
-          { output_id: 'round', direction: 'asc', nulls: 'last' },
-          { output_id: 'season', direction: 'asc', nulls: 'last' }
+          { output_id: 'round', direction: 'asc', nulls: 'last' }
         ],
         input: {
           op: 'project',
@@ -154,8 +149,7 @@ function eventMetadataRowsPlan() {
           },
           outputs: [
             { kind: 'concept', concept: ref('event_metadata', 'event_name'), as: 'event_name' },
-            { kind: 'concept', concept: ref('event_metadata', 'round'), as: 'round' },
-            { kind: 'concept', concept: ref('event_metadata', 'season'), as: 'season' }
+            { kind: 'concept', concept: ref('event_metadata', 'round'), as: 'round' }
           ]
         }
       }
@@ -165,7 +159,7 @@ function eventMetadataRowsPlan() {
 
 function emptyScalarCountPlan() {
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 1,
       input: {
@@ -193,15 +187,13 @@ function emptyScalarCountPlan() {
 
 function eventPointsPlan() {
   return {
-    kind: 'internal_planned_f1ql', version: 1, catalog_hash: SEMANTIC_CATALOG_HASH,
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 10,
       input: {
         op: 'sort', keys: [
           { output_id: 'points', direction: 'desc', nulls: 'last' },
-          { output_id: 'driver_id', direction: 'asc', nulls: 'last' },
-          { output_id: 'round', direction: 'asc', nulls: 'last' },
-          { output_id: 'season', direction: 'asc', nulls: 'last' }
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
         ],
         input: {
           op: 'project',
@@ -214,9 +206,49 @@ function eventPointsPlan() {
           },
           outputs: [
             { kind: 'concept', concept: ref('event_classification', 'points'), as: 'points' },
-            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
-            { kind: 'concept', concept: ref('event_classification', 'round'), as: 'round' },
-            { kind: 'concept', concept: ref('event_classification', 'season'), as: 'season' }
+            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' }
+          ]
+        }
+      }
+    }
+  };
+}
+
+function scalarCompositionPlan() {
+  const aggregate = (sourceId: 'event_classification' | 'qualifying_classification', driverId: string) => {
+    const conceptId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
+    return {
+      op: 'aggregate',
+      input: {
+        op: 'filter', input: { op: 'source', source_id: sourceId },
+        predicates: [predicate(sourceId, 'driver_id', driverId), predicate(sourceId, 'season', 2025)]
+      },
+      group_by: [],
+      measures: [{ concept: ref(sourceId, conceptId), function: 'count', as: `count_${conceptId}` }]
+    };
+  };
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 1,
+      input: {
+        op: 'sort',
+        keys: [{ output_id: 'event_classification__count_finishing_position', direction: 'asc', nulls: 'last' }],
+        input: {
+          op: 'project',
+          input: {
+            op: 'compose',
+            inputs: [aggregate('event_classification', 'alpha-driver'), aggregate('qualifying_classification', 'beta-driver')]
+          },
+          outputs: [
+            {
+              kind: 'composed_aggregate', source_id: 'event_classification',
+              measure_as: 'count_finishing_position', as: 'event_classification__count_finishing_position'
+            },
+            {
+              kind: 'composed_aggregate', source_id: 'qualifying_classification',
+              measure_as: 'count_qualifying_position', as: 'qualifying_classification__count_qualifying_position'
+            }
           ]
         }
       }
@@ -273,10 +305,22 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(decidePlannedParticipation(standingsRankPlan())).toEqual({
       type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
     });
+    const composition = parsePlannedF1QLProgram(scalarCompositionPlan());
+    expect(estimatePlannedF1QLCost(composition)).toEqual({
+      version: 'planned-cost-v1', units: 60, sources: 2, joins: 0, depth: 6, requested_rows: 1
+    });
+    expect(decidePlannedParticipation(composition)).toEqual({
+      type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
+    });
+    const core = lowerPlannedF1QL(composition);
+    expect(core).toMatchObject({ version: 2, dialect: 'planned_f1ql_v2' });
+    expect(core.root.input.input.output_grain).toEqual([]);
+    expect(core.root.input.input.integrity).toContain('scalar_input_cardinality');
   });
 
   it.each([
     ['catalog substitution', (plan: any) => { plan.catalog_hash = '0'.repeat(64); }],
+    ['v1 surface downgrade', (plan: any) => { plan.version = 1; }],
     ['extra field', (plan: any) => { plan.sql = 'SELECT 1'; }],
     ['source substitution', (plan: any) => { plan.root.input.input.input.input.input.source_id = 'event_metadata'; }],
     ['predicate source substitution', (plan: any) => { plan.root.input.input.input.input.predicates[0].concept.source_id = 'event_metadata'; }],
@@ -291,6 +335,63 @@ describe('internal planned F1QL and Core pipeline', () => {
     const plan: any = structuredClone(standingsRankPlan());
     mutate(plan);
     expect(() => parsePlannedF1QLProgram(plan)).toThrow();
+  });
+
+  it.each([
+    ['one input', (plan: any) => { plan.root.input.input.input.inputs.pop(); }],
+    ['duplicate source', (plan: any) => { plan.root.input.input.input.inputs[1] = structuredClone(plan.root.input.input.input.inputs[0]); }],
+    ['noncanonical source order', (plan: any) => { plan.root.input.input.input.inputs.reverse(); }],
+    ['grouped child', (plan: any) => { plan.root.input.input.input.inputs[0].group_by = [ref('event_classification', 'driver_id')]; }],
+    ['non-equality season', (plan: any) => { const season = plan.root.input.input.input.inputs[0].input.predicates[1]; season.operator = 'in'; season.values = [season.value]; delete season.value; }],
+    ['different season', (plan: any) => { plan.root.input.input.input.inputs[1].input.predicates[1].value = 2024; }],
+    ['mixed round scope', (plan: any) => { plan.root.input.input.input.inputs[0].input.predicates.splice(1, 0, predicate('event_classification', 'round', 1)); }],
+    ['different round scope', (plan: any) => {
+      plan.root.input.input.input.inputs[0].input.predicates.splice(1, 0, predicate('event_classification', 'round', 1));
+      plan.root.input.input.input.inputs[1].input.predicates.splice(1, 0, predicate('qualifying_classification', 'round', 2));
+    }],
+    ['singleton IN round', (plan: any) => {
+      plan.root.input.input.input.inputs[0].input.predicates.splice(1, 0, {
+        concept: ref('event_classification', 'round'), operator: 'in', values: [1]
+      });
+    }],
+    ['singleton range round', (plan: any) => {
+      plan.root.input.input.input.inputs[0].input.predicates.splice(1, 0, {
+        concept: ref('event_classification', 'round'), operator: 'range', min: 1, max: 1
+      });
+    }],
+    ['limit above one', (plan: any) => { plan.root.count = 2; }],
+    ['unqualified output alias', (plan: any) => { plan.root.input.input.outputs[0].as = 'count_finishing_position'; }],
+    ['missing child measure projection', (plan: any) => { plan.root.input.input.outputs.pop(); }],
+    ['extra concept projection', (plan: any) => { plan.root.input.input.outputs.push({ kind: 'concept', concept: ref('event_classification', 'season'), as: 'season' }); }],
+    ['substituted output source', (plan: any) => { plan.root.input.input.outputs[0].source_id = 'qualifying_classification'; }]
+  ])('rejects scalar composition surface mutation: %s', (_name, mutate) => {
+    const plan: any = structuredClone(scalarCompositionPlan());
+    mutate(plan);
+    expect(() => parsePlannedF1QLProgram(plan)).toThrow();
+  });
+
+  it('sums scalar child work and rejects compositions above the 60-unit bound', () => {
+    const roundScoped: any = structuredClone(scalarCompositionPlan());
+    roundScoped.root.input.input.input.inputs[0].input.predicates.splice(1, 0, predicate('event_classification', 'round', 1));
+    roundScoped.root.input.input.input.inputs[1].input.predicates.splice(1, 0, predicate('qualifying_classification', 'round', 1));
+    expect(estimatePlannedF1QLCost(roundScoped)).toMatchObject({ units: 2, sources: 2, joins: 0, depth: 6 });
+
+    const overBudget: any = structuredClone(scalarCompositionPlan());
+    overBudget.root.input.input.input.inputs.unshift({
+      op: 'aggregate',
+      input: {
+        op: 'filter', input: { op: 'source', source_id: 'driver_standings' },
+        predicates: [predicate('driver_standings', 'driver_id', 'alpha-driver'), predicate('driver_standings', 'season', 2025)]
+      },
+      group_by: [],
+      measures: [{ concept: ref('driver_standings', 'championship_position'), function: 'min', as: 'min_championship_position' }]
+    });
+    overBudget.root.input.input.outputs.unshift({
+      kind: 'composed_aggregate', source_id: 'driver_standings',
+      measure_as: 'min_championship_position', as: 'driver_standings__min_championship_position'
+    });
+    expect(parsePlannedF1QLProgram(overBudget)).toBeTruthy();
+    expect(() => estimatePlannedF1QLCost(overBudget)).toThrow('exceeds 60 units');
   });
 
   it('rejects join scope, direction, source, and relationship mutations', () => {
@@ -344,6 +445,17 @@ describe('internal planned F1QL and Core pipeline', () => {
     substitutedSchema.result_schema[0].semantic_type = 'team_id';
     expect(() => compilePlannedF1QL(substitutedSchema)).toThrow();
 
+    const omittedResidualGrain: any = structuredClone(lowerPlannedF1QL(eventMetadataRowsPlan()));
+    omittedResidualGrain.root.input.input.outputs = omittedResidualGrain.root.input.input.outputs
+      .filter((output: any) => output.as !== 'round');
+    omittedResidualGrain.root.input.keys = omittedResidualGrain.root.input.keys
+      .filter((key: any) => key.output_id !== 'round');
+    omittedResidualGrain.root.input.input.output_grain = [];
+    omittedResidualGrain.result_schema = omittedResidualGrain.result_schema
+      .filter((field: any) => field.id !== 'round');
+    expect(() => validatePlannedCoreProgram(omittedResidualGrain)).toThrow('must include grain key round');
+    expect(() => compilePlannedF1QL(omittedResidualGrain)).toThrow('must include grain key round');
+
     const accessorCore: any = structuredClone(lowerPlannedF1QL(qualifyingRankPlan()));
     let directionReads = 0;
     accessorCore.root.input.keys[0] = new Proxy(accessorCore.root.input.keys[0], {
@@ -353,6 +465,53 @@ describe('internal planned F1QL and Core pipeline', () => {
       }
     });
     expect(compilePlannedF1QL(accessorCore).sql).not.toContain('drop table');
+  });
+
+  it.each([
+    ['v1 version', (core: any) => { core.version = 1; }],
+    ['v1 dialect', (core: any) => { core.dialect = 'planned_f1ql_v1'; }],
+    ['source order', (core: any) => { core.root.input.input.input.inputs.reverse(); }],
+    ['duplicate source', (core: any) => { core.root.input.input.input.inputs[1] = structuredClone(core.root.input.input.input.inputs[0]); }],
+    ['grouped child', (core: any) => {
+      const child = core.root.input.input.input.inputs[0];
+      child.group_by = [structuredClone(child.input.input.grain[0])];
+      child.output_grain = structuredClone(child.group_by);
+    }],
+    ['season scope', (core: any) => { core.root.input.input.input.inputs[1].input.predicates[1].value = 2024; }],
+    ['singleton IN round', (core: any) => {
+      const child = core.root.input.input.input.inputs[0].input;
+      child.predicates.splice(1, 0, {
+        concept: structuredClone(child.input.grain.find((item: any) => item.concept_id === 'round')),
+        operator: 'in', values: [1]
+      });
+    }],
+    ['singleton range round', (core: any) => {
+      const child = core.root.input.input.input.inputs[0].input;
+      child.predicates.splice(1, 0, {
+        concept: structuredClone(child.input.grain.find((item: any) => item.concept_id === 'round')),
+        operator: 'range', min: 1, max: 1
+      });
+    }],
+    ['scalar marker', (core: any) => {
+      core.root.input.input.input.integrity = core.root.input.input.input.integrity.filter((item: string) => item !== 'scalar_input_cardinality');
+    }],
+    ['output grain', (core: any) => { core.root.input.input.input.output_grain = [structuredClone(core.root.input.input.input.inputs[0].input.input.grain[0])]; }],
+    ['child integrity', (core: any) => { core.root.input.input.input.inputs[0].integrity = []; }],
+    ['output alias', (core: any) => { core.root.input.input.outputs[0].as = 'count_finishing_position'; }],
+    ['output source', (core: any) => { core.root.input.input.outputs[0].source_id = 'qualifying_classification'; }],
+    ['extra concept output', (core: any) => {
+      core.root.input.input.outputs.push({
+        kind: 'concept', as: 'season', concept: structuredClone(core.root.input.input.input.inputs[0].input.input.grain[2])
+      });
+      core.result_schema.push({ id: 'season', physical_type: 'integer', semantic_type: 'season', nullable: false });
+    }],
+    ['result schema', (core: any) => { core.result_schema[0].semantic_type = 'position'; }],
+    ['limit', (core: any) => { core.root.count = 2; }]
+  ])('independently rejects scalar composition Core mutation: %s', (_name, mutate) => {
+    const core: any = structuredClone(lowerPlannedF1QL(scalarCompositionPlan()));
+    mutate(core);
+    expect(() => validatePlannedCoreProgram(core)).toThrow();
+    expect(() => compilePlannedF1QL(core)).toThrow();
   });
 
   it('prepares only runtime-provenance parents and never exposes the planned dialect through public F1QL', () => {
@@ -369,6 +528,13 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(executorSource).not.toMatch(/planned-(f1ql|compiler|pipeline)/);
     expect(routeSource).not.toMatch(/planned-(f1ql|compiler|pipeline)/);
     expect(readFileSync('src/f1ql/planned-pipeline.ts', 'utf8')).not.toMatch(/executeF1QL|executeF1QLReadOnly/);
+
+    const compositionParent = preparePlannedF1QLParent(scalarCompositionPlan());
+    expect(verifyPlannedF1QLParent(compositionParent)).toBe(compositionParent);
+    expect(compositionParent.core_program).toMatchObject({ version: 2, dialect: 'planned_f1ql_v2' });
+    expect(() => parseF1QLProgram(compositionParent.program)).toThrow();
+    expect(readFileSync('src/f1ql/planned-compiler.ts', 'utf8')).not.toMatch(/executeF1QL|executeF1QLReadOnly/);
+    expect(readFileSync('src/f1ql/planned-interpreter.ts', 'utf8')).not.toMatch(/executeF1QL|executeF1QLReadOnly/);
   });
 
   it('compiles only catalog identifiers and parameterizes every literal and limit', () => {
@@ -380,6 +546,45 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(compiled.sql).not.toContain('2025');
     expect(compiled.params).toEqual([1, 2025, 1, 2025, 30]);
     expect(compiled.sql.match(/\$\d+/g)).toEqual(['$1', '$2', '$3', '$4', '$5']);
+  });
+
+  it('independently aggregates and CROSS JOINs scalar sources with differential integrity', async () => {
+    const core = lowerPlannedF1QL(scalarCompositionPlan());
+    const compiled = compilePlannedF1QL(core);
+    expect(compiled.sql).toContain('CROSS JOIN');
+    expect(compiled.sql).toContain('"planned_scalar_event_classification"');
+    expect(compiled.sql).toContain('"planned_scalar_qualifying_classification"');
+    expect(compiled.sql).toContain('AND');
+    expect(compiled.params).toEqual([2025, 'alpha-driver', 2025, 'beta-driver', 1]);
+    const reference: PlannedReferenceDatabase = {
+      event_classification: [
+        { season: 2025, round: 1, driver_id: 'alpha-driver', finishing_position: 1, points: '9007199254740993' },
+        { season: 2025, round: 1, driver_id: 'beta-driver', finishing_position: 2, points: '9007199254740992' }
+      ],
+      qualifying_classification: [
+        { season: 2025, round: 1, driver_id: 'alpha-driver', qualifying_position: 1, classification_status: 'classified' },
+        { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 2, classification_status: 'classified' }
+      ]
+    };
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([{
+      event_classification__count_finishing_position: 1,
+      qualifying_classification__count_qualifying_position: 1,
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]);
+
+    const missingPlan: any = structuredClone(scalarCompositionPlan());
+    missingPlan.root.input.input.input.inputs[1].input.predicates[0].value = 'missing-driver';
+    const missingCore = lowerPlannedF1QL(missingPlan);
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
+    expect(missingRows).toEqual([{
+      event_classification__count_finishing_position: 1,
+      qualifying_classification__count_qualifying_position: 0,
+      [PLANNED_INTEGRITY_FIELD]: false
+    }]);
   });
 
   it('matches PostgreSQL for a catalog-bound single-source aggregate rank', async () => {
@@ -430,9 +635,9 @@ describe('internal planned F1QL and Core pipeline', () => {
     const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
     expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
     expect(sqlRows).toEqual([
-      { event_name: '\u00c9clair Grand Prix', round: 3, season: 2025, [PLANNED_INTEGRITY_FIELD]: true },
-      { event_name: 'Formula 1 Planned Grand Prix', round: 1, season: 2025, [PLANNED_INTEGRITY_FIELD]: true },
-      { event_name: null, round: 2, season: 2025, [PLANNED_INTEGRITY_FIELD]: true }
+      { event_name: '\u00c9clair Grand Prix', round: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { event_name: 'Formula 1 Planned Grand Prix', round: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { event_name: null, round: 2, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
   });
 
@@ -448,8 +653,8 @@ describe('internal planned F1QL and Core pipeline', () => {
     const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
     expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
     expect(sqlRows).toEqual([
-      { points: '9007199254740993', driver_id: 'alpha-driver', round: 1, season: 2025, [PLANNED_INTEGRITY_FIELD]: true },
-      { points: '9007199254740992', driver_id: 'beta-driver', round: 1, season: 2025, [PLANNED_INTEGRITY_FIELD]: true }
+      { points: '9007199254740993', driver_id: 'alpha-driver', [PLANNED_INTEGRITY_FIELD]: true },
+      { points: '9007199254740992', driver_id: 'beta-driver', [PLANNED_INTEGRITY_FIELD]: true }
     ]);
   });
 
