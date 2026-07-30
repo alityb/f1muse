@@ -53,10 +53,28 @@ function compileProject(project: PlannedCoreProjectNode, context: SqlContext): S
     if (output.kind === 'composed_aggregate') {return `${quoteId(`${output.source_id}__${output.measure_as}`)} AS ${quoteId(output.as)}`;}
     return `${quoteId(coreColumn(output.concept))} AS ${quoteId(output.as)}`;
   });
+  const integrity = compileProjectIntegrity(project, input.integrity_field);
   return {
-    sql: `SELECT ${outputs.join(', ')}, ${quoteId(input.integrity_field)} AS ${quoteId(PLANNED_INTEGRITY_FIELD)} FROM (${input.sql}) AS planned_project_input`,
+    sql: `SELECT ${outputs.join(', ')}, (${integrity}) AS ${quoteId(PLANNED_INTEGRITY_FIELD)} FROM (${input.sql}) AS planned_project_input`,
     integrity_field: PLANNED_INTEGRITY_FIELD
   };
+}
+
+function compileProjectIntegrity(project: PlannedCoreProjectNode, integrityField: string): string {
+  const checks = [quoteId(integrityField)];
+  if (project.input.op !== 'join') {return checks[0];}
+  const join = project.input;
+  if (!join.integrity.includes('non_null_requested_to_concepts')) {return checks[0];}
+  const relationship = SEMANTIC_CATALOG.relationships.find(item => item.id === join.relationship_id)!;
+  for (const output of project.outputs) {
+    if (output.kind !== 'concept' || output.concept.source_id !== relationship.to_source ||
+        relationship.to_keys.includes(output.concept.concept_id)) {continue;}
+    const column = quoteId(coreColumn(output.concept));
+    checks.push(output.concept.physical_type === 'text'
+      ? `NULLIF(BTRIM(${column}), '') IS NOT NULL`
+      : `${column} IS NOT NULL`);
+  }
+  return checks.join(' AND ');
 }
 
 function compileCompose(compose: Extract<PlannedCoreProjectNode['input'], { op: 'compose' }>, context: SqlContext): SqlFragment {

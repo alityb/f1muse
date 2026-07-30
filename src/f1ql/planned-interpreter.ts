@@ -53,8 +53,21 @@ function evaluateProject(project: PlannedCoreProjectNode, database: PlannedRefer
       else if (field.kind === 'composed_aggregate') {output[field.as] = row[`${field.source_id}__${field.measure_as}`];}
       else {output[field.as] = row[field.measure_as];}
     }
-    output[PLANNED_INTEGRITY_FIELD] = row[PLANNED_INTEGRITY_FIELD] === true;
+    output[PLANNED_INTEGRITY_FIELD] = row[PLANNED_INTEGRITY_FIELD] === true && projectedRelationshipIntegrity(project, row);
     return output;
+  });
+}
+
+function projectedRelationshipIntegrity(project: PlannedCoreProjectNode, row: EvaluatedRow): boolean {
+  if (project.input.op !== 'join') {return true;}
+  const join = project.input;
+  if (!join.integrity.includes('non_null_requested_to_concepts')) {return true;}
+  const relationship = SEMANTIC_CATALOG.relationships.find(item => item.id === join.relationship_id)!;
+  return project.outputs.every(output => {
+    if (output.kind !== 'concept' || output.concept.source_id !== relationship.to_source ||
+        relationship.to_keys.includes(output.concept.concept_id)) {return true;}
+    const value = row[coreColumn(output.concept)];
+    return value !== null && value !== undefined && (output.concept.physical_type !== 'text' || String(value).trim().length > 0);
   });
 }
 

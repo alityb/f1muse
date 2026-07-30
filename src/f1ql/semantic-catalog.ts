@@ -19,8 +19,8 @@ const sourceIntegrityCheckSchema = z.enum([
   'unique_relevant_position'
 ]);
 const relationshipIntegrityCheckSchema = z.enum([
-  'deduplicate_keys', 'entrant_precedence', 'non_null_measure', 'single_resolved_key',
-  'source_presence', 'unique_filtered_branch', 'unique_from_key', 'unique_to_key'
+  'deduplicate_keys', 'entrant_precedence', 'non_null_measure', 'non_null_requested_to_concepts',
+  'single_resolved_key', 'source_presence', 'unique_filtered_branch', 'unique_from_key', 'unique_to_key'
 ]);
 
 const languageSchema = z.object({
@@ -871,7 +871,7 @@ const rawCatalog = {
       governance: 'verified',
       required_branch_filters: [],
       required_scope_predicates: [],
-      required_checks: ['source_presence', 'unique_to_key'],
+      required_checks: ['non_null_requested_to_concepts', 'source_presence', 'unique_to_key'],
       integrity_checks: ['Preserve classification source grain.', 'Require exactly one metadata row and a nonblank requested metadata key.']
     },
     {
@@ -1350,6 +1350,10 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
       if (to.grain.uniqueness === 'verified_at_query' && !relationship.required_checks.includes('unique_to_key')) {
         throw new Error(`relationship ${relationship.id} must verify target-key uniqueness`);
       }
+    }
+    if (relationship.join_stage === 'row' && relationship.optionality === 'left' &&
+        !relationship.required_checks.includes('non_null_requested_to_concepts')) {
+      throw new Error(`left relationship ${relationship.id} must verify requested target concepts`);
     }
     if (relationship.cardinality === 'one_to_many' || relationship.cardinality === 'one_to_one') {
       const sourceKeys = new Set(relationship.from_keys);

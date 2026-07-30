@@ -399,6 +399,21 @@ describe('internal planned F1QL and Core pipeline', () => {
     wrongScope.root.input.input.input.right.predicates[0].value = 2;
     expect(() => parsePlannedF1QLProgram(wrongScope)).toThrow('same exact event scope');
 
+    for (const conceptId of ['round', 'season']) {
+      const singletonIn: any = structuredClone(raceMetadataPlan());
+      for (const branch of [singletonIn.root.input.input.input.left, singletonIn.root.input.input.input.right]) {
+        const scope = branch.predicates.find((item: any) => item.concept.concept_id === conceptId);
+        scope.operator = 'in';
+        scope.values = [scope.value];
+        delete scope.value;
+      }
+      singletonIn.root.input.input.outputs.push({
+        kind: 'concept', concept: ref('event_classification', conceptId), as: conceptId
+      });
+      singletonIn.root.input.keys.push({ output_id: conceptId, direction: 'asc', nulls: 'last' });
+      expect(() => parsePlannedF1QLProgram(singletonIn)).toThrow('scalar equality');
+    }
+
     const wrongRelationship: any = structuredClone(raceMetadataPlan());
     wrongRelationship.root.input.input.input.relationship_id = 'event_identity_race_resolution';
     expect(() => parsePlannedF1QLProgram(wrongRelationship)).toThrow('not a promoted row join');
@@ -723,6 +738,36 @@ describe('internal planned F1QL and Core pipeline', () => {
     const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
     expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
     expect(sqlRows.map(row => row[PLANNED_INTEGRITY_FIELD])).toEqual([true, true]);
+
+    const missingNamePlan: any = structuredClone(raceMetadataPlan());
+    for (const branch of [missingNamePlan.root.input.input.input.left, missingNamePlan.root.input.input.input.right]) {
+      branch.predicates.find((item: any) => item.concept.concept_id === 'round').value = 2;
+    }
+    const missingNameCore = lowerPlannedF1QL(missingNamePlan);
+    const missingNameCompiled = compilePlannedF1QL(missingNameCore);
+    const missingNameReference: PlannedReferenceDatabase = {
+      event_classification: [{
+        season: 2025, round: 2, driver_id: 'alpha-driver', team_id: 'planned-team',
+        finishing_position: 1, points: 1, classification_status: 'classified', status_reason: null
+      }],
+      event_metadata: [{
+        season: 2025, round: 2, event_id: 'empty-circuit', event_name: null,
+        circuit_id: 'empty-circuit', date: '2025-02-01'
+      }]
+    };
+    await pool.query('BEGIN');
+    try {
+      await pool.query(`INSERT INTO race_data
+        (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+        VALUES (9802, 'race', 'alpha_driver', 'planned-team', 1, 1, 1)`);
+      const missingNameRows = (await pool.query(missingNameCompiled.sql, missingNameCompiled.params)).rows;
+      expect(missingNameRows).toEqual(interpretPlannedF1QL(missingNameCore, missingNameReference));
+      expect(missingNameRows).toEqual([expect.objectContaining({
+        event_name: null, circuit_id: 'empty-circuit', [PLANNED_INTEGRITY_FIELD]: false
+      })]);
+    } finally {
+      await pool.query('ROLLBACK');
+    }
 
     await pool.query('BEGIN');
     try {

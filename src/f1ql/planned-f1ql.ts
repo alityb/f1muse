@@ -419,10 +419,10 @@ function validateJoin(join: PlannedJoin): void {
       relationship.from_source !== branchSource(join.left) || relationship.to_source !== branchSource(join.right)) {
     throw new Error(`planned relationship ${join.relationship_id} is not a promoted row join`);
   }
-  const leftSeason = scalarPredicate(join.left, 'season');
-  const rightSeason = scalarPredicate(join.right, 'season');
-  const leftRound = scalarPredicate(join.left, 'round');
-  const rightRound = scalarPredicate(join.right, 'round');
+  const leftSeason = scalarEqualityPredicate(join.left, 'season');
+  const rightSeason = scalarEqualityPredicate(join.right, 'season');
+  const leftRound = scalarEqualityPredicate(join.left, 'round');
+  const rightRound = scalarEqualityPredicate(join.right, 'round');
   if (leftSeason !== rightSeason || leftRound !== rightRound) {throw new Error('planned join branches must have the same exact event scope');}
 }
 

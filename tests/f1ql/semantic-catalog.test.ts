@@ -153,7 +153,7 @@ describe('semantic catalog', () => {
     ['missing participation season scope', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_participation_resolution').required_scope_predicates = []; }],
     ['missing resolution deduplication', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['single_resolved_key']; }],
     ['missing single-resolution guarantee', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['deduplicate_keys']; }],
-    ['missing verified target check', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_event_metadata').required_checks = ['source_presence']; }],
+    ['missing requested-target check', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_event_metadata').required_checks = ['source_presence', 'unique_to_key']; }],
     ['missing shared-branch uniqueness', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_shared_event').required_checks = ['non_null_measure', 'source_presence']; }],
     ['noncanonical concept lexicon', (catalog: any) => { catalog.sources[3].measures[0].language.synonyms.reverse(); }],
     ['missing concept lexicon contract', (catalog: any) => { delete catalog.sources[3].measures[0].language; }],

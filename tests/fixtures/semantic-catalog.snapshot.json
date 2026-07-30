@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "catalog_hash": "a09b072888625b6916d9017f7ba948d4f0651638c4a895ac57f9385d3d694cc2",
+  "catalog_hash": "a69e5d859a217eb2daaaecbf19af9539aa4bb859647a8c973d67f239b2c440c2",
   "family_ids": [
     "event_metadata",
     "identity_participation",
@@ -1895,6 +1895,7 @@
         "required_branch_filters": [],
         "required_scope_predicates": [],
         "required_checks": [
+          "non_null_requested_to_concepts",
           "source_presence",
           "unique_to_key"
         ],
