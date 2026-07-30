@@ -111,6 +111,12 @@ describe('semantic catalog', () => {
       operation_class: 'position_filter',
       required_checks: ['non_null_position', 'unique_relevant_position']
     });
+    expect(race.measures.find(item => item.id === 'finishing_position')?.language).toMatchObject({
+      names: ['finishing position'],
+      ambiguity_groups: ['classification_position']
+    });
+    expect(SEMANTIC_CATALOG.sources.find(source => source.id === 'driver_standings')?.measures.find(item => item.id === 'points')?.language)
+      .toMatchObject({ names: ['championship points'], ambiguity_groups: ['points_authority'] });
   });
 
   it('is reproduced exactly by the committed real-emitter snapshot', () => {
@@ -149,6 +155,8 @@ describe('semantic catalog', () => {
     ['missing single-resolution guarantee', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['deduplicate_keys']; }],
     ['missing verified target check', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_event_metadata').required_checks = ['source_presence']; }],
     ['missing shared-branch uniqueness', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_shared_event').required_checks = ['non_null_measure', 'source_presence']; }],
+    ['noncanonical concept lexicon', (catalog: any) => { catalog.sources[3].measures[0].language.synonyms.reverse(); }],
+    ['missing concept lexicon contract', (catalog: any) => { delete catalog.sources[3].measures[0].language; }],
     ['unsafe self-join cardinality', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_shared_event').cardinality = 'one_to_one'; }],
     ['disconnected relationship graph', (catalog: any) => { catalog.relationships = catalog.relationships.filter((item: any) => item.to_source !== 'driver_standings'); }],
     ['noncanonical source order', (catalog: any) => { catalog.sources.reverse(); }]
@@ -163,11 +171,11 @@ describe('semantic catalog', () => {
     mutated.sources[3].measures.push({
       id: 'derived_a', physical_field: null, physical_type: 'numeric', semantic_type: 'number', units: null,
       physical_nullable: false, nullable: false, null_meaning: 'A missing derived value is invalid.', authority: 'Catalog-derived test measure.',
-      expression_class: 'derived', filter_operators: [], allowed_aggregations: [], additivity: 'non_additive', depends_on: ['derived_b']
+      expression_class: 'derived', filter_operators: [], allowed_aggregations: [], additivity: 'non_additive', depends_on: ['derived_b'], language: null
     }, {
       id: 'derived_b', physical_field: null, physical_type: 'numeric', semantic_type: 'number', units: null,
       physical_nullable: false, nullable: false, null_meaning: 'A missing derived value is invalid.', authority: 'Catalog-derived test measure.',
-      expression_class: 'derived', filter_operators: [], allowed_aggregations: [], additivity: 'non_additive', depends_on: ['derived_a']
+      expression_class: 'derived', filter_operators: [], allowed_aggregations: [], additivity: 'non_additive', depends_on: ['derived_a'], language: null
     });
     mutated.sources[3].measures.sort((left: any, right: any) => left.id.localeCompare(right.id));
     expect(() => parseSemanticCatalog(mutated)).toThrow('cyclic derived measures');

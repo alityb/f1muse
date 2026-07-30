@@ -23,6 +23,14 @@ const relationshipIntegrityCheckSchema = z.enum([
   'source_presence', 'unique_filtered_branch', 'unique_from_key', 'unique_to_key'
 ]);
 
+const languageSchema = z.object({
+  names: z.array(nonEmptyText).min(1).max(20),
+  synonyms: z.array(nonEmptyText).max(30),
+  abbreviations: z.array(nonEmptyText).max(20),
+  ambiguity_groups: z.array(idSchema).max(20),
+  forbidden_conflations: z.array(nonEmptyText).min(1).max(30)
+}).strict();
+
 const dimensionSchema = z.object({
   id: idSchema,
   physical_field: idSchema,
@@ -34,7 +42,8 @@ const dimensionSchema = z.object({
   null_meaning: nonEmptyText,
   filter_operators: z.array(filterOperatorSchema).max(3),
   allowed_values: z.array(nonEmptyText).max(20),
-  groupable: z.boolean()
+  groupable: z.boolean(),
+  language: languageSchema.nullable()
 }).strict();
 
 const measureSchema = z.object({
@@ -51,15 +60,8 @@ const measureSchema = z.object({
   filter_operators: z.array(filterOperatorSchema).max(3),
   allowed_aggregations: z.array(aggregationSchema).max(4),
   additivity: z.enum(['additive', 'non_additive', 'semi_additive']),
-  depends_on: z.array(idSchema).max(12)
-}).strict();
-
-const languageSchema = z.object({
-  names: z.array(nonEmptyText).min(1).max(20),
-  synonyms: z.array(nonEmptyText).max(30),
-  abbreviations: z.array(nonEmptyText).max(20),
-  ambiguity_groups: z.array(idSchema).max(20),
-  forbidden_conflations: z.array(nonEmptyText).min(1).max(30)
+  depends_on: z.array(idSchema).max(12),
+  language: languageSchema.nullable()
 }).strict();
 
 const sourceSchema = z.object({
@@ -178,7 +180,8 @@ function dimension(
   groupable: boolean,
   units: string | null = null,
   allowedValues: string[] = [],
-  physicalNullable = true
+  physicalNullable = true,
+  language: z.infer<typeof languageSchema> | null = null
 ) {
   return {
     id,
@@ -191,7 +194,8 @@ function dimension(
     null_meaning: nullMeaning,
     filter_operators: filterOperators,
     allowed_values: allowedValues,
-    groupable
+    groupable,
+    language
   };
 }
 
@@ -207,7 +211,8 @@ function measure(
   additivity: 'additive' | 'non_additive' | 'semi_additive',
   units: string | null = null,
   physicalNullable = true,
-  filterOperators: z.infer<typeof filterOperatorSchema>[] = []
+  filterOperators: z.infer<typeof filterOperatorSchema>[] = [],
+  language: z.infer<typeof languageSchema> | null = null
 ) {
   return {
     id,
@@ -223,7 +228,8 @@ function measure(
     filter_operators: filterOperators,
     allowed_aggregations: allowedAggregations,
     additivity,
-    depends_on: []
+    depends_on: [],
+    language
   };
 }
 
@@ -442,13 +448,22 @@ const rawCatalog = {
         current_semantics: 'Current standings mean the latest recorded snapshot, not live, as-of, or cutoff standings.'
       },
       dimensions: [
-        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-season grain.', ['eq', 'in'], true),
+        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-season grain.', ['eq', 'in'], true, null, [], true, {
+          names: ['driver'], synonyms: ['drivers'], abbreviations: [], ambiguity_groups: ['driver_identity'],
+          forbidden_conflations: ['Do not treat a driver reference as a canonical driver identifier.']
+        }),
         dimension('season', 'season', 'integer', 'season', false, 'A null season cannot identify a championship standing.', ['eq', 'in', 'range'], true)
       ],
       measures: [
-        measure('championship_position', 'championship_position', 'integer', 'position', true, 'Null is not a calculated championship rank.', 'Recorded season-driver standing position.', ['min'], 'non_additive', 'position'),
+        measure('championship_position', 'championship_position', 'integer', 'position', true, 'Null is not a calculated championship rank.', 'Recorded season-driver standing position.', ['min'], 'non_additive', 'position', true, [], {
+          names: ['championship position'], synonyms: ['championship rank', 'position', 'standings position'], abbreviations: [], ambiguity_groups: ['classification_position', 'standings_rank'],
+          forbidden_conflations: ['Do not derive official championship position by sorting points.']
+        }),
         measure('championship_won', 'championship_won', 'boolean', 'boolean', true, 'Null is an unavailable source flag, not false.', 'Recorded championship-winner flag.', [], 'non_additive'),
-        measure('points', 'points', 'numeric', 'number', true, 'Null is unavailable recorded championship points, not zero.', 'Recorded championship points; never recomputed from race points.', [], 'non_additive', 'points')
+        measure('points', 'points', 'numeric', 'number', true, 'Null is unavailable recorded championship points, not zero.', 'Recorded championship points; never recomputed from race points.', [], 'non_additive', 'points', true, [], {
+          names: ['championship points'], synonyms: ['points', 'standings points'], abbreviations: [], ambiguity_groups: ['points_authority'],
+          forbidden_conflations: ['Do not derive championship points by summing recorded race points.']
+        })
       ],
       authority: {
         primary: 'Recorded season_driver_standing values; FIA final championship records are external final authority.',
@@ -502,16 +517,28 @@ const rawCatalog = {
         current_semantics: 'Current-season rows are the latest recorded classifications and may be corrected upstream.'
       },
       dimensions: [
-        dimension('classification_status', 'classification_status', 'text', 'status', false, 'Every row receives one normalized race classification status.', ['eq', 'in'], true, null, ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn']),
-        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-event grain.', ['eq', 'in'], true),
+        dimension('classification_status', 'classification_status', 'text', 'status', false, 'Every row receives one normalized race classification status.', ['eq', 'in'], true, null, ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'withdrawn'], true, {
+          names: ['race classification status'], synonyms: ['race status', 'status'], abbreviations: [], ambiguity_groups: ['classification_status'],
+          forbidden_conflations: ['Do not infer a classification status from a null finishing position.']
+        }),
+        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-event grain.', ['eq', 'in'], true, null, [], true, {
+          names: ['driver'], synonyms: ['drivers'], abbreviations: [], ambiguity_groups: ['driver_identity'],
+          forbidden_conflations: ['Do not treat a driver reference as a canonical driver identifier.']
+        }),
         dimension('round', 'round', 'integer', 'round', false, 'A null round cannot identify a race event.', ['eq', 'in', 'range'], true),
         dimension('season', 'season', 'integer', 'season', false, 'A null season cannot identify a race event.', ['eq', 'in', 'range'], true),
         dimension('status_reason', 'status_reason', 'text', 'text', true, 'Null means no explanatory position text or retirement reason was recorded.', [], false),
         dimension('team_id', 'team_id', 'text', 'team_id', true, 'Null means no team identifier was recorded for the classification row.', [], false)
       ],
       measures: [
-        measure('finishing_position', 'finishing_position', 'integer', 'position', true, 'Null is not a finish position.', 'Recorded final race classification position.', ['count', 'max', 'min'], 'non_additive', 'position', true, ['eq', 'in', 'range']),
-        measure('points', 'points', 'numeric', 'number', true, 'Null is unavailable race points and must not be replaced by zero.', 'Recorded points for this race classification only.', [], 'non_additive', 'points')
+        measure('finishing_position', 'finishing_position', 'integer', 'position', true, 'Null is not a finish position.', 'Recorded final race classification position.', ['count', 'max', 'min'], 'non_additive', 'position', true, ['eq', 'in', 'range'], {
+          names: ['finishing position'], synonyms: ['position', 'race position'], abbreviations: [], ambiguity_groups: ['classification_position'],
+          forbidden_conflations: ['Do not conflate finishing position with grid, qualifying, time-gap, or pace semantics.']
+        }),
+        measure('points', 'points', 'numeric', 'number', true, 'Null is unavailable race points and must not be replaced by zero.', 'Recorded points for this race classification only.', [], 'non_additive', 'points', true, [], {
+          names: ['race points'], synonyms: ['points'], abbreviations: [], ambiguity_groups: ['points_authority'],
+          forbidden_conflations: ['Do not treat race points as championship standings points.']
+        })
       ],
       authority: {
         primary: 'FIA final race classification represented by the governed race-result projection.',
@@ -566,10 +593,19 @@ const rawCatalog = {
         current_semantics: 'Current-season metadata is the latest recorded calendar projection.'
       },
       dimensions: [
-        dimension('circuit_id', 'circuit_id', 'text', 'circuit_id', true, 'Null means no source circuit identifier was recorded.', ['eq', 'in'], true),
-        dimension('date', 'date', 'date', 'date', true, 'Null means the race date is unavailable in the source.', ['eq', 'range'], true),
+        dimension('circuit_id', 'circuit_id', 'text', 'circuit_id', true, 'Null means no source circuit identifier was recorded.', ['eq', 'in'], true, null, [], true, {
+          names: ['circuit identifier'], synonyms: ['circuit id'], abbreviations: [], ambiguity_groups: ['event_identity'],
+          forbidden_conflations: ['Do not treat a circuit identifier as a Grand Prix or venue name.']
+        }),
+        dimension('date', 'date', 'date', 'date', true, 'Null means the race date is unavailable in the source.', ['eq', 'range'], true, null, [], true, {
+          names: ['race date'], synonyms: ['event date'], abbreviations: [], ambiguity_groups: ['session_scope'],
+          forbidden_conflations: ['Do not infer qualifying, practice, or sprint dates from the race date.']
+        }),
         dimension('event_id', 'event_id', 'text', 'event_id', true, 'Null means neither a Grand Prix identifier nor circuit fallback was recorded.', ['eq', 'in'], true),
-        dimension('event_name', 'event_name', 'text', 'text', true, 'Null means no Grand Prix or official race name was recorded.', ['eq'], true),
+        dimension('event_name', 'event_name', 'text', 'text', true, 'Null means no Grand Prix or official race name was recorded.', ['eq'], true, null, [], true, {
+          names: ['event name'], synonyms: ['grand prix name'], abbreviations: ['gp name'], ambiguity_groups: ['event_identity'],
+          forbidden_conflations: ['Do not normalize an event name into a circuit identifier.']
+        }),
         dimension('round', 'round', 'integer', 'round', false, 'A null round cannot identify an event.', ['eq', 'in', 'range'], true),
         dimension('season', 'season', 'integer', 'season', false, 'A null season cannot identify an event.', ['eq', 'in', 'range'], true)
       ],
@@ -625,16 +661,28 @@ const rawCatalog = {
       },
       dimensions: [
         dimension('best_session', 'best_session', 'text', 'text', true, 'Null means no source session label accompanies the best time.', [], false),
-        dimension('classification_status', 'classification_status', 'text', 'status', false, 'Every row is classified as classified, dnf, or dns from source flags.', ['eq', 'in'], true, null, ['classified', 'dnf', 'dns']),
-        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-event grain.', ['eq', 'in'], true),
+        dimension('classification_status', 'classification_status', 'text', 'status', false, 'Every row is classified as classified, dnf, or dns from source flags.', ['eq', 'in'], true, null, ['classified', 'dnf', 'dns'], true, {
+          names: ['qualifying classification status'], synonyms: ['qualifying status', 'status'], abbreviations: [], ambiguity_groups: ['classification_status'],
+          forbidden_conflations: ['Do not infer unsupported steward statuses from qualifying timing.']
+        }),
+        dimension('driver_id', 'driver_id', 'text', 'driver_id', false, 'A null driver identifier is invalid at driver-event grain.', ['eq', 'in'], true, null, [], true, {
+          names: ['driver'], synonyms: ['drivers'], abbreviations: [], ambiguity_groups: ['driver_identity'],
+          forbidden_conflations: ['Do not treat a driver reference as a canonical driver identifier.']
+        }),
         dimension('eliminated_in_round', 'eliminated_in_round', 'text', 'text', true, 'Null does not imply an elimination session.', [], false),
         dimension('round', 'round', 'integer', 'round', false, 'A null round cannot identify a qualifying event.', ['eq', 'in', 'range'], true),
         dimension('season', 'season', 'integer', 'season', false, 'A null season cannot identify a qualifying event.', ['eq', 'in', 'range'], true),
         dimension('team_id', 'team_id', 'text', 'team_id', false, 'A null team identifier is invalid for a qualifying row.', [], false)
       ],
       measures: [
-        measure('best_time_ms', 'best_time_ms', 'integer', 'duration_ms', true, 'Null means no qualifying time was recorded.', 'Best recorded qualifying time in the source row.', [], 'non_additive', 'milliseconds'),
-        measure('qualifying_position', 'qualifying_position', 'integer', 'position', true, 'Null is not a grid or calculated qualifying position.', 'Recorded qualifying classification position.', ['count', 'max', 'min'], 'non_additive', 'position', true, ['eq', 'in', 'range'])
+        measure('best_time_ms', 'best_time_ms', 'integer', 'duration_ms', true, 'Null means no qualifying time was recorded.', 'Best recorded qualifying time in the source row.', [], 'non_additive', 'milliseconds', true, [], {
+          names: ['best qualifying time'], synonyms: ['qualifying time'], abbreviations: [], ambiguity_groups: ['qualifying_metric'],
+          forbidden_conflations: ['Do not treat a recorded best qualifying time as a time gap or race pace.']
+        }),
+        measure('qualifying_position', 'qualifying_position', 'integer', 'position', true, 'Null is not a grid or calculated qualifying position.', 'Recorded qualifying classification position.', ['count', 'max', 'min'], 'non_additive', 'position', true, ['eq', 'in', 'range'], {
+          names: ['qualifying position'], synonyms: ['position'], abbreviations: [], ambiguity_groups: ['classification_position', 'qualifying_metric'],
+          forbidden_conflations: ['Do not conflate qualifying position with grid position, time gap, or race pace.']
+        })
       ],
       authority: {
         primary: 'FIA final qualifying classification represented by the governed qualifying projection.',
@@ -1172,6 +1220,9 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
       if ((dimensionItem.semantic_type === 'status' || dimensionItem.semantic_type === 'provenance') && dimensionItem.allowed_values.length === 0) {
         throw new Error(`dimension ${source.id}.${dimensionItem.id} requires allowed values`);
       }
+      if (dimensionItem.language !== null) {
+        validateLanguage(`${source.id}.${dimensionItem.id}`, dimensionItem.language);
+      }
       allConceptIds.add(`${source.id}.${dimensionItem.id}`);
     }
     for (const measureItem of source.measures) {
@@ -1191,6 +1242,9 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
         if (!conceptMap.has(dependency)) {
           throw new Error(`measure ${source.id}.${measureItem.id} references unknown dependency ${dependency}`);
         }
+      }
+      if (measureItem.language !== null) {
+        validateLanguage(`${source.id}.${measureItem.id}`, measureItem.language);
       }
       allConceptIds.add(`${source.id}.${measureItem.id}`);
     }

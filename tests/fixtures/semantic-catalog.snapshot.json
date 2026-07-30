@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "catalog_hash": "1709482822cc38210c8b591d1cfa92f23766f83a15c34bab9f1a9420b6999a10",
+  "catalog_hash": "a09b072888625b6916d9017f7ba948d4f0651638c4a895ac57f9385d3d694cc2",
   "family_ids": [
     "event_metadata",
     "identity_participation",
@@ -115,7 +115,8 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "identity",
@@ -130,7 +131,8 @@
               "eq"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           }
         ],
         "measures": [],
@@ -233,7 +235,8 @@
               "eq"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "round",
@@ -250,7 +253,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "season",
@@ -267,7 +271,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           }
         ],
         "measures": [],
@@ -376,7 +381,8 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "participation_source",
@@ -395,7 +401,8 @@
               "entrant",
               "legacy_fallback"
             ],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "season",
@@ -412,7 +419,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           }
         ],
         "measures": [],
@@ -513,7 +521,22 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "driver"
+              ],
+              "synonyms": [
+                "drivers"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "driver_identity"
+              ],
+              "forbidden_conflations": [
+                "Do not treat a driver reference as a canonical driver identifier."
+              ]
+            }
           },
           {
             "id": "season",
@@ -530,7 +553,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           }
         ],
         "measures": [
@@ -550,7 +574,25 @@
               "min"
             ],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "championship position"
+              ],
+              "synonyms": [
+                "championship rank",
+                "position",
+                "standings position"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "classification_position",
+                "standings_rank"
+              ],
+              "forbidden_conflations": [
+                "Do not derive official championship position by sorting points."
+              ]
+            }
           },
           {
             "id": "championship_won",
@@ -566,7 +608,8 @@
             "filter_operators": [],
             "allowed_aggregations": [],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": null
           },
           {
             "id": "points",
@@ -582,7 +625,23 @@
             "filter_operators": [],
             "allowed_aggregations": [],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "championship points"
+              ],
+              "synonyms": [
+                "points",
+                "standings points"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "points_authority"
+              ],
+              "forbidden_conflations": [
+                "Do not derive championship points by summing recorded race points."
+              ]
+            }
           }
         ],
         "authority": {
@@ -718,7 +777,23 @@
               "not_classified",
               "withdrawn"
             ],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "race classification status"
+              ],
+              "synonyms": [
+                "race status",
+                "status"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "classification_status"
+              ],
+              "forbidden_conflations": [
+                "Do not infer a classification status from a null finishing position."
+              ]
+            }
           },
           {
             "id": "driver_id",
@@ -734,7 +809,22 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "driver"
+              ],
+              "synonyms": [
+                "drivers"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "driver_identity"
+              ],
+              "forbidden_conflations": [
+                "Do not treat a driver reference as a canonical driver identifier."
+              ]
+            }
           },
           {
             "id": "round",
@@ -751,7 +841,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "season",
@@ -768,7 +859,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "status_reason",
@@ -781,7 +873,8 @@
             "null_meaning": "Null means no explanatory position text or retirement reason was recorded.",
             "filter_operators": [],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "team_id",
@@ -794,7 +887,8 @@
             "null_meaning": "Null means no team identifier was recorded for the classification row.",
             "filter_operators": [],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           }
         ],
         "measures": [
@@ -820,7 +914,23 @@
               "min"
             ],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "finishing position"
+              ],
+              "synonyms": [
+                "position",
+                "race position"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "classification_position"
+              ],
+              "forbidden_conflations": [
+                "Do not conflate finishing position with grid, qualifying, time-gap, or pace semantics."
+              ]
+            }
           },
           {
             "id": "points",
@@ -836,7 +946,22 @@
             "filter_operators": [],
             "allowed_aggregations": [],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "race points"
+              ],
+              "synonyms": [
+                "points"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "points_authority"
+              ],
+              "forbidden_conflations": [
+                "Do not treat race points as championship standings points."
+              ]
+            }
           }
         ],
         "authority": {
@@ -972,7 +1097,22 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "circuit identifier"
+              ],
+              "synonyms": [
+                "circuit id"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "event_identity"
+              ],
+              "forbidden_conflations": [
+                "Do not treat a circuit identifier as a Grand Prix or venue name."
+              ]
+            }
           },
           {
             "id": "date",
@@ -988,7 +1128,22 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "race date"
+              ],
+              "synonyms": [
+                "event date"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "session_scope"
+              ],
+              "forbidden_conflations": [
+                "Do not infer qualifying, practice, or sprint dates from the race date."
+              ]
+            }
           },
           {
             "id": "event_id",
@@ -1004,7 +1159,8 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "event_name",
@@ -1019,7 +1175,24 @@
               "eq"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "event name"
+              ],
+              "synonyms": [
+                "grand prix name"
+              ],
+              "abbreviations": [
+                "gp name"
+              ],
+              "ambiguity_groups": [
+                "event_identity"
+              ],
+              "forbidden_conflations": [
+                "Do not normalize an event name into a circuit identifier."
+              ]
+            }
           },
           {
             "id": "round",
@@ -1036,7 +1209,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "season",
@@ -1053,7 +1227,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           }
         ],
         "measures": [],
@@ -1163,7 +1338,8 @@
             "null_meaning": "Null means no source session label accompanies the best time.",
             "filter_operators": [],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "classification_status",
@@ -1183,7 +1359,23 @@
               "dnf",
               "dns"
             ],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "qualifying classification status"
+              ],
+              "synonyms": [
+                "qualifying status",
+                "status"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "classification_status"
+              ],
+              "forbidden_conflations": [
+                "Do not infer unsupported steward statuses from qualifying timing."
+              ]
+            }
           },
           {
             "id": "driver_id",
@@ -1199,7 +1391,22 @@
               "in"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": {
+              "names": [
+                "driver"
+              ],
+              "synonyms": [
+                "drivers"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "driver_identity"
+              ],
+              "forbidden_conflations": [
+                "Do not treat a driver reference as a canonical driver identifier."
+              ]
+            }
           },
           {
             "id": "eliminated_in_round",
@@ -1212,7 +1419,8 @@
             "null_meaning": "Null does not imply an elimination session.",
             "filter_operators": [],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           },
           {
             "id": "round",
@@ -1229,7 +1437,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "season",
@@ -1246,7 +1455,8 @@
               "range"
             ],
             "allowed_values": [],
-            "groupable": true
+            "groupable": true,
+            "language": null
           },
           {
             "id": "team_id",
@@ -1259,7 +1469,8 @@
             "null_meaning": "A null team identifier is invalid for a qualifying row.",
             "filter_operators": [],
             "allowed_values": [],
-            "groupable": false
+            "groupable": false,
+            "language": null
           }
         ],
         "measures": [
@@ -1277,7 +1488,22 @@
             "filter_operators": [],
             "allowed_aggregations": [],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "best qualifying time"
+              ],
+              "synonyms": [
+                "qualifying time"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "qualifying_metric"
+              ],
+              "forbidden_conflations": [
+                "Do not treat a recorded best qualifying time as a time gap or race pace."
+              ]
+            }
           },
           {
             "id": "qualifying_position",
@@ -1301,7 +1527,23 @@
               "min"
             ],
             "additivity": "non_additive",
-            "depends_on": []
+            "depends_on": [],
+            "language": {
+              "names": [
+                "qualifying position"
+              ],
+              "synonyms": [
+                "position"
+              ],
+              "abbreviations": [],
+              "ambiguity_groups": [
+                "classification_position",
+                "qualifying_metric"
+              ],
+              "forbidden_conflations": [
+                "Do not conflate qualifying position with grid position, time gap, or race pace."
+              ]
+            }
           }
         ],
         "authority": {
