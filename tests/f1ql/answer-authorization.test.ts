@@ -36,12 +36,13 @@ const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): Act
     semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
   },
   statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-  runtime, deployment_template_ids: ['final_standings_leader'], deployment_principal_classes: ['internal'], ...overrides
+  runtime, deployment_template_ids: ['final_standings_leader'], answer_routing_mode: 'template_only',
+  deployment_capability_profile_ids: [], migrated_template_ids: [], deployment_principal_classes: ['internal'], ...overrides
 });
 
 function release(context = activeContext()) {
   const unsigned = {
-    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 8 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
@@ -89,7 +90,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v21', release_attestation: 7 }
+      active_versions: { authorization: 'answer-authorization-v22', release_attestation: 8 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);
@@ -104,6 +105,20 @@ describe('one-time answer execution authorization', () => {
       template_id: 'current_standings', program_hash: semanticProof.program_hash,
       capability: { source: 'current_driver_standings', operation: 'rank', season: 2026, filters: [] }
     });
+  });
+
+  it('preserves unmigrated exact templates and rejects migrated templates in compositional mode', async () => {
+    const compositional = release(activeContext({
+      deployment_template_ids: ['current_standings', 'final_standings_leader'],
+      answer_routing_mode: 'compositional_profiles',
+      deployment_capability_profile_ids: ['semantic-single-source-v1'],
+      migrated_template_ids: ['final_standings_leader']
+    }));
+    const migratedProof = await proof();
+    expect(() => buildAnswerExecutionAuthorization(randomUUID(), 'internal', migratedProof, compositional))
+      .toThrowError(expect.objectContaining({ code: 'invalid_authorization' }));
+    expect(buildAnswerExecutionAuthorization(randomUUID(), 'internal', await currentProof(), compositional))
+      .toMatchObject({ template_id: 'current_standings' });
   });
 
   it('consumes exactly once with exact request, audience, deployment, release, versions, and time', async () => {

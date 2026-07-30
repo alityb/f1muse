@@ -11,39 +11,32 @@ import {
 import { preparePlannedF1QLParent } from './planned-pipeline';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 import {
-  SemanticLiteralSpan,
+  AnswerFactSourceId,
+  collectSemanticResolutionEvidence,
+  LinkedSemanticEntity,
+  SemanticDriverResolver,
+  SemanticEventResolver,
+  SemanticResolutionError,
+  VerifiedSemanticResolutionEvidence,
+  verifySemanticResolutionEvidence
+} from './semantic-resolution-evidence';
+import {
   SemanticQuery,
   VerifiedSemanticQueryAdmission,
   verifySemanticQueryAdmission
 } from './semantic-query';
 
-export const SEMANTIC_PLANNER_VERSION = 'semantic-planner-v1' as const;
-export const SEMANTIC_LINKER_VERSION = 'semantic-linker-v1' as const;
-export const SEMANTIC_LINKER_MAX_CANDIDATES = 100;
+export const SEMANTIC_PLANNER_VERSION = 'semantic-planner-v2' as const;
+export const SEMANTIC_LINKER_VERSION = 'semantic-resolution-v1' as const;
+export const SEMANTIC_PLAN_WORK_MODEL_VERSION = 'semantic-plan-work-v1' as const;
 
-type AnswerFactSourceId = 'driver_standings' | 'event_classification' | 'event_metadata' | 'qualifying_classification';
-
-export interface SemanticDriverMention {
-  readonly text: string;
-  readonly start: number;
-  readonly end: number;
-  readonly candidates: readonly string[];
-  readonly active_candidates: readonly string[];
-}
-
-export interface SemanticDriverResolver {
-  inventoryMentions(question: string, season: number): Promise<readonly SemanticDriverMention[]>;
-}
-
-type EventResolution =
-  | { readonly type: 'resolved'; readonly season: number; readonly round: number }
-  | { readonly type: 'ambiguous'; readonly candidates: readonly { readonly season: number; readonly round: number }[] }
-  | { readonly type: 'missing' };
-
-export interface SemanticEventResolver {
-  resolve(season: number, name: string): Promise<EventResolution>;
-  resolveRound(season: number, round: number): Promise<EventResolution>;
-}
+export type {
+  LinkedSemanticEntity,
+  SemanticDriverMention,
+  SemanticDriverResolver,
+  SemanticEventResolver,
+  VerifiedSemanticResolutionEvidence
+} from './semantic-resolution-evidence';
 
 export type AnswerPlannerReason =
   | 'admission_invalid'
@@ -71,15 +64,6 @@ export class AnswerPlannerError extends Error {
   }
 }
 
-export interface LinkedSemanticEntity {
-  readonly entity_index: number;
-  readonly type: 'driver' | 'event';
-  readonly span: SemanticLiteralSpan;
-  readonly candidate_ids: readonly string[];
-  readonly selected_id: string;
-  readonly resolution_relationship_ids: readonly string[];
-}
-
 export interface AnswerPlanBranch {
   readonly source_id: AnswerFactSourceId;
   readonly predicates: readonly PlannedPredicate[];
@@ -94,13 +78,15 @@ export interface AnswerPlanBranch {
 
 export interface AnswerPlan {
   readonly kind: 'answer_plan';
-  readonly version: 1;
+  readonly version: 2;
   readonly planner_version: typeof SEMANTIC_PLANNER_VERSION;
   readonly linker_version: typeof SEMANTIC_LINKER_VERSION;
   readonly catalog_hash: string;
+  readonly semantic_evidence_hash: string;
   readonly question_sha256: string;
   readonly candidate_set_hash: string;
   readonly semantic_query_hash: string;
+  readonly resolution_evidence_hash: string;
   readonly linker_hash: string;
   readonly topology: 'row_dimension_join' | 'scalar_aggregate_compose' | 'single_source_aggregate' | 'single_source_rows';
   readonly linked_entities: readonly LinkedSemanticEntity[];
@@ -113,7 +99,7 @@ export interface AnswerPlan {
   readonly output_grain: readonly string[];
   readonly integrity_checks: readonly string[];
   readonly work: {
-    readonly model: 'semantic-plan-work-v1';
+    readonly model: typeof SEMANTIC_PLAN_WORK_MODEL_VERSION;
     readonly source_scan_units: number;
     readonly resolver_reads: number;
     readonly resolver_candidates: number;
@@ -137,18 +123,33 @@ export async function planSemanticAnswer(input: {
   readonly driver_resolver: SemanticDriverResolver;
   readonly event_resolver: SemanticEventResolver;
 }): Promise<AnswerPlan> {
+  let resolution: VerifiedSemanticResolutionEvidence;
+  try {
+    resolution = await collectSemanticResolutionEvidence(input);
+  } catch (error) {
+    if (error instanceof SemanticResolutionError) {throw new AnswerPlannerError(error.reason);}
+    throw error;
+  }
+  return planSemanticAnswerFromResolution({ question: input.question, admission: input.admission, resolution });
+}
+
+export function planSemanticAnswerFromResolution(input: {
+  readonly question: unknown;
+  readonly admission: unknown;
+  readonly resolution: unknown;
+}): AnswerPlan {
   let admission: VerifiedSemanticQueryAdmission;
+  let resolution: VerifiedSemanticResolutionEvidence;
   try {
     admission = verifySemanticQueryAdmission(input.admission, input.question);
+    resolution = verifySemanticResolutionEvidence(input.resolution, input.question, admission);
   } catch {
     throw new AnswerPlannerError('admission_invalid');
   }
   const question = createAnswerQuestionContract(input.question);
   const query = admission.query;
-  const season = requiredScopeValue(query, 'season');
-  const sourceIds = semanticSourceIds(query);
-  const linked = await linkEntities(question.normalized_question, query, season, sourceIds, input.driver_resolver, input.event_resolver);
-  const materialized = materializePlannedProgram(query, sourceIds, linked.entities, linked.resolved_round);
+  const sourceIds = [...resolution.source_ids];
+  const materialized = materializePlannedProgram(query, sourceIds, resolution.entities, resolution.resolved_round);
   let parent;
   try {
     parent = preparePlannedF1QLParent(materialized.program);
@@ -159,30 +160,32 @@ export async function planSemanticAnswer(input: {
   const integrity = [...project.integrity].sort(compareText);
   const sourceGraph = {
     source_ids: sourceIds,
-    resolution_relationship_ids: sortedUnique(linked.entities.flatMap(entity => [...entity.resolution_relationship_ids])),
+    resolution_relationship_ids: sortedUnique(resolution.entities.flatMap(entity => [...entity.resolution_relationship_ids])),
     row_relationship_ids: materialized.row_relationship_ids
   };
   const draft = {
     kind: 'answer_plan' as const,
-    version: 1 as const,
+    version: 2 as const,
     planner_version: SEMANTIC_PLANNER_VERSION,
     linker_version: SEMANTIC_LINKER_VERSION,
     catalog_hash: SEMANTIC_CATALOG_HASH,
+    semantic_evidence_hash: admission.semantic_evidence_hash,
     question_sha256: question.sha256,
     candidate_set_hash: admission.candidate_set_hash,
     semantic_query_hash: admission.query_hash,
-    linker_hash: linked.linker_hash,
+    resolution_evidence_hash: resolution.resolution_hash,
+    linker_hash: resolution.resolution_hash,
     topology: materialized.topology,
-    linked_entities: linked.entities,
+    linked_entities: resolution.entities,
     source_graph: sourceGraph,
     branches: materialized.branches,
     output_grain: project.output_grain,
     integrity_checks: integrity,
     work: {
-      model: 'semantic-plan-work-v1' as const,
+      model: SEMANTIC_PLAN_WORK_MODEL_VERSION,
       source_scan_units: parent.cost.units,
-      resolver_reads: linked.resolver_reads,
-      resolver_candidates: linked.resolver_candidates,
+      resolver_reads: resolution.resolver_reads,
+      resolver_candidates: resolution.resolver_candidates,
       sources: parent.cost.sources,
       row_joins: parent.cost.joins,
       compositions: materialized.topology === 'scalar_aggregate_compose' ? 1 : 0,
@@ -210,104 +213,6 @@ export function verifyAnswerPlan(input: unknown): AnswerPlan {
     throw new Error('answer plan binding is invalid');
   }
   return plan;
-}
-
-async function linkEntities(
-  question: string,
-  query: SemanticQuery,
-  season: number,
-  sourceIds: readonly AnswerFactSourceId[],
-  driverResolver: SemanticDriverResolver,
-  eventResolver: SemanticEventResolver
-): Promise<{ readonly entities: readonly LinkedSemanticEntity[]; readonly resolved_round?: number; readonly resolver_reads: number; readonly resolver_candidates: number; readonly linker_hash: string }> {
-  let resolverReads = 1;
-  let resolverCandidates = 0;
-  const rawMentions = await driverResolver.inventoryMentions(question, season);
-  if (rawMentions.length > 8) {throw new AnswerPlannerError('entity_inventory_mismatch');}
-  const mentions = [...rawMentions].sort(compareMentions);
-  const expectedDrivers = query.entities.flatMap((entity, index) => entity.type === 'driver' ? [{ entity, index }] : []).sort((left, right) => compareSpans(left.entity.span, right.entity.span));
-  if (mentions.length !== expectedDrivers.length || mentions.some((mention, index) => !sameMention(mention, expectedDrivers[index].entity.span))) {
-    throw new AnswerPlannerError('entity_inventory_mismatch');
-  }
-  const linked: LinkedSemanticEntity[] = expectedDrivers.map(({ entity, index }, mentionIndex) => {
-    const mention = mentions[mentionIndex];
-    if (mention.candidates.length > SEMANTIC_LINKER_MAX_CANDIDATES ||
-        mention.active_candidates.length > SEMANTIC_LINKER_MAX_CANDIDATES ||
-        mention.candidates.some(candidate => !isBoundedCanonicalId(candidate)) ||
-        mention.active_candidates.some(candidate => !isBoundedCanonicalId(candidate))) {
-      throw new AnswerPlannerError('entity_inventory_mismatch');
-    }
-    resolverCandidates += mention.candidates.length;
-    const candidates = sortedUnique([...mention.candidates]);
-    const active = sortedUnique([...mention.active_candidates]);
-    if (active.some(candidate => !candidates.includes(candidate))) {
-      throw new AnswerPlannerError('entity_inventory_mismatch');
-    }
-    if (candidates.length === 0) {throw new AnswerPlannerError('identity_unresolved');}
-    if (active.length === 0) {throw new AnswerPlannerError('source_coverage_missing');}
-    if (active.length !== 1) {throw new AnswerPlannerError('entity_ambiguous');}
-    return {
-      entity_index: index,
-      type: 'driver' as const,
-      span: entity.span,
-      candidate_ids: candidates,
-      selected_id: active[0],
-      resolution_relationship_ids: sortedUnique([
-        'driver_participation_resolution',
-        ...sourceIds.flatMap(driverResolutionRelationship)
-      ])
-    };
-  });
-  if (new Set(linked.map(entity => entity.selected_id)).size !== linked.length) {
-    throw new AnswerPlannerError('entity_cardinality_mismatch');
-  }
-
-  const eventScope = query.scopes.find(scope => scope.kind === 'event');
-  const roundScope = query.scopes.find(scope => scope.kind === 'round');
-  let resolvedRound: number | undefined;
-  if (eventScope || roundScope) {
-    resolverReads += 1;
-    const resolution = eventScope
-      ? await eventResolver.resolve(season, query.entities[eventScope.entity_index].span.text)
-      : await eventResolver.resolveRound(season, roundScope!.value);
-    if (resolution.type === 'missing') {throw new AnswerPlannerError('source_coverage_missing');}
-    if (resolution.type === 'ambiguous') {
-      if (resolution.candidates.length > SEMANTIC_LINKER_MAX_CANDIDATES) {throw new AnswerPlannerError('entity_inventory_mismatch');}
-      throw new AnswerPlannerError('event_ambiguous');
-    }
-    resolverCandidates += 1;
-    if (resolution.season !== season || (roundScope && resolution.round !== roundScope.value)) {
-      throw new AnswerPlannerError('source_coverage_missing');
-    }
-    resolvedRound = resolution.round;
-    if (eventScope) {
-      const entity = query.entities[eventScope.entity_index];
-      linked.push({
-        entity_index: eventScope.entity_index,
-        type: 'event',
-        span: entity.span,
-        candidate_ids: [`event:${season}:${resolvedRound}`],
-        selected_id: `event:${season}:${resolvedRound}`,
-        resolution_relationship_ids: sortedUnique(sourceIds.flatMap(eventResolutionRelationship))
-      });
-    }
-  }
-  linked.sort((left, right) => left.entity_index - right.entity_index);
-  const hashPayload = {
-    version: SEMANTIC_LINKER_VERSION,
-    catalog_hash: SEMANTIC_CATALOG_HASH,
-    entities: linked,
-    resolved_round: resolvedRound ?? null,
-    resolver_reads: resolverReads,
-    resolver_candidates: resolverCandidates
-  };
-  return deepFreeze({
-    entities: linked,
-    resolver_reads: resolverReads,
-    resolver_candidates: resolverCandidates,
-    ...(resolvedRound === undefined ? {} : { resolved_round: resolvedRound }),
-    linker_hash: sha256(stableSerialize(hashPayload))
-  });
 }
 
 function materializePlannedProgram(
@@ -497,16 +402,6 @@ function rowBranch(sourceId: AnswerFactSourceId, predicates: readonly PlannedPre
   return { op: 'filter' as const, input: { op: 'source' as const, source_id: sourceId }, predicates: [...predicates] };
 }
 
-function semanticSourceIds(query: SemanticQuery): AnswerFactSourceId[] {
-  const ids = sortedUnique([
-    ...query.outputs.map(output => output.concept.source_id),
-    ...query.group_by.map(group => group.concept.source_id),
-    ...query.filters.map(filter => filter.concept.source_id)
-  ]) as AnswerFactSourceId[];
-  if (ids.length === 0) {throw new AnswerPlannerError('source_graph_disconnected');}
-  return ids;
-}
-
 function outputId(query: SemanticQuery, index: number, topology: AnswerPlan['topology']): string {
   const output = query.outputs[index];
   if (!output) {throw new AnswerPlannerError('ordering_undefined');}
@@ -515,36 +410,10 @@ function outputId(query: SemanticQuery, index: number, topology: AnswerPlan['top
   return topology === 'scalar_aggregate_compose' ? `${output.concept.source_id}__${aggregateId}` : aggregateId;
 }
 
-function driverResolutionRelationship(sourceId: AnswerFactSourceId): string[] {
-  if (sourceId === 'driver_standings') {return ['driver_identity_standings_resolution'];}
-  if (sourceId === 'event_classification') {return ['driver_identity_race_resolution'];}
-  if (sourceId === 'qualifying_classification') {return ['driver_identity_qualifying_resolution'];}
-  return [];
-}
-
-function eventResolutionRelationship(sourceId: AnswerFactSourceId): string[] {
-  if (sourceId === 'event_metadata') {return ['event_identity_metadata_resolution'];}
-  if (sourceId === 'event_classification') {return ['event_identity_race_resolution'];}
-  if (sourceId === 'qualifying_classification') {return ['event_identity_qualifying_resolution'];}
-  return [];
-}
-
 function requiredScopeValue(query: SemanticQuery, kind: 'season'): number {
   const scope = query.scopes.find(item => item.kind === kind);
   if (!scope || scope.kind !== 'season') {throw new AnswerPlannerError('admission_invalid');}
   return scope.value;
-}
-
-function sameMention(mention: SemanticDriverMention, span: SemanticLiteralSpan): boolean {
-  return mention.text === span.text && mention.start === span.start && mention.end === span.end;
-}
-
-function compareMentions(left: SemanticDriverMention, right: SemanticDriverMention): number {
-  return left.start - right.start || left.end - right.end || compareText(left.text, right.text);
-}
-
-function compareSpans(left: SemanticLiteralSpan, right: SemanticLiteralSpan): number {
-  return left.start - right.start || left.end - right.end || compareText(left.text, right.text);
 }
 
 function ref(source_id: AnswerFactSourceId, concept_id: string): PlannedConceptRef {
@@ -571,10 +440,6 @@ function compareText(left: string, right: string): number {
   if (left < right) {return -1;}
   if (left > right) {return 1;}
   return 0;
-}
-
-function isBoundedCanonicalId(value: string): boolean {
-  return /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 }
 
 function sha256(value: string): string {

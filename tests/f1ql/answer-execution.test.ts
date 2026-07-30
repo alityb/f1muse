@@ -39,10 +39,11 @@ function release(templateId: string, deploymentId = 'execution-test-deployment')
       semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
     },
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-    runtime, deployment_template_ids: [templateId], deployment_principal_classes: ['internal']
+    runtime, deployment_template_ids: [templateId], answer_routing_mode: 'template_only',
+    deployment_capability_profile_ids: [], migrated_template_ids: [], deployment_principal_classes: ['internal']
   };
   const unsigned = {
-    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 8 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };

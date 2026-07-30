@@ -133,6 +133,7 @@ export interface VerifiedSemanticQueryAdmission {
   readonly type: 'admitted';
   readonly question_sha256: string;
   readonly catalog_hash: string;
+  readonly semantic_evidence_hash: string;
   readonly query: SemanticQuery;
   readonly query_hash: string;
   readonly candidate_set_hash: string;
@@ -195,6 +196,27 @@ export function computeSemanticCandidateSetHash(
     query_hashes: candidates.map(computeSemanticQueryHash).sort(compareText),
     ambiguity_reason: ambiguityReason ?? null
   })).digest('hex');
+}
+
+export function computeSemanticEvidenceHash(evidence: SemanticEvidence): string {
+  return createHash('sha256').update(stableSerialize(evidence)).digest('hex');
+}
+
+export function verifySemanticEvidence(
+  input: unknown,
+  questionInput: unknown,
+  entityInventoryInput: readonly unknown[] = [],
+  options: { readonly catalog?: SemanticCatalog; readonly max_candidates?: number } = {}
+): SemanticEvidence {
+  if (!input || typeof input !== 'object' || !activeSemanticEvidence.has(input)) {
+    throw new Error('semantic evidence provenance is invalid');
+  }
+  const evidence = input as SemanticEvidence;
+  const reproduced = enumerateSemanticQueries(questionInput, entityInventoryInput, options);
+  if (stableSerialize(evidence) !== stableSerialize(reproduced)) {
+    throw new Error('semantic evidence does not match independent enumeration');
+  }
+  return evidence;
 }
 
 export function enumerateSemanticQueries(
@@ -399,6 +421,7 @@ export function admitSemanticQueryCandidates(
     type: 'admitted',
     question_sha256: question.sha256,
     catalog_hash: catalogHash,
+    semantic_evidence_hash: computeSemanticEvidenceHash(evidence),
     query: evidence.candidates[0],
     query_hash: computeSemanticQueryHash(evidence.candidates[0]),
     candidate_set_hash: evidence.candidate_set_hash
@@ -427,8 +450,19 @@ export function verifySemanticQueryAdmission(
   ).candidates[0];
   const queryHash = computeSemanticQueryHash(query);
   const candidateSetHash = computeSemanticCandidateSetHash([query], question.sha256, catalogHash);
+  const semanticEvidenceHash = computeSemanticEvidenceHash({
+    version: SEMANTIC_EVIDENCE_VERSION,
+    type: 'candidate_set',
+    question_sha256: question.sha256,
+    catalog_hash: catalogHash,
+    candidate_set_hash: candidateSetHash,
+    candidates: [query]
+  });
   if (admission.query_hash !== queryHash || admission.candidate_set_hash !== candidateSetHash) {
     throw new Error('semantic query admission binding is invalid');
+  }
+  if (admission.semantic_evidence_hash !== semanticEvidenceHash) {
+    throw new Error('semantic query admission evidence binding is invalid');
   }
   return admission;
 }

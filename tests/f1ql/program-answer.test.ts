@@ -81,10 +81,11 @@ function createRelease(
     audience: 'f1muse-answer', deployment_id: 'route-test-deployment', evidence_hashes: releaseEvidence,
     canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryHmacKeySha256,
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-    runtime, deployment_template_ids: [...allowedTemplateIds], deployment_principal_classes: [...allowedPrincipalClasses]
+    runtime, deployment_template_ids: [...allowedTemplateIds], answer_routing_mode: 'template_only',
+    deployment_capability_profile_ids: [], migrated_template_ids: [], deployment_principal_classes: [...allowedPrincipalClasses]
   };
   const unsigned = {
-    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 8 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: releaseKey.key_id, ...buildActiveAnswerReleaseBindings(activeContext)
   };
   return {

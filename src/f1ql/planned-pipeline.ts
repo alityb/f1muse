@@ -28,6 +28,8 @@ export interface VerifiedPlannedF1QLParent {
   readonly compiled: CompiledF1QL;
 }
 
+export const PLANNED_F1QL_PIPELINE_VERSION = 'planned-pipeline-v1' as const;
+
 export function preparePlannedF1QLParent(input: unknown): VerifiedPlannedF1QLParent {
   const program = parsePlannedF1QLProgram(input);
   const cost = estimatePlannedF1QLCost(program);
@@ -54,12 +56,32 @@ export function verifyPlannedF1QLParent(input: unknown): VerifiedPlannedF1QLPare
   }
   const parent = input as VerifiedPlannedF1QLParent;
   const program = parsePlannedF1QLProgram(parent.program);
+  const cost = estimatePlannedF1QLCost(program);
+  const participation = decidePlannedParticipation(program);
   const core = lowerPlannedF1QL(program);
+  validatePlannedCoreProgram(core);
+  const compiled = compilePlannedF1QL(core);
   if (parent.program_hash !== getPlannedF1QLProgramHash(program) || parent.core_hash !== getPlannedCoreProgramHash(core) ||
-      parent.core_hash !== getPlannedCoreProgramHash(parent.core_program)) {
+      parent.core_hash !== getPlannedCoreProgramHash(parent.core_program) || stableSerialize(parent.cost) !== stableSerialize(cost) ||
+      stableSerialize(parent.participation) !== stableSerialize(participation) ||
+      stableSerialize(parent.core_program) !== stableSerialize(core) || stableSerialize(parent.compiled) !== stableSerialize(compiled)) {
     throw new Error('planned F1QL parent binding is invalid');
   }
   return parent;
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {return `[${value.map(stableSerialize).join(',')}]`;}
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => compareText(left, right));
+    return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${stableSerialize(child)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) {return -1;}
+  return left > right ? 1 : 0;
 }
 
 function deepFreeze<T>(value: T): T {

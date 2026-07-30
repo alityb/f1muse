@@ -12,6 +12,7 @@ import { SEMANTIC_CATALOG } from './semantic-catalog';
 import { validatePlannedCoreProgram } from './planned-f1ql';
 
 export const PLANNED_INTEGRITY_FIELD = '__f1ql_integrity_ok';
+export const PLANNED_F1QL_COMPILER_VERSION = 'planned-compiler-v1' as const;
 
 interface SqlContext {
   params: unknown[];

@@ -23,6 +23,7 @@ import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH, SemanticCatalogSource } from '
 
 export const PLANNED_F1QL_VERSION = 2 as const;
 export const PLANNED_F1QL_DIALECT = 'planned_f1ql_v2' as const;
+export const PLANNED_F1QL_COST_MODEL_VERSION = 'planned-cost-v1' as const;
 export const PLANNED_F1QL_MAX_ROWS = 100;
 export const PLANNED_F1QL_MAX_WORK_UNITS = 60;
 export const PLANNED_SCALAR_INPUT_CARDINALITY = 'scalar_input_cardinality' as const;
@@ -190,7 +191,7 @@ type CatalogConcept =
   | { kind: 'measure'; value: CatalogMeasure };
 
 export interface PlannedF1QLCost {
-  readonly version: 'planned-cost-v1';
+  readonly version: typeof PLANNED_F1QL_COST_MODEL_VERSION;
   readonly units: number;
   readonly sources: number;
   readonly joins: number;
@@ -222,7 +223,7 @@ export function estimatePlannedF1QLCost(input: unknown): PlannedF1QLCost {
   if (projectInput.op === 'compose') {depth = 6;}
   else if (projectInput.op === 'join' || projectInput.op === 'aggregate') {depth = 5;}
   const cost: PlannedF1QLCost = {
-    version: 'planned-cost-v1',
+    version: PLANNED_F1QL_COST_MODEL_VERSION,
     units,
     sources: branches.length,
     joins: projectInput.op === 'join' ? 1 : 0,

@@ -61,6 +61,7 @@ const context = (overrides: Partial<ActiveAnswerReleaseContext> = {}): ActiveAns
   audience: 'f1muse-answer', deployment_id: 'test-deployment', evidence_hashes: evidence,
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 50, canary_hmac_key_sha256: CANARY_HMAC_KEY_SHA256,
   statuses: passingStatuses, runtime, deployment_template_ids: ['final_standings_leader', 'race_date'],
+  answer_routing_mode: 'template_only', deployment_capability_profile_ids: [], migrated_template_ids: [],
   deployment_principal_classes: ['internal_canary'],
   ...overrides
 });
@@ -71,7 +72,7 @@ const trustedKey = { key_id: 'release-key-1', public_key: trusted.publicKey };
 
 function signedFixture(active = context(), privateKey = trusted.privateKey, keyId = trustedKey.key_id) {
   const unsigned = {
-    version: 7 as const,
+    version: 8 as const,
     kind: 'f1ql_answer_release_attestation' as const,
     key_id: keyId,
     ...buildActiveAnswerReleaseBindings(active)
@@ -146,6 +147,8 @@ describe('cryptographically rooted answer release attestation', () => {
       context({ evidence_hashes: { ...evidence, report_sha256: hash('f') } }),
       context({ runtime: { ...runtime, max_rows: 99 } }),
       context({ deployment_template_ids: ['race_date'] }),
+      context({ answer_routing_mode: 'shadow_compare', deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      context({ answer_routing_mode: 'compositional_profiles', deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
       context({ deployment_principal_classes: ['public'] })
     ]) {
       expect(() => verifyAnswerReleaseAttestation(raw, trustedKey, changed, temporalPolicy)).toThrowError(expect.objectContaining({ code: 'binding_mismatch' }));
@@ -159,7 +162,7 @@ describe('cryptographically rooted answer release attestation', () => {
   it('rejects an independently signed deterministic derivation contract mismatch', () => {
     const active = context();
     const unsigned = {
-      version: 7 as const,
+      version: 8 as const,
       kind: 'f1ql_answer_release_attestation' as const,
       key_id: trustedKey.key_id,
       ...buildActiveAnswerReleaseBindings(active),
@@ -204,6 +207,15 @@ describe('cryptographically rooted answer release attestation', () => {
     for (const allowed_principal_classes of [[], ['public', 'internal'], ['public', 'public'], ['unknown']]) {
       expect(() => parseAnswerReleaseAttestation({ ...signedFixture(), allowed_principal_classes })).toThrow(AnswerReleaseAttestationError);
     }
+    expect(() => parseAnswerReleaseAttestation({
+      ...signedFixture(), allowed_capability_profile_ids: ['semantic-single-source-v1']
+    })).toThrow(AnswerReleaseAttestationError);
+    expect(() => parseAnswerReleaseAttestation({
+      ...signedFixture(), answer_routing_mode: 'compositional_profiles'
+    })).toThrow(AnswerReleaseAttestationError);
+    expect(() => parseAnswerReleaseAttestation({
+      ...signedFixture(), migrated_template_ids: ['race_date']
+    })).toThrow(AnswerReleaseAttestationError);
   });
 
   it('loads deterministic production context without a provider credential', () => {
@@ -218,6 +230,9 @@ describe('cryptographically rooted answer release attestation', () => {
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: productionContext.audience,
       F1QL_ANSWER_DEPLOYMENT_ID: productionContext.deployment_id,
       F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: productionContext.deployment_template_ids.join(','),
+      F1QL_ANSWER_ROUTING_MODE: productionContext.answer_routing_mode,
+      F1QL_ANSWER_DEPLOYMENT_CAPABILITY_PROFILE_IDS: productionContext.deployment_capability_profile_ids.join(','),
+      F1QL_ANSWER_MIGRATED_TEMPLATE_IDS: productionContext.migrated_template_ids.join(','),
       F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: productionContext.deployment_principal_classes.join(','),
       F1QL_ANSWER_CANARY_MAXIMUM_STAGE: String(productionContext.maximum_canary_stage),
       F1QL_ANSWER_CANARY_HMAC_KEY_BASE64: CANARY_HMAC_KEY_BASE64,
@@ -265,6 +280,16 @@ describe('guarded answer release attestation files', () => {
       });
       const attestation = JSON.parse(readFileSync(built.output, 'utf8'));
       expect(attestation.allowed_template_ids).toEqual(['final_standings_leader']);
+    });
+  });
+
+  it('does not sign compositional routing before profile-specific release evidence exists', () => {
+    withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv }) => {
+      expect(() => buildAnswerReleaseAttestationFile(paths, {
+        ...buildEnv,
+        F1QL_ANSWER_ROUTING_MODE: 'compositional_profiles',
+        F1QL_ANSWER_DEPLOYMENT_CAPABILITY_PROFILE_IDS: 'semantic-single-source-v1'
+      })).toThrow('answer_release_compositional_evidence_unavailable');
     });
   });
 
@@ -588,6 +613,9 @@ function withReleaseFiles(
       F1QL_ANSWER_AUTHORIZATION_AUDIENCE: 'f1muse-answer',
       F1QL_ANSWER_DEPLOYMENT_ID: 'test-deployment',
       F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS: ANSWER_TEMPLATE_IDS.join(','),
+      F1QL_ANSWER_ROUTING_MODE: 'template_only',
+      F1QL_ANSWER_DEPLOYMENT_CAPABILITY_PROFILE_IDS: '',
+      F1QL_ANSWER_MIGRATED_TEMPLATE_IDS: '',
       F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES: 'internal_canary'
     };
     run({

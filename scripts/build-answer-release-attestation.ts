@@ -33,6 +33,7 @@ import {
   answerReleaseTemporalPolicy,
   answerRuntimeCeilingsFromConfig,
   ANSWER_PRINCIPAL_CLASSES,
+  AnswerRoutingMode,
   AnswerPrincipalClass,
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationHash,
@@ -43,6 +44,10 @@ import {
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
 import { ANSWER_TEMPLATE_IDS, AnswerTemplateId } from '../src/f1ql/answer-templates';
 import { SEMANTIC_CATALOG_HASH } from '../src/f1ql/semantic-catalog';
+import {
+  SEMANTIC_CAPABILITY_PROFILE_IDS,
+  SemanticCapabilityProfileId
+} from '../src/f1ql/semantic-capability-registry';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../tests/fixtures/f1ql-answer-evaluation-manifest';
 
 const MAXIMUM_INPUT_BYTES = 5_000_000;
@@ -104,6 +109,12 @@ export function buildAnswerReleaseAttestationFile(
 
   const allowedTemplateIds = parseTemplateAllowlist(env.F1QL_ANSWER_DEPLOYMENT_TEMPLATE_IDS);
   const allowedPrincipalClasses = parsePrincipalAllowlist(env.F1QL_ANSWER_DEPLOYMENT_PRINCIPAL_CLASSES);
+  const routingMode = parseRoutingMode(env.F1QL_ANSWER_ROUTING_MODE);
+  const allowedCapabilityProfileIds = parseCapabilityProfileAllowlist(env.F1QL_ANSWER_DEPLOYMENT_CAPABILITY_PROFILE_IDS);
+  const migratedTemplateIds = parseMigratedTemplateAllowlist(env.F1QL_ANSWER_MIGRATED_TEMPLATE_IDS);
+  if (routingMode !== 'template_only' || allowedCapabilityProfileIds.length > 0 || migratedTemplateIds.length > 0) {
+    throw new Error('answer_release_compositional_evidence_unavailable');
+  }
   const observedTemplates = new Set(artifact.observations.flatMap(observation => observation.template_id ? [observation.template_id] : []));
   requireEvidenceBackedTemplates(allowedTemplateIds, observedTemplates);
 
@@ -173,6 +184,9 @@ export function buildAnswerReleaseAttestationFile(
     statuses,
     runtime: answerRuntimeCeilingsFromConfig(getAnswerRuntimeConfig(env)),
     deployment_template_ids: allowedTemplateIds,
+    answer_routing_mode: routingMode,
+    deployment_capability_profile_ids: allowedCapabilityProfileIds,
+    migrated_template_ids: migratedTemplateIds,
     deployment_principal_classes: allowedPrincipalClasses
   };
   const privateKey = loadSigningKey(env.F1QL_ANSWER_RELEASE_PRIVATE_KEY_BASE64);
@@ -377,6 +391,33 @@ function parsePrincipalAllowlist(raw: string | undefined): AnswerPrincipalClass[
     throw new Error('answer_release_principal_allowlist_invalid');
   }
   return values as AnswerPrincipalClass[];
+}
+
+function parseRoutingMode(raw: string | undefined): AnswerRoutingMode {
+  if (raw !== 'template_only' && raw !== 'shadow_compare' && raw !== 'compositional_profiles') {
+    throw new Error('answer_release_routing_mode_invalid');
+  }
+  return raw;
+}
+
+function parseCapabilityProfileAllowlist(raw: string | undefined): SemanticCapabilityProfileId[] {
+  const values = raw ? raw.split(',').map(value => value.trim()) : [];
+  const known = new Set<string>(SEMANTIC_CAPABILITY_PROFILE_IDS);
+  if (new Set(values).size !== values.length || values.some(value => !known.has(value)) ||
+      values.some((value, index) => index > 0 && values[index - 1] >= value)) {
+    throw new Error('answer_release_capability_profile_allowlist_invalid');
+  }
+  return values as SemanticCapabilityProfileId[];
+}
+
+function parseMigratedTemplateAllowlist(raw: string | undefined): AnswerTemplateId[] {
+  const values = raw ? raw.split(',').map(value => value.trim()) : [];
+  const known = new Set<string>(ANSWER_TEMPLATE_IDS);
+  if (new Set(values).size !== values.length || values.some(value => !known.has(value)) ||
+      values.some((value, index) => index > 0 && values[index - 1] >= value)) {
+    throw new Error('answer_release_migrated_template_allowlist_invalid');
+  }
+  return values as AnswerTemplateId[];
 }
 
 function parseCanaryMaximumStage(raw: string | undefined): number {

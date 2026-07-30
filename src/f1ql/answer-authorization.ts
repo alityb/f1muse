@@ -94,7 +94,9 @@ export function buildAnswerExecutionAuthorization(
   try {
     proof = verifyAnswerSemanticProof(proofInput);
     if (!releaseAttestation.allowed_principal_classes.includes(principalClass) ||
-        !releaseAttestation.allowed_template_ids.includes(proof.template_id)) {
+        !releaseAttestation.allowed_template_ids.includes(proof.template_id) ||
+        (releaseAttestation.answer_routing_mode === 'compositional_profiles' &&
+          releaseAttestation.migrated_template_ids.includes(proof.template_id))) {
       throw new Error('Principal or template is not release-attested');
     }
     const materialized = materializeAnswerTemplate(proof.template_id, proof.template_variables);

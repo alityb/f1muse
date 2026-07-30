@@ -6,9 +6,16 @@ import { ANSWER_INTENT_DERIVATION_VERSION } from './answer-intent-derivation';
 import { ANSWER_QUESTION_CONTRACT_VERSION } from './answer-question';
 import { ANSWER_SEMANTIC_PROOF_VERSION } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
+import { SEMANTIC_PLANNER_VERSION } from './semantic-planner';
+import { SEMANTIC_PLAN_PROOF_VERSION } from './semantic-plan-proof';
+import {
+  SEMANTIC_CAPABILITY_PROFILE_IDS,
+  SEMANTIC_CAPABILITY_REGISTRY_HASH,
+  SemanticCapabilityProfileId
+} from './semantic-capability-registry';
 
-export const ANSWER_RELEASE_ATTESTATION_VERSION = 7 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v21' as const;
+export const ANSWER_RELEASE_ATTESTATION_VERSION = 8 as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v22' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_PRINCIPAL_CLASSES = ['internal', 'internal_canary', 'public'] as const;
 export type AnswerPrincipalClass = (typeof ANSWER_PRINCIPAL_CLASSES)[number];
@@ -28,6 +35,9 @@ const CODE_HASH_KEYS = [
   'intent_schema_version_sha256',
   'template_version_sha256',
   'proof_version_sha256',
+  'semantic_planner_version_sha256',
+  'semantic_plan_proof_version_sha256',
+  'semantic_capability_registry_sha256',
   'authorization_version_sha256'
 ] as const;
 
@@ -59,6 +69,7 @@ export type AnswerReleaseHashKey = (typeof HASH_KEYS)[number];
 export type AnswerReleaseEvidenceHashKey = (typeof ANSWER_RELEASE_EVIDENCE_HASH_KEYS)[number];
 export type AnswerRuntimeCeilings = Readonly<Record<(typeof RUNTIME_KEYS)[number], number>>;
 export type AnswerReleaseStatuses = Readonly<Record<(typeof STATUS_KEYS)[number], 'pass' | 'fail' | 'insufficient'>>;
+export type AnswerRoutingMode = 'template_only' | 'shadow_compare' | 'compositional_profiles';
 
 export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHashKey, string>> {
   readonly release_id: string;
@@ -76,6 +87,9 @@ export interface AnswerReleaseBindings extends Readonly<Record<AnswerReleaseHash
   readonly runtime_ceilings: AnswerRuntimeCeilings;
   readonly runtime_evidence: AnswerRuntimeCeilings;
   readonly allowed_template_ids: readonly string[];
+  readonly answer_routing_mode: AnswerRoutingMode;
+  readonly allowed_capability_profile_ids: readonly SemanticCapabilityProfileId[];
+  readonly migrated_template_ids: readonly string[];
   readonly allowed_principal_classes: readonly AnswerPrincipalClass[];
 }
 
@@ -102,6 +116,9 @@ export interface ActiveAnswerReleaseContext {
   readonly statuses: AnswerReleaseStatuses;
   readonly runtime: AnswerRuntimeCeilings;
   readonly deployment_template_ids: readonly string[];
+  readonly answer_routing_mode: AnswerRoutingMode;
+  readonly deployment_capability_profile_ids: readonly SemanticCapabilityProfileId[];
+  readonly migrated_template_ids: readonly string[];
   readonly deployment_principal_classes: readonly AnswerPrincipalClass[];
 }
 
@@ -155,12 +172,18 @@ export function buildActiveAnswerReleaseBindings(context: ActiveAnswerReleaseCon
     intent_schema_version_sha256: sha256(ANSWER_INTENT_SCHEMA_VERSION),
     template_version_sha256: sha256(`${ANSWER_TEMPLATE_REGISTRY_VERSION}:${ANSWER_TEMPLATE_REGISTRY_HASH}`),
     proof_version_sha256: sha256(ANSWER_SEMANTIC_PROOF_VERSION),
+    semantic_planner_version_sha256: sha256(SEMANTIC_PLANNER_VERSION),
+    semantic_plan_proof_version_sha256: sha256(SEMANTIC_PLAN_PROOF_VERSION),
+    semantic_capability_registry_sha256: sha256(SEMANTIC_CAPABILITY_REGISTRY_HASH),
     authorization_version_sha256: sha256(ANSWER_AUTHORIZATION_CODE_VERSION),
     ...context.evidence_hashes,
     statuses: context.statuses,
     runtime_ceilings: context.runtime,
     runtime_evidence: context.runtime,
     allowed_template_ids: context.deployment_template_ids,
+    answer_routing_mode: context.answer_routing_mode,
+    allowed_capability_profile_ids: context.deployment_capability_profile_ids,
+    migrated_template_ids: context.migrated_template_ids,
     allowed_principal_classes: context.deployment_principal_classes
   };
   validateExpectedBindings(value);
@@ -171,7 +194,8 @@ export function parseAnswerReleaseAttestation(input: unknown): AnswerReleaseAtte
   const value = strictRecord(input, [
     'version', 'kind', 'key_id', 'signature', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
-    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'allowed_principal_classes'
+    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'answer_routing_mode',
+    'allowed_capability_profile_ids', 'migrated_template_ids', 'allowed_principal_classes'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
       typeof value.key_id !== 'string' || !IDENTIFIER.test(value.key_id) ||
@@ -320,6 +344,9 @@ export function loadDeterministicAnswerReleaseVerificationInput(
        statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
       runtime: answerRuntimeCeilingsFromConfig(runtimeConfig),
       deployment_template_ids: templateIds,
+      answer_routing_mode: parseEnvironmentRoutingMode(env.F1QL_ANSWER_ROUTING_MODE),
+      deployment_capability_profile_ids: parseEnvironmentCapabilityProfileIds(env.F1QL_ANSWER_DEPLOYMENT_CAPABILITY_PROFILE_IDS),
+      migrated_template_ids: parseEnvironmentOptionalTemplateIds(env.F1QL_ANSWER_MIGRATED_TEMPLATE_IDS),
       deployment_principal_classes: principalClasses
     },
     temporal_policy: answerReleaseTemporalPolicy(env, nowMs)
@@ -333,7 +360,8 @@ function parseUnsignedAttestation(input: unknown): UnsignedAnswerReleaseAttestat
   const value = strictRecord(candidate, [
     'version', 'kind', 'key_id', 'release_id', 'issued_at', 'expires_at', 'commit_sha', 'derivation_version', 'deterministic_derivation_contract_sha256', 'audience', 'deployment_id',
     'canary_policy_version', 'maximum_canary_stage', 'canary_hmac_key_sha256',
-    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'allowed_principal_classes'
+    ...HASH_KEYS, 'statuses', 'runtime_ceilings', 'runtime_evidence', 'allowed_template_ids', 'answer_routing_mode',
+    'allowed_capability_profile_ids', 'migrated_template_ids', 'allowed_principal_classes'
   ]);
   if (value.version !== ANSWER_RELEASE_ATTESTATION_VERSION || value.kind !== 'f1ql_answer_release_attestation' ||
       typeof value.key_id !== 'string' || !IDENTIFIER.test(value.key_id)) {
@@ -360,7 +388,7 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
       invalid();
     }
   }
-  return {
+  const bindings: AnswerReleaseBindings = {
     release_id: value.release_id, issued_at: value.issued_at, expires_at: value.expires_at,
     commit_sha: value.commit_sha,
     derivation_version: ANSWER_INTENT_DERIVATION_VERSION,
@@ -374,8 +402,13 @@ function parseBindings(value: Record<string, unknown>): AnswerReleaseBindings {
     runtime_ceilings: parseRuntime(value.runtime_ceilings),
     runtime_evidence: parseRuntime(value.runtime_evidence),
     allowed_template_ids: parseTemplateIds(value.allowed_template_ids),
+    answer_routing_mode: parseRoutingMode(value.answer_routing_mode),
+    allowed_capability_profile_ids: parseCapabilityProfileIds(value.allowed_capability_profile_ids),
+    migrated_template_ids: parseOptionalTemplateIds(value.migrated_template_ids),
     allowed_principal_classes: parsePrincipalClasses(value.allowed_principal_classes)
   };
+  validateRoutingBindings(bindings);
+  return bindings;
 }
 
 function validateExpectedBindings(expected: AnswerReleaseBindings): void {
@@ -431,6 +464,35 @@ function parseTemplateIds(input: unknown): string[] {
   return values;
 }
 
+function parseOptionalTemplateIds(input: unknown): string[] {
+  if (!Array.isArray(input) || input.some(item => typeof item !== 'string' || !TEMPLATE_ID.test(item))) {invalid();}
+  const values = [...input] as string[];
+  if (new Set(values).size !== values.length || values.some((value, index) => index > 0 && values[index - 1] >= value)) {invalid();}
+  return values;
+}
+
+function parseCapabilityProfileIds(input: unknown): SemanticCapabilityProfileId[] {
+  if (!Array.isArray(input) || input.some(item => typeof item !== 'string' ||
+      !SEMANTIC_CAPABILITY_PROFILE_IDS.includes(item as SemanticCapabilityProfileId))) {invalid();}
+  const values = [...input] as SemanticCapabilityProfileId[];
+  if (new Set(values).size !== values.length || values.some((value, index) => index > 0 && values[index - 1] >= value)) {invalid();}
+  return values;
+}
+
+function parseRoutingMode(input: unknown): AnswerRoutingMode {
+  if (input !== 'template_only' && input !== 'shadow_compare' && input !== 'compositional_profiles') {invalid();}
+  return input;
+}
+
+function validateRoutingBindings(bindings: AnswerReleaseBindings): void {
+  if (bindings.migrated_template_ids.some(id => !bindings.allowed_template_ids.includes(id)) ||
+      (bindings.answer_routing_mode !== 'compositional_profiles' && bindings.migrated_template_ids.length > 0) ||
+      (bindings.answer_routing_mode === 'template_only' && bindings.allowed_capability_profile_ids.length > 0) ||
+      (bindings.answer_routing_mode === 'compositional_profiles' && bindings.allowed_capability_profile_ids.length === 0)) {
+    invalid();
+  }
+}
+
 function parsePrincipalClasses(input: unknown): AnswerPrincipalClass[] {
   if (!Array.isArray(input) || input.length === 0 ||
       input.some(item => typeof item !== 'string' || !ANSWER_PRINCIPAL_CLASSES.includes(item as AnswerPrincipalClass))) {
@@ -465,6 +527,30 @@ function parseEnvironmentPrincipalClasses(value: string | undefined): AnswerPrin
   }
 }
 
+function parseEnvironmentRoutingMode(value: string | undefined): AnswerRoutingMode {
+  try {
+    return parseRoutingMode(value);
+  } catch {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+}
+
+function parseEnvironmentCapabilityProfileIds(value: string | undefined): SemanticCapabilityProfileId[] {
+  try {
+    return parseCapabilityProfileIds(value ? value.split(',').map(item => item.trim()) : []);
+  } catch {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+}
+
+function parseEnvironmentOptionalTemplateIds(value: string | undefined): string[] {
+  try {
+    return parseOptionalTemplateIds(value ? value.split(',').map(item => item.trim()) : []);
+  } catch {
+    throw new AnswerReleaseAttestationError('release_not_configured');
+  }
+}
+
 function strictRecord(input: unknown, keys: readonly string[]): Record<string, unknown> {
   if (typeof input !== 'object' || input === null || Array.isArray(input) || Object.getPrototypeOf(input) !== Object.prototype) {
     invalid();
@@ -483,6 +569,8 @@ function cloneBindings(value: AnswerReleaseBindings): AnswerReleaseBindings {
     runtime_ceilings: { ...value.runtime_ceilings },
     runtime_evidence: { ...value.runtime_evidence },
     allowed_template_ids: [...value.allowed_template_ids],
+    allowed_capability_profile_ids: [...value.allowed_capability_profile_ids],
+    migrated_template_ids: [...value.migrated_template_ids],
     allowed_principal_classes: [...value.allowed_principal_classes]
   };
 }
@@ -497,6 +585,9 @@ function sameBindings(left: AnswerReleaseBindings, right: AnswerReleaseBindings)
     HASH_KEYS.every(key => left[key] === right[key]) && sameStatuses(left.statuses, right.statuses) &&
     sameRuntime(left.runtime_ceilings, right.runtime_ceilings) && sameRuntime(left.runtime_evidence, right.runtime_evidence) &&
     sameStrings(left.allowed_template_ids, right.allowed_template_ids) &&
+    left.answer_routing_mode === right.answer_routing_mode &&
+    sameStrings(left.allowed_capability_profile_ids, right.allowed_capability_profile_ids) &&
+    sameStrings(left.migrated_template_ids, right.migrated_template_ids) &&
     sameStrings(left.allowed_principal_classes, right.allowed_principal_classes);
 }
 
