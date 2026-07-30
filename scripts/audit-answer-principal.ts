@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, createPublicKey, KeyObject, sign, verify } from 'node:crypto';
 import { Pool } from 'pg';
 import { buildAnswerDatabasePoolConfig } from '../src/db/answer-database';
+import { isLoopbackHostname } from '../src/db/network-target';
 
 export const ANSWER_PRINCIPAL_AUDIT_VERSION = 4 as const;
 export const ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS = 5_000;
@@ -113,12 +114,12 @@ export interface TrustedProductionEvidenceKey {
   readonly public_key: KeyObject | string | Buffer;
 }
 
-export function requireAnswerPrincipalAuditConfiguration(environment: NodeJS.ProcessEnv = process.env): { pool_config: ReturnType<typeof buildAnswerDatabasePoolConfig>; context: AnswerPrincipalAuditContext } {
+export function requireAnswerPrincipalAuditConfiguration(environment: NodeJS.ProcessEnv = process.env): { pool_config: ReturnType<typeof buildAnswerDatabasePoolConfig> & { connectionTimeoutMillis: number }; context: AnswerPrincipalAuditContext } {
   if (environment.F1QL_ANSWER_PRINCIPAL_AUDIT_ENABLED !== 'true') throw new Error('answer_principal_audit_not_enabled');
   if (environment.F1QL_ANSWER_PRINCIPAL_AUDIT_TARGET !== 'production') throw new Error('answer_principal_audit_target_invalid');
   const connectionString = required(environment, 'F1QL_ANSWER_DATABASE_URL');
   const hostname = new URL(connectionString).hostname.toLowerCase();
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') throw new Error('answer_principal_audit_refuses_local_target');
+  if (isLoopbackHostname(hostname)) throw new Error('answer_principal_audit_refuses_local_target');
   const commitSha = required(environment, 'RAILWAY_GIT_COMMIT_SHA');
   const deploymentId = required(environment, 'F1QL_ANSWER_DEPLOYMENT_ID');
   const releaseId = required(environment, 'F1QL_ANSWER_RELEASE_ID');
@@ -127,7 +128,10 @@ export function requireAnswerPrincipalAuditConfiguration(environment: NodeJS.Pro
     throw new Error('answer_principal_audit_context_invalid');
   }
   return {
-    pool_config: buildAnswerDatabasePoolConfig(connectionString, required(environment, 'F1QL_ANSWER_DATABASE_CA_CERT_BASE64', 100_000)),
+    pool_config: {
+      ...buildAnswerDatabasePoolConfig(connectionString, required(environment, 'F1QL_ANSWER_DATABASE_CA_CERT_BASE64', 100_000)),
+      connectionTimeoutMillis: ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS
+    },
     context: {
       target: 'production', commit_sha: commitSha, deployment_id: deploymentId, release_id: releaseId, key_id: keyId,
       private_key: loadPrivateKey(required(environment, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64'))

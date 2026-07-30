@@ -184,7 +184,7 @@ export async function setupTestDatabase(
       track_id TEXT,
       qualifying_position INTEGER,
       grid_position INTEGER,
-      session_type TEXT,
+      session_type TEXT NOT NULL DEFAULT 'RACE_QUALIFYING',
       q1_time_ms INTEGER,
       q2_time_ms INTEGER,
       q3_time_ms INTEGER,
@@ -543,7 +543,7 @@ export async function setupTestDatabase(
         WHEN UPPER(BTRIM(COALESCE(rd.race_reason_retired, ''))) IN ('W', 'WD', 'WITHDRAWN') THEN 'withdrawn'
         ELSE 'dnf'
       END AS classification_status,
-      COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired) AS status_reason
+      COALESCE(NULLIF(BTRIM(rd.position_text), ''), rd.race_reason_retired)::varchar(100) AS status_reason
     FROM race_data rd JOIN race r ON r.id = rd.race_id
     WHERE LOWER(rd.type) IN ('race', 'race_result');
 
@@ -562,7 +562,8 @@ export async function setupTestDatabase(
         WHEN COALESCE(qr.is_dnf, false) THEN 'dnf'
         ELSE 'classified'
       END AS classification_status
-    FROM qualifying_results qr;
+    FROM qualifying_results qr
+    WHERE qr.session_type = 'RACE_QUALIFYING';
 
     CREATE OR REPLACE VIEW f1ql.event_metadata AS
     SELECT

@@ -15,6 +15,7 @@ import {
 } from '../../src/f1ql/answer-derivation-evidence';
 import {
   ActiveAnswerReleaseContext,
+  ANSWER_RELEASE_EVIDENCE_HASH_KEYS,
   AnswerReleaseAttestationError,
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationHash,
@@ -33,6 +34,7 @@ import {
 import { ANSWER_SEMANTIC_PROOF_VERSION } from '../../src/f1ql/answer-semantic-proof';
 import { ANSWER_TEMPLATE_IDS, ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from '../../src/f1ql/answer-templates';
 import { getF1QLProgramHash } from '../../src/f1ql/verified-programs';
+import { SEMANTIC_CATALOG_HASH } from '../../src/f1ql/semantic-catalog';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../fixtures/f1ql-answer-evaluation-manifest';
 
 const hash = (digit: string) => digit.repeat(64);
@@ -42,7 +44,8 @@ const runtime = {
 };
 const evidence = {
   manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
-  result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
+  result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d'),
+  semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
 };
 const passingStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass' } as const;
 const RELEASE_NOW_MS = Date.parse('2026-07-24T00:01:00.000Z');
@@ -68,7 +71,7 @@ const trustedKey = { key_id: 'release-key-1', public_key: trusted.publicKey };
 
 function signedFixture(active = context(), privateKey = trusted.privateKey, keyId = trustedKey.key_id) {
   const unsigned = {
-    version: 6 as const,
+    version: 7 as const,
     kind: 'f1ql_answer_release_attestation' as const,
     key_id: keyId,
     ...buildActiveAnswerReleaseBindings(active)
@@ -156,7 +159,7 @@ describe('cryptographically rooted answer release attestation', () => {
   it('rejects an independently signed deterministic derivation contract mismatch', () => {
     const active = context();
     const unsigned = {
-      version: 6 as const,
+      version: 7 as const,
       kind: 'f1ql_answer_release_attestation' as const,
       key_id: trustedKey.key_id,
       ...buildActiveAnswerReleaseBindings(active),
@@ -382,7 +385,11 @@ describe('guarded answer release attestation files', () => {
         { ...evidence, current_user_sha256: '3'.repeat(64) },
         { ...evidence, current_database_sha256: '4'.repeat(64) },
         { ...evidence, identity_view_migration_sha256: '1'.repeat(64) },
+        { ...evidence, qualifying_view_migration_sha256: '1'.repeat(64) },
         { ...evidence, role_grant_migration_sha256: '2'.repeat(64) },
+        { ...evidence, semantic_catalog_hash: '3'.repeat(64) },
+        { ...evidence, semantic_catalog_database_binding_hash: '4'.repeat(64) },
+        { ...evidence, semantic_catalog_binding_artifact_sha256: '5'.repeat(64) },
         { ...evidence, release_id: 'other-release' },
         { ...evidence, production_evidence: { ...evidence.production_evidence, key_id: 'wrong-key' } }
       ]) {
@@ -426,7 +433,7 @@ describe('guarded answer release attestation files', () => {
     });
     withReleaseFiles(makePassingArtifact(), ({ paths, buildEnv, productionPrivateKey }) => {
       const evidence = JSON.parse(readFileSync(paths.production_evidence, 'utf8'));
-      for (const field of ['identity_view_migration_sha256', 'role_grant_migration_sha256']) {
+      for (const field of ['identity_view_migration_sha256', 'qualifying_view_migration_sha256', 'role_grant_migration_sha256', 'semantic_catalog_hash']) {
         const unsigned = { ...evidence, [field]: 'f'.repeat(64), production_evidence: { key_id: evidence.production_evidence.key_id, algorithm: 'Ed25519' } };
         const resigned = { ...unsigned, production_evidence: { ...unsigned.production_evidence, signature: sign(null, getAnswerProductionEvidenceSigningPayload(unsigned), productionPrivateKey).toString('base64') } };
         writeFileSync(paths.production_evidence, `${JSON.stringify(resigned)}\n`);
@@ -532,10 +539,11 @@ function withReleaseFiles(
     const principal = passingPrincipalAudit(productionKeys.privateKey, productionKeyId);
     const principalBytes = Buffer.from(`${JSON.stringify(principal)}\n`);
     writeFileSync(paths.principal_audit, principalBytes);
-    const identityMigrationHash = createHash('sha256').update(readFileSync('migrations/20260729_f1ql_answer_identity_views.sql')).digest('hex');
+    const identityMigrationHash = createHash('sha256').update(readFileSync('migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql')).digest('hex');
+    const qualifyingMigrationHash = createHash('sha256').update(readFileSync('migrations/20260730_filter_f1ql_qualifying_classification.sql')).digest('hex');
     const roleGrantMigrationHash = createHash('sha256').update(readFileSync('migrations/20260730_f1ql_answer_role_grants.sql')).digest('hex');
     const unsignedProductionEvidence = {
-      version: 2,
+      version: 3,
       kind: 'f1ql_answer_production_evidence',
       target: 'production',
       status: 'passed',
@@ -546,7 +554,11 @@ function withReleaseFiles(
       current_user_sha256: principal.current_user_sha256,
       current_database_sha256: principal.current_database_sha256,
       identity_view_migration_sha256: identityMigrationHash,
+      qualifying_view_migration_sha256: qualifyingMigrationHash,
       role_grant_migration_sha256: roleGrantMigrationHash,
+      semantic_catalog_hash: SEMANTIC_CATALOG_HASH,
+      semantic_catalog_database_binding_hash: '3'.repeat(64),
+      semantic_catalog_binding_artifact_sha256: '4'.repeat(64),
       production_evidence: { key_id: productionKeyId, algorithm: 'Ed25519' }
     } as const;
     writeFileSync(paths.production_evidence, `${JSON.stringify({
@@ -636,8 +648,8 @@ function verificationEnv(buildEnv: NodeJS.ProcessEnv, publicKey: string, attesta
     F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: publicKey,
     GIT_COMMIT_SHA: attestation.commit_sha
   };
-  for (const key of ['manifest', 'artifact', 'report', 'result_fixture', 'principal_audit', 'production_evidence']) {
-    env[`F1QL_ANSWER_RELEASE_${key.toUpperCase()}_SHA256`] = attestation[`${key}_sha256`];
+  for (const key of ANSWER_RELEASE_EVIDENCE_HASH_KEYS) {
+    env[`F1QL_ANSWER_RELEASE_${key.toUpperCase()}`] = attestation[key];
   }
   return env;
 }

@@ -133,6 +133,7 @@ async function main(): Promise<void> {
     await setupTestDatabase(pool, { seed: false });
     await seedAnswerEvaluationFixture(pool);
     await pool.query(readFileSync('migrations/20260729_f1ql_answer_identity_views.sql', 'utf8'));
+    await pool.query(readFileSync('migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql', 'utf8'));
     const model = createAnswerIntentModel();
     const artifact = await collectAnswerObservations(answerEvaluationManifest, provider, {
       beforeTranslate,

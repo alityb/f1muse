@@ -1,0 +1,1706 @@
+{
+  "version": 1,
+  "catalog_hash": "1709482822cc38210c8b591d1cfa92f23766f83a15c34bab9f1a9420b6999a10",
+  "family_ids": [
+    "event_metadata",
+    "identity_participation",
+    "qualifying_classification",
+    "race_classification",
+    "standings"
+  ],
+  "source_ids": [
+    "answer_driver_identity",
+    "answer_event_identity",
+    "answer_season_participation",
+    "driver_standings",
+    "event_classification",
+    "event_metadata",
+    "qualifying_classification"
+  ],
+  "relationship_ids": [
+    "driver_identity_qualifying_resolution",
+    "driver_identity_race_resolution",
+    "driver_identity_standings_resolution",
+    "driver_participation_resolution",
+    "event_identity_metadata_resolution",
+    "event_identity_qualifying_resolution",
+    "event_identity_race_resolution",
+    "qualifying_shared_event",
+    "race_event_metadata",
+    "race_shared_event"
+  ],
+  "catalog": {
+    "version": 1,
+    "owner": "f1ql_governance",
+    "governance": "verified",
+    "families": [
+      {
+        "id": "event_metadata",
+        "description": "Recorded event identity, circuit, and race-date metadata.",
+        "source_ids": [
+          "event_metadata"
+        ]
+      },
+      {
+        "id": "identity_participation",
+        "description": "Operational driver and event identity values plus season participation evidence used before fact planning.",
+        "source_ids": [
+          "answer_driver_identity",
+          "answer_event_identity",
+          "answer_season_participation"
+        ]
+      },
+      {
+        "id": "qualifying_classification",
+        "description": "Recorded final qualifying classifications and available timing attributes.",
+        "source_ids": [
+          "qualifying_classification"
+        ]
+      },
+      {
+        "id": "race_classification",
+        "description": "Recorded final race classifications, points, and normalized source status.",
+        "source_ids": [
+          "event_classification"
+        ]
+      },
+      {
+        "id": "standings",
+        "description": "Recorded final-season and latest-current driver championship standings.",
+        "source_ids": [
+          "driver_standings"
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "answer_driver_identity",
+        "family_id": "identity_participation",
+        "view": "f1ql.answer_driver_identity",
+        "usage": "resolution_only",
+        "view_security_barrier": true,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Ambiguity-preserving driver identity and alias values used only for deterministic resolution.",
+        "grain": {
+          "kind": "identity_value",
+          "key": [
+            "driver_id",
+            "identity"
+          ],
+          "uniqueness": "not_unique"
+        },
+        "scope": {
+          "season_min": null,
+          "season_max": null,
+          "final_season_through": null,
+          "sessions": [
+            "identity"
+          ],
+          "temporal_rule": "Identity values are not season-scoped; participation evidence must resolve historical namesakes.",
+          "current_semantics": null
+        },
+        "dimensions": [
+          {
+            "id": "driver_id",
+            "physical_field": "driver_id",
+            "physical_type": "text",
+            "semantic_type": "driver_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null canonical driver identifier is invalid.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "identity",
+            "physical_field": "identity",
+            "physical_type": "text",
+            "semantic_type": "identity",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "Null identity values are excluded by the governed view.",
+            "filter_operators": [
+              "eq"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          }
+        ],
+        "measures": [],
+        "authority": {
+          "primary": "Operational driver and alias records projected by the governed identity view.",
+          "supplementary": [],
+          "prohibited_derivations": [
+            "Do not choose one driver from a shared identity without participation evidence or clarification."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": false,
+          "required_checks": [
+            "ambiguity_preserved",
+            "source_presence"
+          ],
+          "operation_checks": [],
+          "position_bounds": [],
+          "completeness_checks": [
+            "Preserve every matching driver candidate after normalization and deduplicate only identical driver identifiers."
+          ]
+        },
+        "coverage": {
+          "observed": "The deployed identity projection covers recorded driver names, abbreviations, identifiers, and aliases.",
+          "certified": "No claim of globally complete or historically stable aliases.",
+          "freshness": "Reflects the current operational driver and alias relations.",
+          "observed_seasons": null,
+          "certification_class": "operational_projection",
+          "freshness_class": "current_projection",
+          "unsupported_ids": [
+            "cross_domain_identity",
+            "team_identity",
+            "winner_take_all_resolution"
+          ],
+          "unsupported": [
+            "Cross-domain person identity.",
+            "Team identity.",
+            "Winner-take-all resolution of ambiguous names."
+          ]
+        },
+        "language": {
+          "names": [
+            "driver identity"
+          ],
+          "synonyms": [
+            "driver alias",
+            "driver name"
+          ],
+          "abbreviations": [
+            "driver id"
+          ],
+          "ambiguity_groups": [
+            "driver_identity"
+          ],
+          "forbidden_conflations": [
+            "Do not treat an abbreviation or surname as globally unique."
+          ]
+        }
+      },
+      {
+        "id": "answer_event_identity",
+        "family_id": "identity_participation",
+        "view": "f1ql.answer_event_identity",
+        "usage": "resolution_only",
+        "view_security_barrier": true,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Season-scoped event identity values used to resolve a literal event to recorded round candidates.",
+        "grain": {
+          "kind": "identity_value",
+          "key": [
+            "identity",
+            "round",
+            "season"
+          ],
+          "uniqueness": "not_unique"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "identity"
+          ],
+          "temporal_rule": "Event resolution is always season-scoped and returns recorded race-event keys.",
+          "current_semantics": "The 2026 inventory is the latest recorded calendar, not a live session schedule."
+        },
+        "dimensions": [
+          {
+            "id": "identity",
+            "physical_field": "identity",
+            "physical_type": "text",
+            "semantic_type": "identity",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "Null identity values are excluded by the governed view.",
+            "filter_operators": [
+              "eq"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "round",
+            "physical_field": "round",
+            "physical_type": "integer",
+            "semantic_type": "round",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null round cannot identify an event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot scope event resolution.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          }
+        ],
+        "measures": [],
+        "authority": {
+          "primary": "Operational race and Grand Prix identity records projected by the governed identity view.",
+          "supplementary": [],
+          "prohibited_derivations": [
+            "Do not infer event aliases across seasons or select among multiple matching event keys."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": false,
+          "required_checks": [
+            "ambiguity_preserved",
+            "single_resolved_identity",
+            "source_presence"
+          ],
+          "operation_checks": [],
+          "position_bounds": [],
+          "completeness_checks": [
+            "Deduplicate identical season-round candidates while preserving distinct matching events."
+          ]
+        },
+        "coverage": {
+          "observed": "Recorded event identity inventory was observed for seasons 1950 through 2026.",
+          "certified": "No complete historical event-alias or session-calendar claim.",
+          "freshness": "Reflects the current operational race and Grand Prix relations.",
+          "observed_seasons": {
+            "min": 1950,
+            "max": 2026,
+            "as_of": "2026-07-22"
+          },
+          "certification_class": "inventory_only",
+          "freshness_class": "current_projection",
+          "unsupported_ids": [
+            "cross_season_alias",
+            "session_identity",
+            "unscoped_resolution"
+          ],
+          "unsupported": [
+            "Cross-season alias inference.",
+            "Practice or sprint session identity.",
+            "Unscoped event resolution."
+          ]
+        },
+        "language": {
+          "names": [
+            "event identity"
+          ],
+          "synonyms": [
+            "grand prix identity",
+            "race event name"
+          ],
+          "abbreviations": [
+            "gp"
+          ],
+          "ambiguity_groups": [
+            "event_identity"
+          ],
+          "forbidden_conflations": [
+            "Do not treat a circuit, country, and Grand Prix name as interchangeable without a reviewed alias."
+          ]
+        }
+      },
+      {
+        "id": "answer_season_participation",
+        "family_id": "identity_participation",
+        "view": "f1ql.answer_season_participation",
+        "usage": "resolution_only",
+        "view_security_barrier": true,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Recorded entrant participation and explicit legacy fallback evidence for season-scoped driver resolution.",
+        "grain": {
+          "kind": "participation_evidence",
+          "key": [
+            "driver_id",
+            "participation_source",
+            "season"
+          ],
+          "uniqueness": "not_unique"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "season"
+          ],
+          "temporal_rule": "Participation evidence narrows identity candidates only within the requested season.",
+          "current_semantics": "Current-season evidence is recorded entrant inventory and may be incomplete."
+        },
+        "dimensions": [
+          {
+            "id": "driver_id",
+            "physical_field": "driver_id",
+            "physical_type": "text",
+            "semantic_type": "driver_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null driver identifier is invalid participation evidence.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "participation_source",
+            "physical_field": "participation_source",
+            "physical_type": "text",
+            "semantic_type": "provenance",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "Every participation row must identify entrant or legacy fallback provenance.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [
+              "entrant",
+              "legacy_fallback"
+            ],
+            "groupable": false
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot scope participation evidence.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": false
+          }
+        ],
+        "measures": [],
+        "authority": {
+          "primary": "Recorded non-test season entrants with an explicit legacy fallback projection.",
+          "supplementary": [],
+          "prohibited_derivations": [
+            "Absence of a row is not proof that a driver did not participate.",
+            "Legacy fallback must not outrank entrant evidence."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": false,
+          "unique_key_required": false,
+          "required_checks": [
+            "entrant_precedence"
+          ],
+          "operation_checks": [],
+          "position_bounds": [],
+          "completeness_checks": [
+            "Entrant evidence takes precedence over legacy fallback and duplicate driver candidates are deduplicated."
+          ]
+        },
+        "coverage": {
+          "observed": "Participation evidence is available where entrant or legacy season-entry records exist.",
+          "certified": "No complete historical entrant inventory claim.",
+          "freshness": "Reflects current entrant and legacy fallback relations.",
+          "observed_seasons": null,
+          "certification_class": "operational_projection",
+          "freshness_class": "current_projection",
+          "unsupported_ids": [
+            "constructor_membership",
+            "negative_participation",
+            "test_drivers"
+          ],
+          "unsupported": [
+            "Constructor membership claims.",
+            "Negative participation claims.",
+            "Test-driver participation."
+          ]
+        },
+        "language": {
+          "names": [
+            "season participation"
+          ],
+          "synonyms": [
+            "driver season entrant",
+            "recorded participation"
+          ],
+          "abbreviations": [],
+          "ambiguity_groups": [
+            "driver_identity"
+          ],
+          "forbidden_conflations": [
+            "Do not equate missing participation evidence with non-participation."
+          ]
+        }
+      },
+      {
+        "id": "driver_standings",
+        "family_id": "standings",
+        "view": "f1ql.driver_standings",
+        "usage": "answer_fact",
+        "view_security_barrier": false,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Recorded driver championship positions, points, and winner flags by season.",
+        "grain": {
+          "kind": "driver_season",
+          "key": [
+            "driver_id",
+            "season"
+          ],
+          "uniqueness": "verified_at_query"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "season"
+          ],
+          "temporal_rule": "Seasons through 2025 are final; 2026 is only the latest recorded current snapshot.",
+          "current_semantics": "Current standings mean the latest recorded snapshot, not live, as-of, or cutoff standings."
+        },
+        "dimensions": [
+          {
+            "id": "driver_id",
+            "physical_field": "driver_id",
+            "physical_type": "text",
+            "semantic_type": "driver_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null driver identifier is invalid at driver-season grain.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot identify a championship standing.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          }
+        ],
+        "measures": [
+          {
+            "id": "championship_position",
+            "physical_field": "championship_position",
+            "physical_type": "integer",
+            "semantic_type": "position",
+            "units": "position",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is not a calculated championship rank.",
+            "authority": "Recorded season-driver standing position.",
+            "expression_class": "column",
+            "filter_operators": [],
+            "allowed_aggregations": [
+              "min"
+            ],
+            "additivity": "non_additive",
+            "depends_on": []
+          },
+          {
+            "id": "championship_won",
+            "physical_field": "championship_won",
+            "physical_type": "boolean",
+            "semantic_type": "boolean",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is an unavailable source flag, not false.",
+            "authority": "Recorded championship-winner flag.",
+            "expression_class": "column",
+            "filter_operators": [],
+            "allowed_aggregations": [],
+            "additivity": "non_additive",
+            "depends_on": []
+          },
+          {
+            "id": "points",
+            "physical_field": "points",
+            "physical_type": "numeric",
+            "semantic_type": "number",
+            "units": "points",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is unavailable recorded championship points, not zero.",
+            "authority": "Recorded championship points; never recomputed from race points.",
+            "expression_class": "column",
+            "filter_operators": [],
+            "allowed_aggregations": [],
+            "additivity": "non_additive",
+            "depends_on": []
+          }
+        ],
+        "authority": {
+          "primary": "Recorded season_driver_standing values; FIA final championship records are external final authority.",
+          "supplementary": [
+            "Official Formula 1 championship records."
+          ],
+          "prohibited_derivations": [
+            "Do not derive championship points or rank from race classification points.",
+            "Do not label 2026 as final."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": true,
+          "required_checks": [
+            "position_bounds",
+            "source_presence",
+            "unique_grain"
+          ],
+          "operation_checks": [
+            {
+              "operation_class": "ranking",
+              "required_checks": [
+                "non_null_position",
+                "unique_relevant_position"
+              ]
+            }
+          ],
+          "position_bounds": [
+            {
+              "measure_id": "championship_position",
+              "min": 1,
+              "max": null
+            }
+          ],
+          "completeness_checks": [
+            "Scalar standings answers require exactly one recorded row for every requested driver-season."
+          ]
+        },
+        "coverage": {
+          "observed": "Recorded standings inventory was observed for seasons 1950 through 2026.",
+          "certified": "Only cited production facts and reviewed answer fixtures are independently evidenced.",
+          "freshness": "Final seasons are immutable by contract; 2026 is refreshed as a latest-recorded snapshot.",
+          "observed_seasons": {
+            "min": 1950,
+            "max": 2026,
+            "as_of": "2026-07-22"
+          },
+          "certification_class": "cited_facts_only",
+          "freshness_class": "mixed_final_and_latest",
+          "unsupported_ids": [
+            "as_of_standings",
+            "constructor_standings",
+            "historical_scoring_rules",
+            "shared_drive_completeness"
+          ],
+          "unsupported": [
+            "As-of or cutoff standings.",
+            "Constructor standings.",
+            "Historical scoring-rule reconstruction.",
+            "Shared-drive and dropped-score completeness claims."
+          ]
+        },
+        "language": {
+          "names": [
+            "driver standings"
+          ],
+          "synonyms": [
+            "championship standings",
+            "final driver standings"
+          ],
+          "abbreviations": [
+            "wdc"
+          ],
+          "ambiguity_groups": [
+            "current_final",
+            "standings_rank"
+          ],
+          "forbidden_conflations": [
+            "Do not conflate championship points with summed race points.",
+            "Do not conflate current and final standings."
+          ]
+        }
+      },
+      {
+        "id": "event_classification",
+        "family_id": "race_classification",
+        "view": "f1ql.event_classification",
+        "usage": "answer_fact",
+        "view_security_barrier": false,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Recorded race-event classification rows with official position, source points, and normalized status.",
+        "grain": {
+          "kind": "driver_event",
+          "key": [
+            "driver_id",
+            "round",
+            "season"
+          ],
+          "uniqueness": "verified_at_query"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "race"
+          ],
+          "temporal_rule": "Rows represent recorded race classifications; sprint classifications are excluded.",
+          "current_semantics": "Current-season rows are the latest recorded classifications and may be corrected upstream."
+        },
+        "dimensions": [
+          {
+            "id": "classification_status",
+            "physical_field": "classification_status",
+            "physical_type": "text",
+            "semantic_type": "status",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "Every row receives one normalized race classification status.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [
+              "classified",
+              "dnf",
+              "dns",
+              "dsq",
+              "not_classified",
+              "withdrawn"
+            ],
+            "groupable": true
+          },
+          {
+            "id": "driver_id",
+            "physical_field": "driver_id",
+            "physical_type": "text",
+            "semantic_type": "driver_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null driver identifier is invalid at driver-event grain.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "round",
+            "physical_field": "round",
+            "physical_type": "integer",
+            "semantic_type": "round",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null round cannot identify a race event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot identify a race event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "status_reason",
+            "physical_field": "status_reason",
+            "physical_type": "text",
+            "semantic_type": "text",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no explanatory position text or retirement reason was recorded.",
+            "filter_operators": [],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "team_id",
+            "physical_field": "team_id",
+            "physical_type": "text",
+            "semantic_type": "team_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no team identifier was recorded for the classification row.",
+            "filter_operators": [],
+            "allowed_values": [],
+            "groupable": false
+          }
+        ],
+        "measures": [
+          {
+            "id": "finishing_position",
+            "physical_field": "finishing_position",
+            "physical_type": "integer",
+            "semantic_type": "position",
+            "units": "position",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is not a finish position.",
+            "authority": "Recorded final race classification position.",
+            "expression_class": "column",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_aggregations": [
+              "count",
+              "max",
+              "min"
+            ],
+            "additivity": "non_additive",
+            "depends_on": []
+          },
+          {
+            "id": "points",
+            "physical_field": "points",
+            "physical_type": "numeric",
+            "semantic_type": "number",
+            "units": "points",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is unavailable race points and must not be replaced by zero.",
+            "authority": "Recorded points for this race classification only.",
+            "expression_class": "column",
+            "filter_operators": [],
+            "allowed_aggregations": [],
+            "additivity": "non_additive",
+            "depends_on": []
+          }
+        ],
+        "authority": {
+          "primary": "FIA final race classification represented by the governed race-result projection.",
+          "supplementary": [
+            "Official Formula 1 race results."
+          ],
+          "prohibited_derivations": [
+            "Do not infer missing classifications or points.",
+            "Do not treat race points as championship standings authority.",
+            "Do not include sprint results."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": true,
+          "required_checks": [
+            "position_bounds",
+            "source_presence",
+            "unique_grain"
+          ],
+          "operation_checks": [
+            {
+              "operation_class": "comparison",
+              "required_checks": [
+                "non_null_position"
+              ]
+            },
+            {
+              "operation_class": "position_filter",
+              "required_checks": [
+                "non_null_position",
+                "unique_relevant_position"
+              ]
+            }
+          ],
+          "position_bounds": [
+            {
+              "measure_id": "finishing_position",
+              "min": 1,
+              "max": 30
+            }
+          ],
+          "completeness_checks": [
+            "Comparison and join plans must reject duplicate logical driver-event keys.",
+            "Position comparisons use only non-null numeric positions."
+          ]
+        },
+        "coverage": {
+          "observed": "Recorded race classification inventory was observed for seasons 1950 through 2026.",
+          "certified": "No event-complete historical or steward-decision ledger claim.",
+          "freshness": "Current-season results may be refreshed from recorded upstream corrections.",
+          "observed_seasons": {
+            "min": 1950,
+            "max": 2026,
+            "as_of": "2026-07-22"
+          },
+          "certification_class": "cited_facts_only",
+          "freshness_class": "latest_recorded",
+          "unsupported_ids": [
+            "grid_positions",
+            "missing_steward_decisions",
+            "sprint_classification",
+            "unrecorded_events"
+          ],
+          "unsupported": [
+            "Grid positions.",
+            "Missing steward decisions.",
+            "Sprint classifications.",
+            "Unrecorded events."
+          ]
+        },
+        "language": {
+          "names": [
+            "race classification"
+          ],
+          "synonyms": [
+            "finishing order",
+            "race result"
+          ],
+          "abbreviations": [
+            "race result"
+          ],
+          "ambiguity_groups": [
+            "classification_position",
+            "race_qualifying"
+          ],
+          "forbidden_conflations": [
+            "Do not conflate finishing position with grid or qualifying position.",
+            "Do not conflate official classification with race pace."
+          ]
+        }
+      },
+      {
+        "id": "event_metadata",
+        "family_id": "event_metadata",
+        "view": "f1ql.event_metadata",
+        "usage": "answer_fact",
+        "view_security_barrier": false,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Recorded race-event identifier, name, circuit, and date metadata.",
+        "grain": {
+          "kind": "event",
+          "key": [
+            "round",
+            "season"
+          ],
+          "uniqueness": "verified_at_query"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "race"
+          ],
+          "temporal_rule": "Metadata is keyed to the recorded race event and does not establish separate session schedules.",
+          "current_semantics": "Current-season metadata is the latest recorded calendar projection."
+        },
+        "dimensions": [
+          {
+            "id": "circuit_id",
+            "physical_field": "circuit_id",
+            "physical_type": "text",
+            "semantic_type": "circuit_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no source circuit identifier was recorded.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "date",
+            "physical_field": "date",
+            "physical_type": "date",
+            "semantic_type": "date",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means the race date is unavailable in the source.",
+            "filter_operators": [
+              "eq",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "event_id",
+            "physical_field": "event_id",
+            "physical_type": "text",
+            "semantic_type": "event_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means neither a Grand Prix identifier nor circuit fallback was recorded.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "event_name",
+            "physical_field": "event_name",
+            "physical_type": "text",
+            "semantic_type": "text",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no Grand Prix or official race name was recorded.",
+            "filter_operators": [
+              "eq"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "round",
+            "physical_field": "round",
+            "physical_type": "integer",
+            "semantic_type": "round",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null round cannot identify an event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot identify an event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          }
+        ],
+        "measures": [],
+        "authority": {
+          "primary": "Recorded race and Grand Prix metadata; FIA archive material is external authority.",
+          "supplementary": [
+            "Official Formula 1 archive material."
+          ],
+          "prohibited_derivations": [
+            "Do not infer a general session calendar.",
+            "Do not normalize circuit identifiers into event identifiers."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": true,
+          "required_checks": [
+            "source_presence",
+            "unique_event_key"
+          ],
+          "operation_checks": [],
+          "position_bounds": [],
+          "completeness_checks": [
+            "Event joins require exactly one metadata row for each admitted season-round key."
+          ]
+        },
+        "coverage": {
+          "observed": "Recorded event metadata inventory was observed for seasons 1950 through 2026.",
+          "certified": "No complete historical alias, date, circuit, or session-calendar claim.",
+          "freshness": "Reflects the current race and Grand Prix relations.",
+          "observed_seasons": {
+            "min": 1950,
+            "max": 2026,
+            "as_of": "2026-07-22"
+          },
+          "certification_class": "cited_facts_only",
+          "freshness_class": "current_projection",
+          "unsupported_ids": [
+            "historical_alias_completeness",
+            "session_calendar",
+            "venue_normalization"
+          ],
+          "unsupported": [
+            "General practice, qualifying, or sprint schedules.",
+            "Historical alias completeness.",
+            "Venue normalization."
+          ]
+        },
+        "language": {
+          "names": [
+            "event metadata"
+          ],
+          "synonyms": [
+            "grand prix metadata",
+            "race date"
+          ],
+          "abbreviations": [
+            "gp metadata"
+          ],
+          "ambiguity_groups": [
+            "event_identity",
+            "session_scope"
+          ],
+          "forbidden_conflations": [
+            "Do not conflate circuit identity with Grand Prix identity.",
+            "Do not infer separate session dates from the race date."
+          ]
+        }
+      },
+      {
+        "id": "qualifying_classification",
+        "family_id": "qualifying_classification",
+        "view": "f1ql.qualifying_classification",
+        "usage": "answer_fact",
+        "view_security_barrier": false,
+        "owner": "f1ql_governance",
+        "governance": "verified",
+        "description": "Recorded qualifying classification rows with available best-session timing and elimination attributes.",
+        "grain": {
+          "kind": "driver_event",
+          "key": [
+            "driver_id",
+            "round",
+            "season"
+          ],
+          "uniqueness": "required"
+        },
+        "scope": {
+          "season_min": 1950,
+          "season_max": 2026,
+          "final_season_through": 2025,
+          "sessions": [
+            "qualifying"
+          ],
+          "temporal_rule": "Rows describe qualifying classification, not post-penalty starting grid position.",
+          "current_semantics": "Current-season rows are the latest recorded qualifying classifications."
+        },
+        "dimensions": [
+          {
+            "id": "best_session",
+            "physical_field": "best_session",
+            "physical_type": "text",
+            "semantic_type": "text",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no source session label accompanies the best time.",
+            "filter_operators": [],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "classification_status",
+            "physical_field": "classification_status",
+            "physical_type": "text",
+            "semantic_type": "status",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "Every row is classified as classified, dnf, or dns from source flags.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [
+              "classified",
+              "dnf",
+              "dns"
+            ],
+            "groupable": true
+          },
+          {
+            "id": "driver_id",
+            "physical_field": "driver_id",
+            "physical_type": "text",
+            "semantic_type": "driver_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null driver identifier is invalid at driver-event grain.",
+            "filter_operators": [
+              "eq",
+              "in"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "eliminated_in_round",
+            "physical_field": "eliminated_in_round",
+            "physical_type": "text",
+            "semantic_type": "text",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null does not imply an elimination session.",
+            "filter_operators": [],
+            "allowed_values": [],
+            "groupable": false
+          },
+          {
+            "id": "round",
+            "physical_field": "round",
+            "physical_type": "integer",
+            "semantic_type": "round",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null round cannot identify a qualifying event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "season",
+            "physical_field": "season",
+            "physical_type": "integer",
+            "semantic_type": "season",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null season cannot identify a qualifying event.",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_values": [],
+            "groupable": true
+          },
+          {
+            "id": "team_id",
+            "physical_field": "team_id",
+            "physical_type": "text",
+            "semantic_type": "team_id",
+            "units": null,
+            "physical_nullable": true,
+            "nullable": false,
+            "null_meaning": "A null team identifier is invalid for a qualifying row.",
+            "filter_operators": [],
+            "allowed_values": [],
+            "groupable": false
+          }
+        ],
+        "measures": [
+          {
+            "id": "best_time_ms",
+            "physical_field": "best_time_ms",
+            "physical_type": "integer",
+            "semantic_type": "duration_ms",
+            "units": "milliseconds",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null means no qualifying time was recorded.",
+            "authority": "Best recorded qualifying time in the source row.",
+            "expression_class": "column",
+            "filter_operators": [],
+            "allowed_aggregations": [],
+            "additivity": "non_additive",
+            "depends_on": []
+          },
+          {
+            "id": "qualifying_position",
+            "physical_field": "qualifying_position",
+            "physical_type": "integer",
+            "semantic_type": "position",
+            "units": "position",
+            "physical_nullable": true,
+            "nullable": true,
+            "null_meaning": "Null is not a grid or calculated qualifying position.",
+            "authority": "Recorded qualifying classification position.",
+            "expression_class": "column",
+            "filter_operators": [
+              "eq",
+              "in",
+              "range"
+            ],
+            "allowed_aggregations": [
+              "count",
+              "max",
+              "min"
+            ],
+            "additivity": "non_additive",
+            "depends_on": []
+          }
+        ],
+        "authority": {
+          "primary": "FIA final qualifying classification represented by the governed qualifying projection.",
+          "supplementary": [
+            "Official Formula 1 qualifying reports."
+          ],
+          "prohibited_derivations": [
+            "Do not infer grid position from qualifying position.",
+            "Do not infer missing timing or elimination values.",
+            "Do not claim unsupported steward statuses."
+          ]
+        },
+        "integrity": {
+          "source_presence_required": true,
+          "unique_key_required": true,
+          "required_checks": [
+            "position_bounds",
+            "source_presence",
+            "unique_grain"
+          ],
+          "operation_checks": [
+            {
+              "operation_class": "comparison",
+              "required_checks": [
+                "non_null_position"
+              ]
+            },
+            {
+              "operation_class": "position_filter",
+              "required_checks": [
+                "non_null_position",
+                "unique_relevant_position"
+              ]
+            },
+            {
+              "operation_class": "ranking",
+              "required_checks": [
+                "non_null_position",
+                "unique_relevant_position"
+              ]
+            }
+          ],
+          "position_bounds": [
+            {
+              "measure_id": "qualifying_position",
+              "min": 1,
+              "max": 30
+            }
+          ],
+          "completeness_checks": [
+            "Comparison and aggregate plans require unique driver-event keys.",
+            "Position rankings require unique relevant positions within each event."
+          ]
+        },
+        "coverage": {
+          "observed": "Recorded qualifying inventory was observed for seasons 1950 through 2026.",
+          "certified": "No per-event complete historical qualifying or steward-decision claim.",
+          "freshness": "Reflects the current qualifying_results relation.",
+          "observed_seasons": {
+            "min": 1950,
+            "max": 2026,
+            "as_of": "2026-07-22"
+          },
+          "certification_class": "cited_facts_only",
+          "freshness_class": "current_projection",
+          "unsupported_ids": [
+            "historical_session_completeness",
+            "post_penalty_grid",
+            "steward_status_ledger"
+          ],
+          "unsupported": [
+            "Disqualification or withdrawal ledger.",
+            "Historical session completeness.",
+            "Post-penalty grid positions."
+          ]
+        },
+        "language": {
+          "names": [
+            "qualifying classification"
+          ],
+          "synonyms": [
+            "qualifying order",
+            "qualifying result"
+          ],
+          "abbreviations": [
+            "quali"
+          ],
+          "ambiguity_groups": [
+            "classification_position",
+            "race_qualifying"
+          ],
+          "forbidden_conflations": [
+            "Do not conflate qualifying position with qualifying time gap.",
+            "Do not conflate qualifying position with starting grid position."
+          ]
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "id": "driver_identity_qualifying_resolution",
+        "from_source": "answer_driver_identity",
+        "to_source": "qualifying_classification",
+        "from_keys": [
+          "driver_id"
+        ],
+        "to_keys": [
+          "driver_id"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key"
+        ],
+        "integrity_checks": [
+          "Resolve exactly one canonical driver before applying a qualifying fact filter."
+        ]
+      },
+      {
+        "id": "driver_identity_race_resolution",
+        "from_source": "answer_driver_identity",
+        "to_source": "event_classification",
+        "from_keys": [
+          "driver_id"
+        ],
+        "to_keys": [
+          "driver_id"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key"
+        ],
+        "integrity_checks": [
+          "Resolve exactly one canonical driver before applying a race fact filter."
+        ]
+      },
+      {
+        "id": "driver_identity_standings_resolution",
+        "from_source": "answer_driver_identity",
+        "to_source": "driver_standings",
+        "from_keys": [
+          "driver_id"
+        ],
+        "to_keys": [
+          "driver_id"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key"
+        ],
+        "integrity_checks": [
+          "Resolve exactly one canonical driver before applying a standings fact filter."
+        ]
+      },
+      {
+        "id": "driver_participation_resolution",
+        "from_source": "answer_driver_identity",
+        "to_source": "answer_season_participation",
+        "from_keys": [
+          "driver_id"
+        ],
+        "to_keys": [
+          "driver_id"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "left",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [
+          {
+            "side": "to",
+            "concept_id": "season",
+            "operator": "eq_parameter",
+            "parameter": "season"
+          }
+        ],
+        "required_checks": [
+          "deduplicate_keys",
+          "entrant_precedence"
+        ],
+        "integrity_checks": [
+          "Preserve ambiguity when multiple drivers retain same-priority participation evidence.",
+          "Prefer entrant evidence over legacy fallback."
+        ]
+      },
+      {
+        "id": "event_identity_metadata_resolution",
+        "from_source": "answer_event_identity",
+        "to_source": "event_metadata",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_one",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key",
+          "unique_to_key"
+        ],
+        "integrity_checks": [
+          "Deduplicate identical event keys.",
+          "Require exactly one retained event key before fact planning."
+        ]
+      },
+      {
+        "id": "event_identity_qualifying_resolution",
+        "from_source": "answer_event_identity",
+        "to_source": "qualifying_classification",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key"
+        ],
+        "integrity_checks": [
+          "Resolve exactly one season-round key before applying qualifying fact filters."
+        ]
+      },
+      {
+        "id": "event_identity_race_resolution",
+        "from_source": "answer_event_identity",
+        "to_source": "event_classification",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "from_to",
+        "optionality": "inner",
+        "join_stage": "resolution",
+        "filter_propagation": "resolved_identity",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "deduplicate_keys",
+          "single_resolved_key"
+        ],
+        "integrity_checks": [
+          "Resolve exactly one season-round key before applying race fact filters."
+        ]
+      },
+      {
+        "id": "qualifying_shared_event",
+        "from_source": "qualifying_classification",
+        "to_source": "qualifying_classification",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "bidirectional",
+        "optionality": "inner",
+        "join_stage": "row",
+        "filter_propagation": "same_event",
+        "governance": "verified",
+        "required_branch_filters": [
+          "driver_id"
+        ],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "non_null_measure",
+          "source_presence",
+          "unique_filtered_branch"
+        ],
+        "integrity_checks": [
+          "Filter each branch to one driver before joining.",
+          "Require non-null positions and unique driver-event keys."
+        ]
+      },
+      {
+        "id": "race_event_metadata",
+        "from_source": "event_classification",
+        "to_source": "event_metadata",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_one",
+        "direction": "from_to",
+        "optionality": "left",
+        "join_stage": "row",
+        "filter_propagation": "same_event",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "source_presence",
+          "unique_to_key"
+        ],
+        "integrity_checks": [
+          "Preserve classification source grain.",
+          "Require exactly one metadata row and a nonblank requested metadata key."
+        ]
+      },
+      {
+        "id": "race_shared_event",
+        "from_source": "event_classification",
+        "to_source": "event_classification",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_many",
+        "direction": "bidirectional",
+        "optionality": "inner",
+        "join_stage": "row",
+        "filter_propagation": "same_event",
+        "governance": "verified",
+        "required_branch_filters": [
+          "driver_id"
+        ],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "non_null_measure",
+          "source_presence",
+          "unique_filtered_branch"
+        ],
+        "integrity_checks": [
+          "Filter each branch to one driver before joining.",
+          "Require non-null positions and unique driver-event keys."
+        ]
+      }
+    ],
+    "excluded_families": [
+      "constructors",
+      "grid",
+      "official_historical_laps",
+      "pace",
+      "sprint",
+      "weather"
+    ]
+  }
+}

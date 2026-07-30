@@ -304,8 +304,8 @@ describe('deterministic answer formatting', () => {
 
   it('formats qualifying and metadata source contracts', () => {
     const qualifying: F1QLProgram = { version: 1, root: { op: 'qualifying_classification', season: 2025, round: 2, limit: 30, filters: { driver_id: 'piastri' } } };
-    expect(formatAnswerRows(qualifying, approved(qualifying), [{ driver_id: 'piastri', qualifying_position: 1, best_time_ms: '90250', best_session: 'q3', eliminated_in_round: null, classification_status: 'classified' }]).answer.facts[0])
-      .toEqual({ subject: 'piastri', values: { qualifying_position: '1', best_time_ms: '90250', best_session: 'q3', eliminated_in_round: null, classification_status: 'classified' } });
+    expect(formatAnswerRows(qualifying, approved(qualifying), [{ driver_id: 'piastri', qualifying_position: 1, best_time_ms: '90250', best_session: 'Q1', eliminated_in_round: 'Q1', classification_status: 'classified' }]).answer.facts[0])
+      .toEqual({ subject: 'piastri', values: { qualifying_position: '1', best_time_ms: '90250', best_session: 'Q1', eliminated_in_round: 'Q1', classification_status: 'classified' } });
 
     const metadata: F1QLProgram = { version: 1, root: { op: 'event_metadata', season: 2025, round: 3, session_scope: 'race' } };
     expect(formatAnswerRows(metadata, approved(metadata), [{ event_id: 'japanese-grand-prix', event_name: 'Japanese Grand Prix', circuit_id: 'suzuka', date: '2025-04-06', session_scope: 'race' }]).answer.facts[0])

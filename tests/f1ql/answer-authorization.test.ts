@@ -32,7 +32,8 @@ const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): Act
   canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: hash('7'),
   evidence_hashes: {
     manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
-    result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
+    result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d'),
+    semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
   },
   statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
   runtime, deployment_template_ids: ['final_standings_leader'], deployment_principal_classes: ['internal'], ...overrides
@@ -40,7 +41,7 @@ const activeContext = (overrides: Partial<ActiveAnswerReleaseContext> = {}): Act
 
 function release(context = activeContext()) {
   const unsigned = {
-    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
@@ -88,7 +89,7 @@ describe('one-time answer execution authorization', () => {
       audience: 'f1muse-answer', deployment_id: 'test-deployment',
       proof_hash: semanticProof.proof_hash, template_id: 'final_standings_leader', program_hash: semanticProof.program_hash,
       capability: { source: 'final_driver_standings', operation: 'rank', season: 2025, filters: [] },
-      active_versions: { authorization: 'answer-authorization-v20', release_attestation: 6 }
+      active_versions: { authorization: 'answer-authorization-v21', release_attestation: 7 }
     });
     expect(authorization.expires_at_ms - authorization.issued_at_ms).toBe(ANSWER_AUTHORIZATION_TTL_MS);
     expect(authorization.authorization_hash).toMatch(/^[a-f0-9]{64}$/);

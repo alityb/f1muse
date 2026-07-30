@@ -35,13 +35,14 @@ function release(templateId: string, deploymentId = 'execution-test-deployment')
     canary_policy_version: 'answer-canary-hmac-v1', maximum_canary_stage: 100, canary_hmac_key_sha256: canaryKeyHash,
     evidence_hashes: {
       manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
-      result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
+      result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d'),
+      semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
     },
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
     runtime, deployment_template_ids: [templateId], deployment_principal_classes: ['internal']
   };
   const unsigned = {
-    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: trustedKey.key_id, ...buildActiveAnswerReleaseBindings(context)
   };
   const raw = { ...unsigned, signature: sign(null, getAnswerReleaseAttestationSigningPayload(unsigned), keyPair.privateKey).toString('base64') };
@@ -315,6 +316,7 @@ describe('answer execution restricted-role participation', () => {
     await setupTestDatabase(adminPool, { seed: false });
     await adminPool.query('CREATE TABLE driver_aliases (driver_id text, alias text, is_primary boolean)');
     await adminPool.query(readFileSync(path.resolve(process.cwd(), 'migrations/20260729_f1ql_answer_identity_views.sql'), 'utf8'));
+    await adminPool.query(readFileSync(path.resolve(process.cwd(), 'migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql'), 'utf8'));
     await adminPool.query(`CREATE ROLE ${restrictedRole} NOLOGIN`);
     await adminPool.query(`GRANT USAGE ON SCHEMA f1ql TO ${restrictedRole}`);
     await adminPool.query(`GRANT SELECT ON f1ql.driver_standings, f1ql.event_classification, f1ql.qualifying_classification, f1ql.event_metadata, f1ql.answer_driver_identity, f1ql.answer_event_identity, f1ql.answer_season_participation TO ${restrictedRole}`);

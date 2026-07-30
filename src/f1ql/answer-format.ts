@@ -669,7 +669,7 @@ function displayText(value: unknown, field: string): string | null {
 }
 
 function isNumericClassificationField(field: string): boolean {
-  return field === 'finishing_position' || field === 'points' || field === 'qualifying_position' || field === 'best_time_ms' || field === 'eliminated_in_round';
+  return field === 'finishing_position' || field === 'points' || field === 'qualifying_position' || field === 'best_time_ms';
 }
 
 function requiredString(value: unknown, field: string): string {

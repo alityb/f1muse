@@ -1,10 +1,11 @@
 # F1QL Source Contracts
 
-Contract version: `v1`  
-Effective: 2026-07-22  
+Contract version: `v2`
+Effective: 2026-07-30
 Applies to: `f1ql.driver_standings`, `f1ql.event_classification`,
 `f1ql.qualifying_classification`, `f1ql.event_metadata`, and
-`f1ql.lap_pace`.
+`f1ql.lap_pace`, plus `f1ql.answer_driver_identity`,
+`f1ql.answer_event_identity`, and `f1ql.answer_season_participation`.
 
 This is the definitive source contract for the F1QL read surface. It specifies
 what each relation means, not that every stored row has independent external
@@ -16,7 +17,7 @@ what was actually observed in production:
 
 - F1QL reads only the named `f1ql` views. It must not substitute a similarly
   shaped base table or derive an official total from another source.
-- `driver_id` is canonicalized at the view boundary by replacing `_` with `-`.
+- `driver_id` is canonicalized at every governed view boundary by replacing `_` with `-`.
   Callers must use the hyphenated identifier. `team_id`, `event_id`, and
   `circuit_id` are source identifiers, not a cross-source alias service.
 - A missing row means the relation has no matching source row. It does not mean
@@ -29,6 +30,16 @@ what was actually observed in production:
   standings, and qualifying seasons 1950-2026; pace only in 2026 (10 events,
   22 drivers, 9,577 raw v2 rows). See ledger row 21 and
   [`PRODUCTION_DATABASE_AUTHORITY_AUDIT.md`](PRODUCTION_DATABASE_AUTHORITY_AUDIT.md).
+
+## Identity And Participation
+
+The three answer identity views are operational resolution inputs, not factual
+answer sources. Driver identity preserves all matching canonical IDs and aliases;
+event identity is always resolved within one literal season; season participation
+uses entrant evidence before legacy fallback and must be joined on both canonical
+`driver_id` and the requested `season`. Missing participation is not proof of
+non-participation. These security-barrier views expose only the reviewed columns,
+and their driver IDs use the same hyphenated key as the fact views.
 
 ## Standings: `f1ql.driver_standings`
 
@@ -104,7 +115,8 @@ classifications and source-specific historical variation is unverified.
 
 ## Qualifying Classification: `f1ql.qualifying_classification`
 
-**Authority and coverage.** The view projects `qualifying_results`. FIA final
+**Authority and coverage.** The view projects only `qualifying_results` rows
+whose `session_type` is `RACE_QUALIFYING`; sprint qualifying is excluded. FIA final
 qualifying classifications are the external factual authority; official Formula
 1 qualifying reports are supplementary evidence. Production observed seasons
 1950-2026, but that observation is not a per-event completeness claim.
@@ -128,8 +140,8 @@ final-classification Bearman DNS edge (source links in
 
 **Unsupported boundary.** This relation has no DSQ, withdrawn, or
 not-classified qualifying status; it must not be treated as a complete session
-steward-decision ledger. Historical qualifying completeness and cross-source
-driver aliases are unverified.
+steward-decision ledger. Sprint qualifying, historical qualifying completeness,
+and cross-source driver aliases are unverified.
 
 ## Event Metadata: `f1ql.event_metadata`
 
@@ -270,7 +282,7 @@ semantics are in `docs/OFFICIAL_EVENT_MEAN_METRIC.md`.
 
 Local generated F1QL evidence is
 `data/phase8-belgium-2022-f1ql-result.json` with SHA-256
-`d0dfc64f38d6d081562d206273d1322559bb4fdc034fa944a6af9967330ca865`.
+`4f38fe42338e863df55eb9441308e44e7452bde1cfe6694b8a9ca1c2ac3bbcde`.
 No persistent runtime role or production grant exists. The answer policy
 explicitly rejects both official timing operations, and neither migration has been applied nor
 has historical data been ingested in production.

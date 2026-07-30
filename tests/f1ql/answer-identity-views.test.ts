@@ -7,6 +7,7 @@ import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 let pool: Pool;
 let migration: string;
+let normalizationMigration: string;
 let roleMigration: string;
 const role = 'f1ql_answer_view_test';
 
@@ -16,8 +17,10 @@ describe('answer-only identity views', () => {
     await setupTestDatabase(pool, { seed: false });
     await pool.query('CREATE TABLE driver_aliases (driver_id text, alias text, is_primary boolean)');
     migration = readFileSync(path.resolve(process.cwd(), 'migrations/20260729_f1ql_answer_identity_views.sql'), 'utf8');
+    normalizationMigration = readFileSync(path.resolve(process.cwd(), 'migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql'), 'utf8');
     roleMigration = readFileSync(path.resolve(process.cwd(), 'migrations/20260730_f1ql_answer_role_grants.sql'), 'utf8');
     await pool.query(migration);
+    await pool.query(normalizationMigration);
     await pool.query(`CREATE ROLE ${role} NOLOGIN; GRANT USAGE ON SCHEMA f1ql TO ${role}; GRANT SELECT ON f1ql.answer_event_identity, f1ql.answer_driver_identity, f1ql.answer_season_participation TO ${role}`);
     await pool.query(`
       INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation) VALUES
@@ -43,6 +46,7 @@ describe('answer-only identity views', () => {
 
   it('exposes only the reviewed columns and is idempotent', async () => {
     await pool.query(migration);
+    await pool.query(normalizationMigration);
     const columns = await pool.query<{ table_name: string; column_name: string }>(`
       SELECT table_name, column_name FROM information_schema.columns
       WHERE table_schema = 'f1ql' AND table_name LIKE 'answer_%'

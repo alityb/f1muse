@@ -42,6 +42,7 @@ import {
 } from '../src/f1ql/answer-release-attestation';
 import { getAnswerRuntimeConfig } from '../src/f1ql/answer-runtime';
 import { ANSWER_TEMPLATE_IDS, AnswerTemplateId } from '../src/f1ql/answer-templates';
+import { SEMANTIC_CATALOG_HASH } from '../src/f1ql/semantic-catalog';
 import { answerEvaluationManifest, answerMetamorphicGroups } from '../tests/fixtures/f1ql-answer-evaluation-manifest';
 
 const MAXIMUM_INPUT_BYTES = 5_000_000;
@@ -51,7 +52,8 @@ const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const COMMITTED_RESULT_FIXTURE = join(__dirname, '../tests/fixtures/f1ql-answer-evaluation-results.json');
-const IDENTITY_VIEW_MIGRATION = join(__dirname, '../migrations/20260729_f1ql_answer_identity_views.sql');
+const IDENTITY_VIEW_MIGRATION = join(__dirname, '../migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql');
+const QUALIFYING_VIEW_MIGRATION = join(__dirname, '../migrations/20260730_filter_f1ql_qualifying_classification.sql');
 const ROLE_GRANT_MIGRATION = join(__dirname, '../migrations/20260730_f1ql_answer_role_grants.sql');
 
 export interface AnswerReleaseBuildPaths {
@@ -128,8 +130,10 @@ export function buildAnswerReleaseAttestationFile(
   requirePassingPrincipalAudit(principalAudit);
   requireFreshEvidence(principalAudit.audited_at, requiredAgeLimit(env, 'F1QL_ANSWER_PRINCIPAL_AUDIT_MAX_AGE_MS'), nowMs, 'answer_release_principal_audit_stale');
   const identityMigration = readBoundedRegularFile(IDENTITY_VIEW_MIGRATION);
+  const qualifyingMigration = readBoundedRegularFile(QUALIFYING_VIEW_MIGRATION);
   const roleGrantMigration = readBoundedRegularFile(ROLE_GRANT_MIGRATION);
-  verifyAnswerProductionEvidence(parseJson(productionFile.content), productionEvidenceKey, {
+  const parsedProductionEvidence = parseAnswerProductionEvidence(parseJson(productionFile.content));
+  const productionEvidence = verifyAnswerProductionEvidence(parsedProductionEvidence, productionEvidenceKey, {
     commit_sha: commitSha,
     deployment_id: deploymentId,
     release_id: releaseId,
@@ -137,7 +141,11 @@ export function buildAnswerReleaseAttestationFile(
     current_user_sha256: principalAudit.current_user_sha256,
     current_database_sha256: principalAudit.current_database_sha256,
     identity_view_migration_sha256: identityMigration.sha256,
-    role_grant_migration_sha256: roleGrantMigration.sha256
+    qualifying_view_migration_sha256: qualifyingMigration.sha256,
+    role_grant_migration_sha256: roleGrantMigration.sha256,
+    semantic_catalog_hash: SEMANTIC_CATALOG_HASH,
+    semantic_catalog_database_binding_hash: parsedProductionEvidence.semantic_catalog_database_binding_hash,
+    semantic_catalog_binding_artifact_sha256: parsedProductionEvidence.semantic_catalog_binding_artifact_sha256
   });
 
   const statuses: AnswerReleaseStatuses = { semantic: 'pass', safety: 'pass', linker: 'pass' };
@@ -157,7 +165,10 @@ export function buildAnswerReleaseAttestationFile(
       report_sha256: reportFile.sha256,
       result_fixture_sha256: resultFile.sha256,
       principal_audit_sha256: principalFile.sha256,
-      production_evidence_sha256: productionFile.sha256
+      production_evidence_sha256: productionFile.sha256,
+      semantic_catalog_hash: productionEvidence.semantic_catalog_hash,
+      semantic_catalog_database_binding_hash: productionEvidence.semantic_catalog_database_binding_hash,
+      semantic_catalog_binding_artifact_sha256: productionEvidence.semantic_catalog_binding_artifact_sha256
     },
     statuses,
     runtime: answerRuntimeCeilingsFromConfig(getAnswerRuntimeConfig(env)),
@@ -277,11 +288,15 @@ export interface AnswerProductionEvidenceBindings {
   current_user_sha256: string;
   current_database_sha256: string;
   identity_view_migration_sha256: string;
+  qualifying_view_migration_sha256: string;
   role_grant_migration_sha256: string;
+  semantic_catalog_hash: string;
+  semantic_catalog_database_binding_hash: string;
+  semantic_catalog_binding_artifact_sha256: string;
 }
 
 export interface AnswerProductionEvidence extends AnswerProductionEvidenceBindings {
-  version: 2;
+  version: 3;
   kind: 'f1ql_answer_production_evidence';
   target: 'production';
   status: 'passed';
@@ -296,15 +311,18 @@ export function parseAnswerProductionEvidence(input: unknown): AnswerProductionE
   const evidence = strictRecord(input, [
     'version', 'kind', 'target', 'status', 'commit_sha', 'deployment_id', 'release_id', 'principal_audit_sha256',
     'current_user_sha256', 'current_database_sha256',
-    'identity_view_migration_sha256', 'role_grant_migration_sha256', 'production_evidence'
+    'identity_view_migration_sha256', 'qualifying_view_migration_sha256', 'role_grant_migration_sha256',
+    'semantic_catalog_hash', 'semantic_catalog_database_binding_hash', 'semantic_catalog_binding_artifact_sha256', 'production_evidence'
   ]);
   const signature = strictRecord(evidence.production_evidence, ['key_id', 'algorithm', 'signature']);
-  if (evidence.version !== 2 || evidence.kind !== 'f1ql_answer_production_evidence' || evidence.target !== 'production' || evidence.status !== 'passed' ||
+  if (evidence.version !== 3 || evidence.kind !== 'f1ql_answer_production_evidence' || evidence.target !== 'production' || evidence.status !== 'passed' ||
       !COMMIT_SHA.test(String(evidence.commit_sha)) || !IDENTIFIER.test(String(evidence.deployment_id)) ||
       !IDENTIFIER.test(String(evidence.release_id)) ||
       !SHA256.test(String(evidence.principal_audit_sha256)) || !SHA256.test(String(evidence.current_user_sha256)) ||
       !SHA256.test(String(evidence.current_database_sha256)) || !SHA256.test(String(evidence.identity_view_migration_sha256)) ||
-      !SHA256.test(String(evidence.role_grant_migration_sha256)) || !IDENTIFIER.test(String(signature.key_id)) ||
+      !SHA256.test(String(evidence.qualifying_view_migration_sha256)) || !SHA256.test(String(evidence.role_grant_migration_sha256)) ||
+      !SHA256.test(String(evidence.semantic_catalog_hash)) || !SHA256.test(String(evidence.semantic_catalog_database_binding_hash)) ||
+      !SHA256.test(String(evidence.semantic_catalog_binding_artifact_sha256)) || !IDENTIFIER.test(String(signature.key_id)) ||
       signature.algorithm !== 'Ed25519' || typeof signature.signature !== 'string' ||
       !/^[A-Za-z0-9+/]{86}==$/.test(signature.signature) || !isCanonicalBase64Length(signature.signature, 64)) {
     throw new Error('answer_release_production_evidence_invalid');

@@ -155,6 +155,7 @@ async function main(): Promise<void> {
     await setupTestDatabase(pool, { seed: false });
     await seedAnswerEvaluationFixture(pool);
     await pool.query(readFileSync('migrations/20260729_f1ql_answer_identity_views.sql', 'utf8'));
+    await pool.query(readFileSync('migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql', 'utf8'));
     const artifact = await collectAnswerDerivationEvidence(answerEvaluationManifest, pool, new Date().toISOString(), {
       key_id: requiredEnvironment('F1QL_ANSWER_EVALUATION_KEY_ID'),
       private_key_base64: requiredEnvironment('F1QL_ANSWER_EVALUATION_PRIVATE_KEY_BASE64')

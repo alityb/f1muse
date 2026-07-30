@@ -23,6 +23,7 @@ beforeAll(async () => {
   await setupTestDatabase(pool, { seed: false });
   await seedAnswerEvaluationFixture(pool);
   await pool.query(readFileSync('migrations/20260729_f1ql_answer_identity_views.sql', 'utf8'));
+  await pool.query(readFileSync('migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql', 'utf8'));
 });
 
 afterAll(async () => {
@@ -67,10 +68,10 @@ describe('answer evaluation generated results', () => {
     const eventResolver = new AnswerEventIdentityResolver(pool);
     const driverResolver = new AnswerDriverIdentityResolver(pool);
     expect(await driverResolver.inventoryMentions('Where did Max Verstappen finish?', 2025)).toEqual([
-      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max_verstappen'], active_candidates: ['max_verstappen'] })
+      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] })
     ]);
     expect(await driverResolver.inventoryMentions('Where did Max Verstappen finish in the 2025 Australian Grand Prix race result?', 2025)).toEqual([
-      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max_verstappen'], active_candidates: ['max_verstappen'] })
+      expect.objectContaining({ text: 'Max Verstappen', candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] })
     ]);
     await expect(eventResolver.resolve(2025, 'Australian Grand Prix')).resolves.toEqual({ type: 'resolved', season: 2025, round: 1 });
     const byQuestionHash = new Map(answerEvaluationManifest.map(item => [createHash('sha256').update(item.question.normalize('NFKC').trim()).digest('hex'), item]));

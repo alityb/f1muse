@@ -51,7 +51,8 @@ let executedPrincipalClasses: string[];
 const hash = (digit: string) => digit.repeat(64);
 const releaseEvidence = {
   manifest_sha256: hash('8'), artifact_sha256: hash('9'), report_sha256: hash('a'),
-  result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d')
+  result_fixture_sha256: hash('b'), principal_audit_sha256: hash('c'), production_evidence_sha256: hash('d'),
+  semantic_catalog_hash: hash('e'), semantic_catalog_database_binding_hash: hash('f'), semantic_catalog_binding_artifact_sha256: hash('0')
 };
 const releaseKeyPair = generateKeyPairSync('ed25519');
 const releaseKey = { key_id: 'route-release-key', public_key: releaseKeyPair.publicKey };
@@ -83,7 +84,7 @@ function createRelease(
     runtime, deployment_template_ids: [...allowedTemplateIds], deployment_principal_classes: [...allowedPrincipalClasses]
   };
   const unsigned = {
-    version: 6 as const, kind: 'f1ql_answer_release_attestation' as const,
+    version: 7 as const, kind: 'f1ql_answer_release_attestation' as const,
     key_id: releaseKey.key_id, ...buildActiveAnswerReleaseBindings(activeContext)
   };
   return {

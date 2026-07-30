@@ -19,17 +19,20 @@ import {
   getAnswerProductionEvidenceSigningPayload,
   verifyAnswerProductionEvidence
 } from './build-answer-release-attestation';
+import { verifySemanticCatalogBindingArtifact } from './audit-semantic-catalog-binding';
 
 const MAXIMUM_INPUT_BYTES = 100_000;
 const MAXIMUM_OUTPUT_BYTES = 100_000;
 const COMMIT_SHA = /^[a-f0-9]{40}$/;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-const IDENTITY_VIEW_MIGRATION = join(__dirname, '../migrations/20260729_f1ql_answer_identity_views.sql');
+const IDENTITY_VIEW_MIGRATION = join(__dirname, '../migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql');
+const QUALIFYING_VIEW_MIGRATION = join(__dirname, '../migrations/20260730_filter_f1ql_qualifying_classification.sql');
 const ROLE_GRANT_MIGRATION = join(__dirname, '../migrations/20260730_f1ql_answer_role_grants.sql');
 
 export interface AnswerProductionEvidenceBuildPaths {
   principal_audit: string;
+  semantic_catalog_binding: string;
   output: string;
 }
 
@@ -59,6 +62,7 @@ export function buildAnswerProductionEvidenceFile(
   const privateKey = loadPrivateKey(required(env, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64'));
   const publicKey = createPublicKey(privateKey);
   const principalFile = readBoundedRegularFile(paths.principal_audit);
+  const bindingFile = readBoundedRegularFile(paths.semantic_catalog_binding);
   const principal = verifyAnswerPrincipalAuditReport(
     parseAnswerPrincipalAuditReport(JSON.parse(principalFile.content.toString('utf8'))),
     { key_id: keyId, public_key: publicKey },
@@ -67,9 +71,21 @@ export function buildAnswerProductionEvidenceFile(
   if (principal.status !== 'passed' || principal.findings.length !== 0) {
     throw new Error('answer_production_evidence_principal_audit_failed');
   }
+  const catalogBinding = verifySemanticCatalogBindingArtifact(
+    JSON.parse(bindingFile.content.toString('utf8')),
+    { key_id: keyId, public_key: publicKey },
+    { commit_sha: commitSha, deployment_id: deploymentId, release_id: releaseId }
+  );
+  if (catalogBinding.commit_sha !== commitSha || catalogBinding.deployment_id !== deploymentId || catalogBinding.release_id !== releaseId ||
+      catalogBinding.binding.database_identity.current_user_sha256 !== principal.current_user_sha256 ||
+      catalogBinding.binding.database_identity.current_database_sha256 !== principal.current_database_sha256 ||
+      !Number.isFinite(Date.parse(catalogBinding.observed_at)) || Date.parse(catalogBinding.observed_at) > Date.now() ||
+      Date.now() - Date.parse(catalogBinding.observed_at) > 15 * 60 * 1000) {
+    throw new Error('answer_production_evidence_catalog_binding_invalid');
+  }
 
   const unsigned = {
-    version: 2 as const,
+    version: 3 as const,
     kind: 'f1ql_answer_production_evidence' as const,
     target: 'production' as const,
     status: 'passed' as const,
@@ -80,7 +96,11 @@ export function buildAnswerProductionEvidenceFile(
     current_user_sha256: principal.current_user_sha256,
     current_database_sha256: principal.current_database_sha256,
     identity_view_migration_sha256: readBoundedRegularFile(IDENTITY_VIEW_MIGRATION).sha256,
+    qualifying_view_migration_sha256: readBoundedRegularFile(QUALIFYING_VIEW_MIGRATION).sha256,
     role_grant_migration_sha256: readBoundedRegularFile(ROLE_GRANT_MIGRATION).sha256,
+    semantic_catalog_hash: catalogBinding.catalog_hash,
+    semantic_catalog_database_binding_hash: catalogBinding.database_binding_hash,
+    semantic_catalog_binding_artifact_sha256: bindingFile.sha256,
     production_evidence: { key_id: keyId, algorithm: 'Ed25519' as const }
   };
   const evidence: AnswerProductionEvidence = {
@@ -98,7 +118,11 @@ export function buildAnswerProductionEvidenceFile(
     current_user_sha256: principal.current_user_sha256,
     current_database_sha256: principal.current_database_sha256,
     identity_view_migration_sha256: unsigned.identity_view_migration_sha256,
-    role_grant_migration_sha256: unsigned.role_grant_migration_sha256
+    qualifying_view_migration_sha256: unsigned.qualifying_view_migration_sha256,
+    role_grant_migration_sha256: unsigned.role_grant_migration_sha256,
+    semantic_catalog_hash: unsigned.semantic_catalog_hash,
+    semantic_catalog_database_binding_hash: unsigned.semantic_catalog_database_binding_hash,
+    semantic_catalog_binding_artifact_sha256: unsigned.semantic_catalog_binding_artifact_sha256
   });
   const bytes = Buffer.from(`${JSON.stringify(evidence)}\n`, 'utf8');
   if (bytes.byteLength > MAXIMUM_OUTPUT_BYTES) throw new Error('answer_production_evidence_output_too_large');
@@ -178,8 +202,8 @@ function requireSafePath(path: string): void {
 
 function main(): void {
   const args = process.argv.slice(2);
-  if (args.length !== 2) throw new Error('answer_production_evidence_arguments_invalid');
-  const result = buildAnswerProductionEvidenceFile({ principal_audit: args[0], output: args[1] });
+  if (args.length !== 3) throw new Error('answer_production_evidence_arguments_invalid');
+  const result = buildAnswerProductionEvidenceFile({ principal_audit: args[0], semantic_catalog_binding: args[1], output: args[2] });
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 

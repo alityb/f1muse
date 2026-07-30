@@ -68,6 +68,27 @@ describe('answer principal least-privilege audit', () => {
     })).toThrow('context_missing');
   });
 
+  it.each([
+    'localhost',
+    'LOCALHOST.',
+    'audit.localhost',
+    '127.0.0.2',
+    '127.1',
+    '2130706433',
+    '0x7f000001',
+    '017700000001',
+    '[::1]',
+    '[0:0:0:0:0:0:0:1]',
+    '[::ffff:127.0.0.1]',
+    '[::ffff:7f00:1]'
+  ])('refuses loopback production target %s', hostname => {
+    expect(() => requireAnswerPrincipalAuditConfiguration({
+      F1QL_ANSWER_PRINCIPAL_AUDIT_ENABLED: 'true',
+      F1QL_ANSWER_PRINCIPAL_AUDIT_TARGET: 'production',
+      F1QL_ANSWER_DATABASE_URL: `postgres://${hostname}/f1`
+    })).toThrow('refuses_local');
+  });
+
   it('builds verified TLS without allowing URL SSL options to override the trusted CA', () => {
     const certificate = '-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----\n';
     const configuration = requireAnswerPrincipalAuditConfiguration({
@@ -80,6 +101,7 @@ describe('answer principal least-privilege audit', () => {
     });
     expect(configuration.pool_config.ssl).toEqual({ ca: certificate, rejectUnauthorized: true });
     expect(configuration.pool_config.connectionString).not.toMatch(/sslmode|sslrootcert/);
+    expect(configuration.pool_config.connectionTimeoutMillis).toBe(5_000);
   });
 
   it('detects an overprivileged principal using read-only catalog observations', async () => {

@@ -9,6 +9,13 @@ import {
 } from '../../scripts/audit-answer-principal';
 import { buildAnswerProductionEvidenceFile } from '../../scripts/build-answer-production-evidence';
 import { parseAnswerProductionEvidence } from '../../scripts/build-answer-release-attestation';
+import { getSemanticCatalogBindingArtifactSigningPayload, UnsignedSemanticCatalogBindingArtifact } from '../../scripts/audit-semantic-catalog-binding';
+import {
+  computeSemanticCatalogDatabaseBindingHash,
+  SemanticCatalogDatabaseBindingMaterial,
+  SEMANTIC_CATALOG,
+  SEMANTIC_CATALOG_HASH
+} from '../../src/f1ql/semantic-catalog';
 
 const COMMIT_SHA = 'e'.repeat(40);
 
@@ -24,6 +31,8 @@ describe('guarded answer production evidence builder', () => {
         commit_sha: COMMIT_SHA,
         deployment_id: 'test-deployment',
         release_id: 'test-release',
+        semantic_catalog_hash: SEMANTIC_CATALOG_HASH,
+        semantic_catalog_binding_artifact_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         status: 'passed'
       });
     });
@@ -41,6 +50,21 @@ describe('guarded answer production evidence builder', () => {
       writeFileSync(paths.principal_audit, `${JSON.stringify(signedAudit(privateKey, { status: 'attention', findings: ['unsafe_database_privilege'] }))}\n`);
       expect(() => buildAnswerProductionEvidenceFile(paths, env)).toThrow('answer_production_evidence_principal_audit_failed');
     });
+    withFiles(({ paths, env }) => {
+      const binding = JSON.parse(readFileSync(paths.semantic_catalog_binding, 'utf8'));
+      writeFileSync(paths.semantic_catalog_binding, `${JSON.stringify({ ...binding, database_binding_hash: '0'.repeat(64) })}\n`);
+      expect(() => buildAnswerProductionEvidenceFile(paths, env)).toThrow();
+    });
+    withFiles(({ paths, env }) => {
+      const binding = JSON.parse(readFileSync(paths.semantic_catalog_binding, 'utf8'));
+      binding.binding.views[0].definition_sha256 = 'b'.repeat(64);
+      const material = structuredClone(binding.binding);
+      delete material.database_binding_hash;
+      binding.database_binding_hash = computeSemanticCatalogDatabaseBindingHash(material);
+      binding.binding.database_binding_hash = binding.database_binding_hash;
+      writeFileSync(paths.semantic_catalog_binding, `${JSON.stringify(binding)}\n`);
+      expect(() => buildAnswerProductionEvidenceFile(paths, env)).toThrow('signature');
+    });
   });
 
   it('refuses symlink inputs and existing outputs', () => {
@@ -55,13 +79,18 @@ describe('guarded answer production evidence builder', () => {
 });
 
 function withFiles(
-  run: (fixture: { directory: string; paths: { principal_audit: string; output: string }; env: NodeJS.ProcessEnv; privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'] }) => void
+  run: (fixture: { directory: string; paths: { principal_audit: string; semantic_catalog_binding: string; output: string }; env: NodeJS.ProcessEnv; privateKey: ReturnType<typeof generateKeyPairSync>['privateKey'] }) => void
 ): void {
   const directory = mkdtempSync(join(tmpdir(), 'answer-production-evidence-'));
   try {
-    const paths = { principal_audit: join(directory, 'principal.json'), output: join(directory, 'production.json') };
+    const paths = {
+      principal_audit: join(directory, 'principal.json'),
+      semantic_catalog_binding: join(directory, 'catalog-binding.json'),
+      output: join(directory, 'production.json')
+    };
     const keys = generateKeyPairSync('ed25519');
     writeFileSync(paths.principal_audit, `${JSON.stringify(signedAudit(keys.privateKey))}\n`);
+    writeFileSync(paths.semantic_catalog_binding, `${JSON.stringify(catalogBindingArtifact(keys.privateKey))}\n`);
     run({
       directory,
       paths,
@@ -79,6 +108,50 @@ function withFiles(
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function catalogBindingArtifact(privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']) {
+  const material: SemanticCatalogDatabaseBindingMaterial = {
+    version: 1,
+    catalog_hash: SEMANTIC_CATALOG_HASH,
+    views: SEMANTIC_CATALOG.sources.map(source => ({
+      view: source.view,
+      database_owner: 'postgres',
+      relation_options: source.view_security_barrier ? ['security_barrier=true'] : [],
+      definition_sha256: 'a'.repeat(64)
+    })),
+    principal: {
+      role: 'f1ql_answer',
+      selectable_relations: SEMANTIC_CATALOG.sources.map(source => source.view),
+      writable_relations: []
+    },
+    database_identity: {
+      current_user_sha256: '1'.repeat(64),
+      current_database_sha256: '2'.repeat(64)
+    },
+    required_grain_checks: SEMANTIC_CATALOG.sources.filter(source => source.grain.uniqueness === 'required')
+      .map(source => ({ view: source.view, key: [...source.grain.key], duplicate_grain: false }))
+  };
+  const unsigned: UnsignedSemanticCatalogBindingArtifact = {
+    version: 1,
+    kind: 'f1ql_semantic_catalog_database_binding',
+    target: 'production',
+    observed_at: new Date().toISOString(),
+    commit_sha: COMMIT_SHA,
+    deployment_id: 'test-deployment',
+    release_id: 'test-release',
+    catalog_hash: SEMANTIC_CATALOG_HASH,
+    database_binding_hash: computeSemanticCatalogDatabaseBindingHash(material),
+    binding: { ...material, database_binding_hash: computeSemanticCatalogDatabaseBindingHash(material) },
+    production_evidence: { key_id: 'production-evidence-key-1', algorithm: 'Ed25519' }
+  };
+  return {
+    ...unsigned,
+    production_evidence: {
+      ...unsigned.production_evidence,
+      signature: sign(null, getSemanticCatalogBindingArtifactSigningPayload(unsigned), privateKey).toString('base64')
+    }
+  };
 }
 
 function signedAudit(

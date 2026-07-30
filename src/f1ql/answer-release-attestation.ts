@@ -7,8 +7,8 @@ import { ANSWER_QUESTION_CONTRACT_VERSION } from './answer-question';
 import { ANSWER_SEMANTIC_PROOF_VERSION } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
 
-export const ANSWER_RELEASE_ATTESTATION_VERSION = 6 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v20' as const;
+export const ANSWER_RELEASE_ATTESTATION_VERSION = 7 as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v21' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_PRINCIPAL_CLASSES = ['internal', 'internal_canary', 'public'] as const;
 export type AnswerPrincipalClass = (typeof ANSWER_PRINCIPAL_CLASSES)[number];
@@ -37,7 +37,10 @@ export const ANSWER_RELEASE_EVIDENCE_HASH_KEYS = [
   'report_sha256',
   'result_fixture_sha256',
   'principal_audit_sha256',
-  'production_evidence_sha256'
+  'production_evidence_sha256',
+  'semantic_catalog_hash',
+  'semantic_catalog_database_binding_hash',
+  'semantic_catalog_binding_artifact_sha256'
 ] as const;
 
 const HASH_KEYS = [...CODE_HASH_KEYS, ...ANSWER_RELEASE_EVIDENCE_HASH_KEYS] as const;

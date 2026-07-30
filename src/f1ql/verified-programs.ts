@@ -4,7 +4,7 @@ import { parseF1QLProgram } from './schema';
 import { F1QL_DEFINITIONS_VERSION } from './validation';
 
 export const F1QL_COMPILER_VERSION = 'core-v9';
-export const F1QL_FACT_SPACE_VERSION = 'source-views-v2';
+export const F1QL_FACT_SPACE_VERSION = 'source-views-v3';
 
 export interface VerifiedProgram {
   id: string;
