@@ -179,6 +179,7 @@ export async function syncResults(
   const client = await pool.connect();
 
   try {
+    await client.query('BEGIN');
     for (const race of races) {
       const rnd = parseInt(race.round);
 
@@ -273,6 +274,10 @@ export async function syncResults(
         console.log(`  [jolpica] Round ${rnd}: ${values.length} results (${state})`);
       }
     }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
   } finally {
     client.release();
   }
@@ -352,7 +357,7 @@ export async function runJolpicaSync(
   pool: Pool,
   season = CURRENT_SEASON
 ): Promise<{ newRounds: number; newRoundNumbers: number[] }> {
-  const newRoundNumbers = await syncResults(pool, season);
   await syncStandings(pool, season);
+  const newRoundNumbers = await syncResults(pool, season);
   return { newRounds: newRoundNumbers.length, newRoundNumbers };
 }

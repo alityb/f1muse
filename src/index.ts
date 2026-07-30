@@ -7,7 +7,7 @@ import {
   getPoolConnectionInfo
 } from './db/pool';
 import { createRoutes } from './api/routes';
-import { startAutoSyncInterval, runSync, getSyncStatus, stopAutoSync } from './sync/auto-sync';
+import { startAutoSync, runSync, getAutoSyncRuntimeConfig, getSyncStatus, stopAutoSync } from './sync/auto-sync';
 import { initRedisCache, getRedisCache } from './cache/redis-cache';
 import { createMetricsRouter, metricsMiddleware } from './observability/metrics';
 import {
@@ -78,6 +78,7 @@ async function main() {
   const replicaPool = createReplicaPool();
   const primaryPool = createPrimaryPool();
   const answerPool = process.env.F1QL_ANSWER_DATABASE_URL ? createAnswerPool() : undefined;
+  let shuttingDown = false;
 
   // Test replica connection
   try {
@@ -131,12 +132,14 @@ async function main() {
     }
   }
 
-  // Start auto-sync (Jolpica race results + standings, every 2 hours)
+  // Start the explicitly enabled weekly Jolpica/results scheduler.
   // Lap data (FastF1 Python ETL) still needs to be triggered manually after each race.
-  let autoSyncInterval: NodeJS.Timeout | null = null;
-  if (process.env.AUTO_SYNC !== 'false') {
+  const autoSyncConfig = getAutoSyncRuntimeConfig();
+  if (autoSyncConfig.enabled) {
     try {
-      autoSyncInterval = startAutoSyncInterval(primaryPool);
+      startAutoSync(primaryPool, {
+        startupCatchUp: autoSyncConfig.startupCatchUp
+      });
     } catch (err) {
       logError(err, { context: 'auto_sync_startup_failed' });
     }
@@ -144,13 +147,17 @@ async function main() {
 
   // Manual sync trigger (also used by Railway Cron for FastF1 ETL)
   app.post('/admin/sync', requireAdmin, async (_req, res) => {
+    if (shuttingDown) {
+      res.status(503).json({ ok: false, message: 'server shutting down' });
+      return;
+    }
     const status = getSyncStatus();
     if (status.inProgress) {
       res.json({ ok: false, message: 'sync already in progress' });
       return;
     }
     // Fire-and-forget — respond immediately, sync runs in background
-    runSync(primaryPool).catch(console.error);
+    runSync(primaryPool, { forceDownstream: true, rescheduleOnSuccess: true }).catch(console.error);
     res.json({ ok: true, message: 'sync started', lastSyncAt: status.lastSyncAt });
   });
 
@@ -204,16 +211,15 @@ async function main() {
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
+    shuttingDown = true;
     console.log(`\n${signal} received, shutting down gracefully...`);
 
     // Stop accepting new connections
-    server.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
 
-    // Clear auto-sync interval
-    if (autoSyncInterval) {
-      clearInterval(autoSyncInterval);
-    }
-    stopAutoSync();
+    await stopAutoSync();
 
     // Close Redis
     const redisCache = getRedisCache();

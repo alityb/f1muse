@@ -157,6 +157,12 @@ but cannot promote 2026 to a final-season capability. Such promotion requires
 new versioned question, intent, template, policy, corpus, fixture, release, and
 evidence contracts.
 
+Routine Jolpica/results auto-sync is write-capable and disabled by default. Set
+`AUTO_SYNC=true` to schedule the Monday 00:00 UTC cycle. A deployment does not
+run catch-up work on startup unless `AUTO_SYNC_STARTUP_CATCH_UP=true` is also
+set explicitly. The manual authenticated `POST /admin/sync` route remains
+independent of these scheduler flags.
+
 FastF1 lap ingestion is outside routine auto-sync. Pace-v2 writes require an
 explicit reviewed manifest and the dedicated guarded commands documented by
 the pace evidence procedures. Pace remains unauthorized for public Phase 10

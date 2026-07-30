@@ -20,7 +20,10 @@ beforeAll(async () => {
     INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation)
     VALUES ('lewis-hamilton', 'Hamilton', 'Lewis Hamilton', 'Lewis', 'Hamilton', 'HAM') ON CONFLICT DO NOTHING;
     INSERT INTO race (id, year, round, circuit_id, grand_prix_id, official_name, date)
-    VALUES (2601, 2026, 1, 'bahrain', 'bahrain', 'Bahrain Grand Prix', '2026-03-08') ON CONFLICT DO NOTHING;
+    VALUES
+      (2601, 2026, 1, 'bahrain', 'bahrain', 'Bahrain Grand Prix', '2026-03-08'),
+      (2602, 2026, 2, 'bahrain', 'bahrain', 'Bahrain Grand Prix', '2026-03-15')
+    ON CONFLICT DO NOTHING;
   `);
 
   await syncResults(pool, 2026, async () => ({
@@ -54,5 +57,42 @@ describe('Jolpica race-results writer-to-reader contract', () => {
     expect(result.rows[0].driver_id).toBe('lewis-hamilton');
     expect(Number(result.rows[0].points)).toBe(25);
     expect(result.rows[0].finishing_position).toBe(1);
+  });
+
+  it('rolls back every refreshed round when a later round is invalid', async () => {
+    await expect(syncResults(pool, 2026, async () => ({
+      RaceTable: {
+        Races: [{
+          season: '2026',
+          round: '1',
+          Results: [{
+            number: '44',
+            positionText: '1',
+            points: '26',
+            status: 'Finished',
+            Driver: { driverId: 'hamilton', permanentNumber: '44' },
+            Constructor: { constructorId: 'mercedes' },
+            Time: { time: '1:29:00.000' }
+          }]
+        }, {
+          season: '2026',
+          round: '2',
+          Results: [{
+            number: '44',
+            positionText: '1',
+            points: '25',
+            status: 'Finished',
+            Driver: null,
+            Constructor: { constructorId: 'mercedes' },
+            Time: { time: '1:30:00.000' }
+          }]
+        }]
+      }
+    }))).rejects.toThrow();
+
+    const roundOne = await executeF1QL(pool, { version: 1, root: { op: 'event_classification', season: 2026, round: 1, limit: 30 } });
+    const roundTwo = await executeF1QL(pool, { version: 1, root: { op: 'event_classification', season: 2026, round: 2, limit: 30 } });
+    expect(Number(roundOne.rows[0].points)).toBe(25);
+    expect(roundTwo.rows).toEqual([]);
   });
 });
