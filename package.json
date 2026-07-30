@@ -29,6 +29,7 @@
     "verify:answer-release-attestation": "tsx scripts/verify-answer-release-attestation.ts",
     "golden:snapshot:scoring-rules": "tsx scripts/snapshot-scoring-rules.ts",
     "golden:snapshot:semantic-catalog": "tsx scripts/snapshot-semantic-catalog.ts",
+    "golden:snapshot:compositional-regression": "tsx scripts/snapshot-compositional-regression.ts",
     "smoke:f1ql": "./scripts/smoke-f1ql.sh",
     "report:f1ql-shadow": "tsx scripts/report-f1ql-shadow.ts",
     "benchmark:f1ql:compiler": "tsx scripts/benchmark-f1ql-compiler.ts",
