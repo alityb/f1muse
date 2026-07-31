@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, extname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   planSemanticAnswerFromResolution,
@@ -126,7 +127,38 @@ describe('independent semantic whole-plan proof', () => {
     expect(proof).not.toMatch(/from ['"](?:pg|\.\/executor|\.\.\/api)/u);
     expect(proof).not.toMatch(/executeF1QL|database\.query|planSemanticAnswer/u);
   });
+
+  it('keeps the semantic shadow transitive source graph database-free', () => {
+    const graph = reachableLocalModules(resolve('src/f1ql/semantic-shadow-planner.ts'));
+    const relative = [...graph].map(file => file.replace(`${resolve('.')}\/`, ''));
+    expect(relative.filter(file =>
+      /(?:^|\/)(?:database|validation|translation-linking)\.ts$/u.test(file) ||
+      /(?:^|\/)[^/]*(?:executor|authorization|format|interpreter)[^/]*\.ts$/u.test(file) ||
+      /(?:^|\/)api\/routes\//u.test(file) ||
+      /(?:^|\/)identity\/(?:answer-identity-resolvers|driver-resolver|event-resolver)\.ts$/u.test(file)
+    )).toEqual([]);
+    for (const file of graph) {
+      expect(readFileSync(file, 'utf8')).not.toMatch(/(?:from\s+|require\s*\()['"]pg(?:\/[^'"]*)?['"]/u);
+    }
+  });
 });
+
+function reachableLocalModules(entry: string, seen = new Set<string>()): Set<string> {
+  if (seen.has(entry)) return seen;
+  seen.add(entry);
+  const source = readFileSync(entry, 'utf8');
+  const imports = [
+    ...source.matchAll(/(?:import|export)[^'"\n]*from\s*['"]([^'"]+)['"]/gu),
+    ...source.matchAll(/(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)/gu)
+  ].map(match => match[1]).filter(specifier => specifier.startsWith('.'));
+  for (const specifier of imports) {
+    const base = resolve(dirname(entry), specifier);
+    const candidates = extname(base) ? [base] : [`${base}.ts`, resolve(base, 'index.ts')];
+    const child = candidates.find(existsSync);
+    if (child) reachableLocalModules(child, seen);
+  }
+  return seen;
+}
 
 async function prepare(
   question: string,

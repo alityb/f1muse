@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ANSWER_QUESTION_CONTRACT_VERSION, createAnswerQuestionContract } from './answer-question';
+import { F1QL_FACT_SPACE_VERSION } from './fact-space-version';
 import { PLANNED_F1QL_COMPILER_VERSION } from './planned-compiler';
 import {
   PLANNED_F1QL_COST_MODEL_VERSION,
@@ -36,7 +37,6 @@ import {
   verifySemanticEvidence,
   verifySemanticQueryAdmission
 } from './semantic-query';
-import { F1QL_FACT_SPACE_VERSION } from './verified-programs';
 
 export const SEMANTIC_PLAN_PROOF_VERSION = 'semantic-plan-proof-v1' as const;
 export const VERIFIED_PLANNER_VERSION = 'semantic-planner-v2' as const;

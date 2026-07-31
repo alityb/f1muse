@@ -7,6 +7,7 @@ import { createShareRoutes } from './share';
 import { createProgramRoutes } from './program';
 import { createProgramTranslateRoutes } from './program-translate';
 import { createProgramAnswerRoutes, createPublicAnswerRoutes } from './program-answer';
+import { createProgramSemanticShadowRoutes } from './program-semantic-shadow';
 
 export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): Router {
   const router = Router();
@@ -20,6 +21,7 @@ export function createRoutes(pool: Pool, cachePool?: Pool, answerPool?: Pool): R
   if (process.env.F1QL_TRANSLATION_ENABLED === 'true') {
     router.use('/', createProgramTranslateRoutes(pool));
   }
+  router.use('/', createProgramSemanticShadowRoutes(answerPool));
   router.use('/', createProgramAnswerRoutes(answerPool));
   router.use('/', createPublicAnswerRoutes(answerPool));
 
@@ -63,6 +65,11 @@ function buildEndpointList(): Record<string, string> {
   }
   if (process.env.F1QL_ANSWER_ENABLED === 'true' && process.env.F1QL_PUBLIC_ANSWER_ENABLED === 'true' && process.env.F1QL_ANSWER_KILL_SWITCH !== 'true') {
     endpoints['POST /nl-query'] = 'Public natural-language F1QL answer pipeline';
+  }
+  if (process.env.F1QL_SEMANTIC_SHADOW_ENABLED === 'true' &&
+      process.env.F1QL_SEMANTIC_SHADOW_KILL_SWITCH !== 'true' &&
+      process.env.F1QL_SEMANTIC_SHADOW_STAGE === '0') {
+    endpoints['POST /program/semantic-shadow'] = 'Internal non-executing semantic shadow planner';
   }
 
   // Debug endpoints only in development

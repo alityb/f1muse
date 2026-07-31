@@ -1,10 +1,13 @@
 import { createHash } from 'crypto';
 import { F1QLProgram } from './ast';
-import { parseF1QLProgram } from './schema';
+import { F1QL_FACT_SPACE_VERSION } from './fact-space-version';
+import { normalizeF1QLProgram } from './program-normalization';
 import { F1QL_DEFINITIONS_VERSION } from './validation';
 
+export { F1QL_FACT_SPACE_VERSION } from './fact-space-version';
+export { getF1QLProgramHash, normalizeF1QLProgram } from './program-normalization';
+
 export const F1QL_COMPILER_VERSION = 'core-v9';
-export const F1QL_FACT_SPACE_VERSION = 'source-views-v3';
 
 export interface VerifiedProgram {
   id: string;
@@ -15,38 +18,6 @@ export interface VerifiedProgram {
 }
 
 export class VerifiedProgramError extends Error {}
-
-function normalizeValue(value: unknown, key?: string): unknown {
-  if (Array.isArray(value)) {
-    const normalized = value.map(item => normalizeValue(item));
-    if (key === 'classification_status' || key === 'rounds' || key === 'season' || key === 'driver_id') {
-      return [...normalized].sort((left, right) => compareText(JSON.stringify(left), JSON.stringify(right)));
-    }
-    return normalized;
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== undefined)
-      .sort(([left], [right]) => compareText(left, right))
-      .map(([childKey, item]) => [childKey, normalizeValue(item, childKey)]));
-  }
-  return value;
-}
-
-function compareText(left: string, right: string): number {
-  if (left < right) {
-    return -1;
-  }
-  return left > right ? 1 : 0;
-}
-
-export function normalizeF1QLProgram(input: unknown): F1QLProgram {
-  return normalizeValue(parseF1QLProgram(input)) as F1QLProgram;
-}
-
-export function getF1QLProgramHash(input: unknown): string {
-  return createHash('sha256').update(JSON.stringify(normalizeF1QLProgram(input))).digest('hex');
-}
 
 export function getF1QLCacheKey(input: unknown): string {
   return createHash('sha256').update(JSON.stringify({

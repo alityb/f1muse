@@ -1,15 +1,26 @@
 import { createHash } from 'crypto';
-import { EventResolution } from '../identity/event-resolver';
-import { AnswerDriverLiteralMention } from '../identity/answer-identity-resolvers';
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, parseRoundReference } from './answer-question';
 import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION, AnswerTemplateId, AnswerTemplateVariables, computeAnswerTemplateRegistryHash, materializeAnswerTemplate, validateAnswerTemplateVariables } from './answer-templates';
 import { F1QLProgram } from './ast';
-import { F1QLLinkingError } from './translation-linking';
-import { getF1QLProgramHash } from './verified-programs';
+import { F1QLLinkingError } from './linking-error';
+import { getF1QLProgramHash } from './program-normalization';
 
 export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v18' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
+
+type EventResolution =
+  | { readonly type: 'resolved'; readonly season: number; readonly round: number }
+  | { readonly type: 'missing' }
+  | { readonly type: 'ambiguous'; readonly candidates: readonly { readonly season: number; readonly round: number }[] };
+
+interface AnswerDriverLiteralMention {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+  readonly candidates: readonly string[];
+  readonly active_candidates: readonly string[];
+}
 
 export interface AnswerProofEventResolver {
   resolve(season: number, name: string): Promise<EventResolution>;
