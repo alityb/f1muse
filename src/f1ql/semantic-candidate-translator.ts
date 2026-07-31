@@ -178,24 +178,30 @@ const proposalSetSchema = z.object({
   candidates: z.array(proposalSchema).min(1).max(5)
 }).strict();
 
-const spanRefJsonSchema = {
+const spanRefJsonSchemaDefinition = {
   type: 'object', additionalProperties: false, required: ['start', 'end'],
   properties: {
     start: { type: 'integer', minimum: 0, maximum: 1_000 },
     end: { type: 'integer', minimum: 1, maximum: 1_000 }
   }
 } as const;
-const evidenceRefJsonSchema = { type: 'array', minItems: 1, maxItems: 8, items: spanRefJsonSchema } as const;
+const spanRefJsonSchema = { $ref: '#/$defs/span_ref' } as const;
+const evidenceRefJsonSchemaDefinition = {
+  type: 'array', minItems: 1, maxItems: 8, items: spanRefJsonSchema
+} as const;
+const evidenceRefJsonSchema = { $ref: '#/$defs/evidence_ref' } as const;
 const sourceRefs = SEMANTIC_CANDIDATE_CATALOG_PROJECTION.sources.map(source => source.source_ref);
-const conceptRefJsonSchema = {
-  anyOf: SEMANTIC_CANDIDATE_CATALOG_PROJECTION.sources.map(source => ({
-    type: 'object', additionalProperties: false, required: ['source_ref', 'concept_ref'],
-    properties: {
-      source_ref: { type: 'string', enum: [source.source_ref] },
-      concept_ref: { type: 'string', enum: source.concepts.map(concept => concept.concept_ref) }
-    }
-  }))
+const conceptRefs = [...new Set(SEMANTIC_CANDIDATE_CATALOG_PROJECTION.sources.flatMap(source =>
+  source.concepts.map(concept => concept.concept_ref)
+))];
+const conceptRefJsonSchemaDefinition = {
+  type: 'object', additionalProperties: false, required: ['source_ref', 'concept_ref'],
+  properties: {
+    source_ref: { type: 'string', enum: sourceRefs },
+    concept_ref: { type: 'string', enum: conceptRefs }
+  }
 };
+const conceptRefJsonSchema = { $ref: '#/$defs/concept_ref' } as const;
 
 function closedJsonObject(properties: Record<string, unknown>) {
   return { type: 'object', additionalProperties: false, required: Object.keys(properties), properties };
@@ -225,24 +231,31 @@ const filterJsonSchema = {
   ]
 };
 
-export const SEMANTIC_CANDIDATE_JSON_SCHEMA = deepFreeze(closedJsonObject({
-  version: { type: 'integer', enum: [SEMANTIC_CANDIDATE_PROPOSAL_VERSION] },
-  candidates: {
-    type: 'array', minItems: 1, maxItems: 5,
-    items: closedJsonObject({
-      outputs: { type: 'array', minItems: 1, maxItems: 8, items: outputJsonSchema },
-      scopes: { type: 'array', minItems: 3, maxItems: 8, items: scopeJsonSchema },
-      entities: { type: 'array', maxItems: 8, items: closedJsonObject({ type: { type: 'string', enum: ['driver', 'event'] }, span: spanRefJsonSchema }) },
-      filters: { type: 'array', maxItems: 8, items: filterJsonSchema },
-      group_by: { type: 'array', maxItems: 3, items: closedJsonObject({ concept: conceptRefJsonSchema, evidence: evidenceRefJsonSchema }) },
-      comparison: { anyOf: [closedJsonObject({ operation: { type: 'string', enum: ['count', 'delta', 'higher', 'lower', 'rank', 'shared_event'] }, evidence: evidenceRefJsonSchema }), { type: 'null' }] },
-      order_by: { type: 'array', maxItems: 4, items: closedJsonObject({ output_index: { type: 'integer', minimum: 0, maximum: 7 }, direction: { type: 'string', enum: ['asc', 'desc'] }, evidence: evidenceRefJsonSchema }) },
-      limit: { anyOf: [closedJsonObject({ evidence: evidenceRefJsonSchema }), { type: 'null' }] }
-    })
+export const SEMANTIC_CANDIDATE_JSON_SCHEMA = deepFreeze({
+  ...closedJsonObject({
+    version: { type: 'integer', enum: [SEMANTIC_CANDIDATE_PROPOSAL_VERSION] },
+    candidates: {
+      type: 'array', minItems: 1, maxItems: 5,
+      items: closedJsonObject({
+        outputs: { type: 'array', minItems: 1, maxItems: 8, items: outputJsonSchema },
+        scopes: { type: 'array', minItems: 3, maxItems: 8, items: scopeJsonSchema },
+        entities: { type: 'array', maxItems: 8, items: closedJsonObject({ type: { type: 'string', enum: ['driver', 'event'] }, span: spanRefJsonSchema }) },
+        filters: { type: 'array', maxItems: 8, items: filterJsonSchema },
+        group_by: { type: 'array', maxItems: 3, items: closedJsonObject({ concept: conceptRefJsonSchema, evidence: evidenceRefJsonSchema }) },
+        comparison: { anyOf: [closedJsonObject({ operation: { type: 'string', enum: ['count', 'delta', 'higher', 'lower', 'rank', 'shared_event'] }, evidence: evidenceRefJsonSchema }), { type: 'null' }] },
+        order_by: { type: 'array', maxItems: 4, items: closedJsonObject({ output_index: { type: 'integer', minimum: 0, maximum: 7 }, direction: { type: 'string', enum: ['asc', 'desc'] }, evidence: evidenceRefJsonSchema }) },
+        limit: { anyOf: [closedJsonObject({ evidence: evidenceRefJsonSchema }), { type: 'null' }] }
+      })
+    }
+  }),
+  $defs: {
+    span_ref: spanRefJsonSchemaDefinition,
+    evidence_ref: evidenceRefJsonSchemaDefinition,
+    concept_ref: conceptRefJsonSchemaDefinition
   }
-}));
+});
 
-export const SEMANTIC_CANDIDATE_SYSTEM_PROMPT = `Propose only semantic candidates using the strict response schema. Use only source_ref and concept_ref values allowed by that schema. Every evidence and entity span is an inclusive-start, exclusive-end Unicode-code-point range in the normalized question. Do not use UTF-16 offsets. Do not emit span text or literal values: the server reconstructs exact text and every season, round, limit, and filter literal from those spans. Use only the closed operations in the schema. Never emit SQL, F1QL, Core, physical fields, views, joins, canonical identity values, prose, or markdown. Return every defensible candidate without duplicates; return no more than five.`;
+export const SEMANTIC_CANDIDATE_SYSTEM_PROMPT = `Propose only semantic candidates using the strict response schema. Use only source_ref and concept_ref values allowed by that schema, and pair each concept_ref only with the source_ref that contains it in the catalog projection. Every candidate must include at least three scopes: one grounded season scope, one grounded temporal scope, and one source-qualified session scope for every referenced source. Use session season for driver_standings, race for event_classification and event_metadata, and qualifying for qualifying_classification; include round or event scopes only when grounded by the question. Entities are only spans naming a specific driver or event, never generic words such as driver, event, race, or qualifying; every emitted entity must be referenced by an entity scope or filter. Use empty arrays for absent entities, filters, group_by, or order_by; use null, never an empty array or object, for an absent comparison or limit. Every evidence and entity span is an inclusive-start, exclusive-end Unicode-code-point range in the normalized question. Do not use UTF-16 offsets. Do not emit span text or literal values: the server reconstructs exact text and every season, round, limit, and filter literal from those spans. Use only the closed operations in the schema. Never emit SQL, F1QL, Core, physical fields, views, joins, canonical identity values, prose, or markdown. Return every defensible candidate without duplicates; return no more than five.`;
 
 export const SEMANTIC_CANDIDATE_PROMPT_SHA256 = sha256(SEMANTIC_CANDIDATE_SYSTEM_PROMPT);
 export const SEMANTIC_CANDIDATE_SCHEMA_SHA256 = sha256(stableSerialize(SEMANTIC_CANDIDATE_JSON_SCHEMA));

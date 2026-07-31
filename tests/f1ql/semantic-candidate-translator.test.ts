@@ -15,6 +15,7 @@ import {
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256,
   SEMANTIC_CANDIDATE_JSON_SCHEMA,
   SEMANTIC_CANDIDATE_PROVIDER_DIAGNOSTIC_CODES,
+  SEMANTIC_CANDIDATE_SYSTEM_PROMPT,
   SemanticCandidateModel,
   translateSemanticCandidateQuestion
 } from '../../src/f1ql/semantic-candidate-translator';
@@ -81,18 +82,32 @@ describe('semantic candidate translator foundation', () => {
     const rankEvidence = candidateEvidence(QUALIFYING_RANK);
     expect(hydrateSemanticCandidateProposals(proposalSet(rankEvidence.candidates), QUALIFYING_RANK).candidates[0].limit)
       .toMatchObject({ value: 10, evidence: [span(QUALIFYING_RANK, 'top 10')] });
-    expect(JSON.stringify(SEMANTIC_CANDIDATE_JSON_SCHEMA)).not.toMatch(/"(?:text|season|round|filter_value|limit_value)"\s*:/u);
+    const providerSchema = JSON.stringify(SEMANTIC_CANDIDATE_JSON_SCHEMA);
+    expect(providerSchema).not.toMatch(/"(?:text|season|round|filter_value|limit_value)"\s*:/u);
+    expect(providerSchema).toContain('"$ref":"#/$defs/concept_ref"');
+    expect(providerSchema).toContain('"$ref":"#/$defs/evidence_ref"');
+    expect(() => assertStrictProviderSchema(SEMANTIC_CANDIDATE_JSON_SCHEMA)).not.toThrow();
+    expect(countProviderSchemaProperties(SEMANTIC_CANDIDATE_JSON_SCHEMA)).toBeLessThanOrEqual(100);
+    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('pair each concept_ref only with the source_ref that contains it');
+    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('one source-qualified session scope for every referenced source');
+    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use null, never an empty array or object');
   });
 
   it('fails closed for malformed, extra, duplicate, and overflowing candidate sets', async () => {
     const evidence = candidateEvidence(STANDINGS);
     const valid = proposalSet(evidence.candidates) as ProposalSet;
+    const invalidConceptPair = structuredClone(valid);
+    invalidConceptPair.candidates[0].outputs[0].concept = {
+      source_ref: 'driver_standings',
+      concept_ref: 'finishing_position'
+    };
     const invalid = [
       {},
       { ...valid, extra: true },
       { ...valid, candidates: [{ ...valid.candidates[0], extra: true }] },
       { ...valid, candidates: [valid.candidates[0], structuredClone(valid.candidates[0])] },
-      { ...valid, candidates: Array.from({ length: 6 }, () => structuredClone(valid.candidates[0])) }
+      { ...valid, candidates: Array.from({ length: 6 }, () => structuredClone(valid.candidates[0])) },
+      invalidConceptPair
     ];
     for (const output of invalid) {
       await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, modelReturning(output))).resolves.toMatchObject({
@@ -445,6 +460,55 @@ function span(question: string, text: string): SemanticLiteralSpan {
 
 function spanRef(value: Pick<SemanticLiteralSpan, 'start' | 'end'>): SpanRef {
   return { start: value.start, end: value.end };
+}
+
+function assertStrictProviderSchema(input: unknown): void {
+  if (!isRecord(input) || input.type !== 'object' || !isRecord(input.$defs)) {
+    throw new Error('provider schema root or definitions are invalid');
+  }
+  const definitions = input.$defs;
+  const visited = new Set<unknown>();
+  const visit = (value: unknown): void => {
+    if (!isRecord(value) || visited.has(value)) return;
+    visited.add(value);
+    if ('$ref' in value) {
+      if (typeof value.$ref !== 'string' || !value.$ref.startsWith('#/$defs/') ||
+          !(value.$ref.slice('#/$defs/'.length) in definitions)) {
+        throw new Error('provider schema reference is invalid');
+      }
+      return;
+    }
+    if (value.type === 'object') {
+      if (value.additionalProperties !== false || !isRecord(value.properties) || !Array.isArray(value.required) ||
+          JSON.stringify([...value.required].sort()) !== JSON.stringify(Object.keys(value.properties).sort())) {
+        throw new Error('provider schema object is not closed and fully required');
+      }
+      Object.values(value.properties).forEach(visit);
+    }
+    if (value.type === 'array') visit(value.items);
+    if (Array.isArray(value.anyOf)) value.anyOf.forEach(visit);
+    if (value === input) Object.values(definitions).forEach(visit);
+  };
+  visit(input);
+}
+
+function countProviderSchemaProperties(input: unknown): number {
+  const visited = new Set<unknown>();
+  const count = (value: unknown): number => {
+    if (!isRecord(value) || visited.has(value)) return 0;
+    visited.add(value);
+    const properties = isRecord(value.properties) ? Object.values(value.properties) : [];
+    const definitions = isRecord(value.$defs) ? Object.values(value.$defs) : [];
+    const anyOf = Array.isArray(value.anyOf) ? value.anyOf : [];
+    return properties.length + properties.reduce((total, child) => total + count(child), 0) +
+      definitions.reduce((total, child) => total + count(child), 0) +
+      anyOf.reduce((total, child) => total + count(child), 0) + count(value.items);
+  };
+  return count(input);
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return Boolean(input) && typeof input === 'object' && !Array.isArray(input);
 }
 
 function reachableLocalModules(entry: string, seen = new Set<string>()): Set<string> {
