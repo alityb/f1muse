@@ -216,6 +216,16 @@ describe('Phase 11 bounded offline compositional properties', () => {
         expect(first.plan.work.requested_rows).toBeLessThanOrEqual(PLANNED_F1QL_MAX_ROWS);
         expect(first.plan.planned_f1ql.root.count).toBeLessThanOrEqual(PLANNED_F1QL_MAX_ROWS);
 
+        const expectedResolverCandidates = fixture.resolver.driver_mentions.reduce(
+          (total, mention) => total + mention.candidates.length, 0
+        ) + (fixture.resolver.event_resolution.type === 'resolved' ? 1 : 0);
+        expect(first.resolution.resolver_candidates).toBe(expectedResolverCandidates);
+        for (const mention of fixture.resolver.driver_mentions) {
+          const entity = first.resolution.entities.find(candidate => candidate.span.text === mention.text);
+          expect(entity?.candidate_ids).toEqual([...mention.candidates].sort());
+          expect(entity?.selected_id).toBe(mention.active_candidates[0]);
+        }
+
         expect(() => verifySemanticEvidence(
           structuredClone(first.evidence), first.question, first.entity_inventory
         )).toThrow('provenance');
@@ -233,7 +243,7 @@ describe('Phase 11 bounded offline compositional properties', () => {
   });
 });
 
-const yearArbitrary = fc.integer({ min: 2020, max: 2025 });
+const yearArbitrary = fc.integer({ min: 1950, max: 2025 });
 const roundArbitrary = fc.integer({ min: 1, max: 30 });
 const noResolvers = {
   driver_mentions: [],
@@ -259,16 +269,20 @@ const joinFixtureArbitrary = fc.record({ year: yearArbitrary, round: roundArbitr
   }));
 
 const driverArbitrary = fc.constantFrom(
-  { text: 'Norris', id: 'lando-norris', historical: 'historical-norris' },
-  { text: 'Piastri', id: 'oscar-piastri', historical: 'historical-piastri' }
+  { text: 'Norris', id: 'lando-norris' },
+  { text: 'Piastri', id: 'oscar-piastri' }
 );
+const resolverInventoryArbitrary = fc.integer({ min: 1, max: 100 }).chain(candidateCount => fc.record({
+  candidateCount: fc.constant(candidateCount),
+  selectedIndex: fc.integer({ min: 0, max: candidateCount - 1 })
+}));
 
 const composeFixtureArbitrary = fc.record({
   year: yearArbitrary,
   driver: driverArbitrary,
   alternate: fc.boolean(),
-  retainHistoricalCandidate: fc.boolean()
-}).map(({ year, driver, alternate, retainHistoricalCandidate }): CompositionalAnswerFixtureInput => ({
+  resolverInventory: resolverInventoryArbitrary
+}).map(({ year, driver, alternate, resolverInventory }): CompositionalAnswerFixtureInput => ({
   question: alternate
     ? `In final ${year}, show count of finishing position from race classification and count of qualifying position from qualifying classification for ${driver.text}.`
     : `Show count of finishing position from race classification and count of qualifying position from qualifying classification for ${driver.text} in final ${year}.`,
@@ -276,7 +290,7 @@ const composeFixtureArbitrary = fc.record({
   resolver: {
     driver_mentions: [{
       text: driver.text,
-      candidates: retainHistoricalCandidate ? [driver.historical, driver.id].sort() : [driver.id],
+      candidates: candidateInventory(driver.id, resolverInventory.candidateCount, resolverInventory.selectedIndex),
       active_candidates: [driver.id]
     }],
     event_resolution: { type: 'missing' }
@@ -314,4 +328,12 @@ function boundedIntegerEnvironment(name: string, fallback: number, min: number, 
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function candidateInventory(selectedId: string, count: number, selectedIndex: number): string[] {
+  return [
+    ...Array.from({ length: selectedIndex }, (_, index) => `a-candidate-${String(index).padStart(3, '0')}`),
+    selectedId,
+    ...Array.from({ length: count - selectedIndex - 1 }, (_, index) => `z-candidate-${String(index).padStart(3, '0')}`)
+  ];
 }

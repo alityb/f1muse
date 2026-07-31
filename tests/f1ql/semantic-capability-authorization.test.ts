@@ -7,7 +7,11 @@ import {
   SemanticCapabilityAuthorizationError,
   verifySemanticCapabilityAuthorization
 } from '../../src/f1ql/semantic-capability-authorization';
-import { SEMANTIC_CAPABILITY_REGISTRY_HASH } from '../../src/f1ql/semantic-capability-registry';
+import {
+  SEMANTIC_CAPABILITY_PROFILE_IDS,
+  SEMANTIC_CAPABILITY_REGISTRY_HASH,
+  SemanticCapabilityProfileId
+} from '../../src/f1ql/semantic-capability-registry';
 import { planSemanticAnswerFromResolution, SemanticDriverMention } from '../../src/f1ql/semantic-planner';
 import { collectSemanticResolutionEvidence } from '../../src/f1ql/semantic-resolution-evidence';
 import { proveSemanticAnswerPlan } from '../../src/f1ql/semantic-plan-proof';
@@ -31,8 +35,94 @@ const hash = (digit: string) => digit.repeat(64);
 const canary = (stage: 0 | 100 = 100, killSwitch = false) => ({
   stage, subject_id: 'semantic-capability-subject', kill_switch: killSwitch
 });
+const POSITIVE_PROPERTY_SEED = 20260731;
+const POSITIVE_PROPERTY_RUNS = 40;
+
+interface PositiveProfileInput {
+  readonly year: number;
+  readonly round: number;
+  readonly candidate_count: number;
+  readonly selected_index: number;
+}
+
+interface PositiveProfileCase {
+  readonly question: string;
+  readonly entity_names: readonly string[];
+  readonly driver_mentions?: readonly {
+    readonly name: string;
+    readonly candidates: readonly string[];
+    readonly active_candidates: readonly string[];
+  }[];
+}
+
+const POSITIVE_PROFILE_CASES = {
+  'semantic-single-source-v1': ({ year }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver and championship points from final ${year} driver standings.`,
+    entity_names: []
+  }),
+  'semantic-safe-dimension-join-v1': ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
+    entity_names: []
+  }),
+  'semantic-aggregate-locality-v1': (input: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final ${input.year}.`,
+    entity_names: ['Norris'],
+    driver_mentions: [{
+      name: 'Norris',
+      candidates: candidateInventory('lando-norris', input.candidate_count, input.selected_index),
+      active_candidates: ['lando-norris']
+    }]
+  })
+} satisfies Record<SemanticCapabilityProfileId, (input: PositiveProfileInput) => PositiveProfileCase>;
+
+const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 100 }).chain(candidateCount => fc.record({
+  year: fc.integer({ min: 1950, max: 2025 }),
+  round: fc.integer({ min: 1, max: 30 }),
+  candidate_count: fc.constant(candidateCount),
+  selected_index: fc.integer({ min: 0, max: candidateCount - 1 })
+}));
 
 describe('semantic complete-interaction capability authorization', () => {
+  it('positively generates every current signed profile across bounded historical and resolver inputs', async () => {
+    expect(Object.keys(POSITIVE_PROFILE_CASES).sort()).toEqual([...SEMANTIC_CAPABILITY_PROFILE_IDS].sort());
+    for (const profileId of SEMANTIC_CAPABILITY_PROFILE_IDS) {
+      for (const boundary of [
+        { year: 1950, round: 1, candidate_count: 1, selected_index: 0 },
+        { year: 2025, round: 30, candidate_count: 100, selected_index: 99 }
+      ]) {
+        await expectPositiveProfileAuthorization(profileId, boundary);
+      }
+      await fc.assert(fc.asyncProperty(
+        positiveProfileInputArbitrary,
+        input => expectPositiveProfileAuthorization(profileId, input)
+      ), { seed: POSITIVE_PROPERTY_SEED, numRuns: POSITIVE_PROPERTY_RUNS });
+    }
+  });
+
+  it('rejects latest-recorded 2026 data from a historical-final capability profile', async () => {
+    const proof = await semanticProof(
+      'List driver and championship points from latest recorded 2026 driver standings.', []
+    );
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  });
+
+  it('rejects a resolver inventory above the 100-candidate boundary', async () => {
+    const question = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+    await expect(semanticProof(question, ['Norris'], [{
+      name: 'Norris',
+      candidates: candidateInventory('lando-norris', 101, 100),
+      active_candidates: ['lando-norris']
+    }])).rejects.toThrowError(expect.objectContaining({ reason: 'entity_inventory_mismatch' }));
+  });
+
   it.each([
     ['List driver and championship points from final 2025 driver standings.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
@@ -238,14 +328,28 @@ describe('semantic complete-interaction capability authorization', () => {
   });
 });
 
-async function semanticProof(question: string, entityNames: readonly string[]) {
+async function semanticProof(
+  question: string,
+  entityNames: readonly string[],
+  driverMentions?: PositiveProfileCase['driver_mentions']
+) {
+  return (await semanticArtifacts(question, entityNames, driverMentions)).proof;
+}
+
+async function semanticArtifacts(
+  question: string,
+  entityNames: readonly string[],
+  driverMentions?: PositiveProfileCase['driver_mentions']
+) {
   const entities = entityNames.map(name => ({ type: 'driver' as const, span: span(question, name) }));
   const evidence = enumerateSemanticQueries(question, entities);
   if (evidence.type !== 'candidate_set') throw new Error('test evidence was not a candidate set');
   const admission = admitSemanticQueryCandidates({ version: 2, candidates: evidence.candidates }, question, evidence);
   if (admission.type !== 'admitted') throw new Error('test query was not admitted');
   const mentions: SemanticDriverMention[] = entityNames.map(name => ({
-    ...span(question, name), candidates: ['lando-norris'], active_candidates: ['lando-norris']
+    ...span(question, name),
+    candidates: driverMentions?.find(mention => mention.name === name)?.candidates ?? ['lando-norris'],
+    active_candidates: driverMentions?.find(mention => mention.name === name)?.active_candidates ?? ['lando-norris']
   }));
   const year = Number(/\b(?:19|20)\d{2}\b/u.exec(question)?.[0] ?? 2025);
   const round = Number(/\bround\s+(\d{1,2})\b/iu.exec(question)?.[1] ?? 1);
@@ -259,7 +363,8 @@ async function semanticProof(question: string, entityNames: readonly string[]) {
     }
   });
   const plan = planSemanticAnswerFromResolution({ question, admission, resolution });
-  return proveSemanticAnswerPlan({ question, entity_inventory: entities, evidence, admission, resolution, plan });
+  const proof = proveSemanticAnswerPlan({ question, entity_inventory: entities, evidence, admission, resolution, plan });
+  return { proof, resolution };
 }
 
 function release(overrides: Partial<ActiveAnswerReleaseContext> = {}) {
@@ -305,4 +410,59 @@ function span(question: string, text: string): SemanticLiteralSpan {
   const start = points.findIndex((_point, index) => target.every((point, offset) => points[index + offset] === point));
   if (start < 0) throw new Error(`missing test span ${text}`);
   return { text, start, end: start + target.length };
+}
+
+async function expectPositiveProfileAuthorization(
+  profileId: SemanticCapabilityProfileId,
+  input: PositiveProfileInput
+): Promise<void> {
+  const testCase = POSITIVE_PROFILE_CASES[profileId](input);
+  const { proof, resolution } = await semanticArtifacts(
+    testCase.question, testCase.entity_names, testCase.driver_mentions
+  );
+  if (testCase.driver_mentions) {
+    const mention = testCase.driver_mentions[0];
+    expect(resolution.resolver_candidates).toBe(input.candidate_count);
+    expect(resolution.entities[0].candidate_ids).toEqual([...mention.candidates].sort());
+    expect(resolution.entities[0].selected_id).toBe(mention.active_candidates[0]);
+  }
+  const authorization = authorizeSemanticPlanCapability({
+    proof,
+    profile_id: profileId,
+    principal_class: 'internal_canary',
+    request_id: randomUUID(),
+    canary: canary(),
+    release_attestation: release({ deployment_capability_profile_ids: [profileId] }),
+    now_ms: NOW
+  });
+  expect(authorization).toMatchObject({
+    profile_id: profileId,
+    registry_hash: SEMANTIC_CAPABILITY_REGISTRY_HASH,
+    catalog_hash: proof.catalog_hash,
+    semantic_evidence_hash: proof.semantic_evidence_hash,
+    candidate_set_hash: proof.candidate_set_hash,
+    resolution_evidence_hash: proof.resolution_evidence_hash,
+    answer_plan_hash: proof.answer_plan_hash,
+    planned_f1ql_hash: proof.planned_f1ql_hash,
+    core_hash: proof.core_hash,
+    topology_hash: proof.topology_hash,
+    semantic_plan_proof_hash: proof.proof_hash
+  });
+  expect(authorization.capability_hash).toMatch(/^[a-f0-9]{64}$/u);
+  expectDeepFrozen(authorization.interaction);
+  expect(verifySemanticCapabilityAuthorization(authorization)).toBe(authorization);
+}
+
+function candidateInventory(selectedId: string, count: number, selectedIndex: number): string[] {
+  return [
+    ...Array.from({ length: selectedIndex }, (_, index) => `a-candidate-${String(index).padStart(3, '0')}`),
+    selectedId,
+    ...Array.from({ length: count - selectedIndex - 1 }, (_, index) => `z-candidate-${String(index).padStart(3, '0')}`)
+  ];
+}
+
+function expectDeepFrozen(value: unknown): void {
+  if (!value || typeof value !== 'object') {return;}
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const child of Object.values(value)) {expectDeepFrozen(child);}
 }
