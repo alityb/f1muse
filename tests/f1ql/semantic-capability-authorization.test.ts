@@ -9,6 +9,7 @@ import {
 } from '../../src/f1ql/semantic-capability-authorization';
 import {
   SEMANTIC_CAPABILITY_PROFILE_IDS,
+  SEMANTIC_CAPABILITY_PROFILES,
   SEMANTIC_CAPABILITY_REGISTRY_HASH,
   SemanticCapabilityProfileId
 } from '../../src/f1ql/semantic-capability-registry';
@@ -19,6 +20,7 @@ import { admitSemanticQueryCandidates, enumerateSemanticQueries, SemanticLiteral
 import { SEMANTIC_CATALOG_HASH } from '../../src/f1ql/semantic-catalog';
 import {
   ActiveAnswerReleaseContext,
+  AnswerPrincipalClass,
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationSigningPayload,
   verifyAnswerReleaseAttestation
@@ -55,16 +57,18 @@ interface PositiveProfileCase {
   }[];
 }
 
+type PositiveProfileFactory = (input: PositiveProfileInput) => PositiveProfileCase;
+
 const POSITIVE_PROFILE_CASES = {
-  'semantic-single-source-v1': ({ year }: PositiveProfileInput): PositiveProfileCase => ({
+  'semantic-single-source-v1': [({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and championship points from final ${year} driver standings.`,
     entity_names: []
-  }),
-  'semantic-safe-dimension-join-v1': ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+  })],
+  'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
     entity_names: []
-  }),
-  'semantic-aggregate-locality-v1': (input: PositiveProfileInput): PositiveProfileCase => ({
+  })],
+  'semantic-aggregate-locality-v1': [(input: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final ${input.year}.`,
     entity_names: ['Norris'],
     driver_mentions: [{
@@ -72,8 +76,8 @@ const POSITIVE_PROFILE_CASES = {
       candidates: candidateInventory('lando-norris', input.candidate_count, input.selected_index),
       active_candidates: ['lando-norris']
     }]
-  })
-} satisfies Record<SemanticCapabilityProfileId, (input: PositiveProfileInput) => PositiveProfileCase>;
+  })]
+} satisfies Record<SemanticCapabilityProfileId, readonly PositiveProfileFactory[]>;
 
 const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 100 }).chain(candidateCount => fc.record({
   year: fc.integer({ min: 1950, max: 2025 }),
@@ -85,17 +89,35 @@ const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 100 }).chain(can
 describe('semantic complete-interaction capability authorization', () => {
   it('positively generates every current signed profile across bounded historical and resolver inputs', async () => {
     expect(Object.keys(POSITIVE_PROFILE_CASES).sort()).toEqual([...SEMANTIC_CAPABILITY_PROFILE_IDS].sort());
-    for (const profileId of SEMANTIC_CAPABILITY_PROFILE_IDS) {
-      for (const boundary of [
-        { year: 1950, round: 1, candidate_count: 1, selected_index: 0 },
-        { year: 2025, round: 30, candidate_count: 100, selected_index: 99 }
-      ]) {
-        await expectPositiveProfileAuthorization(profileId, boundary);
+    for (const profile of SEMANTIC_CAPABILITY_PROFILES) {
+      const factories = POSITIVE_PROFILE_CASES[profile.id];
+      expect(factories).toHaveLength(profile.complete_interactions.length);
+      const generatedInteractions = [];
+      for (const factory of factories) {
+        for (const principalClass of profile.principal_classes) {
+          for (const boundary of [
+            { year: 1950, round: 1, candidate_count: 1, selected_index: 0 },
+            { year: 2025, round: 30, candidate_count: 100, selected_index: 99 }
+          ]) {
+            const authorization = await expectPositiveProfileAuthorization(
+              profile.id, factory, principalClass, boundary
+            );
+            if (principalClass === profile.principal_classes[0] && boundary.year === 1950) {
+              generatedInteractions.push(completeInteraction(authorization.interaction));
+            }
+          }
+        }
+        await fc.assert(fc.asyncProperty(
+          positiveProfileInputArbitrary,
+          async input => {
+            for (const principalClass of profile.principal_classes) {
+              await expectPositiveProfileAuthorization(profile.id, factory, principalClass, input);
+            }
+          }
+        ), { seed: POSITIVE_PROPERTY_SEED, numRuns: POSITIVE_PROPERTY_RUNS });
       }
-      await fc.assert(fc.asyncProperty(
-        positiveProfileInputArbitrary,
-        input => expectPositiveProfileAuthorization(profileId, input)
-      ), { seed: POSITIVE_PROPERTY_SEED, numRuns: POSITIVE_PROPERTY_RUNS });
+      expect(generatedInteractions.map(completeInteractionKey).sort())
+        .toEqual(profile.complete_interactions.map(completeInteractionKey).sort());
     }
   });
 
@@ -414,9 +436,11 @@ function span(question: string, text: string): SemanticLiteralSpan {
 
 async function expectPositiveProfileAuthorization(
   profileId: SemanticCapabilityProfileId,
+  factory: PositiveProfileFactory,
+  principalClass: AnswerPrincipalClass,
   input: PositiveProfileInput
-): Promise<void> {
-  const testCase = POSITIVE_PROFILE_CASES[profileId](input);
+) {
+  const testCase = factory(input);
   const { proof, resolution } = await semanticArtifacts(
     testCase.question, testCase.entity_names, testCase.driver_mentions
   );
@@ -429,10 +453,13 @@ async function expectPositiveProfileAuthorization(
   const authorization = authorizeSemanticPlanCapability({
     proof,
     profile_id: profileId,
-    principal_class: 'internal_canary',
+    principal_class: principalClass,
     request_id: randomUUID(),
     canary: canary(),
-    release_attestation: release({ deployment_capability_profile_ids: [profileId] }),
+    release_attestation: release({
+      deployment_capability_profile_ids: [profileId],
+      deployment_principal_classes: [principalClass]
+    }),
     now_ms: NOW
   });
   expect(authorization).toMatchObject({
@@ -451,6 +478,43 @@ async function expectPositiveProfileAuthorization(
   expect(authorization.capability_hash).toMatch(/^[a-f0-9]{64}$/u);
   expectDeepFrozen(authorization.interaction);
   expect(verifySemanticCapabilityAuthorization(authorization)).toBe(authorization);
+  return authorization;
+}
+
+function completeInteraction(interaction: {
+  readonly predicate_bindings: readonly string[];
+  readonly aggregate_bindings: readonly string[];
+  readonly group_bindings: readonly string[];
+  readonly output_bindings: readonly string[];
+  readonly sort_bindings: readonly string[];
+  readonly rows: number;
+}) {
+  return {
+    predicate_bindings: interaction.predicate_bindings,
+    aggregate_bindings: interaction.aggregate_bindings,
+    group_bindings: interaction.group_bindings,
+    output_bindings: interaction.output_bindings,
+    sort_bindings: interaction.sort_bindings,
+    requested_rows: interaction.rows
+  };
+}
+
+function completeInteractionKey(interaction: {
+  readonly predicate_bindings: readonly string[];
+  readonly aggregate_bindings: readonly string[];
+  readonly group_bindings: readonly string[];
+  readonly output_bindings: readonly string[];
+  readonly sort_bindings: readonly string[];
+  readonly requested_rows: number;
+}): string {
+  return JSON.stringify([
+    interaction.predicate_bindings,
+    interaction.aggregate_bindings,
+    interaction.group_bindings,
+    interaction.output_bindings,
+    interaction.sort_bindings,
+    interaction.requested_rows
+  ]);
 }
 
 function candidateInventory(selectedId: string, count: number, selectedIndex: number): string[] {
