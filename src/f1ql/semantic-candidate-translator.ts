@@ -162,16 +162,22 @@ const proposalSchema = z.object({
   entities: z.array(entityProposalSchema).max(8),
   filters: z.array(filterProposalSchema).max(8),
   group_by: z.array(z.object({ concept: conceptRefSchema, evidence: evidenceRefSchema }).strict()).max(3),
-  comparison: z.object({
-    operation: z.enum(['count', 'delta', 'higher', 'lower', 'rank', 'shared_event']),
-    evidence: evidenceRefSchema
-  }).strict().nullable(),
+  comparison: z.preprocess(
+    value => Array.isArray(value) && value.length === 0 ? null : value,
+    z.object({
+      operation: z.enum(['count', 'delta', 'higher', 'lower', 'rank', 'shared_event']),
+      evidence: evidenceRefSchema
+    }).strict().nullable()
+  ),
   order_by: z.array(z.object({
     output_index: z.number().int().min(0).max(7),
     direction: z.enum(['asc', 'desc']),
     evidence: evidenceRefSchema
   }).strict()).max(4),
-  limit: z.object({ evidence: evidenceRefSchema }).strict().nullable()
+  limit: z.preprocess(
+    value => Array.isArray(value) && value.length === 0 ? null : value,
+    z.object({ evidence: evidenceRefSchema }).strict().nullable()
+  )
 }).strict();
 const proposalSetSchema = z.object({
   version: z.literal(SEMANTIC_CANDIDATE_PROPOSAL_VERSION),
@@ -230,6 +236,7 @@ const filterJsonSchema = {
     closedJsonObject({ operation: { type: 'string', enum: ['literal_range_filter'] }, concept: conceptRefJsonSchema, operator: { type: 'string', enum: ['range'] }, min_span: spanRefJsonSchema, max_span: spanRefJsonSchema, evidence: evidenceRefJsonSchema })
   ]
 };
+const emptyArrayJsonSchema = { type: 'array', maxItems: 0 } as const;
 
 export const SEMANTIC_CANDIDATE_JSON_SCHEMA = deepFreeze({
   ...closedJsonObject({
@@ -242,9 +249,9 @@ export const SEMANTIC_CANDIDATE_JSON_SCHEMA = deepFreeze({
         entities: { type: 'array', maxItems: 8, items: closedJsonObject({ type: { type: 'string', enum: ['driver', 'event'] }, span: spanRefJsonSchema }) },
         filters: { type: 'array', maxItems: 8, items: filterJsonSchema },
         group_by: { type: 'array', maxItems: 3, items: closedJsonObject({ concept: conceptRefJsonSchema, evidence: evidenceRefJsonSchema }) },
-        comparison: { anyOf: [closedJsonObject({ operation: { type: 'string', enum: ['count', 'delta', 'higher', 'lower', 'rank', 'shared_event'] }, evidence: evidenceRefJsonSchema }), { type: 'null' }] },
+        comparison: { anyOf: [closedJsonObject({ operation: { type: 'string', enum: ['count', 'delta', 'higher', 'lower', 'rank', 'shared_event'] }, evidence: evidenceRefJsonSchema }), { type: 'null' }, emptyArrayJsonSchema] },
         order_by: { type: 'array', maxItems: 4, items: closedJsonObject({ output_index: { type: 'integer', minimum: 0, maximum: 7 }, direction: { type: 'string', enum: ['asc', 'desc'] }, evidence: evidenceRefJsonSchema }) },
-        limit: { anyOf: [closedJsonObject({ evidence: evidenceRefJsonSchema }), { type: 'null' }] }
+        limit: { anyOf: [closedJsonObject({ evidence: evidenceRefJsonSchema }), { type: 'null' }, emptyArrayJsonSchema] }
       })
     }
   }),
@@ -553,7 +560,16 @@ export function hydrateSemanticCandidateProposals(
   }
   const proposalSet = proposalSetSchema.parse(input);
   const question = createAnswerQuestionContract(questionInput);
-  const candidates = proposalSet.candidates.map(proposal => ({
+  const candidates = proposalSet.candidates.map(proposal => hydrateProposal(proposal, question, catalog));
+  return parseSemanticQueryCandidateSet({ version: SEMANTIC_QUERY_VERSION, candidates }, question.normalized_question, catalog);
+}
+
+function hydrateProposal(
+  proposal: z.infer<typeof proposalSchema>,
+  question: AnswerQuestionContract,
+  catalog: SemanticCatalog
+) {
+  return {
     version: SEMANTIC_QUERY_VERSION,
     outputs: proposal.outputs.map(output => ({
       kind: output.operation === 'select' ? 'concept' : 'aggregate',
@@ -565,25 +581,18 @@ export function hydrateSemanticCandidateProposals(
     entities: proposal.entities.map(entity => ({ type: entity.type, span: hydrateSpan(entity.span, question) })),
     filters: proposal.filters.map(filter => hydrateFilter(filter, question, catalog)),
     group_by: proposal.group_by.map(group => ({
-      concept: toSemanticConceptRef(group.concept, catalog),
-      evidence: hydrateEvidence(group.evidence, question)
+      concept: toSemanticConceptRef(group.concept, catalog), evidence: hydrateEvidence(group.evidence, question)
     })),
     ...(proposal.comparison === null ? {} : {
       comparison: { relation: proposal.comparison.operation, evidence: hydrateEvidence(proposal.comparison.evidence, question) }
     }),
     order_by: proposal.order_by.map(order => ({
-      output_index: order.output_index,
-      direction: order.direction,
-      evidence: hydrateEvidence(order.evidence, question)
+      output_index: order.output_index, direction: order.direction, evidence: hydrateEvidence(order.evidence, question)
     })),
     ...(proposal.limit === null ? {} : {
-      limit: {
-        value: hydrateLimit(proposal.limit.evidence, question),
-        evidence: hydrateEvidence(proposal.limit.evidence, question)
-      }
+      limit: { value: hydrateLimit(proposal.limit.evidence, question), evidence: hydrateEvidence(proposal.limit.evidence, question) }
     })
-  }));
-  return parseSemanticQueryCandidateSet({ version: SEMANTIC_QUERY_VERSION, candidates }, question.normalized_question, catalog);
+  };
 }
 
 export async function translateSemanticCandidateQuestion(

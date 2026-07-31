@@ -19,6 +19,7 @@ import { createProgramSemanticShadowRoutes } from '../src/api/routes/program-sem
 import {
   createSemanticCandidateModel,
   getConfiguredSemanticCandidateModelIdentity,
+  SemanticCandidateProposalError,
   SemanticCandidateProposalAdapter
 } from '../src/f1ql/semantic-candidate-translator';
 import { SEMANTIC_CATALOG_HASH } from '../src/f1ql/semantic-catalog';
@@ -172,6 +173,7 @@ async function main(): Promise<void> {
   let activeCaseIndex: number | undefined;
   let activeRepetitionIndex: number | undefined;
   let activeRawProviderCandidateSetSha256: string | undefined;
+  let activeProviderDiagnosticCode: string | undefined;
   let executionAttempts = 0;
   const throwingExecutor = (): never => {
     executionAttempts += 1;
@@ -197,7 +199,13 @@ async function main(): Promise<void> {
       environment: () => routeEnvironment,
       proposer: {
         propose: async (request, signal) => {
-          const proposed = await provider.propose(request, signal);
+          let proposed;
+          try {
+            proposed = await provider.propose(request, signal);
+          } catch (error) {
+            activeProviderDiagnosticCode = error instanceof SemanticCandidateProposalError ? error.code : 'unknown';
+            throw error;
+          }
           activeRawProviderCandidateSetSha256 = computeSemanticCandidateSetHash(
             proposed.candidates,
             sha256(request.question),
@@ -249,6 +257,7 @@ async function main(): Promise<void> {
         activeCaseIndex = corpus.cases.indexOf(item);
         activeRepetitionIndex = repetition;
         activeRawProviderCandidateSetSha256 = undefined;
+        activeProviderDiagnosticCode = undefined;
         await configureDisposableResolverCase(pool, item.id);
         await beforeRequest();
         const retainedBefore = retainedEvents.length;
@@ -266,7 +275,7 @@ async function main(): Promise<void> {
           throw new Error('Semantic shadow route did not emit exactly one retained terminal event');
         }
         assertTerminalResponse(
-          response.status, body, retainedEvents[retainedBefore], snapshot.cases[activeCaseIndex]
+          response.status, body, retainedEvents[retainedBefore], snapshot.cases[activeCaseIndex], activeProviderDiagnosticCode
         );
         if (executionAttempts !== 0) {
           throw new Error('Semantic shadow collector reached the throwing executor');
@@ -345,7 +354,8 @@ function assertTerminalResponse(
   status: number,
   input: unknown,
   retained: SemanticShadowRetainedObservation,
-  expected: CompositionalRegressionSnapshot['cases'][number]
+  expected: CompositionalRegressionSnapshot['cases'][number],
+  providerDiagnosticCode?: string
 ): void {
   if (!isRecord(input) || !('terminal' in retained)) {
     throw new Error('Semantic shadow route returned a non-terminal response');
@@ -360,23 +370,38 @@ function assertTerminalResponse(
   const expectedStatus = retained.observation.outcome === 'unavailable' ? 503 : 200;
   const expectedReason = expected.action === 'answer' ? 'plan_proven' : expected.reason;
   const hashes = retained.observation.hashes;
-  const answerMatches = expected.action !== 'answer' || Boolean(expected.plan && expected.proof &&
-    retained.observation.topology_code === expected.plan.topology &&
-    retained.observation.source_set_code === expected.plan.source_ids.join('__') &&
-    hashes.candidate_set_sha256 === expected.evidence.candidate_set_hash &&
-    hashes.provider_candidate_set_sha256 === expected.evidence.candidate_set_hash &&
-    hashes.semantic_evidence_sha256 === expected.evidence.evidence_hash &&
-    hashes.semantic_query_sha256 === expected.admission.query_hash &&
-    hashes.answer_plan_sha256 === expected.plan.answer_plan_hash &&
-    hashes.topology_sha256 === expected.proof.topology_hash &&
-    hashes.planned_f1ql_sha256 === expected.plan.planned_f1ql_hash &&
-    hashes.core_sha256 === expected.plan.core_hash &&
-    hashes.compiled_sha256 === expected.proof.compiled_hash &&
-    hashes.semantic_proof_sha256 === expected.proof.proof_hash);
-  if (status !== expectedStatus || retained.observation.result_query_calls !== 0 ||
-      retained.question_sha256 !== expected.question_sha256 || retained.observation.outcome !== expected.action ||
-      retained.observation.reason !== expectedReason || !answerMatches) {
-    throw new Error('Semantic shadow route returned an invalid terminal status');
+  const mismatches = [
+    ...(status === expectedStatus ? [] : ['http_status']),
+    ...(retained.observation.result_query_calls === 0 ? [] : ['result_query_calls']),
+    ...(retained.question_sha256 === expected.question_sha256 ? [] : ['question_hash']),
+    ...(retained.observation.outcome === expected.action ? [] : [`outcome_${retained.observation.outcome}`]),
+    ...(retained.observation.reason === expectedReason ? [] : [`reason_${retained.observation.reason}`]),
+    ...(providerDiagnosticCode === undefined ? [] : [`provider_${providerDiagnosticCode}`])
+  ];
+  if (expected.action === 'answer') {
+    if (!expected.plan || !expected.proof) {mismatches.push('reviewed_answer_missing');}
+    else {
+      const answerBindings = [
+        ['topology', retained.observation.topology_code, expected.plan.topology],
+        ['source_set', retained.observation.source_set_code, expected.plan.source_ids.join('__')],
+        ['candidate_set_hash', hashes.candidate_set_sha256, expected.evidence.candidate_set_hash],
+        ['provider_candidate_set_hash', hashes.provider_candidate_set_sha256, expected.evidence.candidate_set_hash],
+        ['semantic_evidence_hash', hashes.semantic_evidence_sha256, expected.evidence.evidence_hash],
+        ['semantic_query_hash', hashes.semantic_query_sha256, expected.admission.query_hash],
+        ['answer_plan_hash', hashes.answer_plan_sha256, expected.plan.answer_plan_hash],
+        ['topology_hash', hashes.topology_sha256, expected.proof.topology_hash],
+        ['planned_f1ql_hash', hashes.planned_f1ql_sha256, expected.plan.planned_f1ql_hash],
+        ['core_hash', hashes.core_sha256, expected.plan.core_hash],
+        ['compiled_hash', hashes.compiled_sha256, expected.proof.compiled_hash],
+        ['semantic_proof_hash', hashes.semantic_proof_sha256, expected.proof.proof_hash]
+      ] as const;
+      for (const [code, actual, reviewed] of answerBindings) {
+        if (actual !== reviewed) {mismatches.push(code);}
+      }
+    }
+  }
+  if (mismatches.length > 0) {
+    throw new Error(`Semantic shadow route returned an invalid terminal status: ${mismatches.join(',')}`);
   }
 }
 

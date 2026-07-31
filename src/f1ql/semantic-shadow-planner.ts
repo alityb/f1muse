@@ -111,6 +111,7 @@ const CLARIFICATION_REASONS = new Set<SemanticShadowReason>([
   'attachment_ambiguous', 'entity_ambiguous', 'metric_ambiguous', 'output_shape_ambiguous',
   'scope_ambiguous', 'temporal_ambiguous', 'event_ambiguous', 'join_path_ambiguous'
 ]);
+const GENERIC_DRIVER_MENTIONS = new Set(['driver', 'drivers']);
 
 export async function orchestrateSemanticShadow(
   questionInput: unknown,
@@ -155,10 +156,12 @@ export async function orchestrateSemanticShadow(
     try {
       transcript = await timed('inventory_ms', latencies, now, async () => {
         inventoryReads += 1;
-        return parseDriverTranscript(await dependencies.entity_inventory_resolver.inventoryMentions(
+        const mentions = parseDriverTranscript(await dependencies.entity_inventory_resolver.inventoryMentions(
           contract.normalized_question,
           contract.years[0].value
         ));
+        validateDriverTranscriptSpans(mentions, contract.normalized_question);
+        return mentions.filter(mention => !GENERIC_DRIVER_MENTIONS.has(mention.text.toLocaleLowerCase('en-US')));
       });
     } catch (error) {
       rethrowDependencyError(error);
@@ -376,6 +379,14 @@ function parseDriverTranscript(input: unknown): readonly SemanticDriverMention[]
     throw new Error('semantic shadow resolver candidate budget is exceeded');
   }
   return deepFreeze(mentions);
+}
+
+function validateDriverTranscriptSpans(mentions: readonly SemanticDriverMention[], question: string): void {
+  const points = Array.from(question);
+  if (mentions.some(mention => mention.start < 0 || mention.end > points.length ||
+      points.slice(mention.start, mention.end).join('') !== mention.text)) {
+    throw new Error('semantic shadow entity inventory is invalid');
+  }
 }
 
 function candidateIds(input: readonly unknown[]): string[] {

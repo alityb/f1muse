@@ -78,6 +78,34 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     expect(isDeepFrozen(observation)).toBe(true);
   });
 
+  it('does not treat generic driver language as a named resolver entity', async () => {
+    const generic = driverMention(STANDINGS, 'driver', ['sample-driver'], ['sample-driver']);
+    const observation = await orchestrateSemanticShadow(
+      STANDINGS,
+      dependencies([generic], { type: 'missing' }, exactProposal([]))
+    );
+    expect(observation).toMatchObject({
+      outcome: 'answer',
+      reason: 'plan_proven',
+      candidate_counts: { comparison: 'exact', matched: 1, omitted: 0, extraneous: 0 },
+      resolver_counts: { inventory_entities: 0 },
+      result_query_calls: 0
+    });
+  });
+
+  it('validates generic resolver mentions before filtering them', async () => {
+    const generic = driverMention(STANDINGS, 'driver', ['sample-driver'], ['sample-driver']);
+    const observation = await orchestrateSemanticShadow(
+      STANDINGS,
+      dependencies([{ ...generic, start: 999, end: 1005 }], { type: 'missing' }, exactProposal([]))
+    );
+    expect(observation).toMatchObject({
+      outcome: 'abstain',
+      reason: 'entity_inventory_mismatch',
+      result_query_calls: 0
+    });
+  });
+
   it('closes answer, clarification, abstention, malformed-provider, and provider-omission outcomes', async () => {
     const answer = await orchestrateSemanticShadow(STANDINGS, dependencies([]));
     expect(answer).toMatchObject({ outcome: 'answer', reason: 'plan_proven' });

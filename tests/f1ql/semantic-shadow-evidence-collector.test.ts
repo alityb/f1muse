@@ -98,5 +98,8 @@ describe('WP8 semantic shadow evidence collector', () => {
     expect(source).toContain('databaseUrl !== DISPOSABLE_DATABASE_URL');
     expect(source).toContain("const DISPOSABLE_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test'");
     expect(source).not.toMatch(/COLLECTION_TARGET\s*===?\s*['"]production['"]/u);
+    expect(source).toContain("activeProviderDiagnosticCode = error instanceof SemanticCandidateProposalError ? error.code : 'unknown'");
+    expect(source).toContain('`provider_${providerDiagnosticCode}`');
+    expect(source).not.toMatch(/activeProviderDiagnosticCode\s*=\s*(?:String\()?error\.message/u);
   });
 });

@@ -116,6 +116,20 @@ describe('semantic candidate translator foundation', () => {
     }
   });
 
+  it('canonicalizes only empty-array nullable fields before strict semantic validation', async () => {
+    const evidence = candidateEvidence(STANDINGS);
+    const emptyNullables = proposalSet(evidence.candidates) as ProposalSet;
+    emptyNullables.candidates[0].comparison = [] as unknown as Record<string, unknown>;
+    emptyNullables.candidates[0].limit = [] as unknown as { evidence: SpanRef[] };
+    expect(hydrateSemanticCandidateProposals(emptyNullables, STANDINGS).candidates).toEqual(evidence.candidates);
+
+    const nonempty = structuredClone(emptyNullables);
+    nonempty.candidates[0].comparison = [{}] as unknown as Record<string, unknown>;
+    await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, modelReturning(nonempty))).resolves.toMatchObject({
+      type: 'provider_unavailable', reason: 'invalid_response', diagnostic_code: 'schema_invalid'
+    });
+  });
+
   it('rejects out-of-range, empty, and UTF-16-confused code-point spans', async () => {
     const question = `🏁 ${STANDINGS}`;
     const evidence = candidateEvidence(question);
