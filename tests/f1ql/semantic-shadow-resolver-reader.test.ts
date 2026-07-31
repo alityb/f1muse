@@ -226,7 +226,7 @@ describe('semantic shadow resolver metadata reader', () => {
     expect(fake.releases()).toBe(1);
   });
 
-  it('closes retained access after failure before rollback and release', async () => {
+  it('closes retained access and sanitizes callback failures with completed counters', async () => {
     const rollbackStarted = deferred();
     const allowRollback = deferred();
     const fake = fakeDatabase(async () => ({ rows: [] }), async () => {
@@ -237,6 +237,7 @@ describe('semantic shadow resolver metadata reader', () => {
     let retained: SemanticShadowResolverAccess | undefined;
     const request = withSemanticShadowResolverReader(fake.database, { statementTimeoutMs: 100 }, async access => {
       retained = access;
+      await access.driver_resolver.inventoryMentions('Max', 2025);
       throw callbackError;
     });
 
@@ -253,7 +254,18 @@ describe('semantic shadow resolver metadata reader', () => {
     expect(fake.calls).toHaveLength(callsBeforeRetainedUse);
 
     allowRollback.resolve();
-    await expect(request).rejects.toBe(callbackError);
+    await expect(request).rejects.toMatchObject({
+      code: 'metadata_read_failed',
+      message: 'metadata_read_failed',
+      transaction_started: true,
+      counters: {
+        statement_count: 1,
+        returned_row_count: 0,
+        statements: { driver_inventory_unscoped: 0, driver_inventory_scoped: 1, event_name: 0, event_round: 0 }
+      }
+    });
+    const sanitizedError = await request.catch(error => error as Error);
+    expect(JSON.stringify(sanitizedError)).not.toContain(callbackError.message);
     expect(fake.calls.at(-1)?.sql).toBe('ROLLBACK');
     expect(fake.releases()).toBe(1);
   });
@@ -263,7 +275,7 @@ describe('semantic shadow resolver metadata reader', () => {
     const callbackError = new Error('callback failed');
     await expect(withSemanticShadowResolverReader(failure.database, { statementTimeoutMs: 100 }, async () => {
       throw callbackError;
-    })).rejects.toBe(callbackError);
+    })).rejects.toMatchObject({ code: 'metadata_read_failed', message: 'metadata_read_failed', transaction_started: true });
     expect(failure.calls.at(-1)?.sql).toBe('ROLLBACK');
     expect(failure.releases()).toBe(1);
 
@@ -273,8 +285,29 @@ describe('semantic shadow resolver metadata reader', () => {
       controller.abort(new Error('private abort reason'));
       await access.driver_resolver.inventoryMentions('Max', 2025);
     })).rejects.toMatchObject({ code: 'request_cancelled', message: 'request_cancelled' });
-    expect(abort.calls.at(-1)?.sql).toBe('ROLLBACK');
+    expect(abort.calls.some(call => call.sql === 'ROLLBACK')).toBe(false);
     expect(abort.releases()).toBe(1);
+    expect(abort.releaseErrors()[0]).toMatchObject({ code: 'request_cancelled' });
+
+    const queryStarted = deferred();
+    const queryResult = deferred<{ rows: unknown[] }>();
+    const hanging = fakeDatabase(async () => {
+      queryStarted.resolve();
+      return queryResult.promise;
+    });
+    const hangingController = new AbortController();
+    const hangingRequest = withSemanticShadowResolverReader(
+      hanging.database,
+      { statementTimeoutMs: 100, signal: hangingController.signal },
+      access => access.driver_resolver.inventoryMentions('Max', 2025)
+    );
+    await queryStarted.promise;
+    hangingController.abort();
+    await expect(hangingRequest).rejects.toMatchObject({ code: 'request_cancelled' });
+    expect(hanging.calls.some(call => call.sql === 'ROLLBACK')).toBe(false);
+    expect(hanging.releases()).toBe(1);
+    expect(hanging.releaseErrors()[0]).toMatchObject({ code: 'request_cancelled' });
+    queryResult.resolve({ rows: [] });
   });
 
   it('discards a connection and prioritizes cleanup failure when rollback fails', async () => {

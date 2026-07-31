@@ -37,6 +37,8 @@
     "release:phase11:hidden-holdout": "tsx scripts/run-phase11-hidden-holdout.ts",
     "smoke:f1ql": "./scripts/smoke-f1ql.sh",
     "report:f1ql-shadow": "tsx scripts/report-f1ql-shadow.ts",
+    "collect:semantic-shadow:local": "npm run db:test:up && DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test DATABASE_URL_TEST=postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test tsx scripts/collect-semantic-shadow-evidence.ts; status=$?; npm run db:test:down; exit $status",
+    "report:semantic-shadow": "tsx scripts/report-semantic-shadow.ts",
     "benchmark:f1ql:compiler": "tsx scripts/benchmark-f1ql-compiler.ts",
     "evidence:f1ql:performance:production": "tsx scripts/collect-f1ql-performance-evidence.ts",
     "sample:retirement-reasons:production": "tsx scripts/sample-retirement-reasons.ts",

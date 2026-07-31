@@ -351,6 +351,10 @@ export function parseCompositionalRegressionCorpus(input: unknown): Compositiona
   return deepFreeze(corpusSchema.parse(input));
 }
 
+export function computeCompositionalRegressionCorpusHash(input: unknown): string {
+  return sha256(stableSerialize(parseCompositionalRegressionCorpus(input)));
+}
+
 export function parseCompositionalRegressionSnapshot(input: unknown): CompositionalRegressionSnapshot {
   const parsed = snapshotSchema.parse(input);
   if (new Set(parsed.cases.map(item => item.id)).size !== parsed.cases.length ||

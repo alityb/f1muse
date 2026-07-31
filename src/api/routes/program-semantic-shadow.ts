@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Request, Response, Router } from 'express';
 import { Pool } from 'pg';
-import { AnswerQuestionError, createAnswerQuestionContract } from '../../f1ql/answer-question';
+import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContract } from '../../f1ql/answer-question';
 import {
   ConfiguredSemanticCandidateModelIdentity,
   createSemanticCandidateModel,
@@ -57,6 +57,7 @@ export interface ProgramSemanticShadowDependencies {
   readonly metadataStatementTimeoutMs?: number;
   readonly requestTimeoutMs?: number;
   readonly admission?: Pick<AnswerAdmissionController, 'acquire'>;
+  readonly evidenceBinding?: (questionSha256: string) => unknown;
 }
 
 export function createProgramSemanticShadowRoutes(
@@ -97,8 +98,9 @@ export function createProgramSemanticShadowRoutes(
     if (!isExactQuestionBody(req.body)) {
       return invalidQuestion(res);
     }
+    let contract: AnswerQuestionContract;
     try {
-      createAnswerQuestionContract(req.body.question);
+      contract = createAnswerQuestionContract(req.body.question);
     } catch (error) {
       if (error instanceof AnswerQuestionError) {
         return invalidQuestion(res);
@@ -136,6 +138,38 @@ export function createProgramSemanticShadowRoutes(
     }
 
     const controller = new AbortController();
+    const startedAt = performance.now();
+    const evidenceBindingFields = () => {
+      const evidenceBinding = dependencies.evidenceBinding?.(contract.sha256);
+      return evidenceBinding === undefined ? {} : { evidence_binding: evidenceBinding };
+    };
+    const resolverCounters = emptyResolverCounters();
+    let resolverTransactionCount = 0;
+    let activeStage: 'admission' | 'inventory' | 'proposal' | 'resolution' | 'planning' = 'admission';
+    let terminalRetentionAttempted = false;
+    const retainTerminal = (retained: unknown) => {
+      const line = JSON.stringify(sanitizeSemanticShadowRetainedObservation(retained));
+      if (terminalRetentionAttempted) {return;}
+      terminalRetentionAttempted = true;
+      logger(line);
+    };
+    const retainOperationalFailure = (reason: string) => {
+      if (terminalRetentionAttempted) {return;}
+      retainTerminal({
+        version: SEMANTIC_SHADOW_RETAINED_OBSERVATION_VERSION,
+        timestamp: validatedTimestamp(dependencies.timestamp),
+        mode: 'semantic_shadow',
+        rollout_stage: 0,
+        question_sha256: contract.sha256,
+        ...evidenceBindingFields(),
+        provider_identity: provider.identity,
+        resolver_transaction_count: resolverTransactionCount,
+        resolver_transaction_counters: freezeResolverCounters(resolverCounters),
+        terminal: 'operational_failure',
+        failure: { reason, stage: activeStage, total_ms: elapsedMs(startedAt) },
+        result_query_calls: 0
+      });
+    };
     let timedOut = false;
     const timeout = setTimeout(() => {
       timedOut = true;
@@ -151,9 +185,8 @@ export function createProgramSemanticShadowRoutes(
     let releaseAdmission: (() => void) | undefined;
     try {
       releaseAdmission = await admission.acquire(controller.signal);
-      const resolverCounters = emptyResolverCounters();
-      let resolverTransactionCount = 0;
       const metadataRead = async <T>(operation: (access: SemanticShadowResolverAccess) => Promise<T>): Promise<T> => {
+        activeStage = resolverTransactionCount === 0 ? 'inventory' : 'resolution';
         let transaction;
         try {
           transaction = await withSemanticShadowResolverReader(pool, {
@@ -161,6 +194,10 @@ export function createProgramSemanticShadowRoutes(
             signal: controller.signal
           }, operation);
         } catch (error) {
+          if (error instanceof SemanticShadowResolverReaderError) {
+            if (error.transaction_started) {resolverTransactionCount += 1;}
+            mergeResolverCounters(resolverCounters, error.counters);
+          }
           throw new SemanticShadowDependencyError(error);
         }
         resolverTransactionCount += 1;
@@ -170,6 +207,7 @@ export function createProgramSemanticShadowRoutes(
       const observation = sanitizeSemanticShadowObservation(await orchestrateSemanticShadow(req.body.question, {
         proposer: {
           propose: async (request: SemanticShadowProposalRequest) => {
+            activeStage = 'proposal';
             try {
               return await provider.proposer.propose(request, controller.signal);
             } catch (error) {
@@ -194,42 +232,59 @@ export function createProgramSemanticShadowRoutes(
         template_dual: true
       }));
       if (controller.signal.aborted) {
+        retainOperationalFailure(timedOut ? 'request_timeout' : 'request_cancelled');
         return abortResponse(timedOut, res);
       }
-      const retained = sanitizeSemanticShadowRetainedObservation({
+      activeStage = 'planning';
+      const retained = {
         version: SEMANTIC_SHADOW_RETAINED_OBSERVATION_VERSION,
         timestamp: validatedTimestamp(dependencies.timestamp),
         mode: 'semantic_shadow' as const,
         rollout_stage: 0 as const,
+        question_sha256: contract.sha256,
+        ...evidenceBindingFields(),
         provider_identity: provider.identity,
         resolver_transaction_count: resolverTransactionCount,
         resolver_transaction_counters: freezeResolverCounters(resolverCounters),
+        terminal: 'semantic',
         observation
-      });
-      logger(JSON.stringify(retained));
-      return res.status(observation.outcome === 'unavailable' ? 503 : 200)
+      };
+      const response = res.status(observation.outcome === 'unavailable' ? 503 : 200)
         .json({ mode: 'semantic_shadow', rollout_stage: 0, observation });
+      retainTerminal(retained);
+      return response;
     } catch (error) {
+      if (terminalRetentionAttempted && (res.headersSent || res.writableEnded)) {
+        return;
+      }
       if (controller.signal.aborted) {
+        retainOperationalFailure(timedOut ? 'request_timeout' : 'request_cancelled');
         return abortResponse(timedOut, res);
       }
       if (error instanceof AnswerAdmissionError) {
-        return unavailable(res, error.reason === 'answer_busy' ? 'semantic_shadow_busy' : error.reason);
+        const reason = error.reason === 'answer_busy' ? 'semantic_shadow_busy' : error.reason;
+        retainOperationalFailure(reason);
+        return unavailable(res, reason);
       }
       const dependencyError = error instanceof SemanticShadowDependencyError
         ? error.dependencyError : error;
       if (dependencyError instanceof SemanticShadowResolverReaderError) {
         if (dependencyError.code === 'request_cancelled') {
+          retainOperationalFailure(timedOut ? 'request_timeout' : 'request_cancelled');
           return abortResponse(timedOut, res);
         }
         if (dependencyError.code === 'statement_timeout') {
+          retainOperationalFailure('metadata_statement_timeout');
           return res.status(504).json({ error: 'semantic_shadow_unavailable', reason: 'metadata_statement_timeout' });
         }
         if (dependencyError.code === 'connection_failed') {
+          retainOperationalFailure('answer_database_unavailable');
           return unavailable(res, 'answer_database_unavailable');
         }
+        retainOperationalFailure('semantic_shadow_metadata_unavailable');
         return unavailable(res, 'semantic_shadow_metadata_unavailable');
       }
+      retainOperationalFailure('semantic_shadow_planning_unavailable');
       return res.status(503).json({ error: 'semantic_shadow_unavailable', reason: 'semantic_shadow_planning_unavailable' });
     } finally {
       releaseAdmission?.();
@@ -240,6 +295,11 @@ export function createProgramSemanticShadowRoutes(
   });
 
   return router;
+}
+
+function elapsedMs(startedAt: number): number {
+  const elapsed = performance.now() - startedAt;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? Math.min(600_000, Math.ceil(elapsed)) : 0;
 }
 
 function resolveProvider(

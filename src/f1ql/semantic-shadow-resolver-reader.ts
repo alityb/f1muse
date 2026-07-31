@@ -66,7 +66,11 @@ export type SemanticShadowResolverReaderErrorCode =
   | 'transaction_setup_failed';
 
 export class SemanticShadowResolverReaderError extends Error {
-  constructor(readonly code: SemanticShadowResolverReaderErrorCode) {
+  constructor(
+    readonly code: SemanticShadowResolverReaderErrorCode,
+    readonly counters: SemanticShadowResolverCounters = emptyCounters(),
+    readonly transaction_started = false
+  ) {
     super(code);
     this.name = 'SemanticShadowResolverReaderError';
   }
@@ -173,11 +177,15 @@ export async function withSemanticShadowResolverReader<T>(
   let primaryError: unknown;
   let reader: FixedResolverReader | undefined;
   let finalCounters: SemanticShadowResolverCounters | undefined;
+  let transactionStarted = false;
   try {
     throwIfAborted(options.signal);
-    await controlQuery(client, 'BEGIN READ ONLY');
+    await controlQuery(client, 'BEGIN READ ONLY', undefined, undefined, options.signal);
+    transactionStarted = true;
     throwIfAborted(options.signal);
-    await controlQuery(client, "SELECT set_config('statement_timeout', $1, true)", [`${timeoutMs}ms`], timeoutMs);
+    await controlQuery(
+      client, "SELECT set_config('statement_timeout', $1, true)", [`${timeoutMs}ms`], timeoutMs, options.signal
+    );
     reader = new FixedResolverReader(client, options.signal);
     const queryable = { query: reader.query.bind(reader) } as Pick<Pool, 'query'>;
     const driver = new AnswerDriverIdentityResolver(queryable);
@@ -212,24 +220,51 @@ export async function withSemanticShadowResolverReader<T>(
   }
 
   let cleanupError: unknown;
-  try {
-    await client.query('ROLLBACK');
-  } catch {
-    cleanupError = new SemanticShadowResolverReaderError('transaction_cleanup_failed');
+  if (!options.signal?.aborted) {
+    try {
+      await queryWithTimeout(client, 'ROLLBACK', timeoutMs);
+    } catch {
+      cleanupError = new SemanticShadowResolverReaderError('transaction_cleanup_failed');
+    }
   }
   try {
-    client.release(cleanupError === undefined ? undefined : cleanupError as Error);
+    const discardError = cleanupError ?? (options.signal?.aborted
+      ? new SemanticShadowResolverReaderError('request_cancelled') : undefined);
+    client.release(discardError as Error | undefined);
   } catch {
     cleanupError ??= new SemanticShadowResolverReaderError('transaction_cleanup_failed');
   }
 
   if (cleanupError !== undefined) {
-    throw cleanupError;
+    throw contextualReaderError(cleanupError, finalCounters, transactionStarted);
   }
   if (primaryError !== undefined) {
-    throw primaryError;
+    throw contextualReaderError(primaryError, finalCounters, transactionStarted);
   }
   return Object.freeze({ value: value as T, counters: finalCounters! });
+}
+
+function contextualReaderError(
+  error: unknown,
+  counters: SemanticShadowResolverCounters | undefined,
+  transactionStarted: boolean
+): SemanticShadowResolverReaderError {
+  return error instanceof SemanticShadowResolverReaderError
+    ? new SemanticShadowResolverReaderError(error.code, counters ?? error.counters, transactionStarted)
+    : new SemanticShadowResolverReaderError('metadata_read_failed', counters, transactionStarted);
+}
+
+function emptyCounters(): SemanticShadowResolverCounters {
+  return Object.freeze({
+    statement_count: 0,
+    returned_row_count: 0,
+    statements: Object.freeze({
+      driver_inventory_unscoped: 0,
+      driver_inventory_scoped: 0,
+      event_name: 0,
+      event_round: 0
+    })
+  });
 }
 
 class FixedResolverReader {
@@ -263,9 +298,12 @@ class FixedResolverReader {
 
     let result: QueryResult<R>;
     try {
-      result = await this.client.query<R>(sql, parameters);
+      result = await queryWithAbort<R>(this.client, sql, parameters, this.signal);
     } catch (error) {
       this.assertOpen();
+      if (error instanceof SemanticShadowResolverReaderError && error.code === 'request_cancelled') {
+        throw error;
+      }
       if ((error as { code?: unknown }).code === '57014') {
         throw new SemanticShadowResolverReaderError('statement_timeout');
       }
@@ -350,16 +388,78 @@ async function controlQuery(
   client: PoolClient,
   sql: string,
   parameters?: unknown[],
-  timeoutMs?: number
+  timeoutMs?: number,
+  signal?: AbortSignal
 ): Promise<void> {
   try {
-    await client.query(sql, parameters);
+    await queryWithAbort(client, sql, parameters, signal);
   } catch (error) {
+    if (error instanceof SemanticShadowResolverReaderError && error.code === 'request_cancelled') {
+      throw error;
+    }
     if (timeoutMs !== undefined && (error as { code?: unknown }).code === '57014') {
       throw new SemanticShadowResolverReaderError('statement_timeout');
     }
     throw new SemanticShadowResolverReaderError('transaction_setup_failed');
   }
+}
+
+function queryWithAbort<R extends QueryResultRow = QueryResultRow>(
+  client: PoolClient,
+  sql: string,
+  parameters: unknown[] | undefined,
+  signal: AbortSignal | undefined
+): Promise<QueryResult<R>> {
+  throwIfAborted(signal);
+  if (!signal) {return client.query<R>(sql, parameters);}
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (!settled) {
+        settled = true;
+        reject(new SemanticShadowResolverReaderError('request_cancelled'));
+      }
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    client.query<R>(sql, parameters).then(result => {
+      if (!settled) {
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        resolve(result);
+      }
+    }, error => {
+      if (!settled) {
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      }
+    });
+  });
+}
+
+function queryWithTimeout(client: PoolClient, sql: string, timeoutMs: number): Promise<QueryResult> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new SemanticShadowResolverReaderError('transaction_cleanup_failed'));
+      }
+    }, timeoutMs);
+    client.query(sql).then(result => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      }
+    }, error => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      }
+    });
+  });
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

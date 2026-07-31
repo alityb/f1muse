@@ -139,10 +139,11 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
     expect(logs).toHaveLength(1);
     expect(JSON.parse(logs[0])).toEqual({
-      version: 'semantic-shadow-retained-v1',
+      version: 'semantic-shadow-retained-v2',
       timestamp: TIMESTAMP,
       mode: 'semantic_shadow',
       rollout_stage: 0,
+      question_sha256: createHash('sha256').update(QUESTION).digest('hex'),
       provider_identity: PROVIDER_IDENTITY,
       resolver_transaction_count: 1,
       resolver_transaction_counters: {
@@ -155,6 +156,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
           event_round: 0
         }
       },
+      terminal: 'semantic',
       observation: response.body.observation
     });
     assertNoLeakage(JSON.stringify(response.body));
@@ -220,17 +222,24 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(providerAborted).toBe(true);
     await waitFor(() => fake.calls.at(-1)?.sql === 'ROLLBACK');
     expect(fake.releases()).toBe(1);
-    expect(logs).toEqual([]);
+    expect(logs).toHaveLength(1);
+    expect(JSON.parse(logs[0])).toMatchObject({
+      version: 'semantic-shadow-retained-v2', terminal: 'operational_failure',
+      failure: { reason: 'request_timeout', stage: 'proposal' }, result_query_calls: 0
+    });
+    expect(logs[0]).not.toContain('LEAK_TIMEOUT_PROVIDER_DETAIL');
   });
 
   it('preserves typed metadata failures instead of converting them to semantic outcomes', async () => {
     const fake = fakePool(async () => {
       throw Object.assign(new Error('LEAK_DATABASE_DETAIL'), { code: '57014' });
     });
+    const logs: string[] = [];
     const response = await request(fake.pool, {
       environment: () => ENABLED_ENVIRONMENT,
       proposer: { propose: async proposal => exactProposal(proposal) },
-      providerIdentity: PROVIDER_IDENTITY
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: line => logs.push(line)
     }, { question: QUESTION });
 
     expect(response).toEqual({
@@ -238,6 +247,42 @@ describe('WP8 stage-zero semantic shadow route', () => {
       body: { error: 'semantic_shadow_unavailable', reason: 'metadata_statement_timeout' }
     });
     expect(JSON.stringify(response)).not.toContain('LEAK_DATABASE_DETAIL');
+    expect(logs).toHaveLength(1);
+    expect(JSON.parse(logs[0])).toMatchObject({
+      terminal: 'operational_failure',
+      failure: { reason: 'metadata_statement_timeout', stage: 'inventory' },
+      resolver_transaction_count: 1,
+      resolver_transaction_counters: { statement_count: 1 }
+    });
+    expect(logs[0]).not.toContain('LEAK_DATABASE_DETAIL');
+  });
+
+  it.each(['logger', 'response'] as const)('attempts exactly one terminal retention when %s serialization fails', async failure => {
+    const fake = fakePool();
+    const logs: string[] = [];
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: line => {
+        logs.push(line);
+        if (failure === 'logger') {throw new Error('LEAK_LOGGER_FAILURE');}
+      },
+      timestamp: () => TIMESTAMP
+    }, { question: QUESTION }, undefined, undefined, failure === 'response');
+
+    expect(response).toEqual(failure === 'logger' ? {
+      status: 200,
+      body: expect.objectContaining({ mode: 'semantic_shadow', observation: expect.objectContaining({ outcome: 'answer' }) })
+    } : {
+      status: 503,
+      body: { error: 'semantic_shadow_unavailable', reason: 'semantic_shadow_planning_unavailable' }
+    });
+    expect(logs).toHaveLength(1);
+    expect(JSON.parse(logs[0])).toMatchObject({
+      terminal: failure === 'logger' ? 'semantic' : 'operational_failure'
+    });
+    expect(logs[0]).not.toMatch(/LEAK_LOGGER_FAILURE|LEAK_RESPONSE_FAILURE/u);
   });
 
   it('fails closed on non-hashed or extra provider identity material before database work', async () => {
@@ -308,10 +353,23 @@ async function request(
   dependencies: ProgramSemanticShadowDependencies,
   body: unknown,
   authorization = `Bearer ${INTERNAL_TOKEN}`,
-  executor?: () => never
+  executor?: () => never,
+  failSemanticResponseSerialization = false
 ): Promise<{ status: number; body: Record<string, any> }> {
   const app = express();
   app.use(express.json());
+  if (failSemanticResponseSerialization) {
+    app.use((_req, res, next) => {
+      const json = res.json.bind(res);
+      res.json = ((responseBody: unknown) => {
+        if ((responseBody as { mode?: unknown })?.mode === 'semantic_shadow') {
+          throw new Error('LEAK_RESPONSE_FAILURE');
+        }
+        return json(responseBody);
+      }) as typeof res.json;
+      next();
+    });
+  }
   app.use('/', createProgramSemanticShadowRoutes(pool, dependencies, executor));
   const server = await new Promise<ReturnType<typeof app.listen>>(resolveServer => {
     const listening = app.listen(0, '127.0.0.1', () => resolveServer(listening));
