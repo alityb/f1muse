@@ -16,6 +16,8 @@ import {
 export const SEMANTIC_CANDIDATE_PROPOSAL_VERSION = 1 as const;
 export const SEMANTIC_CANDIDATE_SCHEMA_NAME = 'f1_semantic_candidate_proposals_v1';
 export const SEMANTIC_CANDIDATE_MAX_RESPONSE_BYTES = 65_536;
+const ANTHROPIC_API_VERSION = '2023-06-01';
+const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 export const SEMANTIC_CANDIDATE_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -261,11 +263,16 @@ export const SEMANTIC_CANDIDATE_JSON_SCHEMA = deepFreeze({
     concept_ref: conceptRefJsonSchemaDefinition
   }
 });
+export const SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA = deepFreeze(
+  toAnthropicWireSchema(SEMANTIC_CANDIDATE_JSON_SCHEMA)
+);
 
 export const SEMANTIC_CANDIDATE_SYSTEM_PROMPT = `Propose only semantic candidates using the strict response schema. Use only source_ref and concept_ref values allowed by that schema, and pair each concept_ref only with the source_ref that contains it in the catalog projection. Every candidate must include at least three scopes: one grounded season scope, one grounded temporal scope, and one source-qualified session scope for every referenced source. Use session season for driver_standings, race for event_classification and event_metadata, and qualifying for qualifying_classification; include round or event scopes only when grounded by the question. Entities are only spans naming a specific driver or event, never generic words such as driver, event, race, or qualifying; every emitted entity must be referenced by an entity scope or filter. Use empty arrays for absent entities, filters, group_by, or order_by; use null, never an empty array or object, for an absent comparison or limit. Every evidence and entity span is an inclusive-start, exclusive-end Unicode-code-point range in the normalized question. Do not use UTF-16 offsets. Do not emit span text or literal values: the server reconstructs exact text and every season, round, limit, and filter literal from those spans. Use only the closed operations in the schema. Never emit SQL, F1QL, Core, physical fields, views, joins, canonical identity values, prose, or markdown. Return every defensible candidate without duplicates; return no more than five.`;
 
 export const SEMANTIC_CANDIDATE_PROMPT_SHA256 = sha256(SEMANTIC_CANDIDATE_SYSTEM_PROMPT);
 export const SEMANTIC_CANDIDATE_SCHEMA_SHA256 = sha256(stableSerialize(SEMANTIC_CANDIDATE_JSON_SCHEMA));
+export const SEMANTIC_CANDIDATE_ANTHROPIC_SCHEMA_SHA256 =
+  sha256(stableSerialize(SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA));
 
 export interface SemanticCandidateProviderRequest {
   readonly question: string;
@@ -336,29 +343,11 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
     request: SemanticCandidateProviderRequest,
     signal?: AbortSignal
   ): Promise<string> {
-    const controller = new AbortController();
-    let abortOrigin: 'external' | 'timeout' | undefined;
-    const abort = () => {
-      if (abortOrigin === undefined) {abortOrigin = 'external';}
-      controller.abort();
-    };
-    if (signal?.aborted) {
-      abort();
-    } else {
-      signal?.addEventListener('abort', abort, { once: true });
-    }
-    const timeout = setTimeout(() => {
-      if (abortOrigin === undefined) {abortOrigin = 'timeout';}
-      controller.abort();
-    }, this.requestTimeoutMs);
-    try {
-      if (abortOrigin === 'external') {
-        throw new SemanticCandidateProviderDiagnosticError('cancelled');
-      }
+    return completeProviderRequest(this.requestTimeoutMs, signal, async providerSignal => {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         redirect: 'error',
-        signal: controller.signal,
+        signal: providerSignal,
         headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: this.model,
@@ -399,24 +388,125 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
           choice.message.content.length === 0) {
         throw new SemanticCandidateProviderDiagnosticError('incomplete');
       }
-      if (abortOrigin !== undefined) {
-        throw new SemanticCandidateProviderDiagnosticError(diagnosticForAbortOrigin(abortOrigin));
-      }
       return choice.message.content;
-    } catch (error) {
-      if (error instanceof SemanticCandidateProviderDiagnosticError) {
-        throw error;
-      }
-      throw new SemanticCandidateProviderDiagnosticError(diagnosticForProviderError(abortOrigin, error));
-    } finally {
-      clearTimeout(timeout);
-      signal?.removeEventListener('abort', abort);
+    });
+  }
+}
+
+export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
+  private readonly baseUrl: string;
+  private readonly model: string;
+
+  constructor(
+    baseUrl: string,
+    private readonly apiKey: string,
+    model: string,
+    private readonly requestTimeoutMs = 10_000
+  ) {
+    this.baseUrl = validateAnthropicEndpoint(baseUrl);
+    this.model = validateModel(model);
+    if (!apiKey.trim()) {
+      throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider credentials are required');
     }
+    if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 30_000) {
+      throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
+    }
+  }
+
+  async complete(
+    systemPrompt: string,
+    request: SemanticCandidateProviderRequest,
+    signal?: AbortSignal
+  ): Promise<string> {
+    return completeProviderRequest(this.requestTimeoutMs, signal, async providerSignal => {
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: 'POST',
+        redirect: 'error',
+        signal: providerSignal,
+        headers: {
+          'anthropic-version': ANTHROPIC_API_VERSION,
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 8_192,
+          temperature: 0,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: JSON.stringify(request) }],
+          output_config: {
+            format: {
+              type: 'json_schema',
+              schema: SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA
+            }
+          }
+        })
+      });
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new SemanticCandidateProviderDiagnosticError(diagnosticForStatus(response.status));
+      }
+      const body = await readBoundedProviderResponse(response) as {
+        model?: string;
+        stop_reason?: string | null;
+        content?: Array<{ type?: string; text?: string }>;
+      };
+      if (!body || typeof body !== 'object' || Array.isArray(body) || body.model !== this.model) {
+        throw new SemanticCandidateProviderDiagnosticError('malformed');
+      }
+      const content = body.content ?? [];
+      const block = content[0];
+      if (content.length !== 1 || !block || block.type !== 'text' || body.stop_reason !== 'end_turn' ||
+          typeof block.text !== 'string' || block.text.length === 0) {
+        throw new SemanticCandidateProviderDiagnosticError('incomplete');
+      }
+      return block.text;
+    });
+  }
+}
+
+async function completeProviderRequest(
+  requestTimeoutMs: number,
+  signal: AbortSignal | undefined,
+  request: (providerSignal: AbortSignal) => Promise<string>
+): Promise<string> {
+  const controller = new AbortController();
+  let abortOrigin: 'external' | 'timeout' | undefined;
+  const abort = () => {
+    if (abortOrigin === undefined) {abortOrigin = 'external';}
+    controller.abort();
+  };
+  if (signal?.aborted) {
+    abort();
+  } else {
+    signal?.addEventListener('abort', abort, { once: true });
+  }
+  const timeout = setTimeout(() => {
+    if (abortOrigin === undefined) {abortOrigin = 'timeout';}
+    controller.abort();
+  }, requestTimeoutMs);
+  try {
+    if (abortOrigin === 'external') {
+      throw new SemanticCandidateProviderDiagnosticError('cancelled');
+    }
+    const result = await request(controller.signal);
+    if (abortOrigin !== undefined) {
+      throw new SemanticCandidateProviderDiagnosticError(diagnosticForAbortOrigin(abortOrigin));
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof SemanticCandidateProviderDiagnosticError) {
+      throw error;
+    }
+    throw new SemanticCandidateProviderDiagnosticError(diagnosticForProviderError(abortOrigin, error));
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
   }
 }
 
 export interface ConfiguredSemanticCandidateModelIdentity {
-  readonly provider: 'openai-compatible';
+  readonly provider: 'openai-compatible' | 'anthropic';
   readonly endpoint_sha256: string;
   readonly model_sha256: string;
   readonly catalog_projection_sha256: string;
@@ -433,15 +523,16 @@ interface ConfiguredSemanticCandidateModel extends ConfiguredSemanticCandidateMo
 }
 
 function readConfiguredModel(env: NodeJS.ProcessEnv): ConfiguredSemanticCandidateModel {
-  const provider = env.F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER;
+  const provider = parseConfiguredProvider(env.F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER);
   const baseUrl = env.F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL;
   const apiKey = env.F1QL_SEMANTIC_CANDIDATE_LLM_API_KEY;
   const model = env.F1QL_SEMANTIC_CANDIDATE_MODEL;
-  if (provider !== 'openai-compatible' || env.F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA !== 'true' ||
-      !baseUrl || !apiKey || !model) {
+  if (env.F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA !== 'true' || !baseUrl || !apiKey || !model) {
     throw new SemanticCandidateProviderConfigurationError('Strict semantic candidate provider is not supported or configured');
   }
-  const validatedBaseUrl = validateEndpoint(baseUrl);
+  const validatedBaseUrl = provider === 'anthropic'
+    ? validateAnthropicEndpoint(baseUrl)
+    : validateEndpoint(baseUrl);
   const validatedModel = validateModel(model);
   const timeoutValue = env.F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS;
   const timeout = timeoutValue === undefined ? 10_000 : Number(timeoutValue);
@@ -449,18 +540,35 @@ function readConfiguredModel(env: NodeJS.ProcessEnv): ConfiguredSemanticCandidat
     throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
   }
   return {
-    provider: 'openai-compatible',
+    provider,
     endpoint_sha256: sha256(validatedBaseUrl),
     model_sha256: sha256(validatedModel),
     catalog_projection_sha256: SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256,
     prompt_sha256: SEMANTIC_CANDIDATE_PROMPT_SHA256,
-    schema_sha256: SEMANTIC_CANDIDATE_SCHEMA_SHA256,
-    request_config_sha256: sha256(stableSerialize({ max_tokens: 2_048, temperature: 0, timeout_ms: timeout })),
+    schema_sha256: provider === 'anthropic'
+      ? SEMANTIC_CANDIDATE_ANTHROPIC_SCHEMA_SHA256
+      : SEMANTIC_CANDIDATE_SCHEMA_SHA256,
+    request_config_sha256: sha256(stableSerialize(provider === 'anthropic'
+      ? {
+          anthropic_version: ANTHROPIC_API_VERSION,
+          max_tokens: 8_192,
+          output_format: 'json_schema',
+          temperature: 0,
+          timeout_ms: timeout
+        }
+      : { max_tokens: 2_048, temperature: 0, timeout_ms: timeout })),
     base_url: validatedBaseUrl,
     api_key: apiKey,
     model: validatedModel,
     request_timeout_ms: timeout
   };
+}
+
+function parseConfiguredProvider(input: string | undefined): ConfiguredSemanticCandidateModelIdentity['provider'] {
+  if (input === 'openai-compatible' || input === 'anthropic') {
+    return input;
+  }
+  throw new SemanticCandidateProviderConfigurationError('Strict semantic candidate provider is not supported or configured');
 }
 
 export function getConfiguredSemanticCandidateModelIdentity(
@@ -482,7 +590,10 @@ export function createSemanticCandidateModel(
   env: NodeJS.ProcessEnv = process.env
 ): SemanticCandidateModel {
   const configured = readConfiguredModel(env);
-  return new OpenAICompatibleSemanticCandidateModel(
+  const Model = configured.provider === 'anthropic'
+    ? AnthropicSemanticCandidateModel
+    : OpenAICompatibleSemanticCandidateModel;
+  return new Model(
     configured.base_url,
     configured.api_key,
     configured.model,
@@ -918,6 +1029,16 @@ function validateEndpoint(baseUrl: string): string {
   return endpoint.toString().replace(/\/$/u, '');
 }
 
+function validateAnthropicEndpoint(baseUrl: string): string {
+  const endpoint = validateEndpoint(baseUrl);
+  if (endpoint !== ANTHROPIC_BASE_URL) {
+    throw new SemanticCandidateProviderConfigurationError(
+      `Anthropic semantic candidate provider endpoint must be ${ANTHROPIC_BASE_URL}`
+    );
+  }
+  return endpoint;
+}
+
 function isPrivateEndpointHostname(hostname: string): boolean {
   const normalized = hostname.toLocaleLowerCase('en-US').replace(/^\[|\]$|\.$/gu, '');
   return isIP(normalized) !== 0 || normalized === 'localhost' ||
@@ -962,6 +1083,36 @@ function stableSerialize(value: unknown): string {
     return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${stableSerialize(child)}`).join(',')}}`;
   }
   return JSON.stringify(value) ?? 'null';
+}
+
+function toAnthropicWireSchema(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(toAnthropicWireSchema);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  const transformed: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (['minimum', 'maximum', 'maxItems'].includes(key) ||
+        key === 'minItems' && typeof child === 'number' && child > 1) {
+      continue;
+    }
+    if (key === 'anyOf' && Array.isArray(child)) {
+      transformed[key] = child
+        .filter(branch => !isEmptyArrayCompatibilitySchema(branch))
+        .map(toAnthropicWireSchema);
+      continue;
+    }
+    transformed[key] = toAnthropicWireSchema(child);
+  }
+  return transformed;
+}
+
+function isEmptyArrayCompatibilitySchema(value: unknown): boolean {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+    (value as Record<string, unknown>).type === 'array' &&
+    (value as Record<string, unknown>).maxItems === 0;
 }
 
 function compareText(left: string, right: string): number {

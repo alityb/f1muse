@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  AnthropicSemanticCandidateModel,
   buildSemanticCandidateCatalogProjection,
   buildSemanticCandidateProviderRequest,
   createSemanticCandidateModel,
@@ -11,6 +12,8 @@ import {
   OpenAICompatibleSemanticCandidateModel,
   SemanticCandidateProposalAdapter,
   SemanticCandidateProposalError,
+  SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA,
+  SEMANTIC_CANDIDATE_ANTHROPIC_SCHEMA_SHA256,
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION,
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256,
   SEMANTIC_CANDIDATE_JSON_SCHEMA,
@@ -202,6 +205,47 @@ describe('semantic candidate translator foundation', () => {
     expect(request).not.toHaveProperty('tools');
   });
 
+  it('sends native Anthropic structured-output requests with a compatible strict schema', async () => {
+    let url = '';
+    let headers = new Headers();
+    let request: Record<string, unknown> | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (input, init) => {
+      url = String(input);
+      headers = new Headers(init?.headers);
+      request = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: JSON.stringify({ version: 1, candidates: [] }) }]
+      }), { status: 200 });
+    }));
+    const model = new AnthropicSemanticCandidateModel(
+      'https://api.anthropic.com/v1',
+      'private-key',
+      'claude-haiku-4-5-20251001'
+    );
+    await model.complete('system', buildSemanticCandidateProviderRequest(STANDINGS));
+
+    expect(url).toBe('https://api.anthropic.com/v1/messages');
+    expect(headers.get('anthropic-version')).toBe('2023-06-01');
+    expect(headers.get('x-api-key')).toBe('private-key');
+    expect(headers.has('authorization')).toBe(false);
+    expect(request).toMatchObject({
+      model: 'claude-haiku-4-5-20251001',
+      system: 'system',
+      output_config: { format: { type: 'json_schema', schema: SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA } }
+    });
+    expect(request).not.toHaveProperty('response_format');
+    const messages = request?.messages as Array<{ role: string; content: string }>;
+    expect(JSON.parse(messages[0].content)).toEqual(buildSemanticCandidateProviderRequest(STANDINGS));
+    const wireSchema = JSON.stringify(SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA);
+    expect(() => assertStrictProviderSchema(SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA)).not.toThrow();
+    expect(wireSchema).not.toMatch(/"(?:minimum|maximum|maxItems)":/u);
+    expect(wireSchema).toContain('"minItems":1');
+    expect(wireSchema).not.toContain('"minItems":3');
+    expect(wireSchema).not.toContain('"type":"array","maxItems":0');
+  });
+
   it('adapts orchestration proposals without forwarding identity inventory or deterministic evidence', async () => {
     const evidence = candidateEvidence(RACE_QUALIFYING, [{ type: 'driver', span: span(RACE_QUALIFYING, 'Norris') }]);
     const output = proposalSet(evidence.candidates);
@@ -281,6 +325,25 @@ describe('semantic candidate translator foundation', () => {
     expect(JSON.stringify(identity)).not.toContain('vendor/strict-model');
     expect(createSemanticCandidateModel(base)).toBeInstanceOf(OpenAICompatibleSemanticCandidateModel);
 
+    const anthropic = {
+      ...base,
+      F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic',
+      F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://api.anthropic.com/v1',
+      F1QL_SEMANTIC_CANDIDATE_MODEL: 'claude-haiku-4-5-20251001'
+    };
+    const anthropicIdentity = getConfiguredSemanticCandidateModelIdentity(anthropic);
+    expect(anthropicIdentity).toMatchObject({
+      provider: 'anthropic',
+      endpoint_sha256: createHash('sha256').update('https://api.anthropic.com/v1').digest('hex'),
+      model_sha256: createHash('sha256').update('claude-haiku-4-5-20251001').digest('hex'),
+      schema_sha256: SEMANTIC_CANDIDATE_ANTHROPIC_SCHEMA_SHA256
+    });
+    expect(createSemanticCandidateModel(anthropic)).toBeInstanceOf(AnthropicSemanticCandidateModel);
+    expect(() => createSemanticCandidateModel({
+      ...anthropic,
+      F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://proxy.example/v1'
+    })).toThrow('must be https://api.anthropic.com/v1');
+
     expect(() => createSemanticCandidateModel({ ...base, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'groq' })).toThrow('not supported');
     expect(() => createSemanticCandidateModel({ ...base, F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA: 'false' })).toThrow('not supported');
     expect(() => createSemanticCandidateModel({ ...base, F1QL_SEMANTIC_CANDIDATE_LLM_API_KEY: '' })).toThrow('not supported');
@@ -323,6 +386,25 @@ describe('semantic candidate translator foundation', () => {
       const model = new OpenAICompatibleSemanticCandidateModel('https://strict.example/v1', 'key', 'model');
       await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, model)).resolves.toEqual({
         type: 'provider_unavailable', reason: 'incomplete_response', diagnostic_code: 'incomplete'
+      });
+    }
+  });
+
+  it('requires one exact completed Anthropic text block and model identity', async () => {
+    const evidence = candidateEvidence(STANDINGS);
+    const outputs = [
+      [{}, 'malformed'],
+      [{ model: 'substituted-model', stop_reason: 'end_turn', content: [{ type: 'text', text: '{}' }] }, 'malformed'],
+      [{ model: 'model', stop_reason: 'max_tokens', content: [{ type: 'text', text: '{}' }] }, 'incomplete'],
+      [{ model: 'model', stop_reason: 'end_turn', content: [] }, 'incomplete'],
+      [{ model: 'model', stop_reason: 'end_turn', content: [{ type: 'text', text: '{}' }, { type: 'text', text: '{}' }] }, 'incomplete']
+    ] as const;
+    for (const [output, diagnosticCode] of outputs) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(output), { status: 200 })));
+      const model = new AnthropicSemanticCandidateModel('https://api.anthropic.com/v1', 'key', 'model');
+      await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, model)).resolves.toMatchObject({
+        type: 'provider_unavailable',
+        diagnostic_code: diagnosticCode
       });
     }
   });

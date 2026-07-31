@@ -347,7 +347,7 @@ function resolveProvider(
 function parseProviderIdentity(input: unknown): ConfiguredSemanticCandidateModelIdentity {
   if (!isPlainObject(input) || Reflect.ownKeys(input).length !== IDENTITY_KEYS.length ||
       IDENTITY_KEYS.some(key => !Object.prototype.hasOwnProperty.call(input, key)) ||
-      input.provider !== 'openai-compatible' ||
+      (input.provider !== 'openai-compatible' && input.provider !== 'anthropic') ||
       IDENTITY_KEYS.slice(1).some(key => typeof input[key] !== 'string' || !HASH_PATTERN.test(input[key] as string))) {
     throw new Error('semantic shadow provider identity is invalid');
   }

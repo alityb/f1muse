@@ -182,7 +182,9 @@ describe('WP8 stage-zero semantic shadow route', () => {
     const response = await request(fake.pool, {
       environment: () => ENABLED_ENVIRONMENT,
       proposer: { propose },
-      providerIdentity: PROVIDER_IDENTITY,
+      providerIdentity: _name === 'malformed'
+        ? { ...PROVIDER_IDENTITY, provider: 'anthropic' as const }
+        : PROVIDER_IDENTITY,
       logger: line => logs.push(line),
       timestamp: () => TIMESTAMP
     }, { question: QUESTION });
@@ -193,6 +195,9 @@ describe('WP8 stage-zero semantic shadow route', () => {
       observation: { outcome: 'unavailable', reason, result_query_calls: 0 }
     });
     expect(logs).toHaveLength(1);
+    expect(JSON.parse(logs[0]).provider_identity.provider).toBe(
+      _name === 'malformed' ? 'anthropic' : 'openai-compatible'
+    );
     expect(`${JSON.stringify(response.body)}${logs[0]}`).not.toMatch(/LEAK_PROVIDER|leak-provider\.invalid/u);
     expect(fake.calls.at(-1)?.sql).toBe('ROLLBACK');
   });
@@ -293,7 +298,8 @@ describe('WP8 stage-zero semantic shadow route', () => {
     const fake = fakePool();
     const invalidIdentities = [
       { ...PROVIDER_IDENTITY, model_sha256: 'raw-model-name' },
-      { ...PROVIDER_IDENTITY, endpoint: 'https://private.invalid' }
+      { ...PROVIDER_IDENTITY, endpoint: 'https://private.invalid' },
+      { ...PROVIDER_IDENTITY, provider: 'unknown-provider' }
     ];
     for (const providerIdentity of invalidIdentities) {
       const response = await request(fake.pool, {

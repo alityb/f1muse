@@ -17,7 +17,7 @@ const commonSchema = z.object({
   mode: z.literal('semantic_shadow'),
   rollout_stage: z.literal(0),
   provider_identity: z.object({
-    provider: z.literal('openai-compatible'),
+    provider: z.enum(['openai-compatible', 'anthropic']),
     endpoint_sha256: hashSchema,
     model_sha256: hashSchema,
     catalog_projection_sha256: hashSchema,
