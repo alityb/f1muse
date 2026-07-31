@@ -8,10 +8,10 @@ import { compositionalRegressionCorpusInput } from '../fixtures/compositional-re
 const ENABLED_ENVIRONMENT: NodeJS.ProcessEnv = {
   F1QL_SEMANTIC_CANDIDATE_PROBE_ENABLED: 'true',
   F1QL_SEMANTIC_CANDIDATE_PROBE_TARGET: 'non-production',
-  F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic',
-  F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://api.anthropic.com/v1',
+  F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'openai-compatible',
+  F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://api.fireworks.ai/inference/v1',
   F1QL_SEMANTIC_CANDIDATE_LLM_API_KEY: 'test-key',
-  F1QL_SEMANTIC_CANDIDATE_MODEL: 'claude-haiku-4-5-20251001',
+  F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-flash',
   F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA: 'true',
   F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '30000'
 };
@@ -40,7 +40,7 @@ describe('semantic candidate provider probe', () => {
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, { proposer: { propose } })).resolves.toEqual({
       status: 'passed',
       case_id: 'promoted-single-source-rows',
-      provider: 'anthropic',
+      provider: 'openai-compatible',
       candidate_count: 1,
       oracle_match: true
     });
@@ -84,7 +84,7 @@ describe('semantic candidate provider probe', () => {
 
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: { propose: async () => ({ version: 2, candidates: [] }) }
-    })).resolves.toMatchObject({ status: 'failed', reason: 'empty_candidate_set', provider: 'anthropic' });
+    })).resolves.toMatchObject({ status: 'failed', reason: 'empty_candidate_set', provider: 'openai-compatible' });
 
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: {
@@ -96,22 +96,22 @@ describe('semantic candidate provider probe', () => {
           return { version: 2, candidates: [candidate] };
         }
       }
-    })).resolves.toMatchObject({ status: 'failed', reason: 'oracle_mismatch', provider: 'anthropic' });
+    })).resolves.toMatchObject({ status: 'failed', reason: 'oracle_mismatch', provider: 'openai-compatible' });
 
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: { propose: async () => {throw new SemanticCandidateProposalError('client');} }
     })).resolves.toEqual({
       status: 'failed', reason: 'provider_unavailable', case_id: 'promoted-single-source-rows',
-      provider: 'anthropic', diagnostic_code: 'client'
+      provider: 'openai-compatible', diagnostic_code: 'client'
     });
   });
 
   it('rejects provider identity drift before a request', async () => {
     const propose = vi.fn();
     for (const environment of [
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'openai-compatible' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://proxy.example/v1' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'claude-sonnet-4-5' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v3p2' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '10000' }
     ]) {
       await expect(probeSemanticCandidateProvider(environment, { proposer: { propose } })).resolves.toMatchObject({

@@ -23,13 +23,13 @@ const PROBE_CASE_ID = 'promoted-single-source-rows';
 const PROBE_QUESTION_SHA256 = '9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c';
 const PROBE_CANDIDATE_SET_SHA256 = 'cd751e1664dcb10ed60a6bd4c042a230857c57925c3ca63d5e22ae2f9c5935bc';
 const PROBE_PROVIDER_IDENTITY = Object.freeze({
-  provider: 'anthropic',
-  endpoint_sha256: '3ce36528bfa1aba50a37e134b6f05553856abbfab21e6035701721f793c29f7a',
-  model_sha256: '09d0ceca06974190cf3cc91ff46a5df72e81eda40b3e203c6cc223e89e06796e',
+  provider: 'openai-compatible',
+  endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
+  model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
   prompt_sha256: '58c08cc0a126a9a6eca59bbafb3e35c7ea2f407738ba4f917293c386936b6d29',
-  schema_sha256: 'ca7755392dac4e85efc2b641791bc7366aa9cd8e2ca0e205c963437139f799ea',
-  request_config_sha256: '76bf72113d0e1581ff2d95f670ce14c8a929e496ffff3ba977b95a41f59deaaf'
+  schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
+  request_config_sha256: '9149d7acd2adec21f9e0502b411b667499e245126df9252868bf4c93359e43d1'
 } as const);
 
 type ProbeFailureReason =
@@ -45,14 +45,14 @@ type ProbeFailureReason =
 export type SemanticCandidateProviderProbeResult = {
   readonly status: 'passed';
   readonly case_id: string;
-  readonly provider: 'anthropic';
+  readonly provider: 'openai-compatible';
   readonly candidate_count: number;
   readonly oracle_match: true;
 } | {
   readonly status: 'failed';
   readonly reason: ProbeFailureReason;
   readonly case_id?: string;
-  readonly provider?: 'anthropic';
+  readonly provider?: 'openai-compatible';
   readonly diagnostic_code?: SemanticCandidateProposalError['code'];
 };
 
@@ -68,7 +68,7 @@ interface ReviewedProbeCase {
 }
 
 interface ConfiguredProbe {
-  readonly provider: 'anthropic';
+  readonly provider: 'openai-compatible';
   readonly proposer: Pick<SemanticCandidateProposalAdapter, 'propose'>;
 }
 

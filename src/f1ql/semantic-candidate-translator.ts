@@ -16,6 +16,10 @@ import {
 export const SEMANTIC_CANDIDATE_PROPOSAL_VERSION = 1 as const;
 export const SEMANTIC_CANDIDATE_SCHEMA_NAME = 'f1_semantic_candidate_proposals_v1';
 export const SEMANTIC_CANDIDATE_MAX_RESPONSE_BYTES = 65_536;
+const OPENAI_COMPATIBLE_MAX_TOKENS = 2_048;
+const OPENAI_COMPATIBLE_TEMPERATURE = 0;
+const OPENAI_COMPATIBLE_RESPONSE_FORMAT = 'json_schema';
+const OPENAI_COMPATIBLE_STRICT_SCHEMA = true;
 const ANTHROPIC_API_VERSION = '2023-06-01';
 const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 export const SEMANTIC_CANDIDATE_PROVIDER_DIAGNOSTIC_CODES = [
@@ -351,17 +355,17 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
         headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: 2_048,
-          temperature: 0,
+          max_tokens: OPENAI_COMPATIBLE_MAX_TOKENS,
+          temperature: OPENAI_COMPATIBLE_TEMPERATURE,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: JSON.stringify(request) }
           ],
           response_format: {
-            type: 'json_schema',
+            type: OPENAI_COMPATIBLE_RESPONSE_FORMAT,
             json_schema: {
               name: SEMANTIC_CANDIDATE_SCHEMA_NAME,
-              strict: true,
+              strict: OPENAI_COMPATIBLE_STRICT_SCHEMA,
               schema: SEMANTIC_CANDIDATE_JSON_SCHEMA
             }
           }
@@ -556,7 +560,18 @@ function readConfiguredModel(env: NodeJS.ProcessEnv): ConfiguredSemanticCandidat
           temperature: 0,
           timeout_ms: timeout
         }
-      : { max_tokens: 2_048, temperature: 0, timeout_ms: timeout })),
+      : {
+          max_tokens: OPENAI_COMPATIBLE_MAX_TOKENS,
+          response_format: {
+            type: OPENAI_COMPATIBLE_RESPONSE_FORMAT,
+            json_schema: {
+              name: SEMANTIC_CANDIDATE_SCHEMA_NAME,
+              strict: OPENAI_COMPATIBLE_STRICT_SCHEMA
+            }
+          },
+          temperature: OPENAI_COMPATIBLE_TEMPERATURE,
+          timeout_ms: timeout
+        })),
     base_url: validatedBaseUrl,
     api_key: apiKey,
     model: validatedModel,
