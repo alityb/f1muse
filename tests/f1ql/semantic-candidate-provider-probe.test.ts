@@ -11,7 +11,7 @@ const ENABLED_ENVIRONMENT: NodeJS.ProcessEnv = {
   F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'openai-compatible',
   F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://api.fireworks.ai/inference/v1',
   F1QL_SEMANTIC_CANDIDATE_LLM_API_KEY: 'test-key',
-  F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-flash',
+  F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-pro',
   F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA: 'true',
   F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '30000'
 };
@@ -111,7 +111,7 @@ describe('semantic candidate provider probe', () => {
     for (const environment of [
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://proxy.example/v1' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v3p2' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-flash' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '10000' }
     ]) {
       await expect(probeSemanticCandidateProvider(environment, { proposer: { propose } })).resolves.toMatchObject({
