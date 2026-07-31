@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "outDir": "./dist-probe",
+    "rootDir": ".",
+    "sourceMap": false
+  },
+  "include": [
+    "scripts/probe-semantic-candidate-provider.ts",
+    "tests/f1ql/semantic-candidate-provider-probe.test.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-probe"]
+}
