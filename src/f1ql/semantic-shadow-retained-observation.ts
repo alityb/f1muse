@@ -66,6 +66,21 @@ const v2BaseSchema = commonSchema.extend({
     repetition_index: z.number().int().min(0).max(2),
     attempt_sha256: hashSchema,
     provider_raw_candidate_set_sha256: hashSchema.optional()
+  }).strict().optional(),
+  production_evidence_binding: z.object({
+    commit_sha256: hashSchema,
+    deployment_id_sha256: hashSchema,
+    release_id_sha256: hashSchema,
+    capture_nonce_sha256: hashSchema,
+    answer_database_target_sha256: hashSchema,
+    answer_database_user_sha256: hashSchema,
+    answer_database_name_sha256: hashSchema,
+    resolver_sql_fingerprint_set_sha256: hashSchema
+  }).strict().optional(),
+  production_capture: z.object({
+    key_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u),
+    algorithm: z.literal('Ed25519'),
+    signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/u)
   }).strict().optional()
 });
 

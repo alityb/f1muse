@@ -1,6 +1,9 @@
 import { createHash, createPrivateKey, createPublicKey, KeyObject, sign, verify } from 'node:crypto';
 import { Pool } from 'pg';
-import { buildAnswerDatabasePoolConfig } from '../src/db/answer-database';
+import {
+  buildAnswerDatabasePoolConfig,
+  computeAnswerDatabaseConnectionIdentity
+} from '../src/db/answer-database';
 import { isLoopbackHostname } from '../src/db/network-target';
 
 export const ANSWER_PRINCIPAL_AUDIT_VERSION = 4 as const;
@@ -21,7 +24,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
 const SIGNATURE = /^[A-Za-z0-9+/]{86}==$/;
 
-type QueryClient = { query<Row extends Record<string, unknown> = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: Row[] }>; release(): void };
+type QueryClient = { query<Row extends Record<string, unknown> = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: Row[] }>; release(error?: Error): void };
 type QueryPool = { connect(): Promise<QueryClient>; end(): Promise<void> };
 
 interface RoleRow {
@@ -79,6 +82,7 @@ export interface AnswerPrincipalAuditContext {
   readonly key_id: string;
   readonly private_key: KeyObject;
   readonly audited_at?: string;
+  readonly database_target_sha256?: string;
 }
 
 export interface AnswerPrincipalAuditReport {
@@ -91,6 +95,7 @@ export interface AnswerPrincipalAuditReport {
   readonly release_id: string;
   readonly current_user_sha256: string;
   readonly current_database_sha256: string;
+  readonly database_target_sha256?: string;
   readonly assertion_scope: 'answer_principal_least_privilege';
   readonly statement_timeout_ms: number;
   readonly required_relations: readonly string[];
@@ -127,6 +132,7 @@ export function requireAnswerPrincipalAuditConfiguration(environment: NodeJS.Pro
   if (!COMMIT_SHA.test(commitSha) || !IDENTIFIER.test(deploymentId) || !IDENTIFIER.test(releaseId) || !IDENTIFIER.test(keyId)) {
     throw new Error('answer_principal_audit_context_invalid');
   }
+  const databaseIdentity = computeAnswerDatabaseConnectionIdentity(connectionString);
   return {
     pool_config: {
       ...buildAnswerDatabasePoolConfig(connectionString, required(environment, 'F1QL_ANSWER_DATABASE_CA_CERT_BASE64', 100_000)),
@@ -134,17 +140,34 @@ export function requireAnswerPrincipalAuditConfiguration(environment: NodeJS.Pro
     },
     context: {
       target: 'production', commit_sha: commitSha, deployment_id: deploymentId, release_id: releaseId, key_id: keyId,
-      private_key: loadPrivateKey(required(environment, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64'))
+      private_key: loadPrivateKey(required(environment, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64')),
+      database_target_sha256: databaseIdentity.target_sha256
     }
   };
 }
 
-export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPrincipalAuditContext): Promise<AnswerPrincipalAuditReport> {
+export async function runAnswerPrincipalAudit(
+  pool: QueryPool,
+  context: AnswerPrincipalAuditContext,
+  controlTimeoutMs = ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS
+): Promise<AnswerPrincipalAuditReport> {
   validateContext(context);
+  if (!Number.isSafeInteger(controlTimeoutMs) || controlTimeoutMs < 1 ||
+      controlTimeoutMs > ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS) {
+    throw new Error('answer principal control timeout invalid');
+  }
   const client = await pool.connect();
+  let transactionOpen = false;
+  let connectionReleased = false;
   try {
-    await client.query('BEGIN READ ONLY');
-    await client.query("SELECT set_config('statement_timeout', $1, true)", [`${ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS}ms`]);
+    await principalControlQuery(client, 'BEGIN READ ONLY', undefined, controlTimeoutMs);
+    transactionOpen = true;
+    await principalControlQuery(
+      client,
+      "SELECT set_config('statement_timeout', $1, true)",
+      [`${ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS}ms`],
+      controlTimeoutMs
+    );
     const role = (await client.query<RoleRow>(`
       SELECT current_user AS role_name, current_database() AS database_name,
         current_setting('transaction_read_only') AS transaction_read_only,
@@ -195,7 +218,8 @@ export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPr
       WHERE n.nspname <> 'information_schema'
         AND n.nspname NOT LIKE 'pg\\_%' ESCAPE '\\'
     `)).rows[0];
-    await client.query('ROLLBACK');
+    await principalControlQuery(client, 'ROLLBACK', undefined, controlTimeoutMs);
+    transactionOpen = false;
     if (!role || typeof role.role_name !== 'string' || typeof role.database_name !== 'string' || !validRoutineObservation(routines)) {
       throw new Error('answer_principal_identity_observation_missing');
     }
@@ -210,6 +234,9 @@ export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPr
       release_id: context.release_id,
       current_user_sha256: sha256(role.role_name),
       current_database_sha256: sha256(role.database_name),
+      ...(context.database_target_sha256 === undefined ? {} : {
+        database_target_sha256: context.database_target_sha256
+      }),
       assertion_scope: 'answer_principal_least_privilege',
       statement_timeout_ms: ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS,
       required_relations: ANSWER_PRINCIPAL_REQUIRED_RELATIONS,
@@ -228,24 +255,75 @@ export async function runAnswerPrincipalAudit(pool: QueryPool, context: AnswerPr
     });
     return parsed;
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
+    if (error instanceof AnswerPrincipalControlTimeoutError && !connectionReleased) {
+      client.release(error);
+      connectionReleased = true;
+      transactionOpen = false;
+      throw error;
+    }
+    if (transactionOpen && !connectionReleased) {
+      try {
+        await principalControlQuery(client, 'ROLLBACK', undefined, controlTimeoutMs);
+        transactionOpen = false;
+      } catch {
+        const cleanupError = new Error('answer principal transaction cleanup failed');
+        client.release(cleanupError);
+        connectionReleased = true;
+        transactionOpen = false;
+        throw cleanupError;
+      }
+    }
     throw error;
   } finally {
-    client.release();
+    if (!connectionReleased) {client.release();}
+  }
+}
+
+class AnswerPrincipalControlTimeoutError extends Error {
+  constructor() {
+    super('answer principal transaction control timed out');
+    this.name = 'AnswerPrincipalControlTimeoutError';
+  }
+}
+
+async function principalControlQuery(
+  client: QueryClient,
+  sql: string,
+  params: unknown[] | undefined,
+  timeoutMs: number
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.query(sql, params),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new AnswerPrincipalControlTimeoutError()), timeoutMs);
+        timer.unref?.();
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) {clearTimeout(timer);}
   }
 }
 
 export function parseAnswerPrincipalAuditReport(input: unknown): AnswerPrincipalAuditReport {
-  const value = strictRecord(input, [
+  const keys = [
     'version', 'kind', 'target', 'audited_at', 'commit_sha', 'deployment_id', 'release_id',
     'current_user_sha256', 'current_database_sha256', 'assertion_scope', 'statement_timeout_ms',
     'required_relations', 'routine_observation_count', 'effective_routine_execute_count', 'status', 'findings', 'production_evidence'
-  ]);
+  ];
+  if (typeof input === 'object' && input !== null &&
+      Object.prototype.hasOwnProperty.call(input, 'database_target_sha256')) {
+    keys.push('database_target_sha256');
+  }
+  const value = strictRecord(input, keys);
   const evidence = strictRecord(value.production_evidence, ['key_id', 'algorithm', 'signature']);
   if (value.version !== ANSWER_PRINCIPAL_AUDIT_VERSION || value.kind !== 'f1ql_answer_principal_audit' || value.target !== 'production' ||
       typeof value.audited_at !== 'string' || !isIsoDate(value.audited_at) || typeof value.commit_sha !== 'string' || !COMMIT_SHA.test(value.commit_sha) ||
       typeof value.deployment_id !== 'string' || !IDENTIFIER.test(value.deployment_id) || typeof value.release_id !== 'string' || !IDENTIFIER.test(value.release_id) ||
       typeof value.current_user_sha256 !== 'string' || !SHA256.test(value.current_user_sha256) || typeof value.current_database_sha256 !== 'string' || !SHA256.test(value.current_database_sha256) ||
+      (value.database_target_sha256 !== undefined &&
+        (typeof value.database_target_sha256 !== 'string' || !SHA256.test(value.database_target_sha256))) ||
        value.assertion_scope !== 'answer_principal_least_privilege' || value.statement_timeout_ms !== ANSWER_PRINCIPAL_AUDIT_TIMEOUT_MS ||
        !sameStrings(value.required_relations, ANSWER_PRINCIPAL_REQUIRED_RELATIONS) || (value.status !== 'passed' && value.status !== 'attention') ||
        !isNonnegativeSafeInteger(value.routine_observation_count) || !isNonnegativeSafeInteger(value.effective_routine_execute_count) ||
@@ -269,9 +347,17 @@ export function getAnswerPrincipalAuditSigningPayload(input: unknown): Buffer {
   return Buffer.from(stableSerialize(unsigned), 'utf8');
 }
 
-export function verifyAnswerPrincipalAuditReport(input: unknown, trustedKey: TrustedProductionEvidenceKey, expected: { commit_sha: string; deployment_id: string; release_id: string }): AnswerPrincipalAuditReport {
+export function verifyAnswerPrincipalAuditReport(input: unknown, trustedKey: TrustedProductionEvidenceKey, expected: {
+  commit_sha: string;
+  deployment_id: string;
+  release_id: string;
+  database_target_sha256?: string;
+}): AnswerPrincipalAuditReport {
   const report = parseAnswerPrincipalAuditReport(input);
-  if (!trustedKey || report.production_evidence.key_id !== trustedKey.key_id || report.commit_sha !== expected.commit_sha || report.deployment_id !== expected.deployment_id || report.release_id !== expected.release_id) {
+  if (!trustedKey || report.production_evidence.key_id !== trustedKey.key_id || report.commit_sha !== expected.commit_sha ||
+      report.deployment_id !== expected.deployment_id || report.release_id !== expected.release_id ||
+      (expected.database_target_sha256 !== undefined &&
+        report.database_target_sha256 !== expected.database_target_sha256)) {
     throw new Error('answer_principal_audit_context_mismatch');
   }
   let publicKey: KeyObject;
@@ -334,7 +420,9 @@ function isNonnegativeSafeInteger(value: unknown): value is number {
 
 function validateContext(context: AnswerPrincipalAuditContext): void {
   if (context.target !== 'production' || !COMMIT_SHA.test(context.commit_sha) || !IDENTIFIER.test(context.deployment_id) || !IDENTIFIER.test(context.release_id) || !IDENTIFIER.test(context.key_id) ||
-      context.private_key.type !== 'private' || context.private_key.asymmetricKeyType !== 'ed25519' || (context.audited_at !== undefined && !isIsoDate(context.audited_at))) {
+      context.private_key.type !== 'private' || context.private_key.asymmetricKeyType !== 'ed25519' ||
+      (context.audited_at !== undefined && !isIsoDate(context.audited_at)) ||
+      (context.database_target_sha256 !== undefined && !SHA256.test(context.database_target_sha256))) {
     throw new Error('answer_principal_audit_context_invalid');
   }
 }

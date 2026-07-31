@@ -139,7 +139,7 @@ export async function orchestrateSemanticShadow(
       },
       latencies: { ...latencies, total_ms: boundedLatency(totalStartedAt, now()) },
       result_query_calls: 0,
-      versions: versions()
+      versions: semanticShadowActiveVersions()
     });
 
   let contract: AnswerQuestionContract;
@@ -594,7 +594,7 @@ function unavailableTemplateLane(enabled: boolean | undefined): DualObservation 
   return enabled ? { enabled: true, status: 'template_proof_failed' } : notRequestedDual();
 }
 
-function versions(): SemanticShadowObservation['versions'] {
+export function semanticShadowActiveVersions(): SemanticShadowObservation['versions'] {
   return {
     orchestrator: SEMANTIC_SHADOW_ORCHESTRATOR_VERSION,
     observation: SEMANTIC_SHADOW_OBSERVATION_VERSION,

@@ -214,6 +214,7 @@ describe('semantic catalog', () => {
     expect(artifact).toMatchObject({
       catalog_hash: SEMANTIC_CATALOG_HASH,
       database_binding_hash: artifact.binding.database_binding_hash,
+      read_counters: { transaction_count: 1, statement_count: 5, required_grain_check_count: 1 },
       production_evidence: { key_id: 'catalog-test-key', algorithm: 'Ed25519' }
     });
     expect(verifySemanticCatalogBindingArtifact(artifact, {
@@ -259,6 +260,46 @@ describe('semantic catalog', () => {
       'ROLLBACK'
     ]);
     expect(released).toBe(true);
+  });
+
+  it('discards the catalog-audit connection when rollback cannot restore known state', async () => {
+    const releases: Array<Error | undefined> = [];
+    const database = {
+      connect: async () => ({
+        query: async (sql: string) => {
+          if (sql.trim() === 'ROLLBACK') {throw new Error('rollback failed');}
+          if (sql.includes('pg_get_viewdef')) {throw new Error('catalog inspection failed');}
+          return { rows: [] };
+        },
+        release: (error?: Error) => {releases.push(error);}
+      })
+    };
+    await expect(buildSemanticCatalogDatabaseBinding(database as never)).rejects
+      .toThrow('transaction cleanup failed');
+    expect(releases).toHaveLength(1);
+    expect(releases[0]).toBeInstanceOf(Error);
+  });
+
+  it.each(['BEGIN READ ONLY', "SET LOCAL statement_timeout = '2000ms'", 'ROLLBACK'])
+  ('bounds and discards a connection when %s never settles', async stalledStatement => {
+    const releases: Array<Error | undefined> = [];
+    const database = {
+      connect: async () => ({
+        query: async (sql: string) => {
+          const normalized = sql.trim();
+          if (normalized === stalledStatement) {
+            return await new Promise<never>(() => undefined);
+          }
+          if (sql.includes('pg_get_viewdef')) {throw new Error('catalog inspection failed');}
+          return { rows: [] };
+        },
+        release: (error?: Error) => {releases.push(error);}
+      })
+    };
+    await expect(buildSemanticCatalogDatabaseBinding(database as never, 'f1ql_answer', undefined, 5))
+      .rejects.toThrow(stalledStatement === 'ROLLBACK' ? 'cleanup failed' : 'control timed out');
+    expect(releases).toHaveLength(1);
+    expect(releases[0]).toBeInstanceOf(Error);
   });
 
   it('changes the database binding when a governed view definition changes', async () => {

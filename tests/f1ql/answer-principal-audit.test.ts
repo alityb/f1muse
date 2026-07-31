@@ -18,7 +18,8 @@ const auditContext = {
   release_id: 'release-1',
   key_id: 'production-evidence-1',
   private_key: keys.privateKey,
-  audited_at: '2026-07-24T00:00:00.000Z'
+  audited_at: '2026-07-24T00:00:00.000Z',
+  database_target_sha256: 'd'.repeat(64)
 };
 const trustedKey = { key_id: auditContext.key_id, public_key: keys.publicKey };
 
@@ -93,7 +94,7 @@ describe('answer principal least-privilege audit', () => {
     const certificate = '-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----\n';
     const configuration = requireAnswerPrincipalAuditConfiguration({
       F1QL_ANSWER_PRINCIPAL_AUDIT_ENABLED: 'true', F1QL_ANSWER_PRINCIPAL_AUDIT_TARGET: 'production',
-      F1QL_ANSWER_DATABASE_URL: 'postgres://db.example/f1?sslmode=disable&sslrootcert=other',
+      F1QL_ANSWER_DATABASE_URL: 'postgres://f1ql_answer@db.example:5432/f1?sslmode=disable&sslrootcert=other',
       F1QL_ANSWER_DATABASE_CA_CERT_BASE64: Buffer.from(certificate).toString('base64'),
       RAILWAY_GIT_COMMIT_SHA: auditContext.commit_sha, F1QL_ANSWER_DEPLOYMENT_ID: auditContext.deployment_id,
       F1QL_ANSWER_RELEASE_ID: auditContext.release_id, F1QL_ANSWER_PRODUCTION_EVIDENCE_KEY_ID: auditContext.key_id,
@@ -102,6 +103,39 @@ describe('answer principal least-privilege audit', () => {
     expect(configuration.pool_config.ssl).toEqual({ ca: certificate, rejectUnauthorized: true });
     expect(configuration.pool_config.connectionString).not.toMatch(/sslmode|sslrootcert/);
     expect(configuration.pool_config.connectionTimeoutMillis).toBe(5_000);
+  });
+
+  it.each(['host', 'port', 'user', 'dbname', 'options'])
+  ('rejects connection-affecting URL parameter %s', parameter => {
+    const certificate = '-----BEGIN CERTIFICATE-----\ntest-ca\n-----END CERTIFICATE-----\n';
+    expect(() => requireAnswerPrincipalAuditConfiguration({
+      F1QL_ANSWER_PRINCIPAL_AUDIT_ENABLED: 'true', F1QL_ANSWER_PRINCIPAL_AUDIT_TARGET: 'production',
+      F1QL_ANSWER_DATABASE_URL: `postgres://f1ql_answer@db.example:5432/f1?${parameter}=override`,
+      F1QL_ANSWER_DATABASE_CA_CERT_BASE64: Buffer.from(certificate).toString('base64'),
+      RAILWAY_GIT_COMMIT_SHA: auditContext.commit_sha, F1QL_ANSWER_DEPLOYMENT_ID: auditContext.deployment_id,
+      F1QL_ANSWER_RELEASE_ID: auditContext.release_id, F1QL_ANSWER_PRODUCTION_EVIDENCE_KEY_ID: auditContext.key_id,
+      F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64: keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
+    })).toThrow('target_invalid');
+  });
+
+  it.each(['BEGIN READ ONLY', "SELECT set_config('statement_timeout', $1, true)", 'ROLLBACK'])
+  ('bounds and discards a connection when %s never settles', async stalledStatement => {
+    const releases: Array<Error | undefined> = [];
+    const pool = {
+      async connect() {return {
+        async query(sql: string) {
+          if (sql === stalledStatement) {return await new Promise<never>(() => undefined);}
+          if (sql.includes('FROM pg_roles')) {throw new Error('principal inspection failed');}
+          return { rows: [] };
+        },
+        release(error?: Error) {releases.push(error);}
+      };},
+      async end() {}
+    };
+    await expect(runAnswerPrincipalAudit(pool, auditContext, 5)).rejects
+      .toThrow(stalledStatement === 'ROLLBACK' ? 'cleanup failed' : 'control timed out');
+    expect(releases).toHaveLength(1);
+    expect(releases[0]).toBeInstanceOf(Error);
   });
 
   it('detects an overprivileged principal using read-only catalog observations', async () => {

@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Request, Response, Router } from 'express';
 import { Pool } from 'pg';
+import { computeAnswerDatabaseConnectionIdentity } from '../../db/answer-database';
 import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContract } from '../../f1ql/answer-question';
 import {
   ConfiguredSemanticCandidateModelIdentity,
@@ -19,6 +20,7 @@ import {
 } from '../../f1ql/semantic-shadow-planner';
 import {
   SEMANTIC_SHADOW_RESOLVER_MAX_TIMEOUT_MS,
+  SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINT_SET_SHA256,
   SemanticShadowResolverAccess,
   SemanticShadowResolverCounters,
   SemanticShadowResolverReaderError,
@@ -28,12 +30,19 @@ import {
   SEMANTIC_SHADOW_RETAINED_OBSERVATION_VERSION,
   sanitizeSemanticShadowRetainedObservation
 } from '../../f1ql/semantic-shadow-retained-observation';
+import {
+  attachSemanticShadowProductionCapture,
+  loadSemanticShadowProductionCapturePrivateKey
+} from '../../f1ql/semantic-shadow-production-capture';
 import { AnswerAdmissionController, AnswerAdmissionError } from '../../f1ql/answer-runtime';
 
 const DEFAULT_METADATA_STATEMENT_TIMEOUT_MS = 5_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_REQUEST_TIMEOUT_MS = 15_000;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
+const COMMIT_SHA_PATTERN = /^[a-f0-9]{40}$/u;
+const CONTEXT_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
+const CAPTURE_NONCE_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 const IDENTITY_KEYS: readonly (keyof ConfiguredSemanticCandidateModelIdentity)[] = [
   'provider',
   'endpoint_sha256',
@@ -136,6 +145,12 @@ export function createProgramSemanticShadowRoutes(
     } catch {
       return unavailable(res, 'semantic_shadow_provider_not_configured');
     }
+    let productionCapture: ReturnType<typeof readProductionCaptureContext>;
+    try {
+      productionCapture = readProductionCaptureContext(req, env);
+    } catch {
+      return unavailable(res, 'semantic_shadow_configuration_invalid');
+    }
 
     const controller = new AbortController();
     const startedAt = performance.now();
@@ -148,7 +163,11 @@ export function createProgramSemanticShadowRoutes(
     let activeStage: 'admission' | 'inventory' | 'proposal' | 'resolution' | 'planning' = 'admission';
     let terminalRetentionAttempted = false;
     const retainTerminal = (retained: unknown) => {
-      const line = JSON.stringify(sanitizeSemanticShadowRetainedObservation(retained));
+      const captured = productionCapture === undefined ? retained : attachSemanticShadowProductionCapture(
+        retained,
+        productionCapture.signer
+      );
+      const line = JSON.stringify(sanitizeSemanticShadowRetainedObservation(captured));
       if (terminalRetentionAttempted) {return;}
       terminalRetentionAttempted = true;
       logger(line);
@@ -162,6 +181,9 @@ export function createProgramSemanticShadowRoutes(
         rollout_stage: 0,
         question_sha256: contract.sha256,
         ...evidenceBindingFields(),
+        ...(productionCapture === undefined ? {} : {
+          production_evidence_binding: productionCapture.binding
+        }),
         provider_identity: provider.identity,
         resolver_transaction_count: resolverTransactionCount,
         resolver_transaction_counters: freezeResolverCounters(resolverCounters),
@@ -243,6 +265,9 @@ export function createProgramSemanticShadowRoutes(
         rollout_stage: 0 as const,
         question_sha256: contract.sha256,
         ...evidenceBindingFields(),
+        ...(productionCapture === undefined ? {} : {
+          production_evidence_binding: productionCapture.binding
+        }),
         provider_identity: provider.identity,
         resolver_transaction_count: resolverTransactionCount,
         resolver_transaction_counters: freezeResolverCounters(resolverCounters),
@@ -400,6 +425,47 @@ function safeTokenEqual(supplied: string, expected: string): boolean {
   const suppliedDigest = createHash('sha256').update(supplied, 'utf8').digest();
   const expectedDigest = createHash('sha256').update(expected, 'utf8').digest();
   return timingSafeEqual(suppliedDigest, expectedDigest);
+}
+
+function readProductionCaptureContext(req: Request, env: NodeJS.ProcessEnv) {
+  const nonce = req.get('x-f1ql-semantic-shadow-evidence-nonce');
+  if (env.F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_ENABLED !== 'true') {
+    if (nonce !== undefined) {throw new Error('semantic shadow production capture is disabled');}
+    return undefined;
+  }
+  const commitSha = env.RAILWAY_GIT_COMMIT_SHA;
+  const deploymentId = env.F1QL_ANSWER_DEPLOYMENT_ID;
+  const releaseId = env.F1QL_ANSWER_RELEASE_ID;
+  const expectedNonce = env.F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_NONCE;
+  const keyId = env.F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_KEY_ID;
+  if (env.F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_TARGET !== 'production' ||
+      !commitSha || !COMMIT_SHA_PATTERN.test(commitSha) ||
+      !deploymentId || !CONTEXT_IDENTIFIER_PATTERN.test(deploymentId) ||
+      !releaseId || !CONTEXT_IDENTIFIER_PATTERN.test(releaseId) ||
+      !expectedNonce || !CAPTURE_NONCE_PATTERN.test(expectedNonce) ||
+      !nonce || !CAPTURE_NONCE_PATTERN.test(nonce) || !safeTokenEqual(nonce, expectedNonce) ||
+      !keyId || !CONTEXT_IDENTIFIER_PATTERN.test(keyId)) {
+    throw new Error('semantic shadow production capture context is invalid');
+  }
+  const databaseIdentity = computeAnswerDatabaseConnectionIdentity(env.F1QL_ANSWER_DATABASE_URL);
+  return Object.freeze({
+    binding: Object.freeze({
+      commit_sha256: createHash('sha256').update(commitSha, 'utf8').digest('hex'),
+      deployment_id_sha256: createHash('sha256').update(deploymentId, 'utf8').digest('hex'),
+      release_id_sha256: createHash('sha256').update(releaseId, 'utf8').digest('hex'),
+      capture_nonce_sha256: createHash('sha256').update(nonce, 'utf8').digest('hex'),
+      answer_database_target_sha256: databaseIdentity.target_sha256,
+      answer_database_user_sha256: databaseIdentity.current_user_sha256,
+      answer_database_name_sha256: databaseIdentity.current_database_sha256,
+      resolver_sql_fingerprint_set_sha256: SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINT_SET_SHA256
+    }),
+    signer: Object.freeze({
+      key_id: keyId,
+      private_key: loadSemanticShadowProductionCapturePrivateKey(
+        env.F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_PRIVATE_KEY_BASE64 ?? ''
+      )
+    })
+  });
 }
 
 function isExactQuestionBody(input: unknown): input is { question: unknown } {

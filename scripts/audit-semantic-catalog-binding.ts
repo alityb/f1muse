@@ -2,7 +2,7 @@ import { createHash, createPrivateKey, KeyObject, sign, verify } from 'node:cryp
 import { closeSync, constants, fchmodSync, fsyncSync, openSync, writeSync } from 'node:fs';
 import { Pool } from 'pg';
 import { z } from 'zod';
-import { buildAnswerDatabasePoolConfig } from '../src/db/answer-database';
+import { buildAnswerDatabasePoolConfig, computeAnswerDatabaseTargetSha256 } from '../src/db/answer-database';
 import { isLoopbackHostname } from '../src/db/network-target';
 import {
   buildSemanticCatalogDatabaseBinding,
@@ -26,7 +26,13 @@ const artifactSchema = z.object({
   release_id: z.string().regex(IDENTIFIER),
   catalog_hash: z.string().regex(SHA256),
   database_binding_hash: z.string().regex(SHA256),
+  database_target_sha256: z.string().regex(SHA256).optional(),
   binding: z.unknown(),
+  read_counters: z.object({
+    transaction_count: z.literal(1),
+    statement_count: z.number().int().min(4).max(100),
+    required_grain_check_count: z.number().int().min(0).max(20)
+  }).strict().optional(),
   production_evidence: z.object({
     key_id: z.string().regex(IDENTIFIER),
     algorithm: z.literal('Ed25519'),
@@ -44,7 +50,13 @@ export interface SemanticCatalogBindingArtifact {
   readonly release_id: string;
   readonly catalog_hash: string;
   readonly database_binding_hash: string;
+  readonly database_target_sha256?: string;
   readonly binding: SemanticCatalogDatabaseBinding;
+  readonly read_counters?: {
+    readonly transaction_count: 1;
+    readonly statement_count: number;
+    readonly required_grain_check_count: number;
+  };
   readonly production_evidence: {
     readonly key_id: string;
     readonly algorithm: 'Ed25519';
@@ -62,6 +74,7 @@ export interface SemanticCatalogAuditContext {
   readonly release_id: string;
   readonly key_id: string;
   readonly private_key: KeyObject;
+  readonly database_target_sha256?: string;
 }
 
 export interface TrustedSemanticCatalogAuditKey {
@@ -73,7 +86,10 @@ export function parseSemanticCatalogBindingArtifact(input: unknown): SemanticCat
   const artifact = artifactSchema.parse(input);
   const binding = parseSemanticCatalogDatabaseBinding(artifact.binding);
   if (artifact.catalog_hash !== SEMANTIC_CATALOG_HASH || artifact.catalog_hash !== binding.catalog_hash ||
-      artifact.database_binding_hash !== binding.database_binding_hash) {
+      artifact.database_binding_hash !== binding.database_binding_hash ||
+      (artifact.read_counters !== undefined &&
+        (artifact.read_counters.required_grain_check_count !== binding.required_grain_checks.length ||
+         artifact.read_counters.statement_count !== 4 + artifact.read_counters.required_grain_check_count))) {
     throw new Error('semantic catalog binding artifact mismatch');
   }
   return Object.freeze({ ...artifact, binding });
@@ -115,10 +131,15 @@ export async function auditSemanticCatalogBinding(
   observedAt = new Date().toISOString()
 ): Promise<SemanticCatalogBindingArtifact> {
   if (!COMMIT_SHA.test(context.commit_sha) || !IDENTIFIER.test(context.deployment_id) || !IDENTIFIER.test(context.release_id) ||
-      !IDENTIFIER.test(context.key_id) || context.private_key.type !== 'private' || context.private_key.asymmetricKeyType !== 'ed25519') {
+      !IDENTIFIER.test(context.key_id) || context.private_key.type !== 'private' || context.private_key.asymmetricKeyType !== 'ed25519' ||
+      (context.database_target_sha256 !== undefined && !SHA256.test(context.database_target_sha256))) {
     throw new Error('semantic catalog production audit context is invalid');
   }
-  const binding = await buildSemanticCatalogDatabaseBinding(database);
+  let readCounters: SemanticCatalogBindingArtifact['read_counters'];
+  const binding = await buildSemanticCatalogDatabaseBinding(database, 'f1ql_answer', counters => {
+    readCounters = counters;
+  });
+  if (!readCounters) {throw new Error('semantic catalog production audit read counters are unavailable');}
   const unsigned: UnsignedSemanticCatalogBindingArtifact = {
     version: 1,
     kind: 'f1ql_semantic_catalog_database_binding',
@@ -129,7 +150,11 @@ export async function auditSemanticCatalogBinding(
     release_id: context.release_id,
     catalog_hash: binding.catalog_hash,
     database_binding_hash: binding.database_binding_hash,
+    ...(context.database_target_sha256 === undefined ? {} : {
+      database_target_sha256: context.database_target_sha256
+    }),
     binding,
+    read_counters: readCounters,
     production_evidence: { key_id: context.key_id, algorithm: 'Ed25519' }
   };
   return parseSemanticCatalogBindingArtifact({
@@ -155,7 +180,8 @@ export async function writeSemanticCatalogBindingAudit(output: string, env: Node
     deployment_id: required(env, 'F1QL_ANSWER_DEPLOYMENT_ID'),
     release_id: required(env, 'F1QL_ANSWER_RELEASE_ID'),
     key_id: required(env, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_KEY_ID'),
-    private_key: loadPrivateKey(required(env, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64'))
+    private_key: loadPrivateKey(required(env, 'F1QL_ANSWER_PRODUCTION_EVIDENCE_PRIVATE_KEY_BASE64')),
+    database_target_sha256: computeAnswerDatabaseTargetSha256(connectionString)
   };
   if (!COMMIT_SHA.test(context.commit_sha) || !IDENTIFIER.test(context.deployment_id) || !IDENTIFIER.test(context.release_id) || !IDENTIFIER.test(context.key_id)) {
     throw new Error('semantic catalog production audit context is invalid');

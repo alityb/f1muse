@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
@@ -9,7 +9,11 @@ import {
   createProgramSemanticShadowRoutes,
   ProgramSemanticShadowDependencies
 } from '../../src/api/routes/program-semantic-shadow';
-import { SEMANTIC_SHADOW_RESOLVER_STATEMENTS } from '../../src/f1ql/semantic-shadow-resolver-reader';
+import { computeAnswerDatabaseConnectionIdentity } from '../../src/db/answer-database';
+import {
+  SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINT_SET_SHA256,
+  SEMANTIC_SHADOW_RESOLVER_STATEMENTS
+} from '../../src/f1ql/semantic-shadow-resolver-reader';
 import { SemanticShadowProposalRequest } from '../../src/f1ql/semantic-shadow-planner';
 import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 
@@ -317,6 +321,67 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(createHash('sha256').update(translateSource).digest('hex'))
       .toBe('93e9da59bfce8800ce2ef34dddf3ff6647f6445645234c3b32a67132c0204596');
   });
+
+  it('hash-binds an explicitly enabled production evidence request to its runtime context and nonce', async () => {
+    const nonce = 'n'.repeat(43);
+    const captureKeys = generateKeyPairSync('ed25519');
+    const environment = {
+      ...ENABLED_ENVIRONMENT,
+      F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_ENABLED: 'true',
+      F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_TARGET: 'production',
+      RAILWAY_GIT_COMMIT_SHA: 'a'.repeat(40),
+      F1QL_ANSWER_DEPLOYMENT_ID: 'semantic-shadow-production-deployment',
+      F1QL_ANSWER_RELEASE_ID: 'semantic-shadow-production-release',
+      F1QL_ANSWER_DATABASE_URL: 'postgresql://f1ql_answer:unused@db.example.test:5432/f1muse',
+      F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_NONCE: nonce,
+      F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_KEY_ID: 'semantic-shadow-capture-key',
+      F1QL_SEMANTIC_SHADOW_PRODUCTION_CAPTURE_PRIVATE_KEY_BASE64:
+        captureKeys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64')
+    };
+    const fake = fakePool();
+    const logs: string[] = [];
+    const response = await request(fake.pool, {
+      environment: () => environment,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: line => logs.push(line),
+      timestamp: () => TIMESTAMP
+    }, { question: QUESTION }, undefined, undefined, false, nonce);
+    expect(response.status).toBe(200);
+    expect(logs).toHaveLength(1);
+    const captured = JSON.parse(logs[0]);
+    const databaseIdentity = computeAnswerDatabaseConnectionIdentity(environment.F1QL_ANSWER_DATABASE_URL);
+    expect(captured.production_evidence_binding).toEqual({
+      commit_sha256: createHash('sha256').update(environment.RAILWAY_GIT_COMMIT_SHA).digest('hex'),
+      deployment_id_sha256: createHash('sha256').update(environment.F1QL_ANSWER_DEPLOYMENT_ID).digest('hex'),
+      release_id_sha256: createHash('sha256').update(environment.F1QL_ANSWER_RELEASE_ID).digest('hex'),
+      capture_nonce_sha256: createHash('sha256').update(nonce).digest('hex'),
+      answer_database_target_sha256: databaseIdentity.target_sha256,
+      answer_database_user_sha256: databaseIdentity.current_user_sha256,
+      answer_database_name_sha256: databaseIdentity.current_database_sha256,
+      resolver_sql_fingerprint_set_sha256: SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINT_SET_SHA256
+    });
+    expect(captured.production_capture).toMatchObject({
+      key_id: 'semantic-shadow-capture-key', algorithm: 'Ed25519',
+      signature: expect.stringMatching(/^[A-Za-z0-9+/]{86}==$/u)
+    });
+
+    const refused = await request(fake.pool, {
+      environment: () => environment,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY
+    }, { question: QUESTION });
+    expect(refused).toEqual({
+      status: 503,
+      body: { error: 'semantic_shadow_unavailable', reason: 'semantic_shadow_configuration_invalid' }
+    });
+    const wrongNonce = await request(fake.pool, {
+      environment: () => environment,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY
+    }, { question: QUESTION }, undefined, undefined, false, 'x'.repeat(43));
+    expect(wrongNonce.status).toBe(503);
+  });
 });
 
 function fakePool(
@@ -354,7 +419,8 @@ async function request(
   body: unknown,
   authorization = `Bearer ${INTERNAL_TOKEN}`,
   executor?: () => never,
-  failSemanticResponseSerialization = false
+  failSemanticResponseSerialization = false,
+  evidenceNonce?: string
 ): Promise<{ status: number; body: Record<string, any> }> {
   const app = express();
   app.use(express.json());
@@ -377,7 +443,11 @@ async function request(
   try {
     const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/program/semantic-shadow`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(authorization === undefined ? {} : { Authorization: authorization }) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authorization === undefined ? {} : { Authorization: authorization }),
+        ...(evidenceNonce === undefined ? {} : { 'X-F1QL-Semantic-Shadow-Evidence-Nonce': evidenceNonce })
+      },
       body: JSON.stringify(body)
     });
     return { status: response.status, body: await response.json() as Record<string, any> };

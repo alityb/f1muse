@@ -50,6 +50,8 @@ export type SemanticShadowResolverStatement = keyof typeof SEMANTIC_SHADOW_RESOL
 export const SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINTS: Readonly<Record<SemanticShadowResolverStatement, string>> =
   Object.freeze(Object.fromEntries(Object.entries(SEMANTIC_SHADOW_RESOLVER_STATEMENTS)
     .map(([name, sql]) => [name, createHash('sha256').update(sql).digest('hex')])) as Record<SemanticShadowResolverStatement, string>);
+export const SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINT_SET_SHA256 = createHash('sha256')
+  .update(JSON.stringify(SEMANTIC_SHADOW_RESOLVER_SQL_FINGERPRINTS), 'utf8').digest('hex');
 
 export type SemanticShadowResolverReaderErrorCode =
   | 'connection_failed'

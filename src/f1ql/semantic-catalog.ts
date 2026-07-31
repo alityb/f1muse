@@ -22,6 +22,7 @@ const relationshipIntegrityCheckSchema = z.enum([
   'deduplicate_keys', 'entrant_precedence', 'non_null_measure', 'non_null_requested_to_concepts',
   'single_resolved_key', 'source_presence', 'unique_filtered_branch', 'unique_from_key', 'unique_to_key'
 ]);
+const SEMANTIC_CATALOG_CONTROL_TIMEOUT_MS = 2_000;
 
 const languageSchema = z.object({
   names: z.array(nonEmptyText).min(1).max(20),
@@ -925,7 +926,7 @@ type CatalogQueryClient = {
     sql: string,
     params?: unknown[]
   ): Promise<{ rows: Row[] }>;
-  release(): void;
+  release(error?: Error): void;
 };
 
 type CatalogDatabase = {
@@ -998,15 +999,28 @@ export function parseSemanticCatalogDatabaseBinding(input: unknown): SemanticCat
 
 export async function buildSemanticCatalogDatabaseBinding(
   database: CatalogDatabase,
-  principal = 'f1ql_answer'
+  principal = 'f1ql_answer',
+  observeReads?: (counters: {
+    readonly transaction_count: 1;
+    readonly statement_count: number;
+    readonly required_grain_check_count: number;
+  }) => void,
+  controlTimeoutMs = SEMANTIC_CATALOG_CONTROL_TIMEOUT_MS
 ) {
+  if (!Number.isSafeInteger(controlTimeoutMs) || controlTimeoutMs < 1 ||
+      controlTimeoutMs > SEMANTIC_CATALOG_CONTROL_TIMEOUT_MS) {
+    throw new Error('semantic catalog control timeout is invalid');
+  }
   const client = await database.connect();
   let transactionOpen = false;
+  let connectionReleased = false;
+  let readStatementCount = 0;
   try {
-    await client.query('BEGIN READ ONLY');
+    await catalogControlQuery(client, 'BEGIN READ ONLY', controlTimeoutMs);
     transactionOpen = true;
-    await client.query(`SET LOCAL statement_timeout = '2000ms'`);
+    await catalogControlQuery(client, `SET LOCAL statement_timeout = '2000ms'`, controlTimeoutMs);
     const viewNames = SEMANTIC_CATALOG.sources.map(source => source.view);
+    readStatementCount += 1;
     const definitions = await client.query<{ view_name: string; definition: string; database_owner: string; relation_options: string[] }>(`
       SELECT n.nspname || '.' || c.relname AS view_name,
         pg_get_viewdef(c.oid, true) AS definition,
@@ -1017,15 +1031,18 @@ export async function buildSemanticCatalogDatabaseBinding(
       WHERE c.relkind = 'v' AND n.nspname || '.' || c.relname = ANY($1::text[])
       ORDER BY view_name
     `, [viewNames]);
+    readStatementCount += 1;
     const databaseIdentity = (await client.query<{ current_user: string; current_database: string }>(`
       SELECT current_user, current_database() AS current_database
     `)).rows[0];
+    readStatementCount += 1;
     const columns = await client.query<{ view_name: string; column_name: string; data_type: string; is_nullable: 'YES' | 'NO' }>(`
       SELECT table_schema || '.' || table_name AS view_name, column_name, data_type, is_nullable
       FROM information_schema.columns
       WHERE table_schema || '.' || table_name = ANY($1::text[])
       ORDER BY view_name, ordinal_position
     `, [viewNames]);
+    readStatementCount += 1;
     const privileges = await client.query<{ relation: string; can_select: boolean; write_privileges: string[] }>(`
       SELECT n.nspname || '.' || c.relname AS relation,
         has_schema_privilege($1, n.oid, 'USAGE') AND has_table_privilege($1, c.oid, 'SELECT') AS can_select,
@@ -1047,6 +1064,7 @@ export async function buildSemanticCatalogDatabaseBinding(
     const requiredGrainChecks: Array<{ view: string; key: string[]; duplicate_grain: boolean }> = [];
     for (const source of SEMANTIC_CATALOG.sources.filter(item => item.grain.uniqueness === 'required')) {
       const keys = source.grain.key.map(key => `"${key}"`).join(', ');
+      readStatementCount += 1;
       const duplicate = (await client.query<{ duplicate_grain: boolean }>(`
         SELECT EXISTS (
           SELECT 1 FROM ${source.view} GROUP BY ${keys} HAVING count(*) > 1 LIMIT 1
@@ -1125,17 +1143,73 @@ export async function buildSemanticCatalogDatabaseBinding(
       },
       required_grain_checks: requiredGrainChecks
     };
-    await client.query('ROLLBACK');
+    try {
+      await catalogControlQuery(client, 'ROLLBACK', controlTimeoutMs);
+    } catch {
+      const cleanupError = new Error('semantic catalog transaction cleanup failed');
+      client.release(cleanupError);
+      connectionReleased = true;
+      transactionOpen = false;
+      throw cleanupError;
+    }
     transactionOpen = false;
-    return parseSemanticCatalogDatabaseBinding({
+    const binding = parseSemanticCatalogDatabaseBinding({
       ...material,
       database_binding_hash: computeSemanticCatalogDatabaseBindingHash(material)
     });
-  } finally {
-    if (transactionOpen) {
-      await client.query('ROLLBACK').catch(() => undefined);
-    }
+    observeReads?.({
+      transaction_count: 1,
+      statement_count: readStatementCount,
+      required_grain_check_count: requiredGrainChecks.length
+    });
     client.release();
+    connectionReleased = true;
+    return binding;
+  } catch (error) {
+    if (error instanceof SemanticCatalogControlTimeoutError && !connectionReleased) {
+      client.release(error);
+      connectionReleased = true;
+      transactionOpen = false;
+      throw error;
+    }
+    if (transactionOpen && !connectionReleased) {
+      try {
+        await catalogControlQuery(client, 'ROLLBACK', controlTimeoutMs);
+      } catch {
+        const cleanupError = new Error('semantic catalog transaction cleanup failed');
+        client.release(cleanupError);
+        connectionReleased = true;
+        throw cleanupError;
+      }
+    }
+    if (!connectionReleased) {client.release();}
+    throw error;
+  }
+}
+
+class SemanticCatalogControlTimeoutError extends Error {
+  constructor() {
+    super('semantic catalog transaction control timed out');
+    this.name = 'SemanticCatalogControlTimeoutError';
+  }
+}
+
+async function catalogControlQuery(
+  client: CatalogQueryClient,
+  sql: string,
+  timeoutMs: number
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.query(sql),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new SemanticCatalogControlTimeoutError()), timeoutMs);
+        timer.unref?.();
+      })
+    ]);
+  } finally {
+    if (timer !== undefined) {clearTimeout(timer);}
   }
 }
 

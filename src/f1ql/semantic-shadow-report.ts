@@ -1,4 +1,7 @@
-import { sanitizeSemanticShadowRetainedObservation } from './semantic-shadow-retained-observation';
+import {
+  sanitizeSemanticShadowRetainedObservation,
+  SemanticShadowRetainedObservation
+} from './semantic-shadow-retained-observation';
 
 export const SEMANTIC_SHADOW_REPORT_VERSION = 'semantic-shadow-report-v1' as const;
 export const SEMANTIC_SHADOW_REPORT_REQUIRED_QUESTION_GROUPS = 19;
@@ -231,7 +234,7 @@ export function buildSemanticShadowReport(
       calls = requiredCounter(observation.result_query_calls, 'semantic_result_query_calls');
       repetitionValue = withoutVolatileSemanticFields(observation);
       if (requirements !== undefined) {
-        if (matchesOracle(observation, expectedCases.get(questionHash))) {oracleMatches += 1;}
+        if (matchesSemanticShadowOracle(observation, expectedCases.get(questionHash))) {oracleMatches += 1;}
         else {oracleMismatches += 1;}
       }
     } else if (terminal === 'operational_failure') {
@@ -385,14 +388,20 @@ export function buildSemanticShadowReportFromJsonl(
   content: string,
   requirements?: SemanticShadowReportRequirements
 ): SemanticShadowReport {
-  const records: unknown[] = [];
+  return buildSemanticShadowReport(parseSemanticShadowRetainedEventsFromJsonl(content), requirements);
+}
+
+export function parseSemanticShadowRetainedEventsFromJsonl(
+  content: string
+): readonly SemanticShadowRetainedObservation[] {
+  const records: SemanticShadowRetainedObservation[] = [];
   for (const line of content.split(/\r?\n/u)) {
     if (line.trim().length === 0) {
       continue;
     }
     let outer: unknown;
     try {
-      outer = parseJsonRejectDuplicateKeys(line);
+      outer = parseSemanticShadowJsonRejectDuplicateKeys(line);
     } catch {
       if (claimsRetainedFamily(line)) {
         throw new Error('semantic_shadow_report_claim_malformed');
@@ -412,7 +421,7 @@ export function buildSemanticShadowReportFromJsonl(
     if (typeof outerObject?.message === 'string') {
       let message: unknown;
       try {
-        message = parseJsonRejectDuplicateKeys(outerObject.message);
+        message = parseSemanticShadowJsonRejectDuplicateKeys(outerObject.message);
       } catch {
         if (claimsRetainedFamily(outerObject.message)) {
           throw new Error('semantic_shadow_report_claim_malformed');
@@ -433,10 +442,10 @@ export function buildSemanticShadowReportFromJsonl(
       throw new Error('semantic_shadow_report_claim_malformed');
     }
   }
-  return buildSemanticShadowReport(records, requirements);
+  return Object.freeze(records);
 }
 
-function sanitizeClaim(input: unknown): unknown {
+function sanitizeClaim(input: unknown): SemanticShadowRetainedObservation {
   try {
     return sanitizeSemanticShadowRetainedObservation(input);
   } catch {
@@ -460,7 +469,7 @@ function normalizedClaimText(value: string): string {
   return decoded;
 }
 
-function parseJsonRejectDuplicateKeys(value: string): unknown {
+export function parseSemanticShadowJsonRejectDuplicateKeys(value: string): unknown {
   new DuplicateKeyJsonScanner(value).validate();
   return JSON.parse(value);
 }
@@ -607,7 +616,7 @@ function addEvidenceBinding(
   return failures;
 }
 
-function matchesOracle(
+export function matchesSemanticShadowOracle(
   observation: Record<string, unknown>,
   expected: SemanticShadowReportExpectedCase | undefined
 ): boolean {
