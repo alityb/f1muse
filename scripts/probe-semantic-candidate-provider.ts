@@ -29,7 +29,7 @@ const PROBE_PROVIDER_IDENTITY = Object.freeze({
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
   prompt_sha256: '58c08cc0a126a9a6eca59bbafb3e35c7ea2f407738ba4f917293c386936b6d29',
   schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
-  request_config_sha256: '9149d7acd2adec21f9e0502b411b667499e245126df9252868bf4c93359e43d1'
+  request_config_sha256: 'a3c3f1e5ac7359e9b0792949181721f074081f117de79cbd109185ed3d363277'
 } as const);
 
 type ProbeFailureReason =

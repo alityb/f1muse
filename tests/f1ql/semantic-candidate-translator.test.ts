@@ -191,7 +191,7 @@ describe('semantic candidate translator foundation', () => {
     expect(url).toBe('https://strict.example/v1/chat/completions');
     expect(request).toMatchObject({
       model: 'strict-model',
-      max_tokens: 2_048,
+      max_tokens: 8_192,
       temperature: 0,
       response_format: {
         type: 'json_schema',
@@ -328,7 +328,7 @@ describe('semantic candidate translator foundation', () => {
       provider: 'openai-compatible',
       endpoint_sha256: createHash('sha256').update('https://strict.example/v1').digest('hex'),
       model_sha256: createHash('sha256').update('vendor/strict-model').digest('hex'),
-      request_config_sha256: 'fedeb9150ad74810fe9ade604ae8a95a918818c090d02dc391221023e8699a0b'
+      request_config_sha256: '4353b4a0ad0728fab6f547a7e56fd9de338644f8f9b872ece028fef34a2b7acc'
     });
     expect(JSON.stringify(identity)).not.toContain('private-key');
     expect(JSON.stringify(identity)).not.toContain('strict.example');
