@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "benchmark_version": "phase11-wp7-worst-case-v1",
+  "database": "none",
+  "warmup_passes": 3,
+  "measured_passes": 15,
+  "safety_ceiling_ms_per_stage_pass": 5000,
+  "timing_contract": {
+    "scope": "local_observational_safety_only",
+    "production_capability_threshold": "not_evaluated",
+    "statistics": [
+      "p50",
+      "p95"
+    ]
+  },
+  "legal_limits": {
+    "maximum_work_units": 60,
+    "maximum_rows": 100,
+    "maximum_resolver_candidates_per_mention": 100
+  },
+  "workloads": [
+    {
+      "id": "maximum_rows_standings",
+      "family": "single_source",
+      "boundary": "maximum_rows",
+      "question": "List driver and championship points from final 2025 driver standings.",
+      "entities": [],
+      "resolver": {
+        "driver_mentions": [],
+        "event_resolution": {
+          "type": "missing"
+        }
+      },
+      "expected": {
+        "topology": "single_source_rows",
+        "work_units": 1,
+        "requested_rows": 100,
+        "resolver_candidates": 0,
+        "reference_rows": 100,
+        "hashes": {
+          "question_sha256": "9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c",
+          "answer_plan_sha256": "0e1368f0c590c4f5b8548a7c656dbf8ab6824d6fa0270f3587a8b13aea654451",
+          "proof_sha256": "76d6df8729e215aa4e895009c6151a5c840a1c74d2e226f555ed1a782fdf142a",
+          "core_sha256": "6fde00b7d58c19fa647a97a278bfe60ec1fd3b478415b7c12f01ad963cafd0c9",
+          "compiled_sha256": "454c77414965bf83657cfd40737c33b91919fdc1df5428c4af6881fc306763ed",
+          "reference_output_sha256": "2c16e147aef8dcae8e6fe1a1fdc22a7cf1831022ffca8da633328f50df63e7c3",
+          "formatter_output_sha256": "f8882459c058c7bfc6006274c07c54d585ecb94a9dcfc79889b9f6ed534fe3f2"
+        }
+      }
+    },
+    {
+      "id": "maximum_rows_safe_join",
+      "family": "safe_dimension_join",
+      "boundary": "family_coverage",
+      "question": "List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.",
+      "entities": [],
+      "resolver": {
+        "driver_mentions": [],
+        "event_resolution": {
+          "type": "resolved",
+          "season": 2025,
+          "round": 1
+        }
+      },
+      "expected": {
+        "topology": "row_dimension_join",
+        "work_units": 2,
+        "requested_rows": 100,
+        "resolver_candidates": 1,
+        "reference_rows": 100,
+        "hashes": {
+          "question_sha256": "40a2aa4ae9a50e75d710c8850d7e39eecf675cd180583d8372c218b1b52b219d",
+          "answer_plan_sha256": "d958c9b627a98bc9dac28e87188162b353244f296c02ab544bd1c05e54b854b1",
+          "proof_sha256": "7019a73bf074d1d5d4e8e09de5f3c611723ea1b1af26edb454cef2d5b9a0edd5",
+          "core_sha256": "f0d6b1974fdd047fb0c6fe20a2880a8dae86329cda875e20488a88c957cc1162",
+          "compiled_sha256": "7b89bc4acc46b0eb341551c8a51e3b09fd14c088f41f750f90c01bfee18394d6",
+          "reference_output_sha256": "5fe360bfe15b1538122211af96e863f202843957e7e8c2d8307a3eca082abc11",
+          "formatter_output_sha256": "bb5354272fc73118fe508d9a843d9c7c63be470fd8da560c602aa670cff02c03"
+        }
+      }
+    },
+    {
+      "id": "maximum_work_and_resolver_compose",
+      "family": "aggregate_locality",
+      "boundary": "maximum_work_and_resolver_candidates",
+      "question": "Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.",
+      "entities": [
+        {
+          "type": "driver",
+          "text": "Norris",
+          "occurrence": 0
+        }
+      ],
+      "resolver": {
+        "driver_mentions": [
+          {
+            "text": "Norris",
+            "occurrence": 0,
+            "candidates": [
+              "candidate-001",
+              "candidate-002",
+              "candidate-003",
+              "candidate-004",
+              "candidate-005",
+              "candidate-006",
+              "candidate-007",
+              "candidate-008",
+              "candidate-009",
+              "candidate-010",
+              "candidate-011",
+              "candidate-012",
+              "candidate-013",
+              "candidate-014",
+              "candidate-015",
+              "candidate-016",
+              "candidate-017",
+              "candidate-018",
+              "candidate-019",
+              "candidate-020",
+              "candidate-021",
+              "candidate-022",
+              "candidate-023",
+              "candidate-024",
+              "candidate-025",
+              "candidate-026",
+              "candidate-027",
+              "candidate-028",
+              "candidate-029",
+              "candidate-030",
+              "candidate-031",
+              "candidate-032",
+              "candidate-033",
+              "candidate-034",
+              "candidate-035",
+              "candidate-036",
+              "candidate-037",
+              "candidate-038",
+              "candidate-039",
+              "candidate-040",
+              "candidate-041",
+              "candidate-042",
+              "candidate-043",
+              "candidate-044",
+              "candidate-045",
+              "candidate-046",
+              "candidate-047",
+              "candidate-048",
+              "candidate-049",
+              "candidate-050",
+              "candidate-051",
+              "candidate-052",
+              "candidate-053",
+              "candidate-054",
+              "candidate-055",
+              "candidate-056",
+              "candidate-057",
+              "candidate-058",
+              "candidate-059",
+              "candidate-060",
+              "candidate-061",
+              "candidate-062",
+              "candidate-063",
+              "candidate-064",
+              "candidate-065",
+              "candidate-066",
+              "candidate-067",
+              "candidate-068",
+              "candidate-069",
+              "candidate-070",
+              "candidate-071",
+              "candidate-072",
+              "candidate-073",
+              "candidate-074",
+              "candidate-075",
+              "candidate-076",
+              "candidate-077",
+              "candidate-078",
+              "candidate-079",
+              "candidate-080",
+              "candidate-081",
+              "candidate-082",
+              "candidate-083",
+              "candidate-084",
+              "candidate-085",
+              "candidate-086",
+              "candidate-087",
+              "candidate-088",
+              "candidate-089",
+              "candidate-090",
+              "candidate-091",
+              "candidate-092",
+              "candidate-093",
+              "candidate-094",
+              "candidate-095",
+              "candidate-096",
+              "candidate-097",
+              "candidate-098",
+              "candidate-099",
+              "lando-norris"
+            ],
+            "active_candidates": [
+              "lando-norris"
+            ]
+          }
+        ],
+        "event_resolution": {
+          "type": "missing"
+        }
+      },
+      "expected": {
+        "topology": "scalar_aggregate_compose",
+        "work_units": 60,
+        "requested_rows": 1,
+        "resolver_candidates": 100,
+        "reference_rows": 1,
+        "hashes": {
+          "question_sha256": "5e584fe2c59118ed9503dce5e820c0f6c06ed2cf31fc94583ee929a33100071c",
+          "answer_plan_sha256": "1a0635b7141cef1991af1f8f473d38f00a4d914c45cffd6640fe25ad0cd96197",
+          "proof_sha256": "b6cbd506380bc3d049d7c3eddfc6d2c240d22108aa9abea4834827f1670b7f1c",
+          "core_sha256": "afb999cff90309af8eafd14efbcc0f27ac0301e687f0b7c6f257efd88ed72bbe",
+          "compiled_sha256": "11049430da6c05c0e5e6a10815e3eeb29cfcce8e2b5168c565266791854a6032",
+          "reference_output_sha256": "31253eded9f1922b4d78334d5a8c62ad429c23170304a172bc6458e84626d7d2",
+          "formatter_output_sha256": "d064e6ca4760d0e5ef9daa6b34e6211cbfcd5686d69037a0ccdaf3eeb8468b0e"
+        }
+      }
+    }
+  ],
+  "emitter": {
+    "version": "phase11-worst-case-emitter-v1",
+    "script": "scripts/snapshot-phase11-worst-case-benchmark.ts"
+  }
+}

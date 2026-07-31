@@ -1,4 +1,5 @@
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   authorizeSemanticPlanCapability,
@@ -109,6 +110,47 @@ describe('semantic complete-interaction capability authorization', () => {
     })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
+  it('rejects generated pairwise and higher-order combinations outside reviewed complete interactions', async () => {
+    const variants = [
+      {
+        profileId: 'semantic-single-source-v1' as const,
+        question: (year: number) => `List driver and championship position from final ${year} driver standings.`
+      },
+      {
+        profileId: 'semantic-single-source-v1' as const,
+        question: (year: number) => `List driver, championship points, and championship position from final ${year} driver standings.`
+      },
+      {
+        profileId: 'semantic-safe-dimension-join-v1' as const,
+        question: (year: number) => `List driver and finishing position and event name for round 1 of final ${year} race classification and event metadata.`
+      },
+      {
+        profileId: 'semantic-safe-dimension-join-v1' as const,
+        question: (year: number) => `List driver and finishing position and circuit identifier for round 1 of final ${year} race classification and event metadata.`
+      },
+      {
+        profileId: 'semantic-aggregate-locality-v1' as const,
+        question: (year: number) => `Show count of finishing position from race classification and count of qualifying position from qualifying classification in final ${year}.`
+      }
+    ];
+    await fc.assert(fc.asyncProperty(
+      fc.record({ year: fc.integer({ min: 1950, max: 2025 }), variant: fc.constantFrom(...variants) }),
+      async ({ year, variant }) => {
+        const proof = await semanticProof(variant.question(year), []);
+        const attestation = release({ deployment_capability_profile_ids: [variant.profileId] });
+        expect(() => authorizeSemanticPlanCapability({
+          proof,
+          profile_id: variant.profileId,
+          principal_class: 'internal_canary',
+          request_id: randomUUID(),
+          canary: canary(),
+          release_attestation: attestation,
+          now_ms: NOW
+        })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+      }
+    ), { seed: 20260730, numRuns: 60 });
+  });
+
   it.each(['template_only', 'shadow_compare'] as const)('does not issue compositional authority in %s mode', async answerRoutingMode => {
     const proof = await semanticProof('List driver and championship points from final 2025 driver standings.', []);
     const attestation = release({
@@ -205,13 +247,15 @@ async function semanticProof(question: string, entityNames: readonly string[]) {
   const mentions: SemanticDriverMention[] = entityNames.map(name => ({
     ...span(question, name), candidates: ['lando-norris'], active_candidates: ['lando-norris']
   }));
+  const year = Number(/\b(?:19|20)\d{2}\b/u.exec(question)?.[0] ?? 2025);
+  const round = Number(/\bround\s+(\d{1,2})\b/iu.exec(question)?.[1] ?? 1);
   const resolution = await collectSemanticResolutionEvidence({
     question,
     admission,
     driver_resolver: { inventoryMentions: async () => mentions },
     event_resolver: {
-      resolve: async () => ({ type: 'resolved', season: 2025, round: 1 }),
-      resolveRound: async () => ({ type: 'resolved', season: 2025, round: 1 })
+      resolve: async () => ({ type: 'resolved', season: year, round }),
+      resolveRound: async () => ({ type: 'resolved', season: year, round })
     }
   });
   const plan = planSemanticAnswerFromResolution({ question, admission, resolution });

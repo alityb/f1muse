@@ -1,0 +1,48 @@
+name: Phase 11 Hidden Holdout
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase11-hidden-holdout
+  cancel-in-progress: false
+
+jobs:
+  guarded-release-evaluation:
+    runs-on: ubuntu-latest
+    environment: phase11-hidden-holdout
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --foreground-scripts
+      - name: Require protected hidden material
+        shell: bash
+        env:
+          F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64: ${{ secrets.F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64 }}
+          F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256: ${{ secrets.F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256 }}
+        run: |
+          set +x
+          if [ -z "${F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64:-}" ]; then
+            echo "::error::F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64 is absent"
+            exit 1
+          fi
+          if [ -z "${F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256:-}" ]; then
+            echo "::error::F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256 is absent"
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run test:f1ql
+      - run: npm run benchmark:phase11:worst-case
+      - name: Evaluate canonical hidden holdout
+        run: npm run release:phase11:hidden-holdout
+        env:
+          F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64: ${{ secrets.F1MUSE_PHASE11_HIDDEN_HOLDOUT_BASE64 }}
+          F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256: ${{ secrets.F1MUSE_PHASE11_HIDDEN_HOLDOUT_SHA256 }}

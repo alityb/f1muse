@@ -341,6 +341,12 @@ const snapshotSchema = z.object({
 export type CompositionalRegressionCorpus = z.infer<typeof corpusSchema>;
 export type CompositionalRegressionSnapshot = z.infer<typeof snapshotSchema>;
 
+export interface CompositionalAnswerFixtureInput {
+  readonly question: string;
+  readonly entities: readonly z.input<typeof entitySpecSchema>[];
+  readonly resolver: z.input<typeof resolverFixtureSchema>;
+}
+
 export function parseCompositionalRegressionCorpus(input: unknown): CompositionalRegressionCorpus {
   return deepFreeze(corpusSchema.parse(input));
 }
@@ -352,6 +358,25 @@ export function parseCompositionalRegressionSnapshot(input: unknown): Compositio
     throw new Error('compositional regression snapshot accounting is invalid');
   }
   return deepFreeze(parsed);
+}
+
+export async function prepareCompositionalAnswerArtifacts(input: CompositionalAnswerFixtureInput) {
+  const question = z.string().min(1).max(1_000).parse(input.question);
+  const entities = z.array(entitySpecSchema).max(8).parse(input.entities);
+  const resolver = resolverFixtureSchema.parse(input.resolver);
+  return prepareAnswerArtifacts(question, entities, resolver);
+}
+
+export async function prepareReviewedCompositionalAnswerCase(input: unknown, caseId: string) {
+  const corpus = parseCompositionalRegressionCorpus(input);
+  const item = corpus.cases.find(candidate => candidate.id === caseId);
+  if (!item || item.expected.action !== 'answer' || item.provider_mode !== 'enumerated') {
+    throw new Error(`reviewed compositional answer case is unavailable: ${caseId}`);
+  }
+  return {
+    corpus_case: item,
+    ...await prepareAnswerArtifacts(item.question, item.entities, item.resolver)
+  };
 }
 
 export async function runCompositionalRegressionCorpus(input: unknown): Promise<CompositionalRegressionSnapshot> {
@@ -392,32 +417,13 @@ export async function runCompositionalRegressionCorpus(input: unknown): Promise<
       continue;
     }
 
-    const mentions = item.resolver.driver_mentions.map(mention => ({
-      ...materializeSpan(item.question, mention.text, mention.occurrence),
-      candidates: mention.candidates,
-      active_candidates: mention.active_candidates
-    }));
-    const resolution = await collectSemanticResolutionEvidence({
-      question: item.question,
-      admission,
-      driver_resolver: { inventoryMentions: async () => mentions },
-      event_resolver: {
-        resolve: async () => item.resolver.event_resolution,
-        resolveRound: async () => item.resolver.event_resolution
-      }
+    const prepared = await prepareAnswerArtifacts(item.question, item.entities, item.resolver, {
+      entityInventory, evidence, admission
     });
+    const { resolution, plan, proof } = prepared;
     if (!Object.isFrozen(resolution) || !Object.isFrozen(resolution.entities)) {
       throw new Error(`case ${item.id} produced mutable resolution evidence`);
     }
-    const plan = planSemanticAnswerFromResolution({ question: item.question, admission, resolution });
-    const proof = proveSemanticAnswerPlan({
-      question: item.question,
-      entity_inventory: entityInventory,
-      evidence,
-      admission,
-      resolution,
-      plan
-    });
     assertExpectedAnswer(item, plan.topology, plan.source_graph.source_ids);
     results.push({
       ...common,
@@ -486,6 +492,51 @@ export async function runCompositionalRegressionCorpus(input: unknown): Promise<
     coverage,
     cases: results
   });
+}
+
+async function prepareAnswerArtifacts(
+  question: string,
+  entities: readonly z.infer<typeof entitySpecSchema>[],
+  resolver: z.infer<typeof resolverFixtureSchema>,
+  existing?: {
+    readonly entityInventory: ReturnType<typeof materializeEntityInventory>;
+    readonly evidence: ReturnType<typeof enumerateSemanticQueries>;
+    readonly admission: ReturnType<typeof admitSemanticQueryCandidates>;
+  }
+) {
+  const entityInventory = existing?.entityInventory ?? materializeEntityInventory(question, entities);
+  const evidence = existing?.evidence ?? enumerateSemanticQueries(question, entityInventory);
+  verifySemanticEvidence(evidence, question, entityInventory);
+  const admission = existing?.admission ?? admitSemanticQueryCandidates(
+    providerCandidateSet(evidence, 'enumerated'), question, evidence
+  );
+  if (admission.type !== 'admitted') {
+    throw new Error(`compositional answer fixture was not admitted: ${admission.reason}`);
+  }
+  const mentions = resolver.driver_mentions.map(mention => ({
+    ...materializeSpan(question, mention.text, mention.occurrence),
+    candidates: mention.candidates,
+    active_candidates: mention.active_candidates
+  }));
+  const resolution = await collectSemanticResolutionEvidence({
+    question,
+    admission,
+    driver_resolver: { inventoryMentions: async () => mentions },
+    event_resolver: {
+      resolve: async () => resolver.event_resolution,
+      resolveRound: async () => resolver.event_resolution
+    }
+  });
+  const plan = planSemanticAnswerFromResolution({ question, admission, resolution });
+  const proof = proveSemanticAnswerPlan({
+    question,
+    entity_inventory: entityInventory,
+    evidence,
+    admission,
+    resolution,
+    plan
+  });
+  return { question, entity_inventory: entityInventory, evidence, admission, resolution, plan, proof };
 }
 
 function materializeEntityInventory(question: string, entities: readonly z.infer<typeof entitySpecSchema>[]) {
