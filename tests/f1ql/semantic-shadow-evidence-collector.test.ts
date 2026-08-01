@@ -4,6 +4,7 @@ import {
   assertCompleteReviewedCompositionalCorpus,
   assertSemanticShadowCollectionGuards,
   createSemanticShadowProviderPacer,
+  formatSemanticShadowProviderFailureCode,
   parseSemanticShadowMinRequestIntervalMs
 } from '../../scripts/collect-semantic-shadow-evidence';
 import { compositionalRegressionCorpusInput } from '../fixtures/compositional-regression-corpus';
@@ -65,6 +66,13 @@ describe('WP8 semantic shadow evidence collector', () => {
     }
   });
 
+  it('formats only closed provider failure codes', () => {
+    expect(formatSemanticShadowProviderFailureCode(undefined)).toBe('provider_unknown');
+    expect(formatSemanticShadowProviderFailureCode('unknown')).toBe('provider_unknown');
+    expect(formatSemanticShadowProviderFailureCode('request_timeout')).toBe('provider_request_timeout');
+    expect(formatSemanticShadowProviderFailureCode('rate_limit')).toBe('provider_rate_limit');
+  });
+
   it('paces sequential attempts against a monotonic clock without provider or database access', async () => {
     const times = [100, 100, 125, 150];
     const sleeps: number[] = [];
@@ -99,7 +107,7 @@ describe('WP8 semantic shadow evidence collector', () => {
     expect(source).toContain("const DISPOSABLE_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:5433/f1muse_test'");
     expect(source).not.toMatch(/COLLECTION_TARGET\s*===?\s*['"]production['"]/u);
     expect(source).toContain("activeProviderDiagnosticCode = error instanceof SemanticCandidateProposalError ? error.code : 'unknown'");
-    expect(source).toContain('`provider_${providerDiagnosticCode}`');
+    expect(source).toContain('formatSemanticShadowProviderFailureCode(providerDiagnosticCode)');
     expect(source).not.toMatch(/activeProviderDiagnosticCode\s*=\s*(?:String\()?error\.message/u);
   });
 });

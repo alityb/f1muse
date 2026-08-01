@@ -151,6 +151,12 @@ export function createSemanticShadowProviderPacer(
   };
 }
 
+export function formatSemanticShadowProviderFailureCode(
+  code: SemanticCandidateProposalError['code'] | 'unknown' | undefined
+): string {
+  return `provider_${code ?? 'unknown'}`;
+}
+
 async function main(): Promise<void> {
   const databaseUrl = getTestDatabaseUrl();
   assertSemanticShadowCollectionGuards(process.env, databaseUrl);
@@ -173,7 +179,7 @@ async function main(): Promise<void> {
   let activeCaseIndex: number | undefined;
   let activeRepetitionIndex: number | undefined;
   let activeRawProviderCandidateSetSha256: string | undefined;
-  let activeProviderDiagnosticCode: string | undefined;
+  let activeProviderDiagnosticCode: SemanticCandidateProposalError['code'] | 'unknown' | undefined;
   let executionAttempts = 0;
   const throwingExecutor = (): never => {
     executionAttempts += 1;
@@ -355,13 +361,13 @@ function assertTerminalResponse(
   input: unknown,
   retained: SemanticShadowRetainedObservation,
   expected: CompositionalRegressionSnapshot['cases'][number],
-  providerDiagnosticCode?: string
+  providerDiagnosticCode?: SemanticCandidateProposalError['code'] | 'unknown'
 ): void {
   if (!isRecord(input) || !('terminal' in retained)) {
     throw new Error('Semantic shadow route returned a non-terminal response');
   }
   if (retained.terminal === 'operational_failure') {
-    throw new Error('Semantic shadow collection encountered an operational failure');
+    throw new Error(`Semantic shadow collection encountered an operational failure: ${formatSemanticShadowProviderFailureCode(providerDiagnosticCode)}`);
   }
   if (input.mode !== 'semantic_shadow' || input.rollout_stage !== 0 ||
       !isRecord(input.observation) || JSON.stringify(input.observation) !== JSON.stringify(retained.observation)) {
