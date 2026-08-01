@@ -3,6 +3,7 @@ import { authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { AnswerFormatError, buildAnswerEnvelope, formatAnswerRows } from '../../src/f1ql/answer-format';
 import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
+import { FINAL_STANDINGS_ROWS_CAVEAT } from '../../src/f1ql/final-standings-response-contract';
 
 function approved(program: F1QLProgram) {
   const decision = authorizeAnswerProgram(program);
@@ -274,6 +275,48 @@ describe('deterministic answer formatting', () => {
     expect(envelope.rows).toEqual(rows);
     expect(envelope.program_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(envelope.metadata).toMatchObject({ source: 'final_driver_standings', coverage: { status: 'sufficient', rows_returned: 2 } });
+    expect(envelope.metadata.caveats).toEqual([]);
+  });
+
+  it('formats unfiltered standings from exact 99, 100, and witnessed 101-row populations', () => {
+    const rows = Array.from({ length: 101 }, (_, index) => ({
+      driver_id: `driver-${String(index).padStart(3, '0')}`,
+      points: '1.000'
+    }));
+    expect(formatAnswerRows(standings, approved(standings), rows.slice(0, 99), {
+      row_limit: 100, has_more_rows: false
+    })).toMatchObject({ coverage: 'sufficient', caveats: [] });
+    expect(formatAnswerRows(standings, approved(standings), rows.slice(0, 100), {
+      row_limit: 100, has_more_rows: false
+    })).toMatchObject({ coverage: 'sufficient', caveats: [] });
+    expect(formatAnswerRows(standings, approved(standings), rows.slice(0, 100), {
+      row_limit: 100, has_more_rows: true
+    })).toMatchObject({ coverage: 'possibly_truncated', caveats: [FINAL_STANDINGS_ROWS_CAVEAT] });
+    expect(formatAnswerRows(standings, approved(standings), rows.slice(0, 100)))
+      .toMatchObject({ coverage: 'possibly_truncated', caveats: [FINAL_STANDINGS_ROWS_CAVEAT] });
+    expect(() => formatAnswerRows(
+      standings,
+      approved(standings),
+      rows.slice(0, 100),
+      { row_limit: 100 } as { row_limit: number; has_more_rows: boolean }
+    )).toThrow(AnswerFormatError);
+
+    let accessed = false;
+    const excessive = new Array(101);
+    Object.defineProperty(excessive, 0, { get: () => {accessed = true; return rows[0];} });
+    expect(() => formatAnswerRows(standings, approved(standings), excessive)).toThrow(AnswerFormatError);
+    expect(accessed).toBe(false);
+
+    const cOrdered = formatAnswerRows(standings, approved(standings), [
+      { driver_id: 'driver-\u{10000}', points: '1.000' },
+      { driver_id: 'driver-\uE000', points: '1.000' },
+      { driver_id: 'driver-ä', points: '1.000' },
+      { driver_id: 'driver-z', points: '1.000' },
+      { driver_id: 'driver-a', points: '1.000' }
+    ]);
+    expect(cOrdered.answer.facts.map(fact => fact.subject)).toEqual([
+      'driver-a', 'driver-z', 'driver-ä', 'driver-\uE000', 'driver-\u{10000}'
+    ]);
   });
 
   it('preserves classification nulls and reports a reached limit', () => {

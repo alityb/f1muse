@@ -9,6 +9,10 @@ import {
   verifyVerifiedAnswerReleaseAttestationValidity
 } from './answer-release-attestation';
 import { PlannedF1QLProgram } from './planned-f1ql';
+import {
+  compilePlannedF1QLResultCollection,
+  SEMANTIC_RESULT_COLLECTION_VERSION
+} from './planned-compiler';
 import { SEMANTIC_CATALOG } from './semantic-catalog';
 import { AnswerCanaryStage, selectAnswerCanarySubjectCohort } from './answer-canary';
 import {
@@ -26,7 +30,7 @@ import {
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 
-export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v1' as const;
+export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v2' as const;
 export const SEMANTIC_CAPABILITY_AUTHORIZATION_TTL_MS = 5_000;
 
 interface SemanticPlanInteraction {
@@ -58,6 +62,14 @@ interface SemanticPlanInteraction {
   readonly work_units: number;
 }
 
+export interface SemanticResultCollectionAuthorization {
+  readonly version: typeof SEMANTIC_RESULT_COLLECTION_VERSION;
+  readonly returned_row_limit: number;
+  readonly completeness_probe_rows: 0 | 1;
+  readonly observed_row_limit: number;
+  readonly compiled_hash: string;
+}
+
 export interface SemanticCapabilityAuthorization {
   readonly version: typeof SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION;
   readonly issued_at_ms: number;
@@ -87,6 +99,7 @@ export interface SemanticCapabilityAuthorization {
   readonly semantic_plan_proof_version: typeof SEMANTIC_PLAN_PROOF_VERSION;
   readonly release_attestation_hash: string;
   readonly runtime_ceilings: AnswerRuntimeCeilings;
+  readonly result_collection: SemanticResultCollectionAuthorization;
   readonly authorization_hash: string;
 }
 
@@ -181,6 +194,17 @@ export function authorizeSemanticPlanCapability(input: {
   const releaseExpiry = Date.parse(release.expires_at);
   const profileHash = getSemanticCapabilityProfileHash(profile);
   const interactionHash = sha256(stableSerialize(interaction));
+  const collectionCompilation = compilePlannedF1QLResultCollection(
+    parent.core_program,
+    profile.result_collection.completeness_probe_rows
+  );
+  const resultCollection = {
+    version: SEMANTIC_RESULT_COLLECTION_VERSION,
+    returned_row_limit: interaction.rows,
+    completeness_probe_rows: profile.result_collection.completeness_probe_rows,
+    observed_row_limit: interaction.rows + profile.result_collection.completeness_probe_rows,
+    compiled_hash: sha256(stableSerialize(collectionCompilation))
+  };
   const draft = {
     version: SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION,
     issued_at_ms: issuedAt,
@@ -209,7 +233,8 @@ export function authorizeSemanticPlanCapability(input: {
     semantic_plan_proof_hash: proof.proof_hash,
     semantic_plan_proof_version: proof.version,
     release_attestation_hash: getAnswerReleaseAttestationHash(release),
-    runtime_ceilings: release.runtime_ceilings
+    runtime_ceilings: release.runtime_ceilings,
+    result_collection: resultCollection
   };
   const authorization = deepFreeze({
     ...draft,
@@ -225,12 +250,30 @@ export function verifySemanticCapabilityAuthorization(input: unknown): VerifiedS
   }
   const authorization = input as VerifiedSemanticCapabilityAuthorization;
   const { authorization_hash: authorizationHash, ...draft } = authorization;
+  const profile = getSemanticCapabilityProfile(authorization.profile_id);
   if (authorization.version !== SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION ||
       authorization.registry_hash !== SEMANTIC_CAPABILITY_REGISTRY_HASH ||
+      !profile || !matchesCurrentResultCollection(authorization, profile) ||
       authorizationHash !== sha256(stableSerialize(draft))) {
     throw new SemanticCapabilityAuthorizationError('invalid_authorization');
   }
   return authorization;
+}
+
+function matchesCurrentResultCollection(
+  authorization: SemanticCapabilityAuthorization,
+  profile: SemanticCapabilityProfile
+): boolean {
+  return [
+    authorization.profile_version === profile.version,
+    authorization.profile_hash === getSemanticCapabilityProfileHash(profile),
+    authorization.result_collection.version === SEMANTIC_RESULT_COLLECTION_VERSION,
+    authorization.result_collection.returned_row_limit === authorization.interaction.rows,
+    authorization.result_collection.completeness_probe_rows === profile.result_collection.completeness_probe_rows,
+    authorization.result_collection.observed_row_limit ===
+      authorization.interaction.rows + profile.result_collection.completeness_probe_rows,
+    authorization.result_collection.returned_row_limit <= authorization.runtime_ceilings.max_rows
+  ].every(Boolean);
 }
 
 export function consumeSemanticCapabilityAuthorization(
@@ -322,6 +365,8 @@ function profileAllows(
     interaction.entity_count <= limits.entities && interaction.event_count <= limits.events && interaction.season_count <= limits.seasons &&
     interaction.rows <= limits.rows && interaction.work_units <= limits.work_units &&
     interaction.rows <= runtime.max_rows && interaction.work_units <= runtime.max_work_units &&
+    profile.result_collection.version === SEMANTIC_RESULT_COLLECTION_VERSION &&
+    profile.result_collection.completeness_probe_rows === (interaction.topology === 'scalar_aggregate_compose' ? 0 : 1) &&
     profile.scope === 'historical_final' && historicalCoverageAllows(interaction.source_ids, interaction.season_values);
 }
 
@@ -350,6 +395,10 @@ interface ProfileShape {
     readonly requested_rows: number;
   }[];
   readonly scope: string;
+  readonly result_collection: {
+    readonly version: typeof SEMANTIC_RESULT_COLLECTION_VERSION;
+    readonly completeness_probe_rows: 0 | 1;
+  };
   readonly limits: Readonly<Record<'sources' | 'joins' | 'depth' | 'outputs' | 'groups' | 'entities' | 'events' | 'seasons' | 'rows' | 'work_units', number>>;
 }
 

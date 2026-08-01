@@ -91,6 +91,10 @@ describe('semantic complete-interaction capability authorization', () => {
   it('positively generates every current signed profile across bounded historical and resolver inputs', async () => {
     expect(Object.keys(POSITIVE_PROFILE_CASES).sort()).toEqual([...SEMANTIC_CAPABILITY_PROFILE_IDS].sort());
     for (const profile of SEMANTIC_CAPABILITY_PROFILES) {
+      expect(profile.result_collection).toEqual({
+        version: 'semantic-limit-plus-one-v1',
+        completeness_probe_rows: profile.id === 'semantic-aggregate-locality-v1' ? 0 : 1
+      });
       const factories = POSITIVE_PROFILE_CASES[profile.id];
       expect(factories).toHaveLength(profile.complete_interactions.length);
       const generatedInteractions = [];
@@ -175,6 +179,12 @@ describe('semantic complete-interaction capability authorization', () => {
       core_hash: proof.core_hash,
       topology_hash: proof.topology_hash,
       semantic_plan_proof_hash: proof.proof_hash
+    });
+    const profile = SEMANTIC_CAPABILITY_PROFILES.find(item => item.id === profileId)!;
+    expect(authorization.result_collection).toMatchObject({
+      returned_row_limit: authorization.interaction.rows,
+      completeness_probe_rows: profile.result_collection.completeness_probe_rows,
+      observed_row_limit: authorization.interaction.rows + profile.result_collection.completeness_probe_rows
     });
     expect(authorization.capability_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(Object.isFrozen(authorization.interaction)).toBe(true);
@@ -483,6 +493,15 @@ async function expectPositiveProfileAuthorization(
     topology_hash: proof.topology_hash,
     semantic_plan_proof_hash: proof.proof_hash
   });
+  const profile = SEMANTIC_CAPABILITY_PROFILES.find(item => item.id === profileId)!;
+  expect(authorization.result_collection).toMatchObject({
+    version: profile.result_collection.version,
+    returned_row_limit: authorization.interaction.rows,
+    completeness_probe_rows: profile.result_collection.completeness_probe_rows,
+    observed_row_limit: authorization.interaction.rows + profile.result_collection.completeness_probe_rows,
+    compiled_hash: expect.stringMatching(/^[a-f0-9]{64}$/)
+  });
+  expect(authorization.result_collection.returned_row_limit).toBeLessThanOrEqual(runtime.max_rows);
   expect(authorization.capability_hash).toMatch(/^[a-f0-9]{64}$/u);
   expectDeepFrozen(authorization.interaction);
   expect(verifySemanticCapabilityAuthorization(authorization)).toBe(authorization);

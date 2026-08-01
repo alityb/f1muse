@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
+import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 1 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 2 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -37,6 +38,7 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],
     scope: 'historical_final',
+    result_collection: { version: SEMANTIC_RESULT_COLLECTION_VERSION, completeness_probe_rows: 1 },
     limits: { sources: 1, joins: 0, depth: 6, outputs: 8, groups: 3, entities: 4, events: 30, seasons: 20, rows: 100, work_units: 60 }
   },
   {
@@ -73,6 +75,7 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],
     scope: 'historical_final',
+    result_collection: { version: SEMANTIC_RESULT_COLLECTION_VERSION, completeness_probe_rows: 1 },
     limits: { sources: 2, joins: 1, depth: 6, outputs: 8, groups: 0, entities: 4, events: 1, seasons: 1, rows: 100, work_units: 60 }
   },
   {
@@ -110,6 +113,7 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],
     scope: 'historical_final',
+    result_collection: { version: SEMANTIC_RESULT_COLLECTION_VERSION, completeness_probe_rows: 0 },
     limits: { sources: 2, joins: 0, depth: 6, outputs: 8, groups: 0, entities: 4, events: 30, seasons: 20, rows: 1, work_units: 60 }
   }
 ] as const);

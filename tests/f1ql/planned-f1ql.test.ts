@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
-import { compilePlannedF1QL, PLANNED_INTEGRITY_FIELD } from '../../src/f1ql/planned-compiler';
+import {
+  compilePlannedF1QL,
+  compilePlannedF1QLResultCollection,
+  PLANNED_INTEGRITY_FIELD
+} from '../../src/f1ql/planned-compiler';
 import {
   decidePlannedParticipation,
   estimatePlannedF1QLCost,
@@ -561,6 +565,20 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(compiled.sql).not.toContain('2025');
     expect(compiled.params).toEqual([1, 2025, 1, 2025, 30]);
     expect(compiled.sql.match(/\$\d+/g)).toEqual(['$1', '$2', '$3', '$4', '$5']);
+  });
+
+  it('derives only the exact zero-or-one-row collection probe from canonical compilation', () => {
+    const core = lowerPlannedF1QL(raceMetadataPlan());
+    const base = compilePlannedF1QL(core);
+    const exact = compilePlannedF1QLResultCollection(core, 0);
+    const probed = compilePlannedF1QLResultCollection(core, 1);
+    expect(exact).toEqual(base);
+    expect(probed.sql).toBe(base.sql);
+    expect(probed.params.slice(0, -1)).toEqual(base.params.slice(0, -1));
+    expect(base.params.at(-1)).toBe(30);
+    expect(probed.params.at(-1)).toBe(31);
+    expect(() => compilePlannedF1QLResultCollection(core, 2 as never))
+      .toThrow('planned result collection binding');
   });
 
   it('independently aggregates and CROSS JOINs scalar sources with differential integrity', async () => {

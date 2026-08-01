@@ -19,8 +19,9 @@ import {
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 import { F1QLValidationError } from './validation';
+import { compilePlannedF1QLResultCollection } from './planned-compiler';
 
-export const SEMANTIC_PLAN_EXECUTION_RESULT_VERSION = 'semantic-plan-execution-result-v1' as const;
+export const SEMANTIC_PLAN_EXECUTION_RESULT_VERSION = 'semantic-plan-execution-result-v2' as const;
 
 const verifiedSemanticPlanExecutionResultBrand: unique symbol = Symbol('verifiedSemanticPlanExecutionResult');
 const activeResults = new WeakSet<object>();
@@ -33,7 +34,10 @@ export interface SemanticPlanExecutionResult {
   readonly planned_f1ql_hash: string;
   readonly core_hash: string;
   readonly compiled_hash: string;
+  readonly collection_compiled_hash: string;
   readonly row_count: number;
+  readonly observed_row_count: number;
+  readonly has_more_rows: boolean;
   readonly rows_sha256: string;
   readonly result_hash: string;
 }
@@ -53,6 +57,8 @@ interface SemanticPlanExecutionResultBinding {
   readonly proof: VerifiedSemanticPlanProof;
   readonly authorization: VerifiedSemanticCapabilityAuthorization;
   readonly rows: ReadonlyArray<Readonly<Record<string, unknown>>>;
+  readonly observed_row_count: number;
+  readonly has_more_rows: boolean;
   readonly max_response_bytes: number;
   readonly context: Omit<SemanticCapabilityAuthorizationConsumptionContext, 'now_ms'>;
   readonly now: () => number;
@@ -68,7 +74,7 @@ export async function executeAuthorizedSemanticPlan(
   const proof = verifySemanticPlanProof(proofInput);
   const authorization = verifySemanticCapabilityAuthorization(authorizationInput);
   const parent = getSemanticPlanProofParent(proof);
-  assertExecutionBindings(authorization, proof, parent.cost.units, parent.cost.requested_rows);
+  const collectionCompilation = assertExecutionBindings(authorization, proof, parent);
 
   const now = options.now ?? Date.now;
   const deadlineMs = executionDeadline(now(), authorization.runtime_ceilings.request_timeout_ms, options.deadlineMs);
@@ -100,19 +106,32 @@ export async function executeAuthorizedSemanticPlan(
       now
     ));
     await setStatementTimeout(client, timeoutMs, boundedOptions, now);
-    const queryResult = await queryBounded(client, parent.compiled.sql, parent.compiled.params, boundedOptions, now);
+    const queryResult = await queryBounded(
+      client,
+      collectionCompilation.sql,
+      collectionCompilation.params,
+      boundedOptions,
+      now
+    );
     throwIfAborted(options.signal);
     assertSemanticCapabilityAuthorizationActive(authorization, activeContext(context, now()));
-    if (queryResult.rows.length > parent.cost.requested_rows ||
-        queryResult.rows.length > authorization.runtime_ceilings.max_rows) {
-      throw new F1QLResultLimitError(Math.min(parent.cost.requested_rows, authorization.runtime_ceilings.max_rows));
+    const observedRowCount = queryResult.rows.length;
+    if (observedRowCount > authorization.result_collection.observed_row_limit) {
+      throw new F1QLResultLimitError(authorization.result_collection.observed_row_limit);
     }
-    const rows = snapshotRows(queryResult.rows);
+    const hasMoreRows = observedRowCount > authorization.result_collection.returned_row_limit;
+    if (hasMoreRows) {
+      assertProbeSlot(queryResult.rows, authorization.result_collection.returned_row_limit);
+    }
+    const rows = snapshotRows(
+      queryResult.rows,
+      Math.min(observedRowCount, authorization.result_collection.returned_row_limit)
+    );
     transactionState = 'uncertain';
     await queryBounded(client, 'COMMIT', undefined, boundedOptions, now);
     transactionState = 'none';
     assertSemanticCapabilityAuthorizationActive(authorization, activeContext(context, now()));
-    return mintExecutionResult(authorization, proof, rows, context, now);
+    return mintExecutionResult(authorization, proof, rows, observedRowCount, hasMoreRows, context, now);
   } catch (error) {
     if (transactionState === 'open') {
       try {
@@ -134,6 +153,13 @@ export async function executeAuthorizedSemanticPlan(
   }
 }
 
+function assertProbeSlot(rows: readonly unknown[], index: number): void {
+  const descriptor = Object.getOwnPropertyDescriptor(rows, index);
+  if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+    throw new Error('semantic plan execution completeness probe row is invalid');
+  }
+}
+
 export function verifySemanticPlanExecutionResult(input: unknown): VerifiedSemanticPlanExecutionResult {
   if (!input || typeof input !== 'object' || !activeResults.has(input) || !Object.isFrozen(input)) {
     throw new Error('semantic plan execution result provenance is invalid');
@@ -151,10 +177,15 @@ export function verifySemanticPlanExecutionResult(input: unknown): VerifiedSeman
       result.version !== SEMANTIC_PLAN_EXECUTION_RESULT_VERSION ||
       result.semantic_plan_proof_hash !== proof.proof_hash ||
       result.authorization_hash !== authorization.authorization_hash ||
-      result.planned_f1ql_hash !== proof.planned_f1ql_hash ||
-      result.core_hash !== proof.core_hash || result.compiled_hash !== proof.compiled_hash ||
-      binding.max_response_bytes !== authorization.runtime_ceilings.max_response_bytes ||
-      result.row_count !== binding.rows.length || result.rows_sha256 !== sha256(stableSerialize(binding.rows)) ||
+       result.planned_f1ql_hash !== proof.planned_f1ql_hash ||
+       result.core_hash !== proof.core_hash || result.compiled_hash !== proof.compiled_hash ||
+       result.collection_compiled_hash !== authorization.result_collection.compiled_hash ||
+       binding.max_response_bytes !== authorization.runtime_ceilings.max_response_bytes ||
+       result.observed_row_count !== binding.observed_row_count || result.has_more_rows !== binding.has_more_rows ||
+       result.observed_row_count !== result.row_count + (result.has_more_rows ? 1 : 0) ||
+       result.row_count > authorization.result_collection.returned_row_limit ||
+       result.observed_row_count > authorization.result_collection.observed_row_limit ||
+       result.row_count !== binding.rows.length || result.rows_sha256 !== sha256(stableSerialize(binding.rows)) ||
       resultHash !== sha256(stableSerialize(draft))) {
     throw new Error('semantic plan execution result binding is invalid');
   }
@@ -165,6 +196,7 @@ export function verifySemanticPlanExecutionResult(input: unknown): VerifiedSeman
 export function getSemanticPlanExecutionResultBinding(input: unknown): Readonly<{
   proof: VerifiedSemanticPlanProof;
   rows: ReadonlyArray<Readonly<Record<string, unknown>>>;
+  has_more_rows: boolean;
   max_response_bytes: number;
   assert_active: () => void;
 }> {
@@ -180,6 +212,7 @@ export function getSemanticPlanExecutionResultBinding(input: unknown): Readonly<
   return Object.freeze({
     proof: binding.proof,
     rows: binding.rows,
+    has_more_rows: binding.has_more_rows,
     max_response_bytes: binding.max_response_bytes,
     assert_active: assertActive
   });
@@ -188,9 +221,12 @@ export function getSemanticPlanExecutionResultBinding(input: unknown): Readonly<
 function assertExecutionBindings(
   authorization: VerifiedSemanticCapabilityAuthorization,
   proof: VerifiedSemanticPlanProof,
-  workUnits: number,
-  requestedRows: number
-): void {
+  parent: ReturnType<typeof getSemanticPlanProofParent>
+) {
+  const collectionCompilation = compilePlannedF1QLResultCollection(
+    parent.core_program,
+    authorization.result_collection.completeness_probe_rows
+  );
   if (authorization.catalog_hash !== proof.catalog_hash ||
       authorization.semantic_evidence_hash !== proof.semantic_evidence_hash ||
       authorization.candidate_set_hash !== proof.candidate_set_hash ||
@@ -198,13 +234,17 @@ function assertExecutionBindings(
       authorization.answer_plan_hash !== proof.answer_plan_hash ||
       authorization.planned_f1ql_hash !== proof.planned_f1ql_hash ||
       authorization.core_hash !== proof.core_hash || authorization.topology_hash !== proof.topology_hash ||
-      authorization.semantic_plan_proof_hash !== proof.proof_hash ||
-      authorization.semantic_plan_proof_version !== proof.version ||
-      authorization.interaction.work_units !== workUnits || authorization.interaction.rows !== requestedRows ||
-      workUnits > authorization.runtime_ceilings.max_work_units ||
-      requestedRows > authorization.runtime_ceilings.max_rows) {
+       authorization.semantic_plan_proof_hash !== proof.proof_hash ||
+       authorization.semantic_plan_proof_version !== proof.version ||
+       authorization.interaction.work_units !== parent.cost.units ||
+       authorization.interaction.rows !== parent.cost.requested_rows ||
+       authorization.result_collection.returned_row_limit !== parent.cost.requested_rows ||
+       authorization.result_collection.compiled_hash !== sha256(stableSerialize(collectionCompilation)) ||
+       parent.cost.units > authorization.runtime_ceilings.max_work_units ||
+       parent.cost.requested_rows > authorization.runtime_ceilings.max_rows) {
     throw new SemanticCapabilityAuthorizationError('authorization_binding_mismatch');
   }
+  return collectionCompilation;
 }
 
 function activeContext(
@@ -240,6 +280,8 @@ function mintExecutionResult(
   authorization: VerifiedSemanticCapabilityAuthorization,
   proof: VerifiedSemanticPlanProof,
   rows: ReadonlyArray<Readonly<Record<string, unknown>>>,
+  observedRowCount: number,
+  hasMoreRows: boolean,
   context: Omit<SemanticCapabilityAuthorizationConsumptionContext, 'now_ms'>,
   now: () => number
 ): VerifiedSemanticPlanExecutionResult {
@@ -251,7 +293,10 @@ function mintExecutionResult(
     planned_f1ql_hash: proof.planned_f1ql_hash,
     core_hash: proof.core_hash,
     compiled_hash: proof.compiled_hash,
+    collection_compiled_hash: authorization.result_collection.compiled_hash,
     row_count: rows.length,
+    observed_row_count: observedRowCount,
+    has_more_rows: hasMoreRows,
     rows_sha256: sha256(stableSerialize(rows))
   };
   const result: VerifiedSemanticPlanExecutionResult = Object.freeze({
@@ -263,6 +308,8 @@ function mintExecutionResult(
     proof,
     authorization,
     rows,
+    observed_row_count: observedRowCount,
+    has_more_rows: hasMoreRows,
     max_response_bytes: authorization.runtime_ceilings.max_response_bytes,
     context: Object.freeze({ ...context }),
     now
@@ -272,14 +319,15 @@ function mintExecutionResult(
   return result;
 }
 
-function snapshotRows(input: readonly Record<string, unknown>[]): ReadonlyArray<Readonly<Record<string, unknown>>> {
+function snapshotRows(
+  input: readonly Record<string, unknown>[],
+  count: number
+): ReadonlyArray<Readonly<Record<string, unknown>>> {
   if (!Array.isArray(input)) {throw new Error('semantic plan execution rows must be an array');}
+  assertSnapshotRowCount(input, count);
   const rows: Readonly<Record<string, unknown>>[] = [];
-  for (let index = 0; index < input.length; index += 1) {
-    if (!Object.prototype.hasOwnProperty.call(input, index)) {
-      throw new Error('semantic plan execution rows must be dense');
-    }
-    const row = input[index];
+  for (let index = 0; index < count; index += 1) {
+    const row = snapshotRowAt(input, index);
     if (!row || typeof row !== 'object' || Array.isArray(row) ||
         ![Object.prototype, null].includes(Object.getPrototypeOf(row))) {
       throw new Error('semantic plan execution row must be a plain object');
@@ -292,6 +340,20 @@ function snapshotRows(input: readonly Record<string, unknown>[]): ReadonlyArray<
     rows.push(Object.freeze(Object.fromEntries(Object.keys(row).map(key => [key, snapshotValue(descriptors[key].value)]))));
   }
   return Object.freeze(rows);
+}
+
+function assertSnapshotRowCount(input: readonly unknown[], count: number): void {
+  if (![Number.isSafeInteger(count), count >= 0, count <= input.length].every(Boolean)) {
+    throw new Error('semantic plan execution row count is invalid');
+  }
+}
+
+function snapshotRowAt(input: readonly unknown[], index: number): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(input, index);
+  if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+    throw new Error('semantic plan execution rows must be dense');
+  }
+  return descriptor.value;
 }
 
 function snapshotValue(value: unknown): string | number | boolean | null {

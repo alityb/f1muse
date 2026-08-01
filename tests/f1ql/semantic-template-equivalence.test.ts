@@ -12,7 +12,7 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v1');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v2');
     expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v2');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
@@ -20,10 +20,11 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(Object.entries(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(([, entry]) => entry.status === 'partial'))
       .toEqual([['final_standings_points', {
         status: 'partial',
+        answer_coverage_caveat_projection: 'equivalent',
         blockers: [
           'current_question_language_unmapped',
           'filtered_template_domain_unmapped',
-          'response_contract_unmapped'
+          'full_response_metadata_unmapped'
         ],
         overlap_id: 'unfiltered_final_standings_points'
       }]]);
@@ -43,7 +44,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
       return {
         id: item.id,
         disposition: evidence.type === 'candidate_set' && evidence.candidates.length === 1 && !evidence.ambiguity_reason
-          ? 'response_contract_unmapped'
+          ? 'response_projection_equivalent'
           : 'current_question_language_unmapped'
       };
     });
@@ -55,9 +56,9 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(programDispositions.filter(item => item.disposition === 'program_shape_overlap').map(item => item.id))
       .toEqual(['dev-points', 'iid-points-all']);
     expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(73);
-    expect(caseDispositions.filter(item => item.disposition === 'response_contract_unmapped').map(item => item.id))
+    expect(caseDispositions.filter(item => item.disposition === 'response_projection_equivalent').map(item => item.id))
       .toEqual(['dev-points']);
-    expect(caseDispositions.every(item => item.disposition.endsWith('_unmapped'))).toBe(true);
+    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(74);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
       .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
@@ -76,6 +77,15 @@ describe('Phase 11 current-template equivalence accounting', () => {
       season: 2025,
       driver_ids: ['lando-norris']
     }))).toBe('unmapped');
+    const filteredCaseIds = [
+      'iid-points-pair', 'iid-tie', 'holdout-historical-points', 'unicode-astral', 'meta-pair-order'
+    ];
+    const answerCases = answerEvaluationManifest.filter(item => item.expected.action === 'answer');
+    expect(answerCases.filter(item => filteredCaseIds.includes(item.id)).map(item => item.id).sort())
+      .toEqual([...filteredCaseIds].sort());
+    for (const id of filteredCaseIds) {
+      expect(dispositionFor(answerCases.find(item => item.id === id)!)).toBe('unmapped');
+    }
     expect(classifySemanticTemplateEquivalence('final_standings_points', { season: 2025 }, {
       ...unfiltered,
       root: { ...unfiltered.root, measures: [{ as: 'points', function: 'min', field: 'points' }] }

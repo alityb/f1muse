@@ -13,6 +13,7 @@ import { validatePlannedCoreProgram } from './planned-f1ql';
 
 export const PLANNED_INTEGRITY_FIELD = '__f1ql_integrity_ok';
 export const PLANNED_F1QL_COMPILER_VERSION = 'planned-compiler-v1' as const;
+export const SEMANTIC_RESULT_COLLECTION_VERSION = 'semantic-limit-plus-one-v1' as const;
 
 interface SqlContext {
   params: unknown[];
@@ -35,6 +36,24 @@ export function compilePlannedF1QL(input: PlannedCoreProgram): CompiledF1QL {
   return {
     sql: `SELECT * FROM (${project.sql}) AS planned_sorted ORDER BY ${order} LIMIT $${context.params.length}`,
     params: context.params
+  };
+}
+
+export function compilePlannedF1QLResultCollection(
+  input: PlannedCoreProgram,
+  completenessProbeRows: 0 | 1
+): CompiledF1QL {
+  const program = validatePlannedCoreProgram(input);
+  const compiled = compilePlannedF1QL(program);
+  const limitIndex = compiled.params.length - 1;
+  if ((completenessProbeRows !== 0 && completenessProbeRows !== 1) || limitIndex < 0 ||
+      compiled.params[limitIndex] !== program.root.count ||
+      !compiled.sql.endsWith(`LIMIT $${compiled.params.length}`)) {
+    throw new Error('planned result collection binding is invalid');
+  }
+  return {
+    sql: compiled.sql,
+    params: [...compiled.params.slice(0, limitIndex), program.root.count + completenessProbeRows]
   };
 }
 

@@ -7,6 +7,7 @@ import { lowerF1QL } from './lower';
 import { enforceF1QLCostLimits, F1QLCostLimitError, MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { validateAnswerParticipation, validateCoreProgram, validateF1QLProgram, validateParticipation } from './validation';
 import { getVerifiedProgram } from './verified-programs';
+import { isUnfilteredFinalStandingsPointsProgram, ResultCollectionEvidence } from './final-standings-response-contract';
 
 export { F1QLCostLimitError } from './limits';
 
@@ -40,6 +41,10 @@ export interface F1QLExecutionOptions {
 
 type BeforeAnswerDatabaseWork = () => void;
 
+export interface AnswerF1QLResult extends F1QLResult {
+  readonly result_collection: ResultCollectionEvidence;
+}
+
 export async function executeF1QL(pool: Pool, input: unknown, options: F1QLExecutionOptions = {}): Promise<F1QLResult> {
   const program = parseF1QLProgram(input);
   validateF1QLProgram(program);
@@ -70,7 +75,7 @@ export async function executeAnswerF1QL(
   beforeResultQuery: BeforeAnswerDatabaseWork,
   afterResultQuery: BeforeAnswerDatabaseWork,
   options: F1QLExecutionOptions
-): Promise<F1QLResult> {
+): Promise<AnswerF1QLResult> {
   const program = parseF1QLProgram(input);
   validateF1QLProgram(program);
   enforceF1QLCostLimits(program);
@@ -114,16 +119,51 @@ export async function executeAnswerF1QL(
   } finally {
     client.release();
   }
-  if (result.rows.length > maxRows) {
-    throw new F1QLResultLimitError(maxRows);
-  }
+  const collected = collectAnswerRows(program, result.rows, maxRows);
 
   return {
     program,
     core_program: coreProgram,
     rendering: renderF1QL(program),
-    rows: result.rows
+    rows: collected.rows,
+    result_collection: { row_limit: maxRows, has_more_rows: collected.has_more_rows }
   };
+}
+
+function collectAnswerRows(
+  program: F1QLResult['program'],
+  rows: Array<Record<string, unknown>>,
+  maxRows: number
+): { rows: Array<Record<string, unknown>>; has_more_rows: boolean } {
+  if (rows.length > maxRows + 1) {throw new F1QLResultLimitError(maxRows + 1);}
+  const hasMoreRows = rows.length > maxRows;
+  if (hasMoreRows && !isUnfilteredFinalStandingsPointsProgram(program)) {
+    throw new F1QLResultLimitError(maxRows);
+  }
+  if (hasMoreRows) {assertProbeSlot(rows, maxRows);}
+  return {
+    rows: hasMoreRows ? copyResultPrefix(rows, maxRows) : rows,
+    has_more_rows: hasMoreRows
+  };
+}
+
+function assertProbeSlot(rows: readonly unknown[], index: number): void {
+  const descriptor = Object.getOwnPropertyDescriptor(rows, index);
+  if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+    throw new F1QLCostLimitError('Program returned an invalid completeness probe row');
+  }
+}
+
+function copyResultPrefix(rows: Array<Record<string, unknown>>, count: number): Array<Record<string, unknown>> {
+  const prefix: Array<Record<string, unknown>> = [];
+  for (let index = 0; index < count; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(rows, index);
+    if (!descriptor || !descriptor.enumerable || !('value' in descriptor)) {
+      throw new F1QLCostLimitError('Program returned an invalid bounded row collection');
+    }
+    prefix.push(descriptor.value);
+  }
+  return prefix;
 }
 
 export function addCollectionSentinel(sql: string, params: unknown[], maxRows: number, orderBy?: string): { sql: string; params: unknown[] } {
@@ -140,7 +180,9 @@ function answerOrderBy(program: F1QLResult['program']): string | undefined {
     return `${root.by} ${root.direction.toUpperCase()}, driver_id ASC`;
   }
   if (root.op === 'aggregate') {
-    return 'driver_id ASC';
+    return isUnfilteredFinalStandingsPointsProgram(program)
+      ? 'driver_id COLLATE "C" ASC'
+      : 'driver_id ASC';
   }
   if (root.op === 'event_classification') {
     return 'finishing_position ASC NULLS LAST, driver_id ASC';

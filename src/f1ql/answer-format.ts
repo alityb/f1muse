@@ -6,6 +6,12 @@ import { F1QL_DEFINITIONS_VERSION } from './validation';
 import { F1QL_COMPILER_VERSION, F1QL_FACT_SPACE_VERSION, getF1QLProgramHash } from './verified-programs';
 import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-finishing-position-h2h';
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
+import {
+  finalStandingsRowsResponseContract,
+  isUnfilteredFinalStandingsPointsProgram,
+  ResultCollectionEvidence
+} from './final-standings-response-contract';
+import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 
 export type AnswerCoverageStatus = 'sufficient' | 'empty' | 'possibly_truncated';
 
@@ -38,8 +44,16 @@ export interface AnswerEnvelope {
 
 export class AnswerFormatError extends Error {}
 
-export function buildAnswerEnvelope(program: F1QLProgram, capability: AnswerCapability, rows: Array<Record<string, unknown>>): AnswerEnvelope {
-  const formatted = formatAnswerRows(program, capability, rows);
+export function buildAnswerEnvelope(
+  program: F1QLProgram,
+  capability: AnswerCapability,
+  rows: Array<Record<string, unknown>>,
+  collection: ResultCollectionEvidence = {
+    row_limit: MAX_F1QL_RESPONSE_ROWS,
+    has_more_rows: rows.length >= MAX_F1QL_RESPONSE_ROWS
+  }
+): AnswerEnvelope {
+  const formatted = formatAnswerRows(program, capability, rows, collection);
   return {
     mode: 'gated_execution',
     program,
@@ -61,8 +75,19 @@ export function buildAnswerEnvelope(program: F1QLProgram, capability: AnswerCapa
 export function formatAnswerRows(
   program: F1QLProgram,
   capability: AnswerCapability,
-  rows: Array<Record<string, unknown>>
+  rows: Array<Record<string, unknown>>,
+  collection: ResultCollectionEvidence = {
+    row_limit: MAX_F1QL_RESPONSE_ROWS,
+    has_more_rows: rows.length >= MAX_F1QL_RESPONSE_ROWS
+  }
 ): { answer: FormattedAnswer; coverage: AnswerCoverageStatus; caveats: string[] } {
+  if (isUnfilteredFinalStandingsPointsProgram(program)) {
+    try {
+      finalStandingsRowsResponseContract(rows.length, collection);
+    } catch {
+      throw new AnswerFormatError('Final standings result collection evidence was invalid');
+    }
+  }
   if (program.root.op === 'official_driver_results_comparison') {
     if (capability.source !== 'official_driver_results_comparison' || capability.operation !== program.root.op) {
       throw new AnswerFormatError('Official driver results comparison capability did not match program');
@@ -120,7 +145,7 @@ export function formatAnswerRows(
     };
   }
   if (capability.source === 'final_driver_standings' || capability.source === 'current_driver_standings') {
-    return formatStandings(program, rows, capability.source === 'current_driver_standings');
+    return formatStandings(program, rows, capability.source === 'current_driver_standings', collection);
   }
   if (capability.source === 'race_classification') {
     return formatClassification(program, rows, 'race');
@@ -474,7 +499,12 @@ function validateSeasonH2HRow(
   return { driverAAhead, driverBAhead, ties, sharedEvents };
 }
 
-function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknown>>, current: boolean) {
+function formatStandings(
+  program: F1QLProgram,
+  rows: Array<Record<string, unknown>>,
+  current: boolean,
+  collection: ResultCollectionEvidence
+) {
   if (program.root.op !== 'aggregate' && program.root.op !== 'rank') {
     throw new AnswerFormatError('Standings capability did not match program');
   }
@@ -486,7 +516,12 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
   if (aliases.includes('standing_rows')) {
     return formatDriverSeasonSummary(program, aggregate, rows);
   }
-  const ordered = program.root.op === 'rank' ? rows : [...rows].sort((left, right) => requiredString(left.driver_id, 'driver_id').localeCompare(requiredString(right.driver_id, 'driver_id')));
+  const exactPoints = isUnfilteredFinalStandingsPointsProgram(program);
+  const ordered = program.root.op === 'rank' ? rows : [...rows].sort((left, right) => {
+    const leftId = requiredString(left.driver_id, 'driver_id');
+    const rightId = requiredString(right.driver_id, 'driver_id');
+    return exactPoints ? compareText(leftId, rightId) : leftId.localeCompare(rightId);
+  });
   if (current) {
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
     if (positions.some((position, index) => position !== index + 1)) {
@@ -497,11 +532,24 @@ function formatStandings(program: F1QLProgram, rows: Array<Record<string, unknow
     subject: requiredString(row.driver_id, 'driver_id'),
     values: Object.fromEntries(aliases.map(alias => [alias, displayNumeric(row[alias], alias)]))
   }));
+  const responseContract = standingsResponseContract(program, current, rows.length, collection);
   return {
     answer: { headline: current ? `Latest recorded ${capabilitySeason(program)} driver standings.` : `Final ${capabilitySeason(program)} driver standings result.`, facts },
-    coverage: 'sufficient' as const,
-    caveats: current ? ['season_in_progress'] : [] as string[]
+    coverage: responseContract.coverage,
+    caveats: [...responseContract.caveats]
   };
+}
+
+function standingsResponseContract(
+  program: F1QLProgram,
+  current: boolean,
+  rowCount: number,
+  collection: ResultCollectionEvidence
+) {
+  if (!current && isUnfilteredFinalStandingsPointsProgram(program)) {
+    return finalStandingsRowsResponseContract(rowCount, collection);
+  }
+  return { coverage: 'sufficient' as const, caveats: current ? ['season_in_progress'] : [] as string[] };
 }
 
 function formatDriverCareerSummary(program: F1QLProgram, aggregate: Extract<F1QLProgram['root'], { op: 'aggregate' }>, rows: Array<Record<string, unknown>>) {
@@ -648,6 +696,10 @@ function displayNumeric(value: unknown, field: string): string | null {
     return negative && normalized !== '0' ? `-${normalized}` : normalized;
   }
   throw new AnswerFormatError(`Invalid ${field} value`);
+}
+
+function compareText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }
 
 function requiredNonnegativeNumeric(value: unknown, field: string): string {

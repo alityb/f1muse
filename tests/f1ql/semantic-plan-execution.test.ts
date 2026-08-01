@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { F1QLStatementTimeoutError } from '../../src/f1ql/executor';
-import { PLANNED_INTEGRITY_FIELD } from '../../src/f1ql/planned-compiler';
+import {
+  compilePlannedF1QLResultCollection,
+  PLANNED_INTEGRITY_FIELD
+} from '../../src/f1ql/planned-compiler';
 import {
   executeAuthorizedSemanticPlan,
   verifySemanticPlanExecutionResult
@@ -61,6 +64,10 @@ describe('authorized semantic plan execution', () => {
     const artifacts = prepared.get(item.id)!;
     const parent = getSemanticPlanProofParent(artifacts.proof);
     const input = createSemanticPlanExecutionOfflineInput(artifacts.proof, item.profile);
+    const collectionCompilation = compilePlannedF1QLResultCollection(
+      parent.core_program,
+      input.authorization.result_collection.completeness_probe_rows
+    );
     const database = recordingPool(parent.compiled.sql, item.rows);
     const result = await executeAuthorizedSemanticPlan(
       database.pool,
@@ -77,12 +84,15 @@ describe('authorized semantic plan execution', () => {
       planned_f1ql_hash: artifacts.proof.planned_f1ql_hash,
       core_hash: artifacts.proof.core_hash,
       compiled_hash: artifacts.proof.compiled_hash,
-      row_count: item.rows.length
+      collection_compiled_hash: input.authorization.result_collection.compiled_hash,
+      row_count: item.rows.length,
+      observed_row_count: item.rows.length,
+      has_more_rows: false
     });
     expect(database.calls[0]).toEqual({ sql: 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', params: undefined });
     expect(database.calls.filter(call => call.sql === parent.compiled.sql)).toEqual([{
       sql: parent.compiled.sql,
-      params: parent.compiled.params
+      params: collectionCompilation.params
     }]);
     const expectedSql = [
       'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY',
@@ -137,6 +147,86 @@ describe('authorized semantic plan execution', () => {
       { driver_id: 'oscar-piastri', points: '2.000' }
     ]);
     expect(verifySemanticPlanExecutionResult(result).rows_sha256).toBe(rowsHash);
+  });
+
+  it('proves 100-row completeness, hides one probe row, and rejects excess observation before row access', async () => {
+    const standings = prepared.get(cases[0].id)!;
+    const parent = getSemanticPlanProofParent(standings.proof);
+    const rows = Array.from({ length: 100 }, (_, index) => ({
+      driver_id: `driver-${String(index).padStart(3, '0')}`,
+      points: '1.000',
+      [PLANNED_INTEGRITY_FIELD]: true
+    }));
+
+    const exactInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    const exact = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, rows).pool,
+      exactInput.authorization,
+      standings.proof,
+      exactInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
+    expect(exact).toMatchObject({ row_count: 100, observed_row_count: 100, has_more_rows: false });
+
+    let probeAccessed = false;
+    const probeRow = Object.defineProperty({ driver_id: 'probe-row' }, 'points', {
+      enumerable: true,
+      get: () => {probeAccessed = true; throw new Error('probe row was accessed');}
+    });
+    const truncatedInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    const truncated = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, [...rows, probeRow]).pool,
+      truncatedInput.authorization,
+      standings.proof,
+      truncatedInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
+    expect(truncated).toMatchObject({ row_count: 100, observed_row_count: 101, has_more_rows: true });
+    expect(truncated.rows_sha256).toBe(exact.rows_sha256);
+    expect(formatSemanticPlanResult(truncated).rows).toHaveLength(100);
+    expect(probeAccessed).toBe(false);
+
+    let probeSlotAccessed = false;
+    const accessorProbeRows = [...rows];
+    Object.defineProperty(accessorProbeRows, 100, {
+      enumerable: true,
+      get: () => {probeSlotAccessed = true; return probeRow;}
+    });
+    const accessorProbeInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    await expect(executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, accessorProbeRows).pool,
+      accessorProbeInput.authorization,
+      standings.proof,
+      accessorProbeInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    )).rejects.toThrow('completeness probe row is invalid');
+    expect(probeSlotAccessed).toBe(false);
+
+    let returnedRowAccessed = false;
+    const excessiveRows = new Array(102);
+    Object.defineProperty(excessiveRows, 0, {
+      get: () => {returnedRowAccessed = true; return rows[0];}
+    });
+    const excessiveInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    await expect(executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, excessiveRows).pool,
+      excessiveInput.authorization,
+      standings.proof,
+      excessiveInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    )).rejects.toThrow('more than 101 rows');
+    expect(returnedRowAccessed).toBe(false);
+
+    const compose = prepared.get(cases[2].id)!;
+    const composeParent = getSemanticPlanProofParent(compose.proof);
+    const scalarInput = createSemanticPlanExecutionOfflineInput(compose.proof, cases[2].profile);
+    await expect(executeAuthorizedSemanticPlan(
+      recordingPool(composeParent.compiled.sql, [cases[2].rows[0], cases[2].rows[0]]).pool,
+      scalarInput.authorization,
+      compose.proof,
+      scalarInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    )).rejects.toThrow('more than 1 rows');
   });
 
   it('rejects mismatched proofs, expired deadlines, and replay before another database acquisition', async () => {

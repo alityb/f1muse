@@ -6,23 +6,25 @@ import {
 import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v1' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v2' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
   | 'current_question_language_unmapped'
   | 'filtered_template_domain_unmapped'
-  | 'response_contract_unmapped'
+  | 'full_response_metadata_unmapped'
   | 'template_equivalence_unmapped';
 
 export interface SemanticTemplateEquivalenceEntry {
   readonly status: SemanticTemplateEquivalenceStatus;
+  readonly answer_coverage_caveat_projection: 'equivalent' | 'unmapped';
   readonly blockers: readonly SemanticTemplateEquivalenceBlocker[];
   readonly overlap_id?: 'unfiltered_final_standings_points';
 }
 
 const unmapped = (): SemanticTemplateEquivalenceEntry => ({
   status: 'unmapped',
+  answer_coverage_caveat_projection: 'unmapped',
   blockers: ['template_equivalence_unmapped']
 });
 
@@ -38,10 +40,11 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
   final_standings_leader: unmapped(),
   final_standings_points: {
     status: 'partial',
+    answer_coverage_caveat_projection: 'equivalent',
     blockers: [
       'current_question_language_unmapped',
       'filtered_template_domain_unmapped',
-      'response_contract_unmapped'
+      'full_response_metadata_unmapped'
     ],
     overlap_id: 'unfiltered_final_standings_points'
   },

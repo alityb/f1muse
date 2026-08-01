@@ -55,7 +55,7 @@ export async function executeAuthorizedAnswer(
     now
   });
   enforceAnswerRows(result.rows, runtime.max_rows);
-  const response = buildAnswerEnvelope(result.program, decision.capability, result.rows);
+  const response = buildAnswerEnvelope(result.program, decision.capability, result.rows, result.result_collection);
   const serializedResponse = serializeAnswerResponse(response, runtime.max_response_bytes);
   assertAnswerExecutionAuthorizationActive(authorization, context, now());
   return { response, serialized_response: serializedResponse };

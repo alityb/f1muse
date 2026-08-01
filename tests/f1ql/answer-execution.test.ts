@@ -16,6 +16,7 @@ import { proveAnswerIntent, VerifiedAnswerSemanticProof } from '../../src/f1ql/a
 import { executeF1QL } from '../../src/f1ql/executor';
 import { F1QLResultLimitError, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
+import { FINAL_STANDINGS_ROWS_CAVEAT } from '../../src/f1ql/final-standings-response-contract';
 
 const nowMs = Date.parse('2026-07-24T00:01:00.000Z');
 const keyPair = generateKeyPairSync('ed25519');
@@ -74,6 +75,15 @@ async function driverProof(): Promise<VerifiedAnswerSemanticProof> {
   }, {
     inventoryMentions: async () => [{ ...driverReference, candidates: ['lando_norris'], active_candidates: ['lando_norris'] }]
   });
+}
+
+async function unfilteredPointsProof(): Promise<VerifiedAnswerSemanticProof> {
+  const question = 'Show the final 2025 standings points.';
+  return proveAnswerIntent(createAnswerQuestionContract(question), {
+    type: 'final_standings_points', season: 2025, season_reference: span(question, '2025'), driver_references: []
+  }, {
+    resolve: async () => ({ type: 'missing' }), resolveRound: async () => ({ type: 'missing' })
+  }, { inventoryMentions: async () => [] });
 }
 
 async function currentProof(): Promise<VerifiedAnswerSemanticProof> {
@@ -158,6 +168,58 @@ describe('answer execution service', () => {
     expect(Buffer.from(result.serialized_response, 'utf8')).toEqual(Buffer.from(JSON.stringify(result.response), 'utf8'));
     expect(JSON.parse(result.serialized_response)).toEqual(result.response);
     expect(result.response.answer.facts[0].values).toEqual({ points: '357' });
+  });
+
+  it('returns 100 final standings rows with a proven truncation witness and never reads the probe row', async () => {
+    const proof = await unfilteredPointsProof();
+    const { authorization, context } = authority(proof);
+    const rows = Array.from({ length: 100 }, (_, index) => ({
+      driver_id: `driver-${String(index).padStart(3, '0')}`,
+      points: '1.000'
+    }));
+    let probeAccessed = false;
+    const probe = Object.defineProperty({ driver_id: 'probe-row' }, 'points', {
+      enumerable: true,
+      get: () => {probeAccessed = true; throw new Error('probe row was accessed');}
+    });
+    const calls: Array<{ sql: string; params?: unknown[] }> = [];
+    const client = {
+      query: vi.fn(async (sql: string, params?: unknown[]) => {
+        calls.push({ sql, params });
+        if (sql.startsWith('SELECT * FROM')) {return { rows: [...rows, probe] };}
+        return { rows: [] };
+      }),
+      release: vi.fn()
+    };
+    const pool = { query: vi.fn(), connect: vi.fn(async () => client) } as unknown as Pool;
+
+    const result = await executeAuthorizedAnswer(pool, authorization, proof, context, { now: () => nowMs });
+
+    expect(result.response.rows).toHaveLength(100);
+    expect(result.response.metadata.coverage).toEqual({ status: 'possibly_truncated', rows_returned: 100 });
+    expect(result.response.metadata.caveats).toEqual([FINAL_STANDINGS_ROWS_CAVEAT]);
+    const resultCall = calls.find(call => call.sql.startsWith('SELECT * FROM'));
+    expect(resultCall?.sql).toContain('ORDER BY driver_id COLLATE "C" ASC LIMIT');
+    expect(resultCall?.params?.at(-1)).toBe(101);
+    expect(probeAccessed).toBe(false);
+    expect(result.serialized_response).not.toContain('probe-row');
+
+    const sparseRows = [...rows];
+    sparseRows.length = 101;
+    const sparseAuthority = authority(proof);
+    const sparseClient = {
+      query: vi.fn(async (sql: string) => sql.startsWith('SELECT * FROM')
+        ? { rows: sparseRows }
+        : { rows: [] }),
+      release: vi.fn()
+    };
+    await expect(executeAuthorizedAnswer(
+      { query: vi.fn(), connect: vi.fn(async () => sparseClient) } as unknown as Pool,
+      sparseAuthority.authorization,
+      proof,
+      sparseAuthority.context,
+      { now: () => nowMs }
+    )).rejects.toThrow('invalid completeness probe row');
   });
 
   it('executes current standings through release-bound read-only authority', async () => {

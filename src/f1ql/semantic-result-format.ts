@@ -6,8 +6,9 @@ import type { VerifiedSemanticPlanProof } from './semantic-plan-proof';
 import { SEMANTIC_CATALOG } from './semantic-catalog';
 import type { SemanticCatalogSource } from './semantic-catalog';
 import { getSemanticPlanExecutionResultBinding } from './semantic-plan-execution';
+import { finalStandingsRowsResponseContract } from './final-standings-response-contract';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v1' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v2' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 
@@ -70,6 +71,7 @@ export interface SemanticResultEnvelope {
       readonly row_limit: number;
     };
     readonly caveats: readonly string[];
+    readonly advisories?: readonly string[];
   };
 }
 
@@ -119,11 +121,17 @@ export function formatSemanticPlanResult(
   validateUniqueGrain(rows, project.output_grain);
   validateOrdering(rows, core.root.input.keys);
 
-  let coverage: AnswerCoverageStatus = 'sufficient';
-  if (rows.length === 0) {coverage = 'empty';}
-  else if (project.output_grain.length > 0 && rows.length === core.root.count) {coverage = 'possibly_truncated';}
+  const finalStandingsContract = isFinalStandingsPointsContract(sources, columns, project.output_grain)
+    ? finalStandingsRowsResponseContract(rows.length, {
+        row_limit: core.root.count,
+        has_more_rows: execution.has_more_rows
+      })
+    : undefined;
+  let coverage: AnswerCoverageStatus = finalStandingsContract?.coverage ?? 'sufficient';
+  if (!finalStandingsContract && rows.length === 0) {coverage = 'empty';}
+  else if (!finalStandingsContract && execution.has_more_rows) {coverage = 'possibly_truncated';}
   const scope = branches.flatMap(branch => branch.predicates.map(predicate => describeScope(predicate)));
-  const caveats = unique(sources.flatMap(source => [
+  const catalogCaveats = unique(sources.flatMap(source => [
     ...source.authority.prohibited_derivations,
     ...source.coverage.unsupported,
     ...source.language.forbidden_conflations,
@@ -135,8 +143,13 @@ export function formatSemanticPlanResult(
       ...(concept.language?.forbidden_conflations ?? [])
     ];
   })));
-  if (coverage === 'empty') {caveats.unshift('Empty output is unavailable data, not a factual zero.');}
-  if (coverage === 'possibly_truncated') {caveats.unshift(`Output reached the proven ${core.root.count}-row limit.`);}
+  const caveats = finalStandingsContract ? [...finalStandingsContract.caveats] : catalogCaveats;
+  if (!finalStandingsContract && coverage === 'empty') {
+    caveats.unshift('Empty output is unavailable data, not a factual zero.');
+  }
+  if (!finalStandingsContract && coverage === 'possibly_truncated') {
+    caveats.unshift(`Output exceeded the proven ${core.root.count}-row response limit.`);
+  }
 
   const displayedRows = rows.map(row => Object.fromEntries(columns.map(column => [
     column.id,
@@ -185,7 +198,8 @@ export function formatSemanticPlanResult(
         nulls: key.nulls
       })),
       coverage: { status: coverage, rows_returned: rows.length, row_limit: core.root.count },
-      caveats
+      caveats,
+      ...(finalStandingsContract ? { advisories: catalogCaveats } : {})
     }
   });
   if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > execution.max_response_bytes) {
@@ -584,6 +598,18 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 
 function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
+}
+
+function isFinalStandingsPointsContract(
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[],
+  outputGrain: readonly string[]
+): boolean {
+  return sources.length === 1 && sources[0].id === 'driver_standings' &&
+    outputGrain.length === 1 && outputGrain[0] === 'driver_id' && columns.length === 2 &&
+    columns[0].source_id === 'driver_standings' && columns[0].concept_id === 'driver_id' &&
+    columns[0].id === 'driver_id' && columns[1].source_id === 'driver_standings' &&
+    columns[1].concept_id === 'points' && columns[1].id === 'points';
 }
 
 function compareText(left: string, right: string): number {
