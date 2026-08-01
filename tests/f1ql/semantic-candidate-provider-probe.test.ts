@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SemanticCandidateProposalError } from '../../src/f1ql/semantic-candidate-translator';
 import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
-import { probeSemanticCandidateProvider } from '../../scripts/probe-semantic-candidate-provider';
+import {
+  probeSemanticCandidateProvider,
+  type SemanticCandidateProviderProbeResult
+} from '../../scripts/probe-semantic-candidate-provider';
 import reviewedSnapshot from '../fixtures/compositional-regression.snapshot.json';
 import { compositionalRegressionCorpusInput } from '../fixtures/compositional-regression-corpus';
 
@@ -15,6 +18,14 @@ const ENABLED_ENVIRONMENT: NodeJS.ProcessEnv = {
   F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA: 'true',
   F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '30000'
 };
+
+const acceptProbeResult = (_result: SemanticCandidateProviderProbeResult): void => undefined;
+if (false) {
+  // @ts-expect-error evidence locations exist only on evidence-span mismatches
+  acceptProbeResult({ status: 'passed', case_id: 'case', provider: 'openai-compatible', candidate_count: 1, oracle_match: true, evidence_code: 'outputs' });
+  // @ts-expect-error evidence locations exist only on evidence-span mismatches
+  acceptProbeResult({ status: 'failed', reason: 'guard_refused', evidence_code: 'outputs' });
+}
 
 describe('semantic candidate provider probe', () => {
   it('refuses before provider construction unless both probe guards are exact', async () => {
@@ -127,7 +138,9 @@ describe('semantic candidate provider probe', () => {
     const result = await probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: { propose: async () => ({ version: 2, candidates: [evidenceDrift] }) }
     });
-    expect(result).toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'evidence_spans' });
+    expect(result).toMatchObject({
+      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'outputs'
+    });
     expect(JSON.stringify(result)).not.toContain('driver_standings');
     expect(JSON.stringify(result)).not.toContain('championship points');
 
@@ -135,7 +148,17 @@ describe('semantic candidate provider probe', () => {
     scopeEvidenceDrift.scopes[0].evidence = structuredClone(scopeEvidenceDrift.scopes[2].evidence);
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: { propose: async () => ({ version: 2, candidates: [scopeEvidenceDrift] }) }
-    })).resolves.toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'evidence_spans' });
+    })).resolves.toMatchObject({
+      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'scopes'
+    });
+
+    const mixedEvidenceDrift = structuredClone(scopeEvidenceDrift);
+    mixedEvidenceDrift.outputs[0].evidence = structuredClone(mixedEvidenceDrift.outputs[1].evidence);
+    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
+      proposer: { propose: async () => ({ version: 2, candidates: [mixedEvidenceDrift] }) }
+    })).resolves.toMatchObject({
+      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'mixed'
+    });
   });
 
   it('rejects provider identity drift before a request', async () => {

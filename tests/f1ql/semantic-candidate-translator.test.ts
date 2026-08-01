@@ -96,7 +96,8 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use null, never an empty array or object');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('For every candidate, exclude a concept phrase contained in a longer explicit source phrase');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('among overlapping phrases for the same concept retain the containing phrase, then use the earliest remaining occurrence');
-    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('reuse its earliest output evidence for the session scope');
+    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('Each output evidence must copy the complete start and end offsets');
+    expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('never use an explicit source phrase for a single-source session scope');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('retain only globally longest phrases for each source-qualified concept, then use the earliest remaining concept phrase not contained in another selected phrase');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use the earliest explicit source phrase for that source when present, otherwise reuse the earliest output evidence span');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('operation, temporal, season, round, limit, filter, and comparison evidence');

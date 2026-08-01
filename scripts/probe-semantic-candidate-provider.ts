@@ -28,7 +28,7 @@ const PROBE_PROVIDER_IDENTITY = Object.freeze({
   endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
   model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
-  prompt_sha256: 'bf996c6939466ec1587cc24c6be9c8810c9f31521e8aaddb0200c7d5f212b770',
+  prompt_sha256: '3c5c1051e00f003fc94f582021ca83f39eb4b4bf59bb899cfae6b29aafaa8dcc',
   schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
   request_config_sha256: 'a3c3f1e5ac7359e9b0792949181721f074081f117de79cbd109185ed3d363277'
 } as const);
@@ -44,6 +44,7 @@ type ProbeFailureReason =
   | 'unexpected_failure';
 
 type ProbeOracleMismatchCode = 'candidate_count' | 'evidence_spans' | 'semantic_structure';
+type ProbeEvidenceMismatchCode = 'outputs' | 'scopes' | 'filters' | 'group_by' | 'comparison' | 'order_by' | 'limit' | 'mixed';
 
 export type SemanticCandidateProviderProbeResult = {
   readonly status: 'passed';
@@ -51,12 +52,22 @@ export type SemanticCandidateProviderProbeResult = {
   readonly provider: 'openai-compatible';
   readonly candidate_count: number;
   readonly oracle_match: true;
+  readonly evidence_code?: never;
 } | {
   readonly status: 'failed';
   readonly reason: 'oracle_mismatch';
   readonly case_id: string;
   readonly provider: 'openai-compatible';
-  readonly mismatch_code: ProbeOracleMismatchCode;
+  readonly mismatch_code: 'evidence_spans';
+  readonly evidence_code: ProbeEvidenceMismatchCode;
+  readonly diagnostic_code?: never;
+} | {
+  readonly status: 'failed';
+  readonly reason: 'oracle_mismatch';
+  readonly case_id: string;
+  readonly provider: 'openai-compatible';
+  readonly mismatch_code: Exclude<ProbeOracleMismatchCode, 'evidence_spans'>;
+  readonly evidence_code?: never;
   readonly diagnostic_code?: never;
 } | {
   readonly status: 'failed';
@@ -65,6 +76,7 @@ export type SemanticCandidateProviderProbeResult = {
   readonly provider?: 'openai-compatible';
   readonly diagnostic_code?: SemanticCandidateProposalError['code'];
   readonly mismatch_code?: never;
+  readonly evidence_code?: never;
 };
 
 interface ProbeDependencies {
@@ -144,7 +156,7 @@ async function executeProbe(
       PROBE_CANDIDATE_SET_SHA256) {
     return {
       status: 'failed', reason: 'oracle_mismatch', case_id: reviewed.caseId, provider,
-      mismatch_code: classifyOracleMismatch(reviewed.candidates, actual.candidates)
+      ...classifyOracleMismatch(reviewed.candidates, actual.candidates)
     };
   }
   return {
@@ -201,13 +213,42 @@ function readReviewedProbeCase(
 function classifyOracleMismatch(
   expected: readonly SemanticQuery[],
   actual: readonly SemanticQuery[]
-): ProbeOracleMismatchCode {
-  if (expected.length !== actual.length) {return 'candidate_count';}
+): { readonly mismatch_code: Exclude<ProbeOracleMismatchCode, 'evidence_spans'> } |
+  { readonly mismatch_code: 'evidence_spans'; readonly evidence_code: ProbeEvidenceMismatchCode } {
+  if (expected.length !== actual.length) {return { mismatch_code: 'candidate_count' };}
   const expectedStructure = expected.map(candidate => stableSerialize(withoutEvidence(candidate))).sort(compareText);
   const actualStructure = actual.map(candidate => stableSerialize(withoutEvidence(candidate))).sort(compareText);
   return stableSerialize(expectedStructure) === stableSerialize(actualStructure)
-    ? 'evidence_spans'
-    : 'semantic_structure';
+    ? { mismatch_code: 'evidence_spans', evidence_code: classifyEvidenceMismatch(expected, actual) }
+    : { mismatch_code: 'semantic_structure' };
+}
+
+const EVIDENCE_FIELDS = ['outputs', 'scopes', 'filters', 'group_by', 'comparison', 'order_by', 'limit'] as const;
+
+function classifyEvidenceMismatch(
+  expected: readonly SemanticQuery[],
+  actual: readonly SemanticQuery[]
+): ProbeEvidenceMismatchCode {
+  const differing = EVIDENCE_FIELDS.filter(field =>
+    evidenceFieldFingerprint(expected, field) !== evidenceFieldFingerprint(actual, field));
+  return differing.length === 1 ? differing[0] : 'mixed';
+}
+
+function evidenceFieldFingerprint(
+  candidates: readonly SemanticQuery[],
+  field: typeof EVIDENCE_FIELDS[number]
+): string {
+  return stableSerialize(candidates.map(candidate => stableSerialize({
+    structure: withoutEvidence(candidate),
+    field: canonicalEvidenceField(candidate[field] ?? null, field)
+  })).sort(compareText));
+}
+
+function canonicalEvidenceField(value: unknown, field: typeof EVIDENCE_FIELDS[number]): unknown {
+  if (Array.isArray(value) && ['scopes', 'filters', 'group_by'].includes(field)) {
+    return [...value].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
+  }
+  return value;
 }
 
 function withoutEvidence(value: unknown): unknown {
