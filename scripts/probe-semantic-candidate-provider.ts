@@ -28,7 +28,7 @@ const PROBE_PROVIDER_IDENTITY = Object.freeze({
   endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
   model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
-  prompt_sha256: '58c08cc0a126a9a6eca59bbafb3e35c7ea2f407738ba4f917293c386936b6d29',
+  prompt_sha256: 'bf996c6939466ec1587cc24c6be9c8810c9f31521e8aaddb0200c7d5f212b770',
   schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
   request_config_sha256: 'a3c3f1e5ac7359e9b0792949181721f074081f117de79cbd109185ed3d363277'
 } as const);
