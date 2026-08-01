@@ -12,7 +12,7 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v2');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v3');
     expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v2');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
@@ -20,11 +20,12 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(Object.entries(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(([, entry]) => entry.status === 'partial'))
       .toEqual([['final_standings_points', {
         status: 'partial',
-        answer_coverage_caveat_projection: 'equivalent',
+        canonical_response_contract: 'equivalent',
+        response_metadata_mapping: 'accounted',
         blockers: [
           'current_question_language_unmapped',
           'filtered_template_domain_unmapped',
-          'full_response_metadata_unmapped'
+          'wire_envelope_contract_unmapped'
         ],
         overlap_id: 'unfiltered_final_standings_points'
       }]]);
@@ -32,7 +33,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
       .toHaveLength(ANSWER_TEMPLATE_IDS.length - 1);
   });
 
-  it('accounts for all 75 cases without claiming response equivalence', () => {
+  it('accounts for all 75 cases without claiming wire-envelope equivalence', () => {
     const answerCases = answerEvaluationManifest.filter(item => item.expected.action === 'answer');
     const programDispositions = answerCases.map(item => ({ id: item.id, disposition: dispositionFor(item) }));
     const caseDispositions = programDispositions.map(item => {
@@ -44,7 +45,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
       return {
         id: item.id,
         disposition: evidence.type === 'candidate_set' && evidence.candidates.length === 1 && !evidence.ambiguity_reason
-          ? 'response_projection_equivalent'
+          ? 'canonical_response_contract_equivalent'
           : 'current_question_language_unmapped'
       };
     });
@@ -56,7 +57,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(programDispositions.filter(item => item.disposition === 'program_shape_overlap').map(item => item.id))
       .toEqual(['dev-points', 'iid-points-all']);
     expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(73);
-    expect(caseDispositions.filter(item => item.disposition === 'response_projection_equivalent').map(item => item.id))
+    expect(caseDispositions.filter(item => item.disposition === 'canonical_response_contract_equivalent').map(item => item.id))
       .toEqual(['dev-points']);
     expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(74);
 

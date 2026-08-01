@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { formatAnswerRows } from '../../src/f1ql/answer-format';
+import { buildAnswerEnvelope } from '../../src/f1ql/answer-format';
 import { authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { PLANNED_INTEGRITY_FIELD } from '../../src/f1ql/planned-compiler';
@@ -23,10 +23,16 @@ import {
   SemanticEvidence,
   SemanticLiteralSpan
 } from '../../src/f1ql/semantic-query';
+import { FINAL_STANDINGS_ROWS_CAVEAT } from '../../src/f1ql/final-standings-response-contract';
 import {
-  FINAL_STANDINGS_ROWS_CAVEAT,
-  finalStandingsResponseProjection
-} from '../../src/f1ql/final-standings-response-contract';
+  ANSWER_ENVELOPE_FIELD_ACCOUNTING,
+  ANSWER_METADATA_FIELD_ACCOUNTING,
+  canonicalizeAnswerFinalStandingsResponse,
+  canonicalizeSemanticFinalStandingsResponse,
+  SEMANTIC_ENVELOPE_FIELD_ACCOUNTING,
+  SEMANTIC_METADATA_FIELD_ACCOUNTING,
+  SEMANTIC_RESPONSE_EQUIVALENCE_VERSION
+} from '../../src/f1ql/semantic-response-equivalence';
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
@@ -34,7 +40,7 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
 
 describe('generic proven semantic result formatting', () => {
-  it('derives standings metadata and preserves the partial family answer/coverage projection oracle', async () => {
+  it('derives standings metadata and preserves the canonical family response contract', async () => {
     const prepared = await prepare(STANDINGS);
     const rows = [
       { driver_id: 'charles-leclerc', points: null, [PLANNED_INTEGRITY_FIELD]: true },
@@ -81,18 +87,20 @@ describe('generic proven semantic result formatting', () => {
     };
     const decision = authorizeAnswerProgram(legacyProgram);
     if (decision.type !== 'approved') throw new Error('legacy oracle fixture was not authorized');
-    const legacy = formatAnswerRows(legacyProgram, decision.capability, rows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row));
-    const genericOracleBytes = Buffer.from(JSON.stringify(finalStandingsResponseProjection({
-      answer: formatted.answer,
-      coverage: formatted.metadata.coverage.status,
-      caveats: formatted.metadata.caveats
-    })));
-    const familyOracleBytes = Buffer.from(JSON.stringify(finalStandingsResponseProjection({
-      answer: legacy.answer,
-      coverage: legacy.coverage,
-      caveats: legacy.caveats
-    })));
-    expect(genericOracleBytes).toEqual(familyOracleBytes);
+    const legacy = buildAnswerEnvelope(
+      legacyProgram,
+      decision.capability,
+      rows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row)
+    );
+    expect(Buffer.from(JSON.stringify(canonicalizeSemanticFinalStandingsResponse(formatted))))
+      .toEqual(Buffer.from(JSON.stringify(canonicalizeAnswerFinalStandingsResponse(legacy))));
+    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v1');
+    expect([
+      ANSWER_ENVELOPE_FIELD_ACCOUNTING,
+      ANSWER_METADATA_FIELD_ACCOUNTING,
+      SEMANTIC_ENVELOPE_FIELD_ACCOUNTING,
+      SEMANTIC_METADATA_FIELD_ACCOUNTING
+    ].every(Object.isFrozen)).toBe(true);
 
     const boundaryRows = Array.from({ length: 101 }, (_, index) => ({
       driver_id: `driver-${String(index).padStart(3, '0')}`,
@@ -100,31 +108,176 @@ describe('generic proven semantic result formatting', () => {
       [PLANNED_INTEGRITY_FIELD]: true
     }));
     for (const [observedRows, expectedCoverage] of [
+      [0, 'empty'],
       [99, 'sufficient'],
       [100, 'sufficient'],
       [101, 'possibly_truncated']
     ] as const) {
       const generic = await executeAndFormat(prepared, boundaryRows.slice(0, observedRows));
-      const family = formatAnswerRows(
+      const family = buildAnswerEnvelope(
         legacyProgram,
         decision.capability,
         boundaryRows.slice(0, Math.min(observedRows, 100)).map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row),
         { row_limit: 100, has_more_rows: observedRows === 101 }
       );
-      expect(Buffer.from(JSON.stringify(finalStandingsResponseProjection({
-        answer: generic.answer,
-        coverage: generic.metadata.coverage.status,
-        caveats: generic.metadata.caveats
-      })))).toEqual(Buffer.from(JSON.stringify(finalStandingsResponseProjection({
-        answer: family.answer,
-        coverage: family.coverage,
-        caveats: family.caveats
-      }))));
+      expect(Buffer.from(JSON.stringify(canonicalizeSemanticFinalStandingsResponse(generic))))
+        .toEqual(Buffer.from(JSON.stringify(canonicalizeAnswerFinalStandingsResponse(family))));
       expect(generic.metadata.coverage.status).toBe(expectedCoverage);
       expect(generic.metadata.caveats)
-        .toEqual(observedRows === 101 ? [FINAL_STANDINGS_ROWS_CAVEAT] : []);
+        .toEqual(observedRows === 0
+          ? ['empty_result_is_not_zero']
+          : observedRows === 101 ? [FINAL_STANDINGS_ROWS_CAVEAT] : []);
       expect(generic.rows).toHaveLength(Math.min(observedRows, 100));
     }
+
+    const unicodeRows = [
+      { driver_id: 'driver-a', points: '1.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'driver-\uE000', points: '2.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'driver-\u{10000}', points: '3.000', [PLANNED_INTEGRITY_FIELD]: true }
+    ];
+    const unicodeGeneric = await executeAndFormat(prepared, unicodeRows);
+    const unicodeFamily = buildAnswerEnvelope(
+      legacyProgram,
+      decision.capability,
+      unicodeRows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row)
+    );
+    expect(canonicalizeSemanticFinalStandingsResponse(unicodeGeneric))
+      .toEqual(canonicalizeAnswerFinalStandingsResponse(unicodeFamily));
+  });
+
+  it('fails closed when canonical response metadata, schema, or row order drifts', async () => {
+    const prepared = await prepare(STANDINGS);
+    const semantic = await executeAndFormat(prepared, [
+      { driver_id: 'driver-a', points: '1.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'driver-b', points: '2.000', [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...semantic,
+      metadata: { ...semantic.metadata, ordering: [{ output_id: 'points', direction: 'desc', nulls: 'first' }] }
+    }))).toThrow('metadata did not match');
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...semantic,
+      metadata: { ...semantic.metadata, unaccounted: true }
+    }) as typeof semantic)).toThrow('metadata fields were invalid');
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...semantic,
+      metadata: {
+        ...semantic.metadata,
+        columns: [{ ...semantic.metadata.columns[0], label: 'substituted' }, semantic.metadata.columns[1]]
+      }
+    }))).toThrow('metadata did not match');
+    const sparseAdvisories = new Array(semantic.metadata.advisories!.length);
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...semantic,
+      metadata: { ...semantic.metadata, advisories: sparseAdvisories }
+    }))).toThrow('advisories fields were invalid');
+    let columnAccessed = false;
+    const accessorColumns = [...semantic.metadata.columns];
+    Object.defineProperty(accessorColumns, 0, {
+      enumerable: true,
+      get: () => {columnAccessed = true; return semantic.metadata.columns[0];}
+    });
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...semantic,
+      metadata: { ...semantic.metadata, columns: accessorColumns }
+    }))).toThrow('columns entries were invalid');
+    expect(columnAccessed).toBe(false);
+
+    const program: F1QLProgram = {
+      version: 1,
+      root: {
+        op: 'aggregate',
+        input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } },
+        group_by: ['driver_id'],
+        measures: [{ as: 'points', function: 'max', field: 'points' }]
+      }
+    };
+    const decision = authorizeAnswerProgram(program);
+    if (decision.type !== 'approved') throw new Error('legacy oracle fixture was not authorized');
+    const validRows = [
+      { driver_id: 'driver-a', points: '1.000' },
+      { driver_id: 'driver-b', points: '2.000' }
+    ];
+    const legacy = buildAnswerEnvelope(program, decision.capability, [
+      { driver_id: 'driver-b', points: '2.000' },
+      { driver_id: 'driver-a', points: '1.000' }
+    ]);
+    expect(() => canonicalizeAnswerFinalStandingsResponse(legacy)).toThrow('canonical C ordering');
+    expect(() => canonicalizeAnswerFinalStandingsResponse({
+      ...buildAnswerEnvelope(program, decision.capability, [{ driver_id: 'driver-a', points: '1.000' }]),
+      metadata: {
+        ...buildAnswerEnvelope(program, decision.capability, [{ driver_id: 'driver-a', points: '1.000' }]).metadata,
+        source: 'current_driver_standings'
+      }
+    })).toThrow('provenance did not match');
+
+    const overriddenRows = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(overriddenRows.rows, 'map', {
+      value: () => [{ driver_id: 'driver-a', points: '999.000' }]
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(overriddenRows)).toThrow('rows fields were invalid');
+
+    let rowSlotAccessed = false;
+    const accessorRows = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(accessorRows.rows, 0, {
+      enumerable: true,
+      get: () => {rowSlotAccessed = true; return validRows[0];}
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(accessorRows)).toThrow('rows entries were invalid');
+    expect(rowSlotAccessed).toBe(false);
+
+    let rowValueAccessed = false;
+    const accessorValue = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(accessorValue.rows[0], 'points', {
+      enumerable: true,
+      get: () => {rowValueAccessed = true; return '999.000';}
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(accessorValue)).toThrow('row 0 fields were invalid');
+    expect(rowValueAccessed).toBe(false);
+
+    const answerToJson = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(answerToJson.answer, 'toJSON', {
+      value: () => ({ headline: answerToJson.answer.headline, facts: answerToJson.answer.facts })
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(answerToJson)).toThrow('answer fields were invalid');
+
+    const extraCaveatField = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(extraCaveatField.metadata.caveats, 'hidden', { value: 'substituted' });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(extraCaveatField)).toThrow('caveats fields were invalid');
+
+    const hiddenProgram = structuredClone(program);
+    const hiddenProgramEnvelope = buildAnswerEnvelope(hiddenProgram, decision.capability, validRows.map(row => ({ ...row })));
+    Object.defineProperty(hiddenProgramEnvelope.program, 'hidden', { value: true });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(hiddenProgramEnvelope)).toThrow('program fields were invalid');
+
+    let seasonAccessed = false;
+    const accessorProgram = structuredClone(program);
+    const accessorProgramEnvelope = buildAnswerEnvelope(accessorProgram, decision.capability, validRows.map(row => ({ ...row })));
+    if (accessorProgram.root.op !== 'aggregate' || accessorProgram.root.input.op !== 'filter') {
+      throw new Error('legacy oracle fixture had the wrong shape');
+    }
+    Object.defineProperty(accessorProgram.root.input.where, 'season', {
+      enumerable: true,
+      get: () => {seasonAccessed = true; return 2025;}
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse(accessorProgramEnvelope)).toThrow('where fields were invalid');
+    expect(seasonAccessed).toBe(false);
+
+    const oversizedRows = buildAnswerEnvelope(program, decision.capability, validRows.map(row => ({ ...row })));
+    expect(() => canonicalizeAnswerFinalStandingsResponse({
+      ...oversizedRows,
+      rows: new Array(1_000_000)
+    })).toThrow('rows length was invalid');
+
+    let oversizedKeysRead = false;
+    const oversizedProxy = new Proxy(new Array(257), {
+      ownKeys: target => {oversizedKeysRead = true; return Reflect.ownKeys(target);}
+    });
+    expect(() => canonicalizeAnswerFinalStandingsResponse({
+      ...oversizedRows,
+      rows: oversizedProxy
+    })).toThrow('rows length was invalid');
+    expect(oversizedKeysRead).toBe(false);
   });
 
   it('formats a complete metadata join without erasing nullable positions', async () => {
