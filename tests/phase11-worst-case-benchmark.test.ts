@@ -104,14 +104,17 @@ describe('Phase 11 worst-case legal benchmark contract', () => {
     }
   });
 
-  it('has guarded npm commands and no database or execution dependency', () => {
+  it('has guarded npm commands and no live database dependency', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
     const source = readFileSync('scripts/benchmark-phase11-worst-case.ts', 'utf8');
+    const support = readFileSync('scripts/support/semantic-plan-execution.ts', 'utf8');
 
     expect(packageJson.scripts['golden:snapshot:phase11:worst-case-benchmark'])
       .toBe('tsx scripts/snapshot-phase11-worst-case-benchmark.ts');
     expect(packageJson.scripts['benchmark:phase11:worst-case']).toBe('tsx scripts/benchmark-phase11-worst-case.ts');
-    expect(source).not.toMatch(/from ['"](?:pg|[^'"]*executor|[^'"]*database)[^'"]*['"]/u);
+    expect(source).toContain("from './support/semantic-plan-execution'");
     expect(source).not.toMatch(/executeF1QL|new\s+Pool|\.query\s*\(/u);
+    expect(support).not.toMatch(/DATABASE_URL|new\s+Pool/u);
+    expect(support).toContain('executeAuthorizedSemanticPlan');
   });
 });

@@ -12,6 +12,7 @@ import {
 } from '../src/f1ql/semantic-resolution-evidence';
 import { getSemanticPlanProofParent, proveSemanticAnswerPlan } from '../src/f1ql/semantic-plan-proof';
 import { formatSemanticPlanResult } from '../src/f1ql/semantic-result-format';
+import { executeSemanticPlanRowsOffline } from './support/semantic-plan-execution';
 import {
   admitSemanticQueryCandidates,
   enumerateSemanticQueries,
@@ -298,10 +299,15 @@ export async function prepareWorstCaseBenchmark(
 ): Promise<WorstCaseBenchmarkPreparation> {
   const definitions = parseWorstCaseBenchmarkDefinitions(definitionsInput);
   const prepared = await Promise.all(definitions.workloads.map(item => prepareWorkload(item)));
-  const workloads = prepared.map(item => {
+  const workloads = await Promise.all(prepared.map(async item => {
     const parent = getSemanticPlanProofParent(item.proof);
     const rows = interpretPlannedF1QL(parent.core_program, item.reference_database);
-    formatSemanticPlanResult(item.proof, rows);
+    const execution = await executeSemanticPlanRowsOffline(
+      item.proof,
+      profileForFamily(item.definition.family),
+      rows
+    );
+    formatSemanticPlanResult(execution);
     return {
       family: item.definition.family,
       boundary: item.definition.boundary,
@@ -312,7 +318,7 @@ export async function prepareWorstCaseBenchmark(
       reference_rows: rows.length,
       hashes: item.hashes
     };
-  });
+  }));
   const fixtureRowsTotal = workloads.reduce((total, item) => total + item.reference_rows, 0);
   if (prepared.length !== familySchema.options.length || fixtureRowsTotal === 0 ||
       workloads.some(item => item.reference_rows === 0)) {
@@ -408,11 +414,22 @@ function benchmarkStages(
       for (const item of prepared) {
         const parent = getSemanticPlanProofParent(item.proof);
         const rows = interpretPlannedF1QL(parent.core_program, item.reference_database);
-        consumed += formatSemanticPlanResult(item.proof, rows).rows.length;
+        const execution = await executeSemanticPlanRowsOffline(
+          item.proof,
+          profileForFamily(item.definition.family),
+          rows
+        );
+        consumed += formatSemanticPlanResult(execution).rows.length;
       }
       return consumed;
     }
   };
+}
+
+function profileForFamily(family: z.infer<typeof familySchema>) {
+  if (family === 'safe_dimension_join') {return 'semantic-safe-dimension-join-v1' as const;}
+  if (family === 'aggregate_locality') {return 'semantic-aggregate-locality-v1' as const;}
+  return 'semantic-single-source-v1' as const;
 }
 
 async function prepareWorkload(definition: WorkloadDefinition, enforceExpectedHashes = true): Promise<PreparedWorkload> {
@@ -425,7 +442,8 @@ async function prepareWorkload(definition: WorkloadDefinition, enforceExpectedHa
   const parent = getSemanticPlanProofParent(proof);
   const referenceDatabase = referenceDatabaseFor(definition.id);
   const rows = interpretPlannedF1QL(parent.core_program, referenceDatabase);
-  const formatted = formatSemanticPlanResult(proof, rows);
+  const execution = await executeSemanticPlanRowsOffline(proof, profileForFamily(definition.family), rows);
+  const formatted = formatSemanticPlanResult(execution);
   const hashes = {
     question_sha256: proof.question_sha256,
     answer_plan_sha256: plan.answer_plan_hash,

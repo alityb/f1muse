@@ -2,6 +2,7 @@ import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
+  assertSemanticCapabilityAuthorizationActive,
   authorizeSemanticPlanCapability,
   consumeSemanticCapabilityAuthorization,
   SemanticCapabilityAuthorizationError,
@@ -307,7 +308,13 @@ describe('semantic complete-interaction capability authorization', () => {
       audience: attestation.audience, deployment_id: attestation.deployment_id,
       release_attestation: attestation, is_kill_switch_active: () => false, now_ms: NOW + 1
     };
+    expect(() => assertSemanticCapabilityAuthorizationActive(authorization, context))
+      .toThrowError(expect.objectContaining({ reason: 'invalid_authorization' }));
     expect(consumeSemanticCapabilityAuthorization(authorization, context)).toBe(authorization);
+    expect(assertSemanticCapabilityAuthorizationActive(authorization, context)).toBe(authorization);
+    expect(() => assertSemanticCapabilityAuthorizationActive(authorization, {
+      ...context, is_kill_switch_active: () => true
+    })).toThrowError(expect.objectContaining({ reason: 'kill_switch_active' }));
     expect(() => consumeSemanticCapabilityAuthorization(authorization, context))
       .toThrowError(expect.objectContaining({ reason: 'authorization_replayed' }));
   });

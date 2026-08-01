@@ -90,6 +90,18 @@ export interface SemanticCapabilityAuthorization {
   readonly authorization_hash: string;
 }
 
+export interface SemanticCapabilityAuthorizationConsumptionContext {
+  readonly request_id: string;
+  readonly principal_class: AnswerPrincipalClass;
+  readonly canary_stage: number;
+  readonly canary_subject_id: string;
+  readonly audience: string;
+  readonly deployment_id: string;
+  readonly release_attestation: VerifiedAnswerReleaseAttestation;
+  readonly is_kill_switch_active: () => boolean;
+  readonly now_ms?: number;
+}
+
 declare const verifiedSemanticCapabilityAuthorizationBrand: unique symbol;
 export type VerifiedSemanticCapabilityAuthorization = SemanticCapabilityAuthorization & {
   readonly [verifiedSemanticCapabilityAuthorizationBrand]: true;
@@ -221,23 +233,36 @@ export function verifySemanticCapabilityAuthorization(input: unknown): VerifiedS
   return authorization;
 }
 
-export function consumeSemanticCapabilityAuthorization(input: unknown, context: {
-  readonly request_id: string;
-  readonly principal_class: AnswerPrincipalClass;
-  readonly canary_stage: number;
-  readonly canary_subject_id: string;
-  readonly audience: string;
-  readonly deployment_id: string;
-  readonly release_attestation: VerifiedAnswerReleaseAttestation;
-  readonly is_kill_switch_active: () => boolean;
-  readonly now_ms?: number;
-}): VerifiedSemanticCapabilityAuthorization {
+export function consumeSemanticCapabilityAuthorization(
+  input: unknown,
+  context: SemanticCapabilityAuthorizationConsumptionContext
+): VerifiedSemanticCapabilityAuthorization {
+  const authorization = validateSemanticCapabilityAuthorization(input, context, false);
+  consumedAuthorizations.add(authorization);
+  return authorization;
+}
+
+export function assertSemanticCapabilityAuthorizationActive(
+  input: unknown,
+  context: SemanticCapabilityAuthorizationConsumptionContext
+): VerifiedSemanticCapabilityAuthorization {
+  return validateSemanticCapabilityAuthorization(input, context, true);
+}
+
+function validateSemanticCapabilityAuthorization(
+  input: unknown,
+  context: SemanticCapabilityAuthorizationConsumptionContext,
+  requireConsumed: boolean
+): VerifiedSemanticCapabilityAuthorization {
   const authorization = verifySemanticCapabilityAuthorization(input);
-  if (consumedAuthorizations.has(authorization)) {
+  if (!requireConsumed && consumedAuthorizations.has(authorization)) {
     throw new SemanticCapabilityAuthorizationError('authorization_replayed');
   }
+  if (requireConsumed && !consumedAuthorizations.has(authorization)) {
+    throw new SemanticCapabilityAuthorizationError('invalid_authorization');
+  }
   try {
-    if (context.is_kill_switch_active()) {
+    if (typeof context?.is_kill_switch_active !== 'function' || context.is_kill_switch_active()) {
       throw new SemanticCapabilityAuthorizationError('kill_switch_active');
     }
   } catch (error) {
@@ -263,7 +288,6 @@ export function consumeSemanticCapabilityAuthorization(input: unknown, context: 
       authorization.release_attestation_hash !== getAnswerReleaseAttestationHash(release)) {
     throw new SemanticCapabilityAuthorizationError('authorization_binding_mismatch');
   }
-  consumedAuthorizations.add(authorization);
   return authorization;
 }
 

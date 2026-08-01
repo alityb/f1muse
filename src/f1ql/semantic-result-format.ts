@@ -5,6 +5,7 @@ import { getSemanticPlanProofParent } from './semantic-plan-proof';
 import type { VerifiedSemanticPlanProof } from './semantic-plan-proof';
 import { SEMANTIC_CATALOG } from './semantic-catalog';
 import type { SemanticCatalogSource } from './semantic-catalog';
+import { getSemanticPlanExecutionResultBinding } from './semantic-plan-execution';
 
 export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v1' as const;
 
@@ -80,9 +81,11 @@ export class SemanticResultFormatError extends Error {
 }
 
 export function formatSemanticPlanResult(
-  proofInput: unknown,
-  rowsInput: unknown
+  executionResultInput: unknown
 ): SemanticResultEnvelope {
+  const execution = getSemanticPlanExecutionResultBinding(executionResultInput);
+  const proofInput = execution.proof;
+  const rowsInput = execution.rows;
   const parent = getSemanticPlanProofParent(proofInput);
   const proof = proofInput as VerifiedSemanticPlanProof;
   if (!Array.isArray(rowsInput)) {
@@ -153,7 +156,7 @@ export function formatSemanticPlanResult(
     ? { headline: 'No matching source rows were available.', facts: [] }
     : { headline: headlineFor(sources, scope), facts };
 
-  return deepFreeze({
+  const envelope = deepFreeze({
     mode: 'proven_semantic_result' as const,
     format_version: SEMANTIC_RESULT_FORMAT_VERSION,
     proof_hash: proof.proof_hash,
@@ -185,6 +188,11 @@ export function formatSemanticPlanResult(
       caveats
     }
   });
+  if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > execution.max_response_bytes) {
+    throw new SemanticResultFormatError('Semantic result exceeded its authorized response size');
+  }
+  execution.assert_active();
+  return envelope;
 }
 
 function describeOutput(

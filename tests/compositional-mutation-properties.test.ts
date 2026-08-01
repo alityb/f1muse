@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { PLANNED_INTEGRITY_FIELD } from '../src/f1ql/planned-compiler';
 import { PLANNED_F1QL_MAX_ROWS, PLANNED_F1QL_MAX_WORK_UNITS } from '../src/f1ql/planned-f1ql';
 import { preparePlannedF1QLParent } from '../src/f1ql/planned-pipeline';
+import { SemanticCapabilityProfileId } from '../src/f1ql/semantic-capability-registry';
 import { verifyAnswerPlan } from '../src/f1ql/semantic-planner';
 import { proveSemanticAnswerPlan, verifySemanticPlanProof } from '../src/f1ql/semantic-plan-proof';
 import { verifySemanticResolutionEvidence } from '../src/f1ql/semantic-resolution-evidence';
@@ -25,6 +26,7 @@ import {
   prepareCompositionalAnswerArtifacts,
   prepareReviewedCompositionalAnswerCase
 } from './support/compositional-regression';
+import { executeSemanticPlanRowsOffline } from '../scripts/support/semantic-plan-execution';
 
 const DEFAULT_PROPERTY_SEED = 20260730;
 const DEFAULT_PROPERTY_RUNS = 120;
@@ -81,37 +83,18 @@ describe('Phase 11 offline result mutation accounting', () => {
   let standings: Prepared;
   let join: Prepared;
   let compose: Prepared;
-  let filteredStandings: Prepared;
 
   beforeAll(async () => {
-    const filteredQuestion = 'List driver, championship position, and championship points for Norris and Piastri from final 2025 driver standings.';
-    [standings, join, compose, filteredStandings] = await Promise.all([
+    [standings, join, compose] = await Promise.all([
       prepareReviewedCompositionalAnswerCase(compositionalRegressionCorpusInput, STANDINGS_CASE),
       prepareReviewedCompositionalAnswerCase(compositionalRegressionCorpusInput, JOIN_CASE),
-      prepareReviewedCompositionalAnswerCase(compositionalRegressionCorpusInput, COMPOSE_CASE),
-      prepareCompositionalAnswerArtifacts({
-        question: filteredQuestion,
-        entities: [{ type: 'driver', text: 'Norris' }, { type: 'driver', text: 'Piastri' }],
-        resolver: {
-          driver_mentions: [
-            { text: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
-            { text: 'Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
-          ],
-          event_resolution: { type: 'missing' }
-        }
-      })
+      prepareReviewedCompositionalAnswerCase(compositionalRegressionCorpusInput, COMPOSE_CASE)
     ]);
   });
 
-  it('rejects every offline-detectable result mutation', () => {
+  it('rejects every result mutation before an answer envelope is returned', async () => {
     const standingsRow = (driverId: string, points = '1.000') => ({
       driver_id: driverId, points, [PLANNED_INTEGRITY_FIELD]: true
-    });
-    const filteredRow = (driverId: string, position: number) => ({
-      driver_id: driverId,
-      championship_position: position,
-      points: '1.000',
-      [PLANNED_INTEGRITY_FIELD]: true
     });
     const joinRow = {
       driver_id: 'lando-norris', finishing_position: 1,
@@ -123,54 +106,59 @@ describe('Phase 11 offline result mutation accounting', () => {
       qualifying_classification__count_qualifying_position: 1,
       [PLANNED_INTEGRITY_FIELD]: true
     };
-    const attempts: Record<string, () => unknown> = {
-      'non-array-result': () => formatSemanticPlanResult(standings.proof, null),
-      'omit-filtered-driver-row': () => formatSemanticPlanResult(filteredStandings.proof, [
-        filteredRow('lando-norris', 1)
-      ]),
-      'repeat-identical-grain': () => formatSemanticPlanResult(standings.proof, [
+    await executeAndFormat(standings, 'semantic-single-source-v1', [standingsRow('lando-norris')]);
+    await executeAndFormat(join, 'semantic-safe-dimension-join-v1', [joinRow]);
+    await executeAndFormat(compose, 'semantic-aggregate-locality-v1', [composeRow]);
+    const attempts: Record<string, () => Promise<unknown>> = {
+      'non-array-result': async () => formatSemanticPlanResult(null),
+      'omit-scalar-result-row': () => executeAndFormat(compose, 'semantic-aggregate-locality-v1', []),
+      'repeat-identical-grain': () => executeAndFormat(standings, 'semantic-single-source-v1', [
         standingsRow('lando-norris'), standingsRow('lando-norris')
       ]),
-      'tie-without-distinct-grain': () => formatSemanticPlanResult(standings.proof, [
+      'tie-without-distinct-grain': () => executeAndFormat(standings, 'semantic-single-source-v1', [
         standingsRow('lando-norris', '1.000'), standingsRow('lando-norris', '2.000')
       ]),
-      'reverse-proven-row-order': () => formatSemanticPlanResult(standings.proof, [
+      'reverse-proven-row-order': () => executeAndFormat(standings, 'semantic-single-source-v1', [
         standingsRow('oscar-piastri'), standingsRow('lando-norris')
       ]),
-      'add-unproven-column': () => formatSemanticPlanResult(standings.proof, [{
+      'add-unproven-column': () => executeAndFormat(standings, 'semantic-single-source-v1', [{
         ...standingsRow('lando-norris'), injected: true
       }]),
-      'replace-exact-decimal-with-number': () => formatSemanticPlanResult(standings.proof, [{
+      'replace-exact-decimal-with-number': () => executeAndFormat(standings, 'semantic-single-source-v1', [{
         ...standingsRow('lando-norris'), points: 1
       }]),
-      'make-count-negative': () => formatSemanticPlanResult(compose.proof, [{
+      'make-count-negative': () => executeAndFormat(compose, 'semantic-aggregate-locality-v1', [{
         ...composeRow, event_classification__count_finishing_position: -1
       }]),
-      'null-required-joined-metadata': () => formatSemanticPlanResult(join.proof, [{
+      'null-required-joined-metadata': () => executeAndFormat(join, 'semantic-safe-dimension-join-v1', [{
         ...joinRow, event_name: null
       }])
     };
 
     for (const mutation of RESULT_MUTATION_ACCOUNTING.filter(item => item.disposition === 'rejected_offline')) {
       let failure: unknown;
-      try {attempts[mutation.name]();} catch (error) {failure = error;}
-      expect(failure, mutation.name).toBeInstanceOf(SemanticResultFormatError);
+      try {await attempts[mutation.name]();} catch (error) {failure = error;}
+      expect(failure, mutation.name).toBeInstanceOf(
+        mutation.name === 'non-array-result' ? Error : SemanticResultFormatError
+      );
     }
   });
 
-  it('does not falsely claim rejection without runtime result provenance', () => {
-    const substituted = formatSemanticPlanResult(standings.proof, [{
-      driver_id: 'lando-norris', points: '999.000', [PLANNED_INTEGRITY_FIELD]: true
-    }]);
-    expect(substituted.rows[0].points).toBe('999.000');
-
+  it('rejects same-schema substitution and omission without exact runtime result provenance', async () => {
     const complete = [
       { driver_id: 'lando-norris', points: '1.000', [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'oscar-piastri', points: '2.000', [PLANNED_INTEGRITY_FIELD]: true }
     ];
-    expect(formatSemanticPlanResult(standings.proof, complete).rows).toHaveLength(2);
-    expect(formatSemanticPlanResult(standings.proof, complete.slice(0, 1)).rows).toHaveLength(1);
-    expect(RESULT_MUTATION_ACCOUNTING.filter(item => item.disposition === 'blocked_without_runtime_provenance'))
+    const execution = await executeSemanticPlanRowsOffline(
+      standings.proof, 'semantic-single-source-v1', complete
+    );
+    expect(formatSemanticPlanResult(execution).rows).toHaveLength(2);
+    expect(() => formatSemanticPlanResult({
+      ...execution,
+      rows: [{ ...complete[0], points: '999.000' }]
+    })).toThrow('provenance');
+    expect(() => formatSemanticPlanResult({ ...execution, rows: complete.slice(0, 1) })).toThrow('provenance');
+    expect(RESULT_MUTATION_ACCOUNTING.filter(item => item.disposition === 'rejected_by_runtime_provenance'))
       .toEqual([
         expect.objectContaining({ category: 'same-schema factual substitution' }),
         expect.objectContaining({ category: 'unfiltered row omission' })
@@ -184,6 +172,15 @@ describe('Phase 11 offline result mutation accounting', () => {
       .toBe(RESULT_MUTATION_ACCOUNTING.length);
   });
 });
+
+async function executeAndFormat(
+  prepared: Prepared,
+  profileId: SemanticCapabilityProfileId,
+  rows: readonly Record<string, unknown>[]
+) {
+  const execution = await executeSemanticPlanRowsOffline(prepared.proof, profileId, rows);
+  return formatSemanticPlanResult(execution);
+}
 
 describe('Phase 11 bounded offline compositional properties', () => {
   it('generates deterministic reviewed variants within all planner bounds', async () => {

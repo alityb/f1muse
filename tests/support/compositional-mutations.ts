@@ -111,7 +111,7 @@ export const RESULT_MUTATION_CATEGORIES = [
 ] as const;
 
 export type ResultMutationCategory = typeof RESULT_MUTATION_CATEGORIES[number];
-export type ResultMutationDisposition = 'rejected_offline' | 'blocked_without_runtime_provenance';
+export type ResultMutationDisposition = 'rejected_offline' | 'rejected_by_runtime_provenance';
 
 export const RESULT_MUTATION_ACCOUNTING: ReadonlyArray<{
   readonly name: string;
@@ -119,7 +119,7 @@ export const RESULT_MUTATION_ACCOUNTING: ReadonlyArray<{
   readonly disposition: ResultMutationDisposition;
 }> = [
   { name: 'non-array-result', category: 'malformed', disposition: 'rejected_offline' },
-  { name: 'omit-filtered-driver-row', category: 'partial', disposition: 'rejected_offline' },
+  { name: 'omit-scalar-result-row', category: 'partial', disposition: 'rejected_offline' },
   { name: 'repeat-identical-grain', category: 'duplicate', disposition: 'rejected_offline' },
   { name: 'tie-without-distinct-grain', category: 'tie', disposition: 'rejected_offline' },
   { name: 'reverse-proven-row-order', category: 'misorder', disposition: 'rejected_offline' },
@@ -130,11 +130,11 @@ export const RESULT_MUTATION_ACCOUNTING: ReadonlyArray<{
   {
     name: 'substitute-unscoped-fact-with-same-schema',
     category: 'same-schema factual substitution',
-    disposition: 'blocked_without_runtime_provenance'
+    disposition: 'rejected_by_runtime_provenance'
   },
   {
     name: 'omit-one-unfiltered-source-row',
     category: 'unfiltered row omission',
-    disposition: 'blocked_without_runtime_provenance'
+    disposition: 'rejected_by_runtime_provenance'
   }
 ] as const;

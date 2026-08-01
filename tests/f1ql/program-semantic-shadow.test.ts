@@ -318,7 +318,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
   it('has no execution, authorization, formatting, or interpreter import path and preserves translate bytes', () => {
     const route = resolve('src/api/routes/program-semantic-shadow.ts');
     const graph = reachableLocalModules(route);
-    const forbidden = /(?:^|\/)(?:executor|answer-execution|answer-authorization|semantic-capability-authorization|semantic-result-format|answer-format|interpreter)\.ts$/u;
+    const forbidden = /(?:^|\/)(?:executor|answer-execution|answer-authorization|semantic-capability-authorization|semantic-plan-execution|semantic-result-format|answer-format|interpreter)\.ts$/u;
     expect([...graph].filter(file => forbidden.test(file))).toEqual([]);
     const routeSource = readFileSync(route, 'utf8');
     expect(routeSource).not.toMatch(/from ['"].*(?:executor|authorization|format|interpreter)['"]/u);
@@ -498,9 +498,11 @@ function reachableLocalModules(entry: string, seen = new Set<string>()): Set<str
   if (seen.has(entry)) return seen;
   seen.add(entry);
   const source = readFileSync(entry, 'utf8');
-  const imports = [...source.matchAll(/(?:import|export)[^'"\n]*from\s*['"]([^'"]+)['"]/gu)]
-    .map(match => match[1])
-    .filter(specifier => specifier.startsWith('.'));
+  const imports = [
+    ...source.matchAll(/(?:import|export)[^'"\n]*from\s*['"]([^'"]+)['"]/gu),
+    ...source.matchAll(/\bimport\s*['"]([^'"]+)['"]/gu),
+    ...source.matchAll(/\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/gu)
+  ].map(match => match[1]).filter(specifier => specifier.startsWith('.'));
   for (const specifier of imports) {
     const base = resolve(dirname(entry), specifier);
     const child = existsSync(`${base}.ts`) ? `${base}.ts` : existsSync(resolve(base, 'index.ts')) ? resolve(base, 'index.ts') : undefined;

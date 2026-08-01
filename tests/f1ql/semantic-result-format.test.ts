@@ -16,6 +16,7 @@ import {
   formatSemanticPlanResult,
   SemanticResultFormatError
 } from '../../src/f1ql/semantic-result-format';
+import { executeSemanticPlanRowsOffline } from '../../scripts/support/semantic-plan-execution';
 import {
   admitSemanticQueryCandidates,
   enumerateSemanticQueries,
@@ -30,12 +31,12 @@ const EVENT_DATE = 'List event name and race date from round 1 of final 2025 eve
 
 describe('generic proven semantic result formatting', () => {
   it('derives standings presentation and metadata from the proof and remains a family-formatter oracle', async () => {
-    const { proof } = await prepare(STANDINGS);
+    const prepared = await prepare(STANDINGS);
     const rows = [
       { driver_id: 'charles-leclerc', points: null, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'lando-norris', points: '357.000', [PLANNED_INTEGRITY_FIELD]: true }
     ];
-    const formatted = formatSemanticPlanResult(proof, rows);
+    const formatted = await executeAndFormat(prepared, rows);
 
     expect(formatted.answer).toEqual({
       headline: 'Final 2025 driver standings result.',
@@ -80,8 +81,8 @@ describe('generic proven semantic result formatting', () => {
   });
 
   it('formats a complete metadata join without erasing nullable positions', async () => {
-    const { proof } = await prepare(RACE_METADATA, [], [], { type: 'resolved', season: 2025, round: 1 });
-    const formatted = formatSemanticPlanResult(proof, [
+    const prepared = await prepare(RACE_METADATA, [], [], { type: 'resolved', season: 2025, round: 1 });
+    const formatted = await executeAndFormat(prepared, [
       {
         driver_id: 'lando-norris', finishing_position: 1,
         event_name: 'Australian Grand Prix', circuit_id: 'albert-park',
@@ -121,8 +122,8 @@ describe('generic proven semantic result formatting', () => {
       candidates: ['lando-norris'],
       active_candidates: ['lando-norris']
     };
-    const { proof } = await prepare(COMPOSE, [{ type: 'driver', span: norris }], [mention]);
-    const formatted = formatSemanticPlanResult(proof, [{
+    const prepared = await prepare(COMPOSE, [{ type: 'driver', span: norris }], [mention]);
+    const formatted = await executeAndFormat(prepared, [{
       event_classification__count_finishing_position: 0,
       qualifying_classification__count_qualifying_position: 2,
       [PLANNED_INTEGRITY_FIELD]: true
@@ -152,7 +153,7 @@ describe('generic proven semantic result formatting', () => {
 
   it('distinguishes an empty row result from a scalar zero', async () => {
     const standings = await prepare(STANDINGS);
-    const empty = formatSemanticPlanResult(standings.proof, []);
+    const empty = await executeAndFormat(standings, []);
     expect(empty.answer).toEqual({ headline: 'No matching source rows were available.', facts: [] });
     expect(empty.metadata.coverage).toEqual({ status: 'empty', rows_returned: 0, row_limit: 100 });
     expect(empty.metadata.caveats[0]).toBe('Empty output is unavailable data, not a factual zero.');
@@ -161,14 +162,16 @@ describe('generic proven semantic result formatting', () => {
     const composed = await prepare(COMPOSE, [{ type: 'driver', span: norris }], [{
       ...norris, candidates: ['lando-norris'], active_candidates: ['lando-norris']
     }]);
-    expect(() => formatSemanticPlanResult(composed.proof, [])).toThrow('exactly one row');
+    const execution = await executeSemanticPlanRowsOffline(composed.proof, composed.profile_id, []);
+    expect(() => formatSemanticPlanResult(execution)).toThrow('exactly one row');
   });
 
   it('rejects copied proofs and malformed, partial, unexpected, or integrity-failed rows', async () => {
-    const { proof } = await prepare(STANDINGS);
+    const prepared = await prepare(STANDINGS);
     const valid = { driver_id: 'lando-norris', points: '357.000', [PLANNED_INTEGRITY_FIELD]: true };
-    expect(() => formatSemanticPlanResult({ ...proof }, [valid])).toThrow('provenance');
-    expect(() => formatSemanticPlanResult(proof, null)).toThrow(SemanticResultFormatError);
+    await expect(executeSemanticPlanRowsOffline({ ...prepared.proof } as never, prepared.profile_id, [valid]))
+      .rejects.toThrow('invalid_authorization');
+    expect(() => formatSemanticPlanResult(null)).toThrow('provenance');
     for (const [name, row] of [
       ['missing field', { points: '357.000', [PLANNED_INTEGRITY_FIELD]: true }],
       ['extra field', { ...valid, extra: true }],
@@ -183,21 +186,21 @@ describe('generic proven semantic result formatting', () => {
       ['symbol', Object.assign({ ...valid }, { [Symbol('unexpected')]: true })]
     ] as const) {
       let failure: unknown;
-      try {formatSemanticPlanResult(proof, [row]);} catch (error) {failure = error;}
-      expect(failure, name).toBeInstanceOf(SemanticResultFormatError);
+      try {await executeAndFormat(prepared, [row]);} catch (error) {failure = error;}
+      expect(failure, name).toBeInstanceOf(Error);
     }
   });
 
   it('rejects sparse arrays and snapshots descriptor values before validation', async () => {
-    const { proof } = await prepare(STANDINGS);
+    const prepared = await prepare(STANDINGS);
     const sparse = new Array(1);
-    expect(() => formatSemanticPlanResult(proof, sparse)).toThrow('dense array');
+    await expect(executeAndFormat(prepared, sparse)).rejects.toThrow('dense');
 
     const target = { driver_id: 'lando-norris', points: '357.000', [PLANNED_INTEGRITY_FIELD]: true };
     const proxy = new Proxy(target, {
       get: (_target, property) => property === 'points' ? 'substituted' : Reflect.get(target, property)
     });
-    const formatted = formatSemanticPlanResult(proof, [proxy]);
+    const formatted = await executeAndFormat(prepared, [proxy]);
     expect(formatted.answer.facts[0].values.points).toBe('357');
     expect(formatted.rows[0].points).toBe('357.000');
 
@@ -205,29 +208,29 @@ describe('generic proven semantic result formatting', () => {
     Object.defineProperty(overriddenMap, 'map', {
       value: () => [{ driver_id: 'substituted', points: 357 }]
     });
-    expect(formatSemanticPlanResult(proof, overriddenMap).answer.facts[0].subject).toBe('lando-norris');
+    expect((await executeAndFormat(prepared, overriddenMap)).answer.facts[0].subject).toBe('lando-norris');
   });
 
   it('rejects duplicate, tied, misordered, and over-limit row results', async () => {
-    const { proof } = await prepare(STANDINGS);
+    const prepared = await prepare(STANDINGS);
     const row = (driver_id: string) => ({ driver_id, points: '1.000', [PLANNED_INTEGRITY_FIELD]: true });
-    expect(() => formatSemanticPlanResult(proof, [row('a'), row('a')])).toThrow('duplicate output grain');
-    expect(() => formatSemanticPlanResult(proof, [row('b'), row('a')])).toThrow('ordering');
+    await expect(executeAndFormat(prepared, [row('a'), row('a')])).rejects.toThrow('duplicate output grain');
+    await expect(executeAndFormat(prepared, [row('b'), row('a')])).rejects.toThrow('ordering');
     const overLimit = Array.from({ length: 101 }, (_, index) => row(`driver-${String(index).padStart(3, '0')}`));
-    expect(() => formatSemanticPlanResult(proof, overLimit)).toThrow('row limit');
+    await expect(executeAndFormat(prepared, overLimit)).rejects.toThrow('more than 100 rows');
     let accessed = false;
     const rejectedBeforeAccess = new Array(101);
     Object.defineProperty(rejectedBeforeAccess, 0, { get: () => {accessed = true; return row('driver-000');} });
-    expect(() => formatSemanticPlanResult(proof, rejectedBeforeAccess)).toThrow('row limit');
+    await expect(executeAndFormat(prepared, rejectedBeforeAccess)).rejects.toThrow('more than 100 rows');
     expect(accessed).toBe(false);
 
-    const atLimit = formatSemanticPlanResult(proof, overLimit.slice(0, 100));
+    const atLimit = await executeAndFormat(prepared, overLimit.slice(0, 100));
     expect(atLimit.metadata.coverage).toEqual({ status: 'possibly_truncated', rows_returned: 100, row_limit: 100 });
     expect(atLimit.metadata.caveats[0]).toBe('Output reached the proven 100-row limit.');
   });
 
   it('independently rejects invalid positions and incomplete joined metadata', async () => {
-    const { proof } = await prepare(RACE_METADATA, [], [], { type: 'resolved', season: 2025, round: 1 });
+    const prepared = await prepare(RACE_METADATA, [], [], { type: 'resolved', season: 2025, round: 1 });
     const valid = {
       driver_id: 'lando-norris', finishing_position: 1,
       event_name: 'Australian Grand Prix', circuit_id: 'albert-park',
@@ -239,34 +242,30 @@ describe('generic proven semantic result formatting', () => {
       { event_name: '   ' },
       { circuit_id: null }
     ]) {
-      expect(() => formatSemanticPlanResult(proof, [{ ...valid, ...mutation }])).toThrow(SemanticResultFormatError);
+      await expect(executeAndFormat(prepared, [{ ...valid, ...mutation }])).rejects.toThrow(SemanticResultFormatError);
     }
   });
 
   it('rejects negative aggregate counts', async () => {
     const norris = span(COMPOSE, 'Norris');
-    const { proof } = await prepare(COMPOSE, [{ type: 'driver', span: norris }], [{
+    const prepared = await prepare(COMPOSE, [{ type: 'driver', span: norris }], [{
       ...norris, candidates: ['lando-norris'], active_candidates: ['lando-norris']
     }]);
-    expect(() => formatSemanticPlanResult(proof, [{
+    await expect(executeAndFormat(prepared, [{
       event_classification__count_finishing_position: -1,
       qualifying_classification__count_qualifying_position: 2,
       [PLANNED_INTEGRITY_FIELD]: true
-    }])).toThrow('nonnegative count');
+    }])).rejects.toThrow('nonnegative count');
   });
 
-  it('normalizes PostgreSQL-style local-midnight dates without UTC date drift', async () => {
-    const { proof } = await prepare(EVENT_DATE, [], [], { type: 'resolved', season: 2025, round: 1 });
-    const formatted = formatSemanticPlanResult(proof, [{
+  it('does not mint result provenance for an interaction outside the signed profiles', async () => {
+    const prepared = await prepare(EVENT_DATE, [], [], { type: 'resolved', season: 2025, round: 1 });
+    await expect(executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
       event_name: 'Australian Grand Prix', date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
-    }]);
-    expect(formatted.rows[0].date).toBe('2025-01-01');
-    expect(() => formatSemanticPlanResult(proof, [{
-      event_name: 'Australian Grand Prix', date: new Date(2025, 0, 1, 12), [PLANNED_INTEGRITY_FIELD]: true
-    }])).toThrow('date-only');
+    }])).rejects.toThrow('profile_rejected');
   });
 
-  it('has no route, database, provider, or execution dependency', () => {
+  it('keeps database and route work outside the formatter', () => {
     const source = readFileSync('src/f1ql/semantic-result-format.ts', 'utf8');
     expect(source).not.toMatch(/from ['"](?:pg|\.\/executor|\.\.\/api|\.\/answer-execution)/u);
     expect(source).not.toMatch(/executeF1QL|database\.query|pool\.query/u);
@@ -297,7 +296,20 @@ async function prepare(
   });
   const plan = planSemanticAnswerFromResolution({ question, admission, resolution });
   const proof = proveSemanticAnswerPlan({ question, entity_inventory: entities, evidence, admission, resolution, plan });
-  return { proof, plan };
+  const profile_id = question === RACE_METADATA
+    ? 'semantic-safe-dimension-join-v1' as const
+    : question === COMPOSE
+      ? 'semantic-aggregate-locality-v1' as const
+      : 'semantic-single-source-v1' as const;
+  return { proof, plan, profile_id };
+}
+
+async function executeAndFormat(
+  prepared: Awaited<ReturnType<typeof prepare>>,
+  rows: readonly Record<string, unknown>[]
+) {
+  const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+  return formatSemanticPlanResult(execution);
 }
 
 function span(question: string, text: string): SemanticLiteralSpan {
