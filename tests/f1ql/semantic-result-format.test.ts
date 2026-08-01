@@ -30,7 +30,7 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
 
 describe('generic proven semantic result formatting', () => {
-  it('derives standings presentation and metadata from the proof and remains a family-formatter oracle', async () => {
+  it('derives standings metadata and preserves the partial family answer/coverage projection oracle', async () => {
     const prepared = await prepare(STANDINGS);
     const rows = [
       { driver_id: 'charles-leclerc', points: null, [PLANNED_INTEGRITY_FIELD]: true },
@@ -76,8 +76,30 @@ describe('generic proven semantic result formatting', () => {
     const decision = authorizeAnswerProgram(legacyProgram);
     if (decision.type !== 'approved') throw new Error('legacy oracle fixture was not authorized');
     const legacy = formatAnswerRows(legacyProgram, decision.capability, rows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row));
-    expect({ answer: formatted.answer, coverage: formatted.metadata.coverage.status })
-      .toEqual({ answer: legacy.answer, coverage: legacy.coverage });
+    const genericOracleBytes = Buffer.from(JSON.stringify({
+      answer: formatted.answer,
+      coverage: formatted.metadata.coverage.status
+    }));
+    const familyOracleBytes = Buffer.from(JSON.stringify({
+      answer: legacy.answer,
+      coverage: legacy.coverage
+    }));
+    expect(genericOracleBytes).toEqual(familyOracleBytes);
+    expect(formatted.metadata.caveats).not.toEqual(legacy.caveats);
+
+    const atLimitRows = Array.from({ length: 100 }, (_, index) => ({
+      driver_id: `driver-${String(index).padStart(3, '0')}`,
+      points: '1.000',
+      [PLANNED_INTEGRITY_FIELD]: true
+    }));
+    const atLimit = await executeAndFormat(prepared, atLimitRows);
+    const legacyAtLimit = formatAnswerRows(
+      legacyProgram,
+      decision.capability,
+      atLimitRows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row)
+    );
+    expect(atLimit.metadata.coverage.status).toBe('possibly_truncated');
+    expect(legacyAtLimit.coverage).toBe('sufficient');
   });
 
   it('formats a complete metadata join without erasing nullable positions', async () => {

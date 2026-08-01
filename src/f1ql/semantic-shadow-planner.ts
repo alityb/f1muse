@@ -9,6 +9,9 @@ import {
   verifyAnswerSemanticProof
 } from './answer-semantic-proof';
 import { ANSWER_TEMPLATE_REGISTRY_VERSION } from './answer-templates';
+import {
+  classifySemanticTemplateEquivalence
+} from './semantic-template-equivalence';
 import { F1QL_FACT_SPACE_VERSION } from './fact-space-version';
 import { PLANNED_F1QL_VERSION } from './planned-f1ql';
 import { PLANNED_F1QL_COMPILER_VERSION } from './planned-compiler';
@@ -58,7 +61,7 @@ import {
   sanitizeSemanticShadowObservation
 } from './semantic-shadow-observations';
 
-export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v1' as const;
+export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v2' as const;
 export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 
 export interface SemanticShadowProposalRequest {
@@ -489,7 +492,11 @@ export function compareTemplateAndSemanticPlan(
   semantic: Pick<AnswerPlan, 'question_sha256' | 'topology' | 'linked_entities' | 'source_graph' | 'branches' | 'output_grain' | 'planned_f1ql'>
 ): 'matched' | 'mismatched' | 'not_comparable' {
   const project = semantic.planned_f1ql.root.input.input;
-  if (template.template_id !== 'final_standings_points' || template.template_variables.driver_ids !== undefined ||
+  if (classifySemanticTemplateEquivalence(
+    template.template_id,
+    template.template_variables,
+    template.program
+  ) !== 'program_shape_overlap' ||
       semantic.topology !== 'single_source_rows' ||
       !sameValue(project.outputs.map(output => ({ kind: output.kind, as: output.as })), [
         { kind: 'concept', as: 'driver_id' }, { kind: 'concept', as: 'points' }
