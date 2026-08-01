@@ -10,6 +10,7 @@ import {
   computeSemanticCandidateSetHash,
   enumerateSemanticQueries,
   parseSemanticQueryCandidateSet,
+  SemanticQuery,
   SemanticQueryCandidateSet
 } from '../src/f1ql/semantic-query';
 import reviewedSnapshotInput from '../tests/fixtures/compositional-regression.snapshot.json';
@@ -25,7 +26,7 @@ const PROBE_CANDIDATE_SET_SHA256 = 'cd751e1664dcb10ed60a6bd4c042a230857c57925c3c
 const PROBE_PROVIDER_IDENTITY = Object.freeze({
   provider: 'openai-compatible',
   endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
-  model_sha256: '52c3bc696e5d7122937c0b57cc5986829ac1ffd03f28c50992662355f316036a',
+  model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
   prompt_sha256: '58c08cc0a126a9a6eca59bbafb3e35c7ea2f407738ba4f917293c386936b6d29',
   schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
@@ -42,6 +43,8 @@ type ProbeFailureReason =
   | 'oracle_mismatch'
   | 'unexpected_failure';
 
+type ProbeOracleMismatchCode = 'candidate_count' | 'evidence_spans' | 'semantic_structure';
+
 export type SemanticCandidateProviderProbeResult = {
   readonly status: 'passed';
   readonly case_id: string;
@@ -50,10 +53,18 @@ export type SemanticCandidateProviderProbeResult = {
   readonly oracle_match: true;
 } | {
   readonly status: 'failed';
-  readonly reason: ProbeFailureReason;
+  readonly reason: 'oracle_mismatch';
+  readonly case_id: string;
+  readonly provider: 'openai-compatible';
+  readonly mismatch_code: ProbeOracleMismatchCode;
+  readonly diagnostic_code?: never;
+} | {
+  readonly status: 'failed';
+  readonly reason: Exclude<ProbeFailureReason, 'oracle_mismatch'>;
   readonly case_id?: string;
   readonly provider?: 'openai-compatible';
   readonly diagnostic_code?: SemanticCandidateProposalError['code'];
+  readonly mismatch_code?: never;
 };
 
 interface ProbeDependencies {
@@ -65,6 +76,7 @@ interface ProbeDependencies {
 interface ReviewedProbeCase {
   readonly caseId: string;
   readonly question: string;
+  readonly candidates: readonly SemanticQuery[];
 }
 
 interface ConfiguredProbe {
@@ -130,7 +142,10 @@ async function executeProbe(
   }
   if (computeSemanticCandidateSetHash(actual.candidates, PROBE_QUESTION_SHA256, SEMANTIC_CATALOG_HASH) !==
       PROBE_CANDIDATE_SET_SHA256) {
-    return { status: 'failed', reason: 'oracle_mismatch', case_id: reviewed.caseId, provider };
+    return {
+      status: 'failed', reason: 'oracle_mismatch', case_id: reviewed.caseId, provider,
+      mismatch_code: classifyOracleMismatch(reviewed.candidates, actual.candidates)
+    };
   }
   return {
     status: 'passed', case_id: reviewed.caseId, provider,
@@ -170,16 +185,44 @@ function readReviewedProbeCase(
       return undefined;
     }
     const evidence = enumerateSemanticQueries(item.question, []);
-    if (!matchesPinnedEvidence(evidence)) {
+    if (evidence.type !== 'candidate_set' || !matchesPinnedEvidence(evidence)) {
       return undefined;
     }
     return {
       caseId: item.id,
-      question: item.question
+      question: item.question,
+      candidates: evidence.candidates
     };
   } catch {
     return undefined;
   }
+}
+
+function classifyOracleMismatch(
+  expected: readonly SemanticQuery[],
+  actual: readonly SemanticQuery[]
+): ProbeOracleMismatchCode {
+  if (expected.length !== actual.length) {return 'candidate_count';}
+  const expectedStructure = expected.map(candidate => stableSerialize(withoutEvidence(candidate))).sort(compareText);
+  const actualStructure = actual.map(candidate => stableSerialize(withoutEvidence(candidate))).sort(compareText);
+  return stableSerialize(expectedStructure) === stableSerialize(actualStructure)
+    ? 'evidence_spans'
+    : 'semantic_structure';
+}
+
+function withoutEvidence(value: unknown): unknown {
+  if (Array.isArray(value)) {return value.map(child => withoutEvidence(child));}
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'evidence')
+      .map(([key, child]) => {
+        const stripped = withoutEvidence(child);
+        return [key, ['scopes', 'filters', 'group_by'].includes(key) && Array.isArray(stripped)
+          ? stripped.sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)))
+          : stripped];
+      }));
+  }
+  return value;
 }
 
 function matchesPinnedFixtureInputs(corpusInput: unknown, snapshotInput: unknown): boolean {

@@ -11,7 +11,7 @@ const ENABLED_ENVIRONMENT: NodeJS.ProcessEnv = {
   F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'openai-compatible',
   F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://api.fireworks.ai/inference/v1',
   F1QL_SEMANTIC_CANDIDATE_LLM_API_KEY: 'test-key',
-  F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-pro',
+  F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-flash',
   F1QL_SEMANTIC_CANDIDATE_MODEL_STRICT_JSON_SCHEMA: 'true',
   F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '30000'
 };
@@ -96,7 +96,10 @@ describe('semantic candidate provider probe', () => {
           return { version: 2, candidates: [candidate] };
         }
       }
-    })).resolves.toMatchObject({ status: 'failed', reason: 'oracle_mismatch', provider: 'openai-compatible' });
+    })).resolves.toMatchObject({
+      status: 'failed', reason: 'oracle_mismatch', provider: 'openai-compatible',
+      mismatch_code: 'semantic_structure'
+    });
 
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       proposer: { propose: async () => {throw new SemanticCandidateProposalError('client');} }
@@ -106,12 +109,41 @@ describe('semantic candidate provider probe', () => {
     });
   });
 
+  it('classifies oracle drift without retaining candidate content', async () => {
+    const evidence = enumerateSemanticQueries(
+      (compositionalRegressionCorpusInput as { cases: Array<{ question: string }> }).cases[0].question,
+      []
+    );
+    if (evidence.type !== 'candidate_set') {throw new Error('missing test candidate set');}
+
+    const extraCandidate = structuredClone(evidence.candidates[0]);
+    extraCandidate.outputs.pop();
+    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
+      proposer: { propose: async () => ({ version: 2, candidates: [...evidence.candidates, extraCandidate] }) }
+    })).resolves.toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'candidate_count' });
+
+    const evidenceDrift = structuredClone(evidence.candidates[0]);
+    evidenceDrift.outputs[0].evidence = structuredClone(evidenceDrift.outputs[1].evidence);
+    const result = await probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
+      proposer: { propose: async () => ({ version: 2, candidates: [evidenceDrift] }) }
+    });
+    expect(result).toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'evidence_spans' });
+    expect(JSON.stringify(result)).not.toContain('driver_standings');
+    expect(JSON.stringify(result)).not.toContain('championship points');
+
+    const scopeEvidenceDrift = structuredClone(evidence.candidates[0]);
+    scopeEvidenceDrift.scopes[0].evidence = structuredClone(scopeEvidenceDrift.scopes[2].evidence);
+    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
+      proposer: { propose: async () => ({ version: 2, candidates: [scopeEvidenceDrift] }) }
+    })).resolves.toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'evidence_spans' });
+  });
+
   it('rejects provider identity drift before a request', async () => {
     const propose = vi.fn();
     for (const environment of [
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://proxy.example/v1' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-flash' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-pro' },
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '10000' }
     ]) {
       await expect(probeSemanticCandidateProvider(environment, { proposer: { propose } })).resolves.toMatchObject({
