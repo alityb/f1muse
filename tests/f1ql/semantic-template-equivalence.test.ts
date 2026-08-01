@@ -31,15 +31,22 @@ describe('Phase 11 current-template equivalence accounting', () => {
       .toHaveLength(ANSWER_TEMPLATE_IDS.length - 1);
   });
 
-  it('accounts for all 75 cases without claiming any current question is equivalent', () => {
+  it('accounts for all 75 cases without claiming response equivalence', () => {
     const answerCases = answerEvaluationManifest.filter(item => item.expected.action === 'answer');
     const programDispositions = answerCases.map(item => ({ id: item.id, disposition: dispositionFor(item) }));
-    const caseDispositions = programDispositions.map(item => ({
-      id: item.id,
-      disposition: item.disposition === 'program_shape_overlap'
-        ? 'current_question_language_unmapped'
-        : 'template_equivalence_unmapped'
-    }));
+    const caseDispositions = programDispositions.map(item => {
+      if (item.disposition !== 'program_shape_overlap') {
+        return { id: item.id, disposition: 'template_equivalence_unmapped' };
+      }
+      const question = answerCases.find(answerCase => answerCase.id === item.id)!.question;
+      const evidence = enumerateSemanticQueries(question);
+      return {
+        id: item.id,
+        disposition: evidence.type === 'candidate_set' && evidence.candidates.length === 1 && !evidence.ambiguity_reason
+          ? 'response_contract_unmapped'
+          : 'current_question_language_unmapped'
+      };
+    });
 
     expect(answerEvaluationManifest).toHaveLength(110);
     expect(answerCases).toHaveLength(75);
@@ -48,10 +55,12 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(programDispositions.filter(item => item.disposition === 'program_shape_overlap').map(item => item.id))
       .toEqual(['dev-points', 'iid-points-all']);
     expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(73);
+    expect(caseDispositions.filter(item => item.disposition === 'response_contract_unmapped').map(item => item.id))
+      .toEqual(['dev-points']);
     expect(caseDispositions.every(item => item.disposition.endsWith('_unmapped'))).toBe(true);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
-      .toMatchObject({ type: 'candidate_set', ambiguity_reason: 'metric_ambiguous' });
+      .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'iid-points-all')!.question))
       .toMatchObject({ type: 'abstention', reason: 'unknown_language' });
   });

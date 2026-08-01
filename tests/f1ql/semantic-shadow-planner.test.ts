@@ -28,6 +28,7 @@ import {
 } from '../../src/f1ql/semantic-query';
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
+const DEV_POINTS = 'Show the final 2025 standings points.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
@@ -155,6 +156,28 @@ describe('pure non-executing semantic shadow orchestrator', () => {
         template_intent_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         template_program_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
         template_proof_sha256: expect.stringMatching(/^[a-f0-9]{64}$/u)
+      }
+    });
+  });
+
+  it('maps the existing dev-points case through proof and template dual without execution', async () => {
+    const observation = await orchestrateSemanticShadow(DEV_POINTS, {
+      ...dependencies([]),
+      template_dual: true
+    });
+
+    expect(observation).toMatchObject({
+      outcome: 'answer',
+      reason: 'plan_proven',
+      topology_code: 'single_source_rows',
+      source_set_code: 'driver_standings',
+      operator_set_code: 'filter_project_sort_limit',
+      candidate_counts: { comparison: 'exact', matched: 1, omitted: 0, extraneous: 0 },
+      result_query_calls: 0,
+      template_dual: {
+        enabled: true,
+        status: 'matched',
+        template_id: 'final_standings_points'
       }
     });
   });

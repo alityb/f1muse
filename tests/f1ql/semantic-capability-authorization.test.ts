@@ -148,6 +148,7 @@ describe('semantic complete-interaction capability authorization', () => {
 
   it.each([
     ['List driver and championship points from final 2025 driver standings.', 'semantic-single-source-v1', []],
+    ['Show the final 2025 standings points.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {

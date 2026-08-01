@@ -255,7 +255,15 @@ export function enumerateSemanticQueries(
     return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
   }
 
-  const sourceIds = candidateSourceIds(sourceMatches, conceptMatches);
+  const standingsPointsProjection = unfilteredFinalStandingsPointsProjection(
+    question,
+    sourceMatches,
+    conceptMatches,
+    operations,
+    entities
+  );
+  const effectiveConceptMatches = standingsPointsProjection ? [standingsPointsProjection] : conceptMatches;
+  const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
   }
@@ -330,8 +338,15 @@ export function enumerateSemanticQueries(
     if (!source) {
       continue;
     }
-    const sourceConceptMatches = canonicalConceptMatches(conceptMatches.filter(match => match.source_id === sourceId));
-    const outputChoices = buildOutputChoices(source, sourceConceptMatches, sourceMatches, operations, question.normalized_question);
+    const sourceConceptMatches = canonicalConceptMatches(effectiveConceptMatches.filter(match => match.source_id === sourceId));
+    const outputChoices = buildOutputChoices(
+      source,
+      sourceConceptMatches,
+      sourceMatches,
+      operations,
+      question.normalized_question,
+      standingsPointsProjection?.span
+    );
     usedDefaultOutputs ||= outputChoices.defaulted;
     if (outputChoices.outputs.length === 0) {
       continue;
@@ -618,8 +633,12 @@ function buildOutputChoices(
   matches: readonly LexicalMatch[],
   sourceMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
-  question: string
+  question: string,
+  standingsPointsEvidence?: SemanticLiteralSpan
 ): { readonly outputs: readonly (readonly SemanticQuery['outputs'][number][])[]; readonly defaulted: boolean } {
+  if (source.id === 'driver_standings' && standingsPointsEvidence) {
+    return { outputs: [standingsPointsOutputs(standingsPointsEvidence)], defaulted: false };
+  }
   const explicit = matches.map(match => {
     const concept = { source_id: match.source_id, concept_id: match.concept_id! };
     return { kind: 'concept' as const, concept, evidence: [match.span] };
@@ -665,6 +684,48 @@ function buildOutputChoices(
     }))),
     defaulted: true
   };
+}
+
+function standingsPointsOutputs(
+  evidence: SemanticLiteralSpan
+): readonly SemanticQuery['outputs'][number][] {
+  return [
+    {
+      kind: 'concept',
+      concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
+      evidence: [evidence]
+    },
+    {
+      kind: 'concept',
+      concept: { source_id: 'driver_standings', concept_id: 'points' },
+      evidence: [evidence]
+    }
+  ];
+}
+
+function unfilteredFinalStandingsPointsProjection(
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): LexicalMatch | undefined {
+  if (!/^show the final \d{4} standings points\.?$/iu.test(question.normalized_question)) {
+    return undefined;
+  }
+  if (![question.years.length === 1, question.rounds.length === 0, entities.length === 0,
+    sourceMatches.length === 0, operations.temporal.length === 1, operations.temporal[0].value === 'final',
+    !operations.count, !operations.rank, !operations.limit].every(Boolean)) {
+    return undefined;
+  }
+  const selected = conceptMatches.filter(match =>
+    match.source_id === 'driver_standings' && match.concept_id === 'points' &&
+    match.span.text.toLocaleLowerCase('en-US') === 'standings points');
+  if (selected.length !== 1 || conceptMatches.some(match =>
+    (match.span.start < selected[0].span.start || match.span.end > selected[0].span.end))) {
+    return undefined;
+  }
+  return selected[0];
 }
 
 function alternativeOutputChoices(

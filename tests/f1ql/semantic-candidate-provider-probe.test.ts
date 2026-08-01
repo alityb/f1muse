@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SemanticCandidateProposalError } from '../../src/f1ql/semantic-candidate-translator';
-import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 import {
   probeSemanticCandidateProvider,
   type SemanticCandidateProviderProbeResult
@@ -42,23 +40,15 @@ describe('semantic candidate provider probe', () => {
     expect(propose).not.toHaveBeenCalled();
   });
 
-  it('passes only a nonempty exact match for the reviewed first-case oracle', async () => {
-    const propose = vi.fn(async request => {
-      const evidence = enumerateSemanticQueries(request.question, []);
-      if (evidence.type !== 'candidate_set') {throw new Error('missing test candidate set');}
-      return { version: 2 as const, candidates: [...evidence.candidates] };
-    });
+  it('refuses the retired V4 Flash identity before a request', async () => {
+    const propose = vi.fn();
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, { proposer: { propose } })).resolves.toEqual({
-      status: 'passed',
-      case_id: 'promoted-single-source-rows',
-      provider: 'openai-compatible',
-      candidate_count: 1,
-      oracle_match: true
+      status: 'failed', reason: 'provider_identity_retired', case_id: 'promoted-single-source-rows'
     });
-    expect(propose).toHaveBeenCalledTimes(1);
+    expect(propose).not.toHaveBeenCalled();
   });
 
-  it('fails closed on fixture drift, empty candidates, oracle drift, and typed provider failure', async () => {
+  it('fails closed on fixture drift before checking the retired identity', async () => {
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       corpusInput: {}, proposer: { propose: vi.fn() }
     })).resolves.toEqual({ status: 'failed', reason: 'reviewed_fixture_invalid' });
@@ -92,73 +82,6 @@ describe('semantic candidate provider probe', () => {
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       corpusInput: symbolCorpus, proposer: { propose: vi.fn() }
     })).resolves.toEqual({ status: 'failed', reason: 'reviewed_fixture_invalid' });
-
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => ({ version: 2, candidates: [] }) }
-    })).resolves.toMatchObject({ status: 'failed', reason: 'empty_candidate_set', provider: 'openai-compatible' });
-
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: {
-        propose: async request => {
-          const evidence = enumerateSemanticQueries(request.question, []);
-          if (evidence.type !== 'candidate_set') {throw new Error('missing test candidate set');}
-          const candidate = structuredClone(evidence.candidates[0]);
-          candidate.outputs.pop();
-          return { version: 2, candidates: [candidate] };
-        }
-      }
-    })).resolves.toMatchObject({
-      status: 'failed', reason: 'oracle_mismatch', provider: 'openai-compatible',
-      mismatch_code: 'semantic_structure'
-    });
-
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => {throw new SemanticCandidateProposalError('client');} }
-    })).resolves.toEqual({
-      status: 'failed', reason: 'provider_unavailable', case_id: 'promoted-single-source-rows',
-      provider: 'openai-compatible', diagnostic_code: 'client'
-    });
-  });
-
-  it('classifies oracle drift without retaining candidate content', async () => {
-    const evidence = enumerateSemanticQueries(
-      (compositionalRegressionCorpusInput as { cases: Array<{ question: string }> }).cases[0].question,
-      []
-    );
-    if (evidence.type !== 'candidate_set') {throw new Error('missing test candidate set');}
-
-    const extraCandidate = structuredClone(evidence.candidates[0]);
-    extraCandidate.outputs.pop();
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => ({ version: 2, candidates: [...evidence.candidates, extraCandidate] }) }
-    })).resolves.toMatchObject({ reason: 'oracle_mismatch', mismatch_code: 'candidate_count' });
-
-    const evidenceDrift = structuredClone(evidence.candidates[0]);
-    evidenceDrift.outputs[0].evidence = structuredClone(evidenceDrift.outputs[1].evidence);
-    const result = await probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => ({ version: 2, candidates: [evidenceDrift] }) }
-    });
-    expect(result).toMatchObject({
-      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'outputs'
-    });
-    expect(JSON.stringify(result)).not.toContain('driver_standings');
-    expect(JSON.stringify(result)).not.toContain('championship points');
-
-    const scopeEvidenceDrift = structuredClone(evidence.candidates[0]);
-    scopeEvidenceDrift.scopes[0].evidence = structuredClone(scopeEvidenceDrift.scopes[2].evidence);
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => ({ version: 2, candidates: [scopeEvidenceDrift] }) }
-    })).resolves.toMatchObject({
-      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'scopes'
-    });
-
-    const mixedEvidenceDrift = structuredClone(scopeEvidenceDrift);
-    mixedEvidenceDrift.outputs[0].evidence = structuredClone(mixedEvidenceDrift.outputs[1].evidence);
-    await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
-      proposer: { propose: async () => ({ version: 2, candidates: [mixedEvidenceDrift] }) }
-    })).resolves.toMatchObject({
-      reason: 'oracle_mismatch', mismatch_code: 'evidence_spans', evidence_code: 'mixed'
-    });
   });
 
   it('rejects provider identity drift before a request', async () => {

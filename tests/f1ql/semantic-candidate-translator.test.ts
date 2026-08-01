@@ -16,6 +16,7 @@ import {
   SEMANTIC_CANDIDATE_ANTHROPIC_SCHEMA_SHA256,
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION,
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256,
+  SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT,
   SEMANTIC_CANDIDATE_JSON_SCHEMA,
   SEMANTIC_CANDIDATE_PROVIDER_DIAGNOSTIC_CODES,
   SEMANTIC_CANDIDATE_SYSTEM_PROMPT,
@@ -101,6 +102,10 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('retain only globally longest phrases for each source-qualified concept, then use the earliest remaining concept phrase not contained in another selected phrase');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use the earliest explicit source phrase for that source when present, otherwise reuse the earliest output evidence span');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('operation, temporal, season, round, limit, filter, and comparison evidence');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('For the exact unfiltered form "show the final YYYY standings points"');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('Never apply this rule to bare points, race points, named-driver filters');
   });
 
   it('fails closed for malformed, extra, duplicate, and overflowing candidate sets', async () => {
