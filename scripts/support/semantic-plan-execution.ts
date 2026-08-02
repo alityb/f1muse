@@ -63,9 +63,10 @@ export async function executeSemanticPlanRowsOffline(
 
 export function createSemanticPlanExecutionOfflineInput(
   proof: VerifiedSemanticPlanProof,
-  profileId: SemanticCapabilityProfileId
+  profileId: SemanticCapabilityProfileId,
+  runtime: typeof SEMANTIC_EXECUTION_OFFLINE_RUNTIME = SEMANTIC_EXECUTION_OFFLINE_RUNTIME
 ) {
-  const release = semanticExecutionTestRelease();
+  const release = semanticExecutionTestRelease(runtime);
   const requestId = randomUUID();
   const subjectId = 'semantic-execution-test-subject';
   const authorization = authorizeSemanticPlanCapability({
@@ -90,7 +91,7 @@ export function createSemanticPlanExecutionOfflineInput(
   return { authorization, context };
 }
 
-function semanticExecutionTestRelease() {
+function semanticExecutionTestRelease(runtime: typeof SEMANTIC_EXECUTION_OFFLINE_RUNTIME) {
   const context: ActiveAnswerReleaseContext = {
     release_id: 'semantic-execution-test-release',
     issued_at: '2026-07-30T11:59:00.000Z',
@@ -113,7 +114,7 @@ function semanticExecutionTestRelease() {
       semantic_catalog_binding_artifact_sha256: hash('0')
     },
     statuses: { semantic: 'pass', safety: 'pass', linker: 'pass' },
-    runtime: SEMANTIC_EXECUTION_OFFLINE_RUNTIME,
+    runtime,
     deployment_template_ids: ['final_standings_leader'],
     answer_routing_mode: 'compositional_profiles',
     deployment_capability_profile_ids: [

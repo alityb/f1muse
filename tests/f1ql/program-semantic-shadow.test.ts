@@ -499,7 +499,7 @@ function reachableLocalModules(entry: string, seen = new Set<string>()): Set<str
   seen.add(entry);
   const source = readFileSync(entry, 'utf8');
   const imports = [
-    ...source.matchAll(/(?:import|export)[^'"\n]*from\s*['"]([^'"]+)['"]/gu),
+    ...source.matchAll(/(?:import|export)[^'"]*from\s*['"]([^'"]+)['"]/gu),
     ...source.matchAll(/\bimport\s*['"]([^'"]+)['"]/gu),
     ...source.matchAll(/\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/gu)
   ].map(match => match[1]).filter(specifier => specifier.startsWith('.'));

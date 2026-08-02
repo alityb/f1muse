@@ -1,5 +1,15 @@
-import type { PlannedCorePredicate, PlannedCoreProjectOutput } from './core';
-import type { AnswerCoverageStatus, FormattedAnswer } from './answer-format';
+import type {
+  PlannedCorePredicate,
+  PlannedCoreProjectNode,
+  PlannedCoreProjectOutput,
+  PlannedCoreSortKey
+} from './core';
+import { buildAnswerEnvelope } from './answer-format';
+import type { AnswerCoverageStatus, AnswerEnvelope, FormattedAnswer } from './answer-format';
+import { serializeAnswerResponse } from './answer-bounds';
+import { authorizeAnswerProgram } from './answer-policy';
+import { materializeAnswerTemplate } from './answer-templates';
+import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { PLANNED_INTEGRITY_FIELD } from './planned-compiler';
 import { getSemanticPlanProofParent } from './semantic-plan-proof';
 import type { VerifiedSemanticPlanProof } from './semantic-plan-proof';
@@ -7,10 +17,20 @@ import { SEMANTIC_CATALOG } from './semantic-catalog';
 import type { SemanticCatalogSource } from './semantic-catalog';
 import { getSemanticPlanExecutionResultBinding } from './semantic-plan-execution';
 import { finalStandingsRowsResponseContract } from './final-standings-response-contract';
+export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
 export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v2' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
+type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
+
+interface BuiltSemanticPlanResult {
+  readonly envelope: SemanticResultEnvelope;
+  readonly compatibility: {
+    readonly season: number;
+    readonly rows: Array<Record<string, unknown>>;
+  } | null;
+}
 
 export interface SemanticResultColumn {
   readonly id: string;
@@ -86,6 +106,39 @@ export function formatSemanticPlanResult(
   executionResultInput: unknown
 ): SemanticResultEnvelope {
   const execution = getSemanticPlanExecutionResultBinding(executionResultInput);
+  const built = buildSemanticPlanResult(execution);
+  if (Buffer.byteLength(JSON.stringify(built.envelope), 'utf8') > execution.max_response_bytes) {
+    throw new SemanticResultFormatError('Semantic result exceeded its authorized response size');
+  }
+  execution.assert_active();
+  return built.envelope;
+}
+
+export function formatSemanticPlanResultAsAnswerEnvelope(
+  executionResultInput: unknown
+): AnswerEnvelope {
+  const execution = getSemanticPlanExecutionResultBinding(executionResultInput);
+  const built = buildSemanticPlanResult(execution);
+  if (built.compatibility === null) {
+    throw new SemanticResultFormatError('Semantic result has no reviewed answer-envelope compatibility contract');
+  }
+  const program = materializeAnswerTemplate('final_standings_points', { season: built.compatibility.season });
+  const decision = authorizeAnswerProgram(program);
+  if (decision.type !== 'approved') {
+    throw new SemanticResultFormatError('Semantic compatibility program was not authorized');
+  }
+  const envelope = deepFreeze(buildAnswerEnvelope(
+    program,
+    decision.capability,
+    built.compatibility.rows,
+    { row_limit: MAX_F1QL_RESPONSE_ROWS, has_more_rows: execution.has_more_rows }
+  ));
+  serializeAnswerResponse(envelope, execution.max_response_bytes);
+  execution.assert_active();
+  return envelope;
+}
+
+function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding): BuiltSemanticPlanResult {
   const proofInput = execution.proof;
   const rowsInput = execution.rows;
   const parent = getSemanticPlanProofParent(proofInput);
@@ -202,11 +255,21 @@ export function formatSemanticPlanResult(
       ...(finalStandingsContract ? { advisories: catalogCaveats } : {})
     }
   });
-  if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > execution.max_response_bytes) {
-    throw new SemanticResultFormatError('Semantic result exceeded its authorized response size');
-  }
-  execution.assert_active();
-  return envelope;
+  const compatibilitySeason = finalStandingsCompatibilitySeason(
+    core.root.count,
+    core.root.input.keys,
+    project,
+    branches,
+    sources,
+    columns
+  );
+  return {
+    envelope,
+    compatibility: compatibilitySeason === null ? null : {
+      season: compatibilitySeason,
+      rows: rows.map(row => Object.fromEntries(columns.map(column => [column.id, row[column.id]])))
+    }
+  };
 }
 
 function describeOutput(
@@ -610,6 +673,39 @@ function isFinalStandingsPointsContract(
     columns[0].source_id === 'driver_standings' && columns[0].concept_id === 'driver_id' &&
     columns[0].id === 'driver_id' && columns[1].source_id === 'driver_standings' &&
     columns[1].concept_id === 'points' && columns[1].id === 'points';
+}
+
+// Keep the complete reviewed compatibility admission visible as one fail-closed gate.
+// eslint-disable-next-line complexity
+function finalStandingsCompatibilitySeason(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): number | null {
+  if (rowLimit !== MAX_F1QL_RESPONSE_ROWS || !isFinalStandingsPointsContract(sources, columns, project.output_grain) ||
+      project.input.op !== 'filter' || branches.length !== 1 || branches[0].predicates.length !== 1 ||
+      project.outputs.length !== 2 || project.outputs.some(output => output.kind !== 'concept') ||
+      columns[0].kind !== 'dimension' || columns[0].aggregation !== null ||
+      columns[1].kind !== 'measure' || columns[1].aggregation !== null || ordering.length !== 1) {
+    return null;
+  }
+  const predicate = branches[0].predicates[0];
+  const key = ordering[0];
+  if (branches[0].input.source_id !== 'driver_standings' ||
+      predicate.concept.source_id !== 'driver_standings' || predicate.concept.concept_id !== 'season' ||
+      predicate.operator !== 'eq' || typeof predicate.value !== 'number' || !Number.isSafeInteger(predicate.value) ||
+      key.output_id !== 'driver_id' || key.direction !== 'asc' || key.nulls !== 'last' ||
+      key.physical_type !== 'text' || key.semantic_type !== 'driver_id') {
+    return null;
+  }
+  const source = sources[0];
+  return (source.scope.season_min === null || predicate.value >= source.scope.season_min) &&
+    source.scope.final_season_through !== null && predicate.value <= source.scope.final_season_through
+    ? predicate.value
+    : null;
 }
 
 function compareText(left: string, right: string): number {

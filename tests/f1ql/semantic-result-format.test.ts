@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildAnswerEnvelope } from '../../src/f1ql/answer-format';
 import { authorizeAnswerProgram } from '../../src/f1ql/answer-policy';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { PLANNED_INTEGRITY_FIELD } from '../../src/f1ql/planned-compiler';
 import {
@@ -13,7 +14,9 @@ import {
 } from '../../src/f1ql/semantic-resolution-evidence';
 import { proveSemanticAnswerPlan } from '../../src/f1ql/semantic-plan-proof';
 import {
+  formatSemanticPlanResultAsAnswerEnvelope,
   formatSemanticPlanResult,
+  SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
   SemanticResultFormatError
 } from '../../src/f1ql/semantic-result-format';
 import { executeSemanticPlanRowsOffline } from '../../scripts/support/semantic-plan-execution';
@@ -40,13 +43,15 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
 
 describe('generic proven semantic result formatting', () => {
-  it('derives standings metadata and preserves the canonical family response contract', async () => {
+  it('derives standings metadata and preserves the complete family wire contract', async () => {
     const prepared = await prepare(STANDINGS);
     const rows = [
       { driver_id: 'charles-leclerc', points: null, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'lando-norris', points: '357.000', [PLANNED_INTEGRITY_FIELD]: true }
     ];
-    const formatted = await executeAndFormat(prepared, rows);
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+    const formatted = formatSemanticPlanResult(execution);
+    const compatible = formatSemanticPlanResultAsAnswerEnvelope(execution);
 
     expect(formatted.answer).toEqual({
       headline: 'Final 2025 driver standings result.',
@@ -76,15 +81,7 @@ describe('generic proven semantic result formatting', () => {
     expect(Object.isFrozen(formatted)).toBe(true);
     expect(Object.isFrozen(formatted.metadata.columns)).toBe(true);
 
-    const legacyProgram: F1QLProgram = {
-      version: 1,
-      root: {
-        op: 'aggregate',
-        input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: 2025 } },
-        group_by: ['driver_id'],
-        measures: [{ as: 'points', function: 'max', field: 'points' }]
-      }
-    };
+    const legacyProgram = materializeAnswerTemplate('final_standings_points', { season: 2025 });
     const decision = authorizeAnswerProgram(legacyProgram);
     if (decision.type !== 'approved') throw new Error('legacy oracle fixture was not authorized');
     const legacy = buildAnswerEnvelope(
@@ -94,7 +91,12 @@ describe('generic proven semantic result formatting', () => {
     );
     expect(Buffer.from(JSON.stringify(canonicalizeSemanticFinalStandingsResponse(formatted))))
       .toEqual(Buffer.from(JSON.stringify(canonicalizeAnswerFinalStandingsResponse(legacy))));
+    expect(Buffer.from(JSON.stringify(compatible))).toEqual(Buffer.from(JSON.stringify(legacy)));
+    expect(Object.isFrozen(compatible)).toBe(true);
+    expect(Object.isFrozen(compatible.rows)).toBe(true);
+    expect(Object.isFrozen(compatible.rows[0])).toBe(true);
     expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v1');
+    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v1');
     expect([
       ANSWER_ENVELOPE_FIELD_ACCOUNTING,
       ANSWER_METADATA_FIELD_ACCOUNTING,
@@ -113,7 +115,13 @@ describe('generic proven semantic result formatting', () => {
       [100, 'sufficient'],
       [101, 'possibly_truncated']
     ] as const) {
-      const generic = await executeAndFormat(prepared, boundaryRows.slice(0, observedRows));
+      const boundaryExecution = await executeSemanticPlanRowsOffline(
+        prepared.proof,
+        prepared.profile_id,
+        boundaryRows.slice(0, observedRows)
+      );
+      const generic = formatSemanticPlanResult(boundaryExecution);
+      const compatibility = formatSemanticPlanResultAsAnswerEnvelope(boundaryExecution);
       const family = buildAnswerEnvelope(
         legacyProgram,
         decision.capability,
@@ -122,6 +130,7 @@ describe('generic proven semantic result formatting', () => {
       );
       expect(Buffer.from(JSON.stringify(canonicalizeSemanticFinalStandingsResponse(generic))))
         .toEqual(Buffer.from(JSON.stringify(canonicalizeAnswerFinalStandingsResponse(family))));
+      expect(Buffer.from(JSON.stringify(compatibility))).toEqual(Buffer.from(JSON.stringify(family)));
       expect(generic.metadata.coverage.status).toBe(expectedCoverage);
       expect(generic.metadata.caveats)
         .toEqual(observedRows === 0
@@ -135,7 +144,9 @@ describe('generic proven semantic result formatting', () => {
       { driver_id: 'driver-\uE000', points: '2.000', [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'driver-\u{10000}', points: '3.000', [PLANNED_INTEGRITY_FIELD]: true }
     ];
-    const unicodeGeneric = await executeAndFormat(prepared, unicodeRows);
+    const unicodeExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, unicodeRows);
+    const unicodeGeneric = formatSemanticPlanResult(unicodeExecution);
+    const unicodeCompatibility = formatSemanticPlanResultAsAnswerEnvelope(unicodeExecution);
     const unicodeFamily = buildAnswerEnvelope(
       legacyProgram,
       decision.capability,
@@ -143,6 +154,20 @@ describe('generic proven semantic result formatting', () => {
     );
     expect(canonicalizeSemanticFinalStandingsResponse(unicodeGeneric))
       .toEqual(canonicalizeAnswerFinalStandingsResponse(unicodeFamily));
+    expect(Buffer.from(JSON.stringify(unicodeCompatibility))).toEqual(Buffer.from(JSON.stringify(unicodeFamily)));
+
+    for (const forgery of [
+      null,
+      { ...execution },
+      structuredClone(execution),
+      formatted,
+      { ...formatted },
+      Object.freeze({ ...formatted }),
+      legacy,
+      { ...legacy }
+    ]) {
+      expect(() => formatSemanticPlanResultAsAnswerEnvelope(forgery)).toThrow('provenance');
+    }
   });
 
   it('fails closed when canonical response metadata, schema, or row order drifts', async () => {

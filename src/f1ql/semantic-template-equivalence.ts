@@ -5,20 +5,22 @@ import {
 } from './answer-templates';
 import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
+import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v3' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v4' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
   | 'current_question_language_unmapped'
   | 'filtered_template_domain_unmapped'
-  | 'wire_envelope_contract_unmapped'
   | 'template_equivalence_unmapped';
 
 export interface SemanticTemplateEquivalenceEntry {
   readonly status: SemanticTemplateEquivalenceStatus;
   readonly canonical_response_contract: 'equivalent' | 'unmapped';
   readonly response_metadata_mapping: 'accounted' | 'unmapped';
+  readonly wire_envelope_contract: 'equivalent' | 'unmapped';
+  readonly compatibility_formatter_version: typeof SEMANTIC_ANSWER_COMPATIBILITY_VERSION | null;
   readonly blockers: readonly SemanticTemplateEquivalenceBlocker[];
   readonly overlap_id?: 'unfiltered_final_standings_points';
 }
@@ -27,6 +29,8 @@ const unmapped = (): SemanticTemplateEquivalenceEntry => ({
   status: 'unmapped',
   canonical_response_contract: 'unmapped',
   response_metadata_mapping: 'unmapped',
+  wire_envelope_contract: 'unmapped',
+  compatibility_formatter_version: null,
   blockers: ['template_equivalence_unmapped']
 });
 
@@ -44,10 +48,11 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
     status: 'partial',
     canonical_response_contract: 'equivalent',
     response_metadata_mapping: 'accounted',
+    wire_envelope_contract: 'equivalent',
+    compatibility_formatter_version: SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
     blockers: [
       'current_question_language_unmapped',
-      'filtered_template_domain_unmapped',
-      'wire_envelope_contract_unmapped'
+      'filtered_template_domain_unmapped'
     ],
     overlap_id: 'unfiltered_final_standings_points'
   },

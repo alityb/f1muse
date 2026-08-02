@@ -12,10 +12,14 @@ import {
   verifySemanticPlanExecutionResult
 } from '../../src/f1ql/semantic-plan-execution';
 import { getSemanticPlanProofParent } from '../../src/f1ql/semantic-plan-proof';
-import { formatSemanticPlanResult } from '../../src/f1ql/semantic-result-format';
+import {
+  formatSemanticPlanResult,
+  formatSemanticPlanResultAsAnswerEnvelope
+} from '../../src/f1ql/semantic-result-format';
 import {
   createSemanticPlanExecutionOfflineInput,
-  SEMANTIC_EXECUTION_OFFLINE_NOW
+  SEMANTIC_EXECUTION_OFFLINE_NOW,
+  SEMANTIC_EXECUTION_OFFLINE_RUNTIME
 } from '../../scripts/support/semantic-plan-execution';
 import { compositionalRegressionCorpusInput } from '../fixtures/compositional-regression-corpus';
 import { prepareReviewedCompositionalAnswerCase } from '../support/compositional-regression';
@@ -117,6 +121,11 @@ describe('authorized semantic plan execution', () => {
     expect(database.calls.at(-1)?.sql).toBe('COMMIT');
     expect(database.releases).toEqual([false]);
     expect(formatSemanticPlanResult(result).rows).toHaveLength(item.rows.length);
+    if (item.profile === 'semantic-single-source-v1') {
+      expect(formatSemanticPlanResultAsAnswerEnvelope(result).mode).toBe('gated_execution');
+    } else {
+      expect(() => formatSemanticPlanResultAsAnswerEnvelope(result)).toThrow('no reviewed answer-envelope');
+    }
     expect(Object.isFrozen(result)).toBe(true);
     expect(() => formatSemanticPlanResult({ ...result })).toThrow('provenance');
   });
@@ -362,6 +371,47 @@ describe('authorized semantic plan execution', () => {
     expect(() => formatSemanticPlanResult(result)).toThrow('authorized response size');
   });
 
+  it('enforces the signed byte ceiling against the compatibility envelope itself', async () => {
+    const standings = prepared.get(cases[0].id)!;
+    const parent = getSemanticPlanProofParent(standings.proof);
+    const baselineInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    const baseline = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, cases[0].rows).pool,
+      baselineInput.authorization,
+      standings.proof,
+      baselineInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
+    const expected = formatSemanticPlanResultAsAnswerEnvelope(baseline);
+    const responseBytes = Buffer.byteLength(JSON.stringify(expected), 'utf8');
+
+    const exactInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile, {
+      ...SEMANTIC_EXECUTION_OFFLINE_RUNTIME,
+      max_response_bytes: responseBytes
+    });
+    const exact = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, cases[0].rows).pool,
+      exactInput.authorization,
+      standings.proof,
+      exactInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
+    expect(formatSemanticPlanResultAsAnswerEnvelope(exact)).toEqual(expected);
+
+    const shortInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile, {
+      ...SEMANTIC_EXECUTION_OFFLINE_RUNTIME,
+      max_response_bytes: responseBytes - 1
+    });
+    const short = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, cases[0].rows).pool,
+      shortInput.authorization,
+      standings.proof,
+      shortInput.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
+    expect(() => formatSemanticPlanResultAsAnswerEnvelope(short)).toThrow('response_bytes');
+  });
+
   it('rechecks live authorization at the synchronous formatting handoff', async () => {
     const standings = prepared.get(cases[0].id)!;
     const parent = getSemanticPlanProofParent(standings.proof);
@@ -374,8 +424,17 @@ describe('authorized semantic plan execution', () => {
       { ...input.context, is_kill_switch_active: () => killSwitch },
       { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
     );
+    const compatibilityInput = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    const compatibilityResult = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, cases[0].rows).pool,
+      compatibilityInput.authorization,
+      standings.proof,
+      { ...compatibilityInput.context, is_kill_switch_active: () => killSwitch },
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    );
     killSwitch = true;
     expect(() => formatSemanticPlanResult(result)).toThrow('kill_switch_active');
+    expect(() => formatSemanticPlanResultAsAnswerEnvelope(compatibilityResult)).toThrow('kill_switch_active');
   });
 
   it('rechecks authorization after envelope construction and byte accounting', async () => {
@@ -398,6 +457,29 @@ describe('authorized semantic plan execution', () => {
     );
     formatting = true;
     expect(() => formatSemanticPlanResult(result)).toThrow('authorization_expired');
+    expect(formattingChecks).toBe(2);
+  });
+
+  it('rechecks authorization after compatibility-envelope byte accounting', async () => {
+    const standings = prepared.get(cases[0].id)!;
+    const parent = getSemanticPlanProofParent(standings.proof);
+    const input = createSemanticPlanExecutionOfflineInput(standings.proof, cases[0].profile);
+    let formatting = false;
+    let formattingChecks = 0;
+    const now = () => {
+      if (!formatting) {return SEMANTIC_EXECUTION_OFFLINE_NOW + 1;}
+      formattingChecks += 1;
+      return formattingChecks === 1 ? input.authorization.expires_at_ms - 1 : input.authorization.expires_at_ms;
+    };
+    const result = await executeAuthorizedSemanticPlan(
+      recordingPool(parent.compiled.sql, cases[0].rows).pool,
+      input.authorization,
+      standings.proof,
+      input.context,
+      { now }
+    );
+    formatting = true;
+    expect(() => formatSemanticPlanResultAsAnswerEnvelope(result)).toThrow('authorization_expired');
     expect(formattingChecks).toBe(2);
   });
 
@@ -441,6 +523,9 @@ describe('authorized semantic plan execution', () => {
       'src/f1ql/semantic-plan-execution.ts',
       'src/f1ql/semantic-result-format.ts'
     ]);
+    for (const path of typescriptFiles('src/api')) {
+      expect(readFileSync(path, 'utf8')).not.toContain('formatSemanticPlanResultAsAnswerEnvelope');
+    }
   });
 });
 
