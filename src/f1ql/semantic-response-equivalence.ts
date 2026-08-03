@@ -2,7 +2,7 @@ import type { AnswerCoverageStatus, AnswerEnvelope, FormattedAnswer } from './an
 import { formatAnswerRows } from './answer-format';
 import { authorizeAnswerProgram } from './answer-policy';
 import { F1QLProgram } from './ast';
-import { isUnfilteredFinalStandingsPointsProgram } from './final-standings-response-contract';
+import { reviewedFinalStandingsPointsProgramScope } from './final-standings-response-contract';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { normalizeF1QLProgram } from './program-normalization';
 import { renderF1QL } from './render';
@@ -22,7 +22,7 @@ import {
   getF1QLProgramHash
 } from './verified-programs';
 
-export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v1' as const;
+export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v2' as const;
 
 const MAX_EQUIVALENCE_ARRAY_LENGTH = 256;
 
@@ -151,9 +151,10 @@ export const SEMANTIC_COVERAGE_FIELD_ACCOUNTING = deepFreeze({
 
 export interface CanonicalFinalStandingsResponse {
   readonly version: typeof SEMANTIC_RESPONSE_EQUIVALENCE_VERSION;
-  readonly overlap_id: 'unfiltered_final_standings_points';
+  readonly overlap_id: 'single_driver_filtered_final_standings_points' | 'unfiltered_final_standings_points';
   readonly source_id: 'driver_standings';
   readonly season: number;
+  readonly driver_ids: readonly [] | readonly [string];
   readonly outputs: readonly ['driver_id', 'points'];
   readonly ordering: readonly [{
     readonly output_id: 'driver_id';
@@ -165,7 +166,7 @@ export interface CanonicalFinalStandingsResponse {
   readonly coverage: {
     readonly status: AnswerCoverageStatus;
     readonly rows_returned: number;
-    readonly row_limit: typeof MAX_F1QL_RESPONSE_ROWS;
+    readonly row_limit: 1 | typeof MAX_F1QL_RESPONSE_ROWS;
   };
   readonly caveats: readonly string[];
 }
@@ -192,7 +193,10 @@ export function canonicalizeAnswerFinalStandingsResponse(input: AnswerEnvelope):
   if (program.root.input.op !== 'filter') {
     throw new SemanticResponseEquivalenceError('Answer program was outside the reviewed standings overlap');
   }
-  const season = program.root.input.where.season as number;
+  const scope = reviewedFinalStandingsPointsProgramScope(program);
+  if (!scope) {
+    throw new SemanticResponseEquivalenceError('Answer program was outside the reviewed standings overlap');
+  }
   const rows = canonicalRows(envelope.rows);
   if (envelope.mode !== 'gated_execution' || envelope.program_hash !== getF1QLProgramHash(program) ||
       envelope.rendering !== renderF1QL(program) || metadata.source !== 'final_driver_standings' ||
@@ -201,7 +205,7 @@ export function canonicalizeAnswerFinalStandingsResponse(input: AnswerEnvelope):
       metadata.fact_space_version !== F1QL_FACT_SPACE_VERSION || coverage.rows_returned !== rows.length) {
     throw new SemanticResponseEquivalenceError('Answer envelope provenance did not match the reviewed overlap');
   }
-  return canonicalResponse(program, rows, envelope.answer, coverage.status, metadata.caveats, season);
+  return canonicalResponse(program, rows, envelope.answer, coverage.status, metadata.caveats, scope);
 }
 
 export function canonicalizeSemanticFinalStandingsResponse(
@@ -230,18 +234,19 @@ export function canonicalizeSemanticFinalStandingsResponse(
       ![envelope.proof_hash, envelope.planned_f1ql_hash, envelope.core_hash].every(isSha256)) {
     throw new SemanticResponseEquivalenceError('Semantic envelope provenance did not match the reviewed overlap');
   }
-  const season = assertSemanticContractMetadata(metadata);
+  const scope = assertSemanticContractMetadata(metadata);
   const rows = canonicalRows(envelope.rows);
-  if (coverage.rows_returned !== rows.length || coverage.row_limit !== MAX_F1QL_RESPONSE_ROWS) {
+  const rowLimit = scope.driver_ids.length === 1 ? 1 : MAX_F1QL_RESPONSE_ROWS;
+  if (coverage.rows_returned !== rows.length || coverage.row_limit !== rowLimit) {
     throw new SemanticResponseEquivalenceError('Semantic coverage did not match the reviewed overlap');
   }
   return canonicalResponse(
-    finalStandingsProgram(season),
+    finalStandingsProgram(scope),
     rows,
     envelope.answer,
     coverage.status,
     metadata.caveats,
-    season
+    scope
   );
 }
 
@@ -251,7 +256,7 @@ function canonicalResponse(
   answer: FormattedAnswer,
   coverage: AnswerCoverageStatus,
   caveats: readonly string[],
-  season: number
+  scope: { readonly season: number; readonly driver_ids: readonly [] | readonly [string] }
 ): CanonicalFinalStandingsResponse {
   const decision = authorizeAnswerProgram(program);
   if (decision.type !== 'approved') {
@@ -268,11 +273,18 @@ function canonicalResponse(
       !safeEqual(caveats, formatted.caveats, 'caveats')) {
     throw new SemanticResponseEquivalenceError('Response fields did not match the reviewed standings contract');
   }
+  if (scope.driver_ids.length === 1 &&
+      (rows.length !== 1 || rows[0].driver_id !== scope.driver_ids[0] || coverage !== 'sufficient')) {
+    throw new SemanticResponseEquivalenceError('Filtered response did not match its reviewed driver scope');
+  }
   return deepFreeze({
     version: SEMANTIC_RESPONSE_EQUIVALENCE_VERSION,
-    overlap_id: 'unfiltered_final_standings_points' as const,
+    overlap_id: scope.driver_ids.length === 1
+      ? 'single_driver_filtered_final_standings_points' as const
+      : 'unfiltered_final_standings_points' as const,
     source_id: 'driver_standings' as const,
-    season,
+    season: scope.season,
+    driver_ids: scope.driver_ids,
     outputs: ['driver_id', 'points'] as const,
     ordering: [{ output_id: 'driver_id' as const, direction: 'asc' as const, nulls: 'last' as const }],
     answer: formatted.answer,
@@ -280,7 +292,7 @@ function canonicalResponse(
     coverage: {
       status: formatted.coverage,
       rows_returned: rows.length,
-      row_limit: MAX_F1QL_RESPONSE_ROWS
+      row_limit: scope.driver_ids.length === 1 ? 1 as const : MAX_F1QL_RESPONSE_ROWS
     },
     caveats: [...formatted.caveats]
   });
@@ -290,35 +302,51 @@ function exactFinalStandingsProgram(input: F1QLProgram): F1QLProgram & {
   root: Extract<F1QLProgram['root'], { op: 'aggregate' }>;
 } {
   const normalized = normalizeF1QLProgram(snapshotJsonValue(input, 'answer program', new Set()));
-  if (!isUnfilteredFinalStandingsPointsProgram(normalized)) {
+  if (!reviewedFinalStandingsPointsProgramScope(normalized)) {
     throw new SemanticResponseEquivalenceError('Answer program was outside the reviewed standings overlap');
   }
   return normalized as F1QLProgram & { root: Extract<F1QLProgram['root'], { op: 'aggregate' }> };
 }
 
-function finalStandingsProgram(season: number): F1QLProgram {
-  if (!Number.isSafeInteger(season)) {
+function finalStandingsProgram(scope: {
+  readonly season: number;
+  readonly driver_ids: readonly [] | readonly [string];
+}): F1QLProgram {
+  if (!Number.isSafeInteger(scope.season) ||
+      (scope.driver_ids.length === 1 && scope.driver_ids[0].length === 0)) {
     throw new SemanticResponseEquivalenceError('Semantic season was invalid');
   }
   return {
     version: 1,
     root: {
       op: 'aggregate',
-      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season } },
+      input: {
+        op: 'filter',
+        input: { op: 'source', source: 'standings' },
+        where: {
+          season: scope.season,
+          ...(scope.driver_ids.length === 1 ? { driver_id: [...scope.driver_ids] } : {})
+        }
+      },
       group_by: ['driver_id'],
       measures: [{ as: 'points', function: 'max', field: 'points' }]
     }
   };
 }
 
-function assertSemanticContractMetadata(metadata: SemanticMetadata): number {
+// Keep all canonical metadata exclusions in one fail-closed gate.
+// eslint-disable-next-line complexity
+function assertSemanticContractMetadata(metadata: SemanticMetadata): {
+  readonly season: number;
+  readonly driver_ids: readonly [] | readonly [string];
+} {
   const columns = snapshotDataArray(metadata.columns, 'semantic columns');
   const scopes = snapshotDataArray(metadata.scope, 'semantic scopes');
   const sources = snapshotDataArray(metadata.sources, 'semantic sources');
   const aggregations = snapshotDataArray(metadata.aggregations, 'semantic aggregations');
   const orderings = snapshotDataArray(metadata.ordering, 'semantic ordering');
   const advisories = snapshotDataArray(metadata.advisories, 'semantic advisories');
-  if (columns.length !== 2 || scopes.length !== 1 || sources.length !== 1 ||
+  if (columns.length !== 2 || ![1, 2].includes(scopes.length) || sources.length !== 1 ||
       aggregations.length !== 0 || orderings.length !== 1) {
     throw new SemanticResponseEquivalenceError('Semantic metadata was outside the reviewed standings overlap');
   }
@@ -329,11 +357,19 @@ function assertSemanticContractMetadata(metadata: SemanticMetadata): number {
     throw new SemanticResponseEquivalenceError('Active catalog lacked the reviewed standings contract');
   }
   assertSemanticColumns(columns, catalogSource, driverConcept, pointsConcept);
-  const season = semanticSeason(scopes[0]);
+  const seasonScopes = scopes.filter(scope => semanticScopeConcept(scope) === 'season');
+  const driverScopes = scopes.filter(scope => semanticScopeConcept(scope) === 'driver_id');
+  if (seasonScopes.length !== 1 || driverScopes.length > 1 || seasonScopes.length + driverScopes.length !== scopes.length) {
+    throw new SemanticResponseEquivalenceError('Semantic metadata was outside the reviewed standings overlap');
+  }
+  const season = semanticSeason(seasonScopes[0]);
+  const driverIds: readonly [] | readonly [string] = driverScopes.length === 1
+    ? semanticDriver(driverScopes[0])
+    : [];
   assertSemanticSource(sources[0], catalogSource);
   assertSemanticOrdering(orderings[0]);
   assertSemanticAdvisories(advisories, catalogSource, driverConcept, pointsConcept);
-  return season;
+  return { season, driver_ids: driverIds };
 }
 
 function assertSemanticColumns(
@@ -382,6 +418,28 @@ function semanticSeason(scopeInput: unknown): number {
     throw new SemanticResponseEquivalenceError('Semantic metadata did not match the reviewed standings contract');
   }
   return scopeValues[0] as number;
+}
+
+function semanticDriver(scopeInput: unknown): readonly [string] {
+  const scope = snapshotDataObject(
+    scopeInput,
+    Object.keys(SEMANTIC_SCOPE_FIELD_ACCOUNTING),
+    'semantic scope'
+  );
+  const scopeValues = snapshotDataArray(scope.values, 'semantic scope values');
+  if (scope.source_id !== 'driver_standings' || scope.concept_id !== 'driver_id' || scope.label !== 'driver' ||
+      scope.operator !== 'eq' || scopeValues.length !== 1 ||
+      typeof scopeValues[0] !== 'string' || scopeValues[0].length > 100 ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(scopeValues[0])) {
+    throw new SemanticResponseEquivalenceError('Semantic metadata did not match the reviewed standings contract');
+  }
+  return [scopeValues[0]];
+}
+
+function semanticScopeConcept(scopeInput: unknown): unknown {
+  if (!scopeInput || typeof scopeInput !== 'object' || Array.isArray(scopeInput)) {return undefined;}
+  const descriptor = Object.getOwnPropertyDescriptor(scopeInput, 'concept_id');
+  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
 }
 
 function assertSemanticSource(sourceInput: unknown, catalogSource: SemanticCatalogSource): void {

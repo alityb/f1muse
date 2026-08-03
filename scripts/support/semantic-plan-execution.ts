@@ -42,9 +42,10 @@ export async function executeSemanticPlanRowsOffline(
 ): Promise<VerifiedSemanticPlanExecutionResult> {
   const input = createSemanticPlanExecutionOfflineInput(proof, profileId);
   const client = {
-    query: async (sql: string) => {
+    query: async (sql: string, parameters?: readonly unknown[]) => {
       if (sql.startsWith('SELECT DISTINCT REPLACE(driver_id')) {
-        return { rows: [{ driver_id: 'lando-norris' }] };
+        const driverIds = Array.isArray(parameters?.[1]) ? parameters[1] : [];
+        return { rows: driverIds.map(driver_id => ({ driver_id })) };
       }
       if (sql === 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' ||
           sql.startsWith("SELECT set_config('statement_timeout'") || sql === 'COMMIT' || sql === 'ROLLBACK') {

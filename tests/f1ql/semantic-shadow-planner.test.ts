@@ -30,6 +30,7 @@ import {
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const DEV_POINTS = 'Show the final 2025 standings points.';
 const IID_POINTS_ALL = 'What were the final standings points in 2025?';
+const FILTERED_POINTS = 'What were Charles Leclerc final standings points in 2024?';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
@@ -161,10 +162,14 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     });
   });
 
-  it('maps both reviewed current cases through proof and template dual without execution', async () => {
-    for (const question of [DEV_POINTS, IID_POINTS_ALL]) {
+  it('maps all reviewed current cases through proof and template dual without execution', async () => {
+    for (const [question, mentions] of [
+      [DEV_POINTS, []],
+      [IID_POINTS_ALL, []],
+      [FILTERED_POINTS, [driverMention(FILTERED_POINTS, 'Charles Leclerc', ['charles-leclerc'], ['charles-leclerc'])]]
+    ] as const) {
       const observation = await orchestrateSemanticShadow(question, {
-        ...dependencies([]),
+        ...dependencies(mentions),
         template_dual: true
       });
 

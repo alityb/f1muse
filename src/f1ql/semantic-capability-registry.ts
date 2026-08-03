@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 2 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 3 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -23,17 +23,33 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     output_kinds: ['aggregate', 'concept'],
     sort_directions: ['asc', 'desc'],
     null_orders: ['first', 'last'],
-    complete_interactions: [{
-      predicate_bindings: ['driver_standings.season:eq'],
-      aggregate_bindings: [],
-      group_bindings: [],
-      output_bindings: [
-        'concept:driver_standings.driver_id->driver_id',
-        'concept:driver_standings.points->points'
-      ],
-      sort_bindings: ['driver_id:asc:last'],
-      requested_rows: 100
-    }],
+    complete_interactions: [
+      {
+        predicate_bindings: ['driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.points->points'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
+      },
+      {
+        question_sha256: sha256('What were Charles Leclerc final standings points in 2024?'),
+        season_values: [2024],
+        entity_values: ['charles-leclerc'],
+        predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.points->points'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 1
+      }
+    ],
     ...catalogConceptAllowlist(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']),
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],

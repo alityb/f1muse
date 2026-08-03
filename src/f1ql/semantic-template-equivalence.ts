@@ -7,11 +7,11 @@ import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v5' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v6' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
-  | 'filtered_template_domain_unmapped'
+  | 'multi_driver_filtered_template_domain_unmapped'
   | 'template_equivalence_unmapped';
 
 export interface SemanticTemplateEquivalenceEntry {
@@ -21,7 +21,7 @@ export interface SemanticTemplateEquivalenceEntry {
   readonly wire_envelope_contract: 'equivalent' | 'unmapped';
   readonly compatibility_formatter_version: typeof SEMANTIC_ANSWER_COMPATIBILITY_VERSION | null;
   readonly blockers: readonly SemanticTemplateEquivalenceBlocker[];
-  readonly overlap_id?: 'unfiltered_final_standings_points';
+  readonly overlap_id?: 'reviewed_final_standings_points_domains';
 }
 
 const unmapped = (): SemanticTemplateEquivalenceEntry => ({
@@ -49,8 +49,8 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
     response_metadata_mapping: 'accounted',
     wire_envelope_contract: 'equivalent',
     compatibility_formatter_version: SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
-    blockers: ['filtered_template_domain_unmapped'],
-    overlap_id: 'unfiltered_final_standings_points'
+    blockers: ['multi_driver_filtered_template_domain_unmapped'],
+    overlap_id: 'reviewed_final_standings_points_domains'
   },
   official_driver_results_comparison: unmapped(),
   qualifying_classification_all: unmapped(),
@@ -76,7 +76,9 @@ export function classifySemanticTemplateEquivalence(
   const entry = SEMANTIC_TEMPLATE_EQUIVALENCE[templateId];
   if (entry.status !== 'partial') {return 'unmapped';}
   const variables = validateAnswerTemplateVariables(templateId, variablesInput);
-  if (templateId !== 'final_standings_points' || variables.driver_ids !== undefined ||
+  const driverIds = variables.driver_ids;
+  if (templateId !== 'final_standings_points' ||
+      (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length !== 1)) ||
       !Number.isSafeInteger(variables.season) || programInput === undefined) {
     return 'unmapped';
   }
@@ -85,7 +87,10 @@ export function classifySemanticTemplateEquivalence(
     version: 1,
     root: {
       op: 'aggregate',
-      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season } },
+      input: {
+        op: 'filter', input: { op: 'source', source: 'standings' },
+        where: { season, ...(Array.isArray(driverIds) ? { driver_id: driverIds } : {}) }
+      },
       group_by: ['driver_id'],
       measures: [{ as: 'points', function: 'max', field: 'points' }]
     }

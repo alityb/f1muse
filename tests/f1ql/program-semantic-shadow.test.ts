@@ -19,6 +19,7 @@ import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 
 const QUESTION = 'List driver and championship points from final 2025 driver standings.';
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
+const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -200,6 +201,44 @@ describe('WP8 stage-zero semantic shadow route', () => {
       }
     });
     expect(providerCalls).toBe(1);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('maps holdout-historical-points through one metadata read and no result execution', async () => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [{
+          driver_id: 'charles-leclerc',
+          identity: 'Charles Leclerc',
+          participation_source: 'entrant'
+        }] }
+      : { rows: [] });
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: FILTERED_POINTS_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: {
+          outcome: 'answer', reason: 'plan_proven', result_query_calls: 0,
+          template_dual: { status: 'matched', template_id: 'final_standings_points' }
+        }
+      }
+    });
+    expect(fake.calls).toEqual([
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2024, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ]);
     expect(executionAttempts).toBe(0);
   });
 
@@ -499,7 +538,13 @@ async function request(
 }
 
 function exactProposal(request: SemanticShadowProposalRequest): unknown {
-  const evidence = enumerateSemanticQueries(request.question, []);
+  const entityInventory = request.question === FILTERED_POINTS_QUESTION
+    ? [{
+        type: 'driver' as const,
+        span: { text: 'Charles Leclerc', start: 10, end: 25 }
+      }]
+    : [];
+  const evidence = enumerateSemanticQueries(request.question, entityInventory);
   if (evidence.type !== 'candidate_set') {
     throw new Error('fixture question did not enumerate candidates');
   }

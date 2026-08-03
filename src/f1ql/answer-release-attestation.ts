@@ -15,7 +15,7 @@ import {
 } from './semantic-capability-registry';
 
 export const ANSWER_RELEASE_ATTESTATION_VERSION = 8 as const;
-export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v23' as const;
+export const ANSWER_AUTHORIZATION_CODE_VERSION = 'answer-authorization-v24' as const;
 export const ANSWER_CANARY_POLICY_VERSION = 'answer-canary-hmac-v1' as const;
 export const ANSWER_PRINCIPAL_CLASSES = ['internal', 'internal_canary', 'public'] as const;
 export type AnswerPrincipalClass = (typeof ANSWER_PRINCIPAL_CLASSES)[number];

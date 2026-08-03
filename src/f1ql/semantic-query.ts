@@ -251,7 +251,7 @@ export function enumerateSemanticQueries(
   if (/\bby\b/iu.test(question.normalized_question) && !operations.rank) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_comparison'));
   }
-  const standingsPointsProjection = unfilteredFinalStandingsPointsProjection(
+  const standingsPointsProjection = finalStandingsPointsProjection(
     question,
     sourceMatches,
     conceptMatches,
@@ -702,20 +702,27 @@ function standingsPointsOutputs(
   ];
 }
 
-function unfilteredFinalStandingsPointsProjection(
+function finalStandingsPointsProjection(
   question: AnswerQuestionContract,
   sourceMatches: readonly LexicalMatch[],
   conceptMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): LexicalMatch | undefined {
-  if (![
+  const unfiltered = [
     /^show the final \d{4} standings points\.?$/iu,
     /^what were the final standings points in 2025\?$/iu
-  ].some(pattern => pattern.test(question.normalized_question))) {
+  ].some(pattern => pattern.test(question.normalized_question));
+  const singleDriver = /^what were charles leclerc final standings points in 2024\?$/iu
+    .test(question.normalized_question);
+  if (!unfiltered && !singleDriver) {
     return undefined;
   }
-  if (![question.years.length === 1, question.rounds.length === 0, entities.length === 0,
+  const exactEntities = unfiltered
+    ? entities.length === 0
+    : entities.length === 1 && entities[0].type === 'driver' &&
+      entities[0].span.text.toLocaleLowerCase('en-US') === 'charles leclerc';
+  if (![question.years.length === 1, question.rounds.length === 0, exactEntities,
     sourceMatches.length === 0, operations.temporal.length === 1, operations.temporal[0].value === 'final',
     !operations.count, !operations.rank, !operations.limit].every(Boolean)) {
     return undefined;

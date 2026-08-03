@@ -30,7 +30,7 @@ import {
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 
-export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v2' as const;
+export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v3' as const;
 export const SEMANTIC_CAPABILITY_AUTHORIZATION_TTL_MS = 5_000;
 
 interface SemanticPlanInteraction {
@@ -50,6 +50,7 @@ interface SemanticPlanInteraction {
   readonly dimension_ids: readonly string[];
   readonly measure_ids: readonly string[];
   readonly entity_count: number;
+  readonly entity_values: readonly string[];
   readonly event_count: number;
   readonly season_count: number;
   readonly season_values: readonly number[];
@@ -359,7 +360,7 @@ function profileAllows(
     }) &&
     interaction.dimension_ids.every(id => profile.dimension_ids.includes(id)) &&
     interaction.measure_ids.every(id => profile.measure_ids.includes(id)) &&
-    profile.complete_interactions.some(reviewed => stableSerialize(reviewed) === stableSerialize(completeInteraction(interaction))) &&
+    profile.complete_interactions.some(reviewed => reviewedInteractionAllows(reviewed, proof, interaction)) &&
     interaction.sources <= limits.sources && interaction.joins <= limits.joins && interaction.depth <= limits.depth &&
     interaction.output_count <= limits.outputs && interaction.group_count <= limits.groups &&
     interaction.entity_count <= limits.entities && interaction.event_count <= limits.events && interaction.season_count <= limits.seasons &&
@@ -387,6 +388,9 @@ interface ProfileShape {
   readonly principal_classes: readonly string[];
   readonly canary_stages: readonly number[];
   readonly complete_interactions: readonly {
+    readonly question_sha256?: string;
+    readonly season_values?: readonly number[];
+    readonly entity_values?: readonly string[];
     readonly predicate_bindings: readonly string[];
     readonly aggregate_bindings: readonly string[];
     readonly group_bindings: readonly string[];
@@ -416,7 +420,8 @@ function describeInteraction(program: PlannedF1QLProgram, cost: {
   const operators = sortedUnique(collectValues(program.root, 'op'));
   const filterOperators = sortedUnique(collectValues(rootInput, 'operator'));
   const concepts = collectConcepts(program.root);
-  const entityIds = collectPredicateValues(rootInput, 'driver_id').filter(value => typeof value === 'string');
+  const entityIds = sortedUnique(collectPredicateValues(rootInput, 'driver_id')
+    .filter((value): value is string => typeof value === 'string'));
   const seasons = sortedUniqueNumbers(collectPredicateValues(rootInput, 'season').filter((value): value is number => typeof value === 'number'));
   const rounds = sortedUniqueNumbers(collectPredicateValues(rootInput, 'round').filter((value): value is number => typeof value === 'number'));
   const groupCount = collectArrays(rootInput, 'group_by').reduce((total, group) => total + group.length, 0);
@@ -438,7 +443,8 @@ function describeInteraction(program: PlannedF1QLProgram, cost: {
     sort_bindings: sortBindings,
     dimension_ids: concepts.dimensions,
     measure_ids: concepts.measures,
-    entity_count: new Set(entityIds).size,
+    entity_count: entityIds.length,
+    entity_values: entityIds,
     event_count: rounds.length,
     season_count: seasons.length,
     season_values: seasons,
@@ -461,6 +467,23 @@ function completeInteraction(interaction: SemanticPlanInteraction) {
     sort_bindings: interaction.sort_bindings,
     requested_rows: interaction.rows
   };
+}
+
+function reviewedInteractionAllows(
+  reviewed: ProfileShape['complete_interactions'][number],
+  proof: VerifiedSemanticPlanProof,
+  interaction: SemanticPlanInteraction
+): boolean {
+  const {
+    question_sha256: questionSha256,
+    season_values: seasonValues,
+    entity_values: entityValues,
+    ...structure
+  } = reviewed;
+  return stableSerialize(structure) === stableSerialize(completeInteraction(interaction)) &&
+    (questionSha256 === undefined || questionSha256 === proof.question_sha256) &&
+    (seasonValues === undefined || stableSerialize(seasonValues) === stableSerialize(interaction.season_values)) &&
+    (entityValues === undefined || sameStrings(entityValues, interaction.entity_values));
 }
 
 function topologyOf(input: PlannedF1QLProgram['root']['input']['input']['input']): SemanticPlanInteraction['topology'] {

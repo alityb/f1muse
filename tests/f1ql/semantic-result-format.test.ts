@@ -38,6 +38,7 @@ import {
 } from '../../src/f1ql/semantic-response-equivalence';
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
+const FILTERED_STANDINGS = 'What were Charles Leclerc final standings points in 2024?';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
@@ -95,8 +96,8 @@ describe('generic proven semantic result formatting', () => {
     expect(Object.isFrozen(compatible)).toBe(true);
     expect(Object.isFrozen(compatible.rows)).toBe(true);
     expect(Object.isFrozen(compatible.rows[0])).toBe(true);
-    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v1');
-    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v1');
+    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v2');
+    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v2');
     expect([
       ANSWER_ENVELOPE_FIELD_ACCOUNTING,
       ANSWER_METADATA_FIELD_ACCOUNTING,
@@ -168,6 +169,85 @@ describe('generic proven semantic result formatting', () => {
     ]) {
       expect(() => formatSemanticPlanResultAsAnswerEnvelope(forgery)).toThrow('provenance');
     }
+  });
+
+  it('preserves the exact singleton-filtered standings wire contract and rejects incomplete rows', async () => {
+    const charles = span(FILTERED_STANDINGS, 'Charles Leclerc');
+    const prepared = await prepare(
+      FILTERED_STANDINGS,
+      [{ type: 'driver', span: charles }],
+      [{ ...charles, candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] }]
+    );
+    expect(prepared.plan).toMatchObject({
+      topology: 'single_source_rows',
+      output_grain: [],
+      linked_entities: [{ type: 'driver', selected_id: 'charles-leclerc' }],
+      branches: [{
+        predicates: [
+          { concept: { concept_id: 'driver_id' }, operator: 'eq', value: 'charles-leclerc' },
+          { concept: { concept_id: 'season' }, operator: 'eq', value: 2024 }
+        ],
+        fixed_grain: ['driver_id', 'season'], residual_grain: []
+      }],
+      work: { requested_rows: 1 }
+    });
+    const row = { driver_id: 'charles-leclerc', points: '356.000', [PLANNED_INTEGRITY_FIELD]: true };
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row]);
+    const generic = formatSemanticPlanResult(execution);
+    const compatible = formatSemanticPlanResultAsAnswerEnvelope(execution);
+    expect(generic.metadata.scope).toEqual([
+      { source_id: 'driver_standings', concept_id: 'driver_id', label: 'driver', operator: 'eq', values: ['charles-leclerc'] },
+      { source_id: 'driver_standings', concept_id: 'season', label: 'season', operator: 'eq', values: [2024] }
+    ]);
+    expect(generic.metadata.coverage).toEqual({ status: 'sufficient', rows_returned: 1, row_limit: 1 });
+
+    const legacyProgram = materializeAnswerTemplate('final_standings_points', {
+      season: 2024, driver_ids: ['charles-leclerc']
+    });
+    const decision = authorizeAnswerProgram(legacyProgram);
+    if (decision.type !== 'approved') throw new Error('filtered legacy oracle fixture was not authorized');
+    const legacy = buildAnswerEnvelope(legacyProgram, decision.capability, [{
+      driver_id: 'charles-leclerc', points: '356.000'
+    }]);
+    expect(canonicalizeSemanticFinalStandingsResponse(generic))
+      .toEqual(canonicalizeAnswerFinalStandingsResponse(legacy));
+    expect(Buffer.from(JSON.stringify(compatible))).toEqual(Buffer.from(JSON.stringify(legacy)));
+    expect(() => buildAnswerEnvelope(legacyProgram, decision.capability, []))
+      .toThrow('Final standings result collection evidence was invalid');
+    expect(() => buildAnswerEnvelope(legacyProgram, decision.capability, [{
+      driver_id: 'lando-norris', points: '374.000'
+    }])).toThrow('Filtered final standings driver was invalid');
+    const malformedProgram = structuredClone(legacyProgram);
+    if (malformedProgram.root.op !== 'aggregate' || malformedProgram.root.input.op !== 'filter') {
+      throw new Error('filtered legacy fixture had the wrong shape');
+    }
+    malformedProgram.root.input.where.driver_id = ['INVALID/ID'];
+    expect(() => canonicalizeAnswerFinalStandingsResponse({
+      ...legacy,
+      program: malformedProgram
+    })).toThrow('outside the reviewed standings overlap');
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...generic,
+      metadata: { ...generic.metadata, coverage: { ...generic.metadata.coverage, row_limit: 100 } }
+    }))).toThrow('coverage did not match');
+    expect(() => canonicalizeSemanticFinalStandingsResponse(Object.freeze({
+      ...generic,
+      metadata: {
+        ...generic.metadata,
+        scope: generic.metadata.scope.map(scope => scope.concept_id === 'driver_id'
+          ? { ...scope, values: ['lando-norris'] }
+          : scope)
+      }
+    }))).toThrow('Filtered final standings driver was invalid');
+
+    const emptyExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, []);
+    expect(() => formatSemanticPlanResult(emptyExecution)).toThrow('exactly one row');
+    const wrongExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      ...row, driver_id: 'lando-norris'
+    }]);
+    expect(() => formatSemanticPlanResult(wrongExecution)).toThrow('outside its proven predicate');
+    const duplicateExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row, row]);
+    expect(() => formatSemanticPlanResult(duplicateExecution)).toThrow('collection evidence is invalid');
   });
 
   it('fails closed when canonical response metadata, schema, or row order drifts', async () => {

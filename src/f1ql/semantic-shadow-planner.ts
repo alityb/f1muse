@@ -61,7 +61,7 @@ import {
   sanitizeSemanticShadowObservation
 } from './semantic-shadow-observations';
 
-export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v2' as const;
+export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v3' as const;
 export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 
 export interface SemanticShadowProposalRequest {
@@ -487,6 +487,8 @@ function createCachedEventResolver(resolver: SemanticEventResolver, onRead: () =
   });
 }
 
+// Keep the complete template/semantic dual comparison visible as one gate.
+// eslint-disable-next-line complexity, max-lines-per-function
 export function compareTemplateAndSemanticPlan(
   template: Pick<AnswerSemanticProof, 'question_hash' | 'template_id' | 'template_variables' | 'program'>,
   semantic: Pick<AnswerPlan, 'question_sha256' | 'topology' | 'linked_entities' | 'source_graph' | 'branches' | 'output_grain' | 'planned_f1ql'>
@@ -504,37 +506,66 @@ export function compareTemplateAndSemanticPlan(
     return 'not_comparable';
   }
   const season = template.template_variables.season;
+  const driverIds = template.template_variables.driver_ids;
   if (!Number.isSafeInteger(season) || (season as number) < 1950 || (season as number) > 2025) {
     return 'mismatched';
   }
-  const predicate = { concept: { source_id: 'driver_standings', concept_id: 'season' }, operator: 'eq', value: season };
+  if (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length !== 1 ||
+      typeof driverIds[0] !== 'string' || driverIds[0].length === 0)) {
+    return 'not_comparable';
+  }
+  const filtered = Array.isArray(driverIds);
+  const predicates = [
+    ...(filtered ? [{
+      concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
+      operator: 'eq', value: driverIds[0]
+    }] : []),
+    { concept: { source_id: 'driver_standings', concept_id: 'season' }, operator: 'eq', value: season }
+  ];
   const expectedProgram = {
     version: 1,
     root: {
       op: 'aggregate',
-      input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season } },
+      input: {
+        op: 'filter', input: { op: 'source', source: 'standings' },
+        where: { season, ...(filtered ? { driver_id: [driverIds[0]] } : {}) }
+      },
       group_by: ['driver_id'],
       measures: [{ as: 'points', function: 'max', field: 'points' }]
     }
   };
   const expectedBranch = {
-    source_id: 'driver_standings', predicates: [predicate], source_grain: ['driver_id', 'season'],
-    fixed_grain: ['season'], residual_grain: ['driver_id']
+    source_id: 'driver_standings', predicates, source_grain: ['driver_id', 'season'],
+    fixed_grain: filtered ? ['driver_id', 'season'] : ['season'], residual_grain: filtered ? [] : ['driver_id']
   };
   const expectedProject = {
     op: 'project',
-    input: { op: 'filter', input: { op: 'source', source_id: 'driver_standings' }, predicates: [predicate] },
+    input: { op: 'filter', input: { op: 'source', source_id: 'driver_standings' }, predicates },
     outputs: [
       { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' }, as: 'driver_id' },
       { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'points' }, as: 'points' }
     ]
   };
+  const linkedEntitiesMatch = filtered
+    ? semantic.linked_entities.length === 1 && semantic.linked_entities[0].type === 'driver' &&
+      semantic.linked_entities[0].selected_id === driverIds[0] &&
+      sameValue(semantic.linked_entities[0].resolution_relationship_ids, [
+        'driver_identity_standings_resolution', 'driver_participation_resolution'
+      ])
+    : semantic.linked_entities.length === 0;
   const matches = template.question_hash === semantic.question_sha256 &&
-    sameValue(template.template_variables, { season }) && sameValue(template.program, expectedProgram) &&
-    semantic.linked_entities.length === 0 &&
-    sameValue(semantic.source_graph, { source_ids: ['driver_standings'], resolution_relationship_ids: [], row_relationship_ids: [] }) &&
-    sameValue(semantic.branches, [expectedBranch]) && sameValue(semantic.output_grain, ['driver_id']) &&
-    semantic.planned_f1ql.root.count === 100 && sameValue(project, expectedProject) &&
+    sameValue(template.template_variables, { season, ...(filtered ? { driver_ids: [driverIds[0]] } : {}) }) &&
+    sameValue(template.program, expectedProgram) && linkedEntitiesMatch &&
+    sameValue(semantic.source_graph, {
+      source_ids: ['driver_standings'],
+      resolution_relationship_ids: filtered
+        ? ['driver_identity_standings_resolution', 'driver_participation_resolution']
+        : [],
+      row_relationship_ids: []
+    }) &&
+    sameValue(semantic.branches, [expectedBranch]) &&
+    sameValue(semantic.output_grain, filtered ? [] : ['driver_id']) &&
+    semantic.planned_f1ql.root.count === (filtered ? 1 : 100) && sameValue(project, expectedProject) &&
     sameValue(semantic.planned_f1ql.root.input.keys, [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }]);
   return matches ? 'matched' : 'mismatched';
 }

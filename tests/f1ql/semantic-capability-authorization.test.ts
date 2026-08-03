@@ -64,6 +64,14 @@ const POSITIVE_PROFILE_CASES = {
   'semantic-single-source-v1': [({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and championship points from final ${year} driver standings.`,
     entity_names: []
+  }), (input: PositiveProfileInput): PositiveProfileCase => ({
+    question: 'What were Charles Leclerc final standings points in 2024?',
+    entity_names: ['Charles Leclerc'],
+    driver_mentions: [{
+      name: 'Charles Leclerc',
+      candidates: candidateInventory('charles-leclerc', input.candidate_count, input.selected_index),
+      active_candidates: ['charles-leclerc']
+    }]
   })],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -154,10 +162,17 @@ describe('semantic complete-interaction capability authorization', () => {
     ['List driver and championship points from final 2025 driver standings.', 'semantic-single-source-v1', []],
     ['Show the final 2025 standings points.', 'semantic-single-source-v1', []],
     ['What were the final standings points in 2025?', 'semantic-single-source-v1', []],
+    ['What were Charles Leclerc final standings points in 2024?', 'semantic-single-source-v1', ['Charles Leclerc']],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {
-    const proof = await semanticProof(question, entityNames);
+    const proof = await semanticProof(
+      question,
+      entityNames,
+      question === 'What were Charles Leclerc final standings points in 2024?'
+        ? [{ name: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] }]
+        : undefined
+    );
     const attestation = release({ deployment_capability_profile_ids: [profileId] });
     const authorization = authorizeSemanticPlanCapability({
       proof,
@@ -233,6 +248,33 @@ describe('semantic complete-interaction capability authorization', () => {
       proof, profile_id: profileId, principal_class: 'internal_canary', request_id: randomUUID(),
       canary: canary(), release_attestation: attestation, now_ms: NOW
     })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  });
+
+  it('binds singleton-filtered authorization to the reviewed question, season, and driver', async () => {
+    const variants = [
+      {
+        question: 'List driver and championship points for Norris from final 2024 driver standings.',
+        entities: ['Norris'],
+        mentions: [{ name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
+      },
+      {
+        question: 'What were Charles Leclerc final standings points in 2024?',
+        entities: ['Charles Leclerc'],
+        mentions: [{ name: 'Charles Leclerc', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
+      }
+    ];
+    for (const variant of variants) {
+      const proof = await semanticProof(variant.question, variant.entities, variant.mentions);
+      expect(() => authorizeSemanticPlanCapability({
+        proof,
+        profile_id: 'semantic-single-source-v1',
+        principal_class: 'internal_canary',
+        request_id: randomUUID(),
+        canary: canary(),
+        release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+        now_ms: NOW
+      })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+    }
   });
 
   it('rejects generated pairwise and higher-order combinations outside reviewed complete interactions', async () => {

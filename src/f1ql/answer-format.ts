@@ -8,7 +8,7 @@ import { RACE_SEASON_FINISHING_POSITION_H2H_METRIC_ID } from './race-season-fini
 import { QUALIFYING_SEASON_POSITION_H2H_METRIC_ID } from './qualifying-season-position-h2h';
 import {
   finalStandingsRowsResponseContract,
-  isUnfilteredFinalStandingsPointsProgram,
+  reviewedFinalStandingsPointsProgramScope,
   ResultCollectionEvidence
 } from './final-standings-response-contract';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
@@ -81,9 +81,14 @@ export function formatAnswerRows(
     has_more_rows: rows.length >= MAX_F1QL_RESPONSE_ROWS
   }
 ): { answer: FormattedAnswer; coverage: AnswerCoverageStatus; caveats: string[] } {
-  if (isUnfilteredFinalStandingsPointsProgram(program)) {
+  const finalStandingsPointsScope = reviewedFinalStandingsPointsProgramScope(program);
+  if (finalStandingsPointsScope) {
     try {
-      finalStandingsRowsResponseContract(rows.length, collection);
+      finalStandingsRowsResponseContract(
+        rows.length,
+        collection,
+        finalStandingsPointsScope.driver_ids.length === 1 ? 1 : undefined
+      );
     } catch {
       throw new AnswerFormatError('Final standings result collection evidence was invalid');
     }
@@ -516,12 +521,17 @@ function formatStandings(
   if (aliases.includes('standing_rows')) {
     return formatDriverSeasonSummary(program, aggregate, rows);
   }
-  const exactPoints = isUnfilteredFinalStandingsPointsProgram(program);
+  const finalStandingsPointsScope = reviewedFinalStandingsPointsProgramScope(program);
+  const exactPoints = finalStandingsPointsScope !== null;
   const ordered = program.root.op === 'rank' ? rows : [...rows].sort((left, right) => {
     const leftId = requiredString(left.driver_id, 'driver_id');
     const rightId = requiredString(right.driver_id, 'driver_id');
     return exactPoints ? compareText(leftId, rightId) : leftId.localeCompare(rightId);
   });
+  if (finalStandingsPointsScope?.driver_ids.length === 1 &&
+      requiredString(ordered[0]?.driver_id, 'driver_id') !== finalStandingsPointsScope.driver_ids[0]) {
+    throw new AnswerFormatError('Filtered final standings driver was invalid');
+  }
   if (current) {
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
     if (positions.some((position, index) => position !== index + 1)) {
@@ -546,8 +556,13 @@ function standingsResponseContract(
   rowCount: number,
   collection: ResultCollectionEvidence
 ) {
-  if (!current && isUnfilteredFinalStandingsPointsProgram(program)) {
-    return finalStandingsRowsResponseContract(rowCount, collection);
+  const finalStandingsPointsScope = current ? null : reviewedFinalStandingsPointsProgramScope(program);
+  if (finalStandingsPointsScope) {
+    return finalStandingsRowsResponseContract(
+      rowCount,
+      collection,
+      finalStandingsPointsScope.driver_ids.length === 1 ? 1 : undefined
+    );
   }
   return { coverage: 'sufficient' as const, caveats: current ? ['season_in_progress'] : [] as string[] };
 }
