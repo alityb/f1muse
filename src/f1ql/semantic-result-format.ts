@@ -17,9 +17,10 @@ import { SEMANTIC_CATALOG } from './semantic-catalog';
 import type { SemanticCatalogSource } from './semantic-catalog';
 import { getSemanticPlanExecutionResultBinding } from './semantic-plan-execution';
 import { finalStandingsRowsResponseContract } from './final-standings-response-contract';
+import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v3' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v4' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -28,7 +29,7 @@ interface BuiltSemanticPlanResult {
   readonly envelope: SemanticResultEnvelope;
   readonly compatibility: {
     readonly season: number;
-    readonly driver_ids: readonly [] | readonly [string];
+    readonly driver_ids: ReviewedFinalStandingsDriverIds;
     readonly rows: Array<Record<string, unknown>>;
   } | null;
 }
@@ -125,7 +126,7 @@ export function formatSemanticPlanResultAsAnswerEnvelope(
   }
   const program = materializeAnswerTemplate('final_standings_points', {
     season: built.compatibility.season,
-    ...(built.compatibility.driver_ids.length === 1
+    ...(built.compatibility.driver_ids.length > 0
       ? { driver_ids: [...built.compatibility.driver_ids] }
       : {})
   });
@@ -180,12 +181,17 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   validateUniqueGrain(rows, project.output_grain);
   validateOrdering(rows, core.root.input.keys);
 
-  const finalStandingsContract = isFinalStandingsPointsContract(sources, columns, project.output_grain)
-    ? finalStandingsRowsResponseContract(rows.length, {
+  let finalStandingsContract;
+  if (isFinalStandingsPointsContract(sources, columns, project.output_grain)) {
+    try {
+      finalStandingsContract = finalStandingsRowsResponseContract(rows.length, {
         row_limit: core.root.count,
         has_more_rows: execution.has_more_rows
-      }, project.output_grain.length === 0 ? 1 : undefined)
-    : undefined;
+      }, requestedDriverRowCount(branches));
+    } catch {
+      throw new SemanticResultFormatError('Final standings result collection evidence was invalid');
+    }
+  }
   let coverage: AnswerCoverageStatus = finalStandingsContract?.coverage ?? 'sufficient';
   if (!finalStandingsContract && rows.length === 0) {coverage = 'empty';}
   else if (!finalStandingsContract && execution.has_more_rows) {coverage = 'possibly_truncated';}
@@ -692,28 +698,30 @@ function finalStandingsCompatibilityScope(
   branches: ReturnType<typeof inputBranches>,
   sources: readonly SemanticCatalogSource[],
   columns: readonly SemanticResultColumn[]
-): { readonly season: number; readonly driver_ids: readonly [] | readonly [string] } | null {
-  const filtered = project.output_grain.length === 0;
-  if (rowLimit !== (filtered ? 1 : MAX_F1QL_RESPONSE_ROWS) ||
+): { readonly season: number; readonly driver_ids: ReviewedFinalStandingsDriverIds } | null {
+  const driverPredicate = branches[0]?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
+  let mode: 'pair' | 'singleton' | 'unfiltered' | 'unsupported' = 'unsupported';
+  if (driverPredicate === undefined) {mode = 'unfiltered';}
+  else if (driverPredicate.operator === 'eq') {mode = 'singleton';}
+  else if (driverPredicate.operator === 'in') {mode = 'pair';}
+  const expectedGrain = mode === 'singleton' ? [] : ['driver_id'];
+  if (mode === 'unsupported' || rowLimit !== (mode === 'singleton' ? 1 : MAX_F1QL_RESPONSE_ROWS) ||
       !isFinalStandingsPointsContract(sources, columns, project.output_grain) ||
       project.input.op !== 'filter' || branches.length !== 1 ||
-      branches[0].predicates.length !== (filtered ? 2 : 1) ||
+      branches[0].predicates.length !== (mode === 'unfiltered' ? 1 : 2) ||
+      !sameStrings(project.output_grain, expectedGrain) ||
       project.outputs.length !== 2 || project.outputs.some(output => output.kind !== 'concept') ||
       columns[0].kind !== 'dimension' || columns[0].aggregation !== null ||
       columns[1].kind !== 'measure' || columns[1].aggregation !== null || ordering.length !== 1) {
     return null;
   }
   const seasonPredicate = branches[0].predicates.find(predicate => predicate.concept.concept_id === 'season');
-  const driverPredicate = branches[0].predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
   const key = ordering[0];
   if (branches[0].input.source_id !== 'driver_standings' ||
       !seasonPredicate || seasonPredicate.concept.source_id !== 'driver_standings' ||
       seasonPredicate.operator !== 'eq' || typeof seasonPredicate.value !== 'number' ||
       !Number.isSafeInteger(seasonPredicate.value) ||
-      (filtered
-        ? !driverPredicate || driverPredicate.concept.source_id !== 'driver_standings' ||
-          driverPredicate.operator !== 'eq' || typeof driverPredicate.value !== 'string' || driverPredicate.value.length === 0
-        : driverPredicate !== undefined) ||
+      !reviewedDriverPredicate(mode, driverPredicate) ||
       key.output_id !== 'driver_id' || key.direction !== 'asc' || key.nulls !== 'last' ||
       key.physical_type !== 'text' || key.semantic_type !== 'driver_id') {
     return null;
@@ -723,9 +731,42 @@ function finalStandingsCompatibilityScope(
     source.scope.final_season_through !== null && seasonPredicate.value <= source.scope.final_season_through
     ? {
         season: seasonPredicate.value,
-        driver_ids: driverPredicate?.operator === 'eq' ? [driverPredicate.value as string] : []
+        driver_ids: driverIdsForPredicate(driverPredicate)
       }
     : null;
+}
+
+function requestedDriverRowCount(branches: ReturnType<typeof inputBranches>): number | undefined {
+  const predicate = branches.length === 1
+    ? branches[0].predicates.find(candidate => candidate.concept.concept_id === 'driver_id')
+    : undefined;
+  if (predicate?.operator === 'eq') {return 1;}
+  return predicate?.operator === 'in' ? predicate.values.length : undefined;
+}
+
+function reviewedDriverPredicate(
+  mode: 'pair' | 'singleton' | 'unfiltered' | 'unsupported',
+  predicate: PlannedCorePredicate | undefined
+): boolean {
+  if (mode === 'unfiltered') {return predicate === undefined;}
+  if (!predicate || predicate.concept.source_id !== 'driver_standings') {return false;}
+  if (mode === 'singleton') {
+    return predicate.operator === 'eq' && isCanonicalDriverId(predicate.value);
+  }
+  return mode === 'pair' && predicate.operator === 'in' && predicate.values.length === 2 &&
+    predicate.values.every(isCanonicalDriverId) && predicate.values[0] < predicate.values[1];
+}
+
+function driverIdsForPredicate(predicate: PlannedCorePredicate | undefined): ReviewedFinalStandingsDriverIds {
+  if (predicate?.operator === 'eq') {return [predicate.value as string];}
+  if (predicate?.operator === 'in') {
+    return [...predicate.values] as unknown as readonly [string, string];
+  }
+  return [];
+}
+
+function isCanonicalDriverId(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 100 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
 }
 
 function compareText(left: string, right: string): number {

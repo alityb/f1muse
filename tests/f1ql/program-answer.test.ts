@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { Pool } from 'pg';
+import { FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD } from '../../src/f1ql/final-standings-response-contract';
 import { createProgramAnswerRoutes, createPublicAnswerRoutes, ProgramAnswerDependencies } from '../../src/api/routes/program-answer';
 import { AnswerIntent } from '../../src/f1ql/answer-intent';
 import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
@@ -163,7 +164,12 @@ const fakeClient = {
       }] };
     }
     if (sql.startsWith('SELECT * FROM')) {
-      return { rows: [{ driver_id: 'lando-norris', championship_position: 1, points: '357' }] };
+      return { rows: [{
+        driver_id: 'lando-norris', championship_position: 1, points: '357',
+        ...(sql.includes(FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD)
+          ? { [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true }
+          : {})
+      }] };
     }
     return { rows: [] };
   },

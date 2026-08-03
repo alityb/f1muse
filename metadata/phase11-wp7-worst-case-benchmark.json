@@ -44,7 +44,7 @@
           "core_sha256": "6fde00b7d58c19fa647a97a278bfe60ec1fd3b478415b7c12f01ad963cafd0c9",
           "compiled_sha256": "454c77414965bf83657cfd40737c33b91919fdc1df5428c4af6881fc306763ed",
           "reference_output_sha256": "2c16e147aef8dcae8e6fe1a1fdc22a7cf1831022ffca8da633328f50df63e7c3",
-          "formatter_output_sha256": "2d6c0d2e0f56bd0f819797bb2fcab3a69dc90c421f73a2c1b4e817da2f2ef68c"
+          "formatter_output_sha256": "d75dc397b1a0a4cc320a7e0172c733a19cb5abbf40588a0da9d29e02d6e7bfb1"
         }
       }
     },
@@ -75,7 +75,7 @@
           "core_sha256": "f0d6b1974fdd047fb0c6fe20a2880a8dae86329cda875e20488a88c957cc1162",
           "compiled_sha256": "7b89bc4acc46b0eb341551c8a51e3b09fd14c088f41f750f90c01bfee18394d6",
           "reference_output_sha256": "5fe360bfe15b1538122211af96e863f202843957e7e8c2d8307a3eca082abc11",
-          "formatter_output_sha256": "2652af6e42034f207fe56d5175d267c4064be742d27f90363219416dda25ce95"
+          "formatter_output_sha256": "00b60a67e93efdef12ecc81f4cda1ad3306b08e59ad314118c1ab8fb29b9e3a2"
         }
       }
     },
@@ -220,7 +220,7 @@
           "core_sha256": "afb999cff90309af8eafd14efbcc0f27ac0301e687f0b7c6f257efd88ed72bbe",
           "compiled_sha256": "11049430da6c05c0e5e6a10815e3eeb29cfcce8e2b5168c565266791854a6032",
           "reference_output_sha256": "31253eded9f1922b4d78334d5a8c62ad429c23170304a172bc6458e84626d7d2",
-          "formatter_output_sha256": "01941afd69b8cf0ff4c165cbe8511ea137d7dabd981b9f67d879e1862fbcca75"
+          "formatter_output_sha256": "176683c4ed8085e98486d6bf203a879fcfb9725976c1130f5b44703500291ee9"
         }
       }
     }

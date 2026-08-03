@@ -660,6 +660,7 @@ export function interpretEventMetadata(program: CoreProgram, rows: EventMetadata
   return filtered.map(({ event_id, event_name, circuit_id, date }) => ({ event_id, event_name, circuit_id, date, session_scope: sessionScope }));
 }
 
+// eslint-disable-next-line complexity
 export function interpretStandingsProgram(
   program: CoreProgram,
   rows: StandingsRow[]
@@ -669,6 +670,15 @@ export function interpretStandingsProgram(
   }
   const aggregate = getAggregateRoot(program);
   const filter = aggregate.input.op === 'filter' ? aggregate.input.where : {};
+  const finalStandingsPoints = isFinalStandingsPointsAggregate(aggregate);
+  if (finalStandingsPoints) {
+    const seen = new Set<string>();
+    for (const row of rows.filter(candidate => matchesValue(candidate.season, (filter as StandingsFilter).season))) {
+      const key = `${row.season}:${row.driver_id}`;
+      if (seen.has(key)) {throw new Error('Final standings source integrity failed');}
+      seen.add(key);
+    }
+  }
   const filtered = rows.filter((row) => matchesFilter(row, filter));
   const grouped = new Map<string, StandingsRow[]>();
 
@@ -687,10 +697,28 @@ export function interpretStandingsProgram(
     return output;
   });
 
+  if (finalStandingsPoints) {
+    result.sort((left, right) => Buffer.compare(
+      Buffer.from(String(left.driver_id), 'utf8'),
+      Buffer.from(String(right.driver_id), 'utf8')
+    ));
+  }
+
   if (program.root.op === 'limit') {
     return limitRows(result, program.root);
   }
   return result;
+}
+
+// eslint-disable-next-line complexity
+function isFinalStandingsPointsAggregate(aggregate: CoreAggregateNode): boolean {
+  const where = aggregate.input.op === 'filter' ? aggregate.input.where as StandingsFilter : undefined;
+  return aggregate.input.op === 'filter' && aggregate.input.input.op === 'source' &&
+    aggregate.input.input.source === 'standings' && typeof where?.season === 'number' &&
+    (where.driver_id === undefined || (Array.isArray(where.driver_id) && [1, 2].includes(where.driver_id.length))) &&
+    aggregate.group_by.length === 1 && aggregate.group_by[0] === 'driver_id' &&
+    aggregate.measures.length === 1 && aggregate.measures[0].as === 'points' &&
+    aggregate.measures[0].function === 'max' && aggregate.measures[0].field === 'points';
 }
 
 function interpretEventClassificationNode(node: CorePipelineNode, rows: EventClassificationRow[]): EventClassificationRow[] {

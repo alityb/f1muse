@@ -87,7 +87,9 @@ export function formatAnswerRows(
       finalStandingsRowsResponseContract(
         rows.length,
         collection,
-        finalStandingsPointsScope.driver_ids.length === 1 ? 1 : undefined
+        finalStandingsPointsScope.driver_ids.length > 0
+          ? finalStandingsPointsScope.driver_ids.length
+          : undefined
       );
     } catch {
       throw new AnswerFormatError('Final standings result collection evidence was invalid');
@@ -504,6 +506,7 @@ function validateSeasonH2HRow(
   return { driverAAhead, driverBAhead, ties, sharedEvents };
 }
 
+// eslint-disable-next-line complexity
 function formatStandings(
   program: F1QLProgram,
   rows: Array<Record<string, unknown>>,
@@ -528,9 +531,11 @@ function formatStandings(
     const rightId = requiredString(right.driver_id, 'driver_id');
     return exactPoints ? compareText(leftId, rightId) : leftId.localeCompare(rightId);
   });
-  if (finalStandingsPointsScope?.driver_ids.length === 1 &&
-      requiredString(ordered[0]?.driver_id, 'driver_id') !== finalStandingsPointsScope.driver_ids[0]) {
-    throw new AnswerFormatError('Filtered final standings driver was invalid');
+  if (finalStandingsPointsScope && finalStandingsPointsScope.driver_ids.length > 0) {
+    const returnedDriverIds = ordered.map(row => requiredString(row.driver_id, 'driver_id'));
+    if (!sameStrings(returnedDriverIds, finalStandingsPointsScope.driver_ids)) {
+      throw new AnswerFormatError('Filtered final standings drivers were invalid');
+    }
   }
   if (current) {
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
@@ -561,7 +566,9 @@ function standingsResponseContract(
     return finalStandingsRowsResponseContract(
       rowCount,
       collection,
-      finalStandingsPointsScope.driver_ids.length === 1 ? 1 : undefined
+      finalStandingsPointsScope.driver_ids.length > 0
+        ? finalStandingsPointsScope.driver_ids.length
+        : undefined
     );
   }
   return { coverage: 'sufficient' as const, caveats: current ? ['season_in_progress'] : [] as string[] };
@@ -715,6 +722,10 @@ function displayNumeric(value: unknown, field: string): string | null {
 
 function compareText(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function requiredNonnegativeNumeric(value: unknown, field: string): string {

@@ -107,7 +107,9 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('For only the exact filtered form "what were Charles Leclerc final standings points in 2024?"');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('Never apply these rules to other years of either interrogative form, bare points, race points, other named-driver filters');
+      .toContain('For only the exact pair form "final 2025 standings points for Lando Norris and Oscar Piastri."');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('Never apply these rules to other years of either filtered form, bare points, race points, other named-driver filters');
   });
 
   it('fails closed for malformed, extra, duplicate, and overflowing candidate sets', async () => {

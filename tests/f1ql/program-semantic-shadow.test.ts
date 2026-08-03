@@ -20,6 +20,7 @@ import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 const QUESTION = 'List driver and championship points from final 2025 driver standings.';
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
+const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -237,6 +238,43 @@ describe('WP8 stage-zero semantic shadow route', () => {
       { sql: 'BEGIN READ ONLY', parameters: undefined },
       { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
       { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2024, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('maps the exact shared pair question through one metadata read and no result execution', async () => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'oscar-piastri', identity: 'Oscar Piastri', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: PAIR_POINTS_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: {
+          outcome: 'answer', reason: 'plan_proven', result_query_calls: 0,
+          template_dual: { status: 'matched', template_id: 'final_standings_points' }
+        }
+      }
+    });
+    expect(fake.calls).toEqual([
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
       { sql: 'ROLLBACK', parameters: undefined }
     ]);
     expect(executionAttempts).toBe(0);
@@ -543,6 +581,11 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
         type: 'driver' as const,
         span: { text: 'Charles Leclerc', start: 10, end: 25 }
       }]
+    : request.question === PAIR_POINTS_QUESTION
+      ? [
+          { type: 'driver' as const, span: { text: 'Lando Norris', start: 32, end: 44 } },
+          { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 49, end: 62 } }
+        ]
     : [];
   const evidence = enumerateSemanticQueries(request.question, entityInventory);
   if (evidence.type !== 'candidate_set') {

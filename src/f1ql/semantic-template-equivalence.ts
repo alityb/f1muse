@@ -7,11 +7,11 @@ import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v6' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v7' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
-  | 'multi_driver_filtered_template_domain_unmapped'
+  | 'higher_cardinality_filtered_template_domain_unmapped'
   | 'template_equivalence_unmapped';
 
 export interface SemanticTemplateEquivalenceEntry {
@@ -49,7 +49,7 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
     response_metadata_mapping: 'accounted',
     wire_envelope_contract: 'equivalent',
     compatibility_formatter_version: SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
-    blockers: ['multi_driver_filtered_template_domain_unmapped'],
+    blockers: ['higher_cardinality_filtered_template_domain_unmapped'],
     overlap_id: 'reviewed_final_standings_points_domains'
   },
   official_driver_results_comparison: unmapped(),
@@ -78,7 +78,7 @@ export function classifySemanticTemplateEquivalence(
   const variables = validateAnswerTemplateVariables(templateId, variablesInput);
   const driverIds = variables.driver_ids;
   if (templateId !== 'final_standings_points' ||
-      (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length !== 1)) ||
+      (driverIds !== undefined && (!Array.isArray(driverIds) || ![1, 2].includes(driverIds.length))) ||
       !Number.isSafeInteger(variables.season) || programInput === undefined) {
     return 'unmapped';
   }

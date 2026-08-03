@@ -61,7 +61,7 @@ import {
   sanitizeSemanticShadowObservation
 } from './semantic-shadow-observations';
 
-export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v3' as const;
+export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v4' as const;
 export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 
 export interface SemanticShadowProposalRequest {
@@ -510,15 +510,18 @@ export function compareTemplateAndSemanticPlan(
   if (!Number.isSafeInteger(season) || (season as number) < 1950 || (season as number) > 2025) {
     return 'mismatched';
   }
-  if (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length !== 1 ||
-      typeof driverIds[0] !== 'string' || driverIds[0].length === 0)) {
+  if (driverIds !== undefined && (!Array.isArray(driverIds) || ![1, 2].includes(driverIds.length) ||
+      driverIds.some(id => typeof id !== 'string' || id.length === 0))) {
     return 'not_comparable';
   }
   const filtered = Array.isArray(driverIds);
+  const singleton = driverIds?.length === 1;
   const predicates = [
     ...(filtered ? [{
       concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
-      operator: 'eq', value: driverIds[0]
+      ...(singleton
+        ? { operator: 'eq', value: driverIds[0] }
+        : { operator: 'in', values: [...driverIds].sort(compareText) })
     }] : []),
     { concept: { source_id: 'driver_standings', concept_id: 'season' }, operator: 'eq', value: season }
   ];
@@ -528,7 +531,7 @@ export function compareTemplateAndSemanticPlan(
       op: 'aggregate',
       input: {
         op: 'filter', input: { op: 'source', source: 'standings' },
-        where: { season, ...(filtered ? { driver_id: [driverIds[0]] } : {}) }
+        where: { season, ...(filtered ? { driver_id: [...driverIds] } : {}) }
       },
       group_by: ['driver_id'],
       measures: [{ as: 'points', function: 'max', field: 'points' }]
@@ -536,7 +539,7 @@ export function compareTemplateAndSemanticPlan(
   };
   const expectedBranch = {
     source_id: 'driver_standings', predicates, source_grain: ['driver_id', 'season'],
-    fixed_grain: filtered ? ['driver_id', 'season'] : ['season'], residual_grain: filtered ? [] : ['driver_id']
+    fixed_grain: singleton ? ['driver_id', 'season'] : ['season'], residual_grain: singleton ? [] : ['driver_id']
   };
   const expectedProject = {
     op: 'project',
@@ -547,14 +550,14 @@ export function compareTemplateAndSemanticPlan(
     ]
   };
   const linkedEntitiesMatch = filtered
-    ? semantic.linked_entities.length === 1 && semantic.linked_entities[0].type === 'driver' &&
-      semantic.linked_entities[0].selected_id === driverIds[0] &&
-      sameValue(semantic.linked_entities[0].resolution_relationship_ids, [
+    ? semantic.linked_entities.length === driverIds.length && semantic.linked_entities.every((entity, index) =>
+      entity.type === 'driver' && entity.selected_id === driverIds[index] &&
+      sameValue(entity.resolution_relationship_ids, [
         'driver_identity_standings_resolution', 'driver_participation_resolution'
-      ])
+      ]))
     : semantic.linked_entities.length === 0;
   const matches = template.question_hash === semantic.question_sha256 &&
-    sameValue(template.template_variables, { season, ...(filtered ? { driver_ids: [driverIds[0]] } : {}) }) &&
+    sameValue(template.template_variables, { season, ...(filtered ? { driver_ids: [...driverIds] } : {}) }) &&
     sameValue(template.program, expectedProgram) && linkedEntitiesMatch &&
     sameValue(semantic.source_graph, {
       source_ids: ['driver_standings'],
@@ -564,8 +567,8 @@ export function compareTemplateAndSemanticPlan(
       row_relationship_ids: []
     }) &&
     sameValue(semantic.branches, [expectedBranch]) &&
-    sameValue(semantic.output_grain, filtered ? [] : ['driver_id']) &&
-    semantic.planned_f1ql.root.count === (filtered ? 1 : 100) && sameValue(project, expectedProject) &&
+    sameValue(semantic.output_grain, singleton ? [] : ['driver_id']) &&
+    semantic.planned_f1ql.root.count === (singleton ? 1 : 100) && sameValue(project, expectedProject) &&
     sameValue(semantic.planned_f1ql.root.input.keys, [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }]);
   return matches ? 'matched' : 'mismatched';
 }

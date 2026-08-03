@@ -12,8 +12,8 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v6');
-    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v3');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v7');
+    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v4');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).every(Object.isFrozen)).toBe(true);
@@ -23,8 +23,8 @@ describe('Phase 11 current-template equivalence accounting', () => {
         canonical_response_contract: 'equivalent',
         response_metadata_mapping: 'accounted',
         wire_envelope_contract: 'equivalent',
-        compatibility_formatter_version: 'semantic-answer-compatibility-v2',
-        blockers: ['multi_driver_filtered_template_domain_unmapped'],
+        compatibility_formatter_version: 'semantic-answer-compatibility-v3',
+        blockers: ['higher_cardinality_filtered_template_domain_unmapped'],
         overlap_id: 'reviewed_final_standings_points_domains'
       }]]);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(entry => entry.status === 'unmapped'))
@@ -39,9 +39,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
         return { id: item.id, disposition: 'template_equivalence_unmapped' };
       }
       const question = answerCases.find(answerCase => answerCase.id === item.id)!.question;
-      const evidence = enumerateSemanticQueries(question, item.id === 'holdout-historical-points'
-        ? [{ type: 'driver', span: questionSpan(question, 'Charles Leclerc') }]
-        : []);
+      const evidence = enumerateSemanticQueries(question, entityInventory(item.id, question));
       return {
         id: item.id,
         disposition: evidence.type === 'candidate_set' && evidence.candidates.length === 1 && !evidence.ambiguity_reason
@@ -55,11 +53,14 @@ describe('Phase 11 current-template equivalence accounting', () => {
     expect(caseDispositions).toHaveLength(answerCases.length);
     expect(new Set(caseDispositions.map(item => item.id)).size).toBe(answerCases.length);
     expect(programDispositions.filter(item => item.disposition === 'program_shape_overlap').map(item => item.id))
-      .toEqual(['dev-points', 'iid-points-all', 'holdout-historical-points', 'unicode-astral']);
-    expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(71);
+      .toEqual([
+        'dev-points', 'iid-points-pair', 'iid-points-all', 'iid-tie', 'holdout-historical-points',
+        'unicode-astral', 'meta-pair-order'
+      ]);
+    expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(68);
     expect(caseDispositions.filter(item => item.disposition === 'wire_envelope_contract_equivalent').map(item => item.id))
-      .toEqual(['dev-points', 'iid-points-all', 'holdout-historical-points']);
-    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(72);
+      .toEqual(['dev-points', 'iid-points-pair', 'iid-points-all', 'holdout-historical-points', 'meta-pair-order']);
+    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(70);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
       .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
@@ -71,7 +72,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
     }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
   });
 
-  it('maps only unfiltered and singleton-filtered standings program domains', () => {
+  it('maps only unfiltered, singleton-filtered, and pair-filtered standings program domains', () => {
     const unfiltered = materializeAnswerTemplate('final_standings_points', { season: 2025 });
     expect(classifySemanticTemplateEquivalence('final_standings_points', { season: 2025 }, unfiltered))
       .toBe('program_shape_overlap');
@@ -82,10 +83,10 @@ describe('Phase 11 current-template equivalence accounting', () => {
       season: 2025,
       driver_ids: ['lando-norris']
     }))).toBe('program_shape_overlap');
-    const multiDriverCaseIds = ['iid-points-pair', 'iid-tie', 'meta-pair-order'];
+    const pairCaseIds = ['iid-points-pair', 'iid-tie', 'meta-pair-order'];
     const answerCases = answerEvaluationManifest.filter(item => item.expected.action === 'answer');
-    for (const id of multiDriverCaseIds) {
-      expect(dispositionFor(answerCases.find(item => item.id === id)!)).toBe('unmapped');
+    for (const id of pairCaseIds) {
+      expect(dispositionFor(answerCases.find(item => item.id === id)!)).toBe('program_shape_overlap');
     }
     for (const id of ['holdout-historical-points', 'unicode-astral']) {
       expect(dispositionFor(answerCases.find(item => item.id === id)!)).toBe('program_shape_overlap');
@@ -94,6 +95,13 @@ describe('Phase 11 current-template equivalence accounting', () => {
       ...unfiltered,
       root: { ...unfiltered.root, measures: [{ as: 'points', function: 'min', field: 'points' }] }
     } as F1QLProgram)).toBe('unmapped');
+    expect(classifySemanticTemplateEquivalence('final_standings_points', {
+      season: 2025,
+      driver_ids: ['lando-norris', 'max-verstappen', 'oscar-piastri']
+    }, materializeAnswerTemplate('final_standings_points', {
+      season: 2025,
+      driver_ids: ['lando-norris', 'max-verstappen', 'oscar-piastri']
+    }))).toBe('unmapped');
     for (const templateId of ANSWER_TEMPLATE_IDS.filter(id => id !== 'final_standings_points')) {
       expect(classifySemanticTemplateEquivalence(templateId, undefined, undefined), templateId).toBe('unmapped');
     }
@@ -112,6 +120,25 @@ function dispositionFor(item: typeof answerEvaluationManifest[number]): 'program
     finalStandingsVariables(templateId, programs[0]),
     programs[0]
   );
+}
+
+function entityInventory(id: string, question: string) {
+  if (id === 'holdout-historical-points') {
+    return [{ type: 'driver' as const, span: questionSpan(question, 'Charles Leclerc') }];
+  }
+  if (id === 'iid-points-pair' || id === 'meta-pair-order') {
+    return ['Lando Norris', 'Oscar Piastri'].map(text => ({
+      type: 'driver' as const,
+      span: questionSpan(question, text)
+    }));
+  }
+  if (id === 'iid-tie') {
+    return ['Oscar Piastri', 'Lando Norris'].map(text => ({
+      type: 'driver' as const,
+      span: questionSpan(question, text)
+    }));
+  }
+  return [];
 }
 
 function questionSpan(question: string, text: string) {

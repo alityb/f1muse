@@ -71,7 +71,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -146,7 +146,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -200,7 +200,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -276,7 +276,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -358,7 +358,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -433,7 +433,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -508,7 +508,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -703,7 +703,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -898,7 +898,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -952,7 +952,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1006,7 +1006,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1062,7 +1062,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1118,7 +1118,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1279,7 +1279,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1440,7 +1440,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1496,7 +1496,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1552,7 +1552,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1610,7 +1610,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1668,7 +1668,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1719,7 +1719,7 @@
       "metadata": {
         "source": "race_date_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1770,7 +1770,7 @@
       "metadata": {
         "source": "race_date_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1846,7 +1846,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1911,7 +1911,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -1986,7 +1986,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2053,7 +2053,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2107,7 +2107,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2227,7 +2227,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2283,7 +2283,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2339,7 +2339,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2395,7 +2395,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2451,7 +2451,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2522,7 +2522,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2578,7 +2578,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2708,7 +2708,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2766,7 +2766,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2817,7 +2817,7 @@
       "metadata": {
         "source": "race_date_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2873,7 +2873,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -2963,7 +2963,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3087,7 +3087,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3143,7 +3143,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3201,7 +3201,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3335,7 +3335,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3393,7 +3393,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3504,7 +3504,7 @@
       "metadata": {
         "source": "current_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3606,7 +3606,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3708,7 +3708,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3821,7 +3821,7 @@
       "metadata": {
         "source": "current_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3898,7 +3898,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -3973,7 +3973,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4048,7 +4048,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4123,7 +4123,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4269,7 +4269,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4417,7 +4417,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4597,7 +4597,7 @@
       "metadata": {
         "source": "race_classification_event_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4778,7 +4778,7 @@
       "metadata": {
         "source": "race_classification_event_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4843,7 +4843,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4908,7 +4908,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -4973,7 +4973,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5038,7 +5038,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5103,7 +5103,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5168,7 +5168,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5270,7 +5270,7 @@
       "metadata": {
         "source": "official_driver_results_comparison",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5336,7 +5336,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5395,7 +5395,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5531,7 +5531,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5590,7 +5590,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5773,7 +5773,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5841,7 +5841,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5916,7 +5916,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -5970,7 +5970,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -6021,7 +6021,7 @@
       "metadata": {
         "source": "race_date_metadata",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -6216,7 +6216,7 @@
       "metadata": {
         "source": "race_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -6292,7 +6292,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -6348,7 +6348,7 @@
       "metadata": {
         "source": "qualifying_classification",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",
@@ -6423,7 +6423,7 @@
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
-        "compiler_version": "core-v9",
+        "compiler_version": "core-v10",
         "fact_space_version": "source-views-v3",
         "coverage": {
           "status": "sufficient",

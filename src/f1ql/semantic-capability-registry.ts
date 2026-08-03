@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 3 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 4 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -48,6 +48,20 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         ],
         sort_bindings: ['driver_id:asc:last'],
         requested_rows: 1
+      },
+      {
+        question_sha256: sha256('Final 2025 standings points for Lando Norris and Oscar Piastri.'),
+        season_values: [2025],
+        entity_values: ['lando-norris', 'oscar-piastri'],
+        predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.points->points'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
       }
     ],
     ...catalogConceptAllowlist(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']),

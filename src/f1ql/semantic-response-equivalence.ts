@@ -2,7 +2,10 @@ import type { AnswerCoverageStatus, AnswerEnvelope, FormattedAnswer } from './an
 import { formatAnswerRows } from './answer-format';
 import { authorizeAnswerProgram } from './answer-policy';
 import { F1QLProgram } from './ast';
-import { reviewedFinalStandingsPointsProgramScope } from './final-standings-response-contract';
+import {
+  reviewedFinalStandingsPointsProgramScope,
+  ReviewedFinalStandingsDriverIds
+} from './final-standings-response-contract';
 import { MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { normalizeF1QLProgram } from './program-normalization';
 import { renderF1QL } from './render';
@@ -22,7 +25,7 @@ import {
   getF1QLProgramHash
 } from './verified-programs';
 
-export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v2' as const;
+export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v3' as const;
 
 const MAX_EQUIVALENCE_ARRAY_LENGTH = 256;
 
@@ -151,10 +154,13 @@ export const SEMANTIC_COVERAGE_FIELD_ACCOUNTING = deepFreeze({
 
 export interface CanonicalFinalStandingsResponse {
   readonly version: typeof SEMANTIC_RESPONSE_EQUIVALENCE_VERSION;
-  readonly overlap_id: 'single_driver_filtered_final_standings_points' | 'unfiltered_final_standings_points';
+  readonly overlap_id:
+    | 'driver_pair_filtered_final_standings_points'
+    | 'single_driver_filtered_final_standings_points'
+    | 'unfiltered_final_standings_points';
   readonly source_id: 'driver_standings';
   readonly season: number;
-  readonly driver_ids: readonly [] | readonly [string];
+  readonly driver_ids: ReviewedFinalStandingsDriverIds;
   readonly outputs: readonly ['driver_id', 'points'];
   readonly ordering: readonly [{
     readonly output_id: 'driver_id';
@@ -236,7 +242,7 @@ export function canonicalizeSemanticFinalStandingsResponse(
   }
   const scope = assertSemanticContractMetadata(metadata);
   const rows = canonicalRows(envelope.rows);
-  const rowLimit = scope.driver_ids.length === 1 ? 1 : MAX_F1QL_RESPONSE_ROWS;
+  const rowLimit = responseRowLimit(scope.driver_ids);
   if (coverage.rows_returned !== rows.length || coverage.row_limit !== rowLimit) {
     throw new SemanticResponseEquivalenceError('Semantic coverage did not match the reviewed overlap');
   }
@@ -256,7 +262,7 @@ function canonicalResponse(
   answer: FormattedAnswer,
   coverage: AnswerCoverageStatus,
   caveats: readonly string[],
-  scope: { readonly season: number; readonly driver_ids: readonly [] | readonly [string] }
+  scope: { readonly season: number; readonly driver_ids: ReviewedFinalStandingsDriverIds }
 ): CanonicalFinalStandingsResponse {
   const decision = authorizeAnswerProgram(program);
   if (decision.type !== 'approved') {
@@ -273,15 +279,18 @@ function canonicalResponse(
       !safeEqual(caveats, formatted.caveats, 'caveats')) {
     throw new SemanticResponseEquivalenceError('Response fields did not match the reviewed standings contract');
   }
-  if (scope.driver_ids.length === 1 &&
-      (rows.length !== 1 || rows[0].driver_id !== scope.driver_ids[0] || coverage !== 'sufficient')) {
+  if (scope.driver_ids.length > 0 &&
+      (rows.length !== scope.driver_ids.length ||
+        rows.some((row, index) => row.driver_id !== scope.driver_ids[index]) ||
+        coverage !== 'sufficient')) {
     throw new SemanticResponseEquivalenceError('Filtered response did not match its reviewed driver scope');
   }
+  let overlapId: CanonicalFinalStandingsResponse['overlap_id'] = 'unfiltered_final_standings_points';
+  if (scope.driver_ids.length === 1) {overlapId = 'single_driver_filtered_final_standings_points';}
+  else if (scope.driver_ids.length === 2) {overlapId = 'driver_pair_filtered_final_standings_points';}
   return deepFreeze({
     version: SEMANTIC_RESPONSE_EQUIVALENCE_VERSION,
-    overlap_id: scope.driver_ids.length === 1
-      ? 'single_driver_filtered_final_standings_points' as const
-      : 'unfiltered_final_standings_points' as const,
+    overlap_id: overlapId,
     source_id: 'driver_standings' as const,
     season: scope.season,
     driver_ids: scope.driver_ids,
@@ -292,7 +301,7 @@ function canonicalResponse(
     coverage: {
       status: formatted.coverage,
       rows_returned: rows.length,
-      row_limit: scope.driver_ids.length === 1 ? 1 as const : MAX_F1QL_RESPONSE_ROWS
+      row_limit: responseRowLimit(scope.driver_ids)
     },
     caveats: [...formatted.caveats]
   });
@@ -310,10 +319,11 @@ function exactFinalStandingsProgram(input: F1QLProgram): F1QLProgram & {
 
 function finalStandingsProgram(scope: {
   readonly season: number;
-  readonly driver_ids: readonly [] | readonly [string];
+  readonly driver_ids: ReviewedFinalStandingsDriverIds;
 }): F1QLProgram {
   if (!Number.isSafeInteger(scope.season) ||
-      (scope.driver_ids.length === 1 && scope.driver_ids[0].length === 0)) {
+      scope.driver_ids.some((id, index) => !isCanonicalDriverId(id) ||
+        (index > 0 && compareText(scope.driver_ids[index - 1], id) >= 0))) {
     throw new SemanticResponseEquivalenceError('Semantic season was invalid');
   }
   return {
@@ -325,7 +335,7 @@ function finalStandingsProgram(scope: {
         input: { op: 'source', source: 'standings' },
         where: {
           season: scope.season,
-          ...(scope.driver_ids.length === 1 ? { driver_id: [...scope.driver_ids] } : {})
+          ...(scope.driver_ids.length > 0 ? { driver_id: [...scope.driver_ids] } : {})
         }
       },
       group_by: ['driver_id'],
@@ -338,7 +348,7 @@ function finalStandingsProgram(scope: {
 // eslint-disable-next-line complexity
 function assertSemanticContractMetadata(metadata: SemanticMetadata): {
   readonly season: number;
-  readonly driver_ids: readonly [] | readonly [string];
+  readonly driver_ids: ReviewedFinalStandingsDriverIds;
 } {
   const columns = snapshotDataArray(metadata.columns, 'semantic columns');
   const scopes = snapshotDataArray(metadata.scope, 'semantic scopes');
@@ -363,7 +373,7 @@ function assertSemanticContractMetadata(metadata: SemanticMetadata): {
     throw new SemanticResponseEquivalenceError('Semantic metadata was outside the reviewed standings overlap');
   }
   const season = semanticSeason(seasonScopes[0]);
-  const driverIds: readonly [] | readonly [string] = driverScopes.length === 1
+  const driverIds: ReviewedFinalStandingsDriverIds = driverScopes.length === 1
     ? semanticDriver(driverScopes[0])
     : [];
   assertSemanticSource(sources[0], catalogSource);
@@ -420,20 +430,21 @@ function semanticSeason(scopeInput: unknown): number {
   return scopeValues[0] as number;
 }
 
-function semanticDriver(scopeInput: unknown): readonly [string] {
+function semanticDriver(scopeInput: unknown): readonly [string] | readonly [string, string] {
   const scope = snapshotDataObject(
     scopeInput,
     Object.keys(SEMANTIC_SCOPE_FIELD_ACCOUNTING),
     'semantic scope'
   );
   const scopeValues = snapshotDataArray(scope.values, 'semantic scope values');
+  const singleton = scope.operator === 'eq' && scopeValues.length === 1;
+  const pair = scope.operator === 'in' && scopeValues.length === 2;
   if (scope.source_id !== 'driver_standings' || scope.concept_id !== 'driver_id' || scope.label !== 'driver' ||
-      scope.operator !== 'eq' || scopeValues.length !== 1 ||
-      typeof scopeValues[0] !== 'string' || scopeValues[0].length > 100 ||
-      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(scopeValues[0])) {
+      (!singleton && !pair) || scopeValues.some(value => !isCanonicalDriverId(value)) ||
+      (pair && compareText(scopeValues[0] as string, scopeValues[1] as string) >= 0)) {
     throw new SemanticResponseEquivalenceError('Semantic metadata did not match the reviewed standings contract');
   }
-  return [scopeValues[0]];
+  return [...scopeValues] as unknown as readonly [string] | readonly [string, string];
 }
 
 function semanticScopeConcept(scopeInput: unknown): unknown {
@@ -571,6 +582,14 @@ function isSha256(value: unknown): value is string {
   return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 }
 
+function responseRowLimit(driverIds: ReviewedFinalStandingsDriverIds): 1 | typeof MAX_F1QL_RESPONSE_ROWS {
+  return driverIds.length === 1 ? 1 : MAX_F1QL_RESPONSE_ROWS;
+}
+
+function isCanonicalDriverId(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 100 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
+}
+
 function safeEqual(left: unknown, right: unknown, label: string): boolean {
   return JSON.stringify(snapshotJsonValue(left, label, new Set())) ===
     JSON.stringify(snapshotJsonValue(right, `${label} oracle`, new Set()));
@@ -616,6 +635,10 @@ function snapshotJsonObject(value: object, label: string, seen: Set<object>): Re
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function compareText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }
 
 function unique<T>(values: readonly T[]): T[] {

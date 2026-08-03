@@ -24,13 +24,13 @@ import {
   SemanticCapabilityProfileId
 } from './semantic-capability-registry';
 import {
-  getSemanticPlanProofParent,
+  getSemanticPlanProofAuthorizationBindings,
   SEMANTIC_PLAN_PROOF_VERSION,
   VerifiedSemanticPlanProof,
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 
-export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v3' as const;
+export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v4' as const;
 export const SEMANTIC_CAPABILITY_AUTHORIZATION_TTL_MS = 5_000;
 
 interface SemanticPlanInteraction {
@@ -186,9 +186,13 @@ export function authorizeSemanticPlanCapability(input: {
   if (canary.cohort !== 'canary' || canary.stage === null) {
     throw new SemanticCapabilityAuthorizationError('profile_rejected');
   }
-  const parent = getSemanticPlanProofParent(proof);
+  const proofBindings = getSemanticPlanProofAuthorizationBindings(proof);
+  const parent = proofBindings.parent;
   const interaction = describeInteraction(parent.program, parent.cost);
-  if (!profileAllows(profile, proof, interaction, input.principal_class, canary.stage, release.runtime_ceilings)) {
+  if (!profileAllows(
+    profile, proof, interaction, proofBindings.linked_entities.map(entity => entity.selected_id),
+    input.principal_class, canary.stage, release.runtime_ceilings
+  )) {
     throw new SemanticCapabilityAuthorizationError('profile_rejected');
   }
   const issuedAt = requireSafeTime(input.now_ms ?? Date.now());
@@ -339,6 +343,7 @@ function profileAllows(
   rawProfile: SemanticCapabilityProfile,
   proof: VerifiedSemanticPlanProof,
   interaction: SemanticPlanInteraction,
+  resolvedEntityValues: readonly string[],
   principal: AnswerPrincipalClass,
   canaryStage: number,
   runtime: AnswerRuntimeCeilings
@@ -360,7 +365,9 @@ function profileAllows(
     }) &&
     interaction.dimension_ids.every(id => profile.dimension_ids.includes(id)) &&
     interaction.measure_ids.every(id => profile.measure_ids.includes(id)) &&
-    profile.complete_interactions.some(reviewed => reviewedInteractionAllows(reviewed, proof, interaction)) &&
+    profile.complete_interactions.some(reviewed => reviewedInteractionAllows(
+      reviewed, proof, interaction, resolvedEntityValues
+    )) &&
     interaction.sources <= limits.sources && interaction.joins <= limits.joins && interaction.depth <= limits.depth &&
     interaction.output_count <= limits.outputs && interaction.group_count <= limits.groups &&
     interaction.entity_count <= limits.entities && interaction.event_count <= limits.events && interaction.season_count <= limits.seasons &&
@@ -472,7 +479,8 @@ function completeInteraction(interaction: SemanticPlanInteraction) {
 function reviewedInteractionAllows(
   reviewed: ProfileShape['complete_interactions'][number],
   proof: VerifiedSemanticPlanProof,
-  interaction: SemanticPlanInteraction
+  interaction: SemanticPlanInteraction,
+  resolvedEntityValues: readonly string[]
 ): boolean {
   const {
     question_sha256: questionSha256,
@@ -483,7 +491,7 @@ function reviewedInteractionAllows(
   return stableSerialize(structure) === stableSerialize(completeInteraction(interaction)) &&
     (questionSha256 === undefined || questionSha256 === proof.question_sha256) &&
     (seasonValues === undefined || stableSerialize(seasonValues) === stableSerialize(interaction.season_values)) &&
-    (entityValues === undefined || sameStrings(entityValues, interaction.entity_values));
+    (entityValues === undefined || stableSerialize(entityValues) === stableSerialize(resolvedEntityValues));
 }
 
 function topologyOf(input: PlannedF1QLProgram['root']['input']['input']['input']): SemanticPlanInteraction['topology'] {

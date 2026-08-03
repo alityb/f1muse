@@ -702,6 +702,7 @@ function standingsPointsOutputs(
   ];
 }
 
+// eslint-disable-next-line complexity
 function finalStandingsPointsProjection(
   question: AnswerQuestionContract,
   sourceMatches: readonly LexicalMatch[],
@@ -715,13 +716,20 @@ function finalStandingsPointsProjection(
   ].some(pattern => pattern.test(question.normalized_question));
   const singleDriver = /^what were charles leclerc final standings points in 2024\?$/iu
     .test(question.normalized_question);
-  if (!unfiltered && !singleDriver) {
+  const driverPair = /^final 2025 standings points for lando norris and oscar piastri\.$/iu
+    .test(question.normalized_question);
+  if (!unfiltered && !singleDriver && !driverPair) {
     return undefined;
   }
-  const exactEntities = unfiltered
-    ? entities.length === 0
-    : entities.length === 1 && entities[0].type === 'driver' &&
+  let exactEntities = entities.length === 0;
+  if (singleDriver) {
+    exactEntities = entities.length === 1 && entities[0].type === 'driver' &&
       entities[0].span.text.toLocaleLowerCase('en-US') === 'charles leclerc';
+  } else if (driverPair) {
+    exactEntities = entities.length === 2 && entities.every(entity => entity.type === 'driver') &&
+      entities[0].span.text.toLocaleLowerCase('en-US') === 'lando norris' &&
+      entities[1].span.text.toLocaleLowerCase('en-US') === 'oscar piastri';
+  }
   if (![question.years.length === 1, question.rounds.length === 0, exactEntities,
     sourceMatches.length === 0, operations.temporal.length === 1, operations.temporal[0].value === 'final',
     !operations.count, !operations.rank, !operations.limit].every(Boolean)) {

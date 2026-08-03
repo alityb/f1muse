@@ -7,7 +7,12 @@ import { lowerF1QL } from './lower';
 import { enforceF1QLCostLimits, F1QLCostLimitError, MAX_F1QL_RESPONSE_ROWS } from './limits';
 import { validateAnswerParticipation, validateCoreProgram, validateF1QLProgram, validateParticipation } from './validation';
 import { getVerifiedProgram } from './verified-programs';
-import { isUnfilteredFinalStandingsPointsProgram, ResultCollectionEvidence } from './final-standings-response-contract';
+import {
+  isFinalStandingsPointsProgram,
+  isUnfilteredFinalStandingsPointsProgram,
+  FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD,
+  ResultCollectionEvidence
+} from './final-standings-response-contract';
 
 export { F1QLCostLimitError } from './limits';
 
@@ -64,10 +69,11 @@ export async function executeF1QL(pool: Pool, input: unknown, options: F1QLExecu
     program,
     core_program: coreProgram,
     rendering: renderF1QL(program),
-    rows: result.rows
+    rows: validatedFinalStandingsRows(program, result.rows)
   };
 }
 
+// eslint-disable-next-line max-lines-per-function
 export async function executeAnswerF1QL(
   pool: Pool,
   input: unknown,
@@ -88,7 +94,9 @@ export async function executeAnswerF1QL(
   beforeDatabaseWork();
   const client = await acquireClient(pool, options.signal);
   let result: QueryResult<Record<string, unknown>>;
+  let collected: { rows: Array<Record<string, unknown>>; has_more_rows: boolean };
   let transactionOpen = false;
+  let discardClient = false;
   let timeoutMs = validatedStatementTimeout(options.statementTimeoutMs);
   let deadlineLimited = false;
   try {
@@ -104,23 +112,26 @@ export async function executeAnswerF1QL(
     ({ timeoutMs, deadlineLimited } = effectiveStatementTimeout(options));
     await client.query("SELECT set_config('statement_timeout', $1, true)", [`${timeoutMs}ms`]);
     result = await client.query(bounded.sql, bounded.params);
+    const boundedRows = collectAnswerRows(program, result.rows, maxRows);
+    collected = {
+      rows: validatedFinalStandingsRows(program, boundedRows.rows),
+      has_more_rows: boundedRows.has_more_rows
+    };
     throwIfAborted(options.signal);
     afterResultQuery();
     await client.query('COMMIT');
     transactionOpen = false;
   } catch (error) {
     if (transactionOpen) {
-      await client.query('ROLLBACK').catch(() => undefined);
+      await client.query('ROLLBACK').catch(() => {discardClient = true;});
     }
     if ((error as { code?: string }).code === '57014') {
       throw deadlineLimited ? new F1QLRequestDeadlineError() : new F1QLStatementTimeoutError(timeoutMs);
     }
     throw error;
   } finally {
-    client.release();
+    if (discardClient) {client.release(true);} else {client.release();}
   }
-  const collected = collectAnswerRows(program, result.rows, maxRows);
-
   return {
     program,
     core_program: coreProgram,
@@ -128,6 +139,21 @@ export async function executeAnswerF1QL(
     rows: collected.rows,
     result_collection: { row_limit: maxRows, has_more_rows: collected.has_more_rows }
   };
+}
+
+function validatedFinalStandingsRows(
+  program: F1QLResult['program'],
+  rows: Array<Record<string, unknown>>
+): Array<Record<string, unknown>> {
+  if (!isFinalStandingsPointsProgram(program)) {return rows;}
+  return rows.map(row => {
+    if (row[FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD] !== true) {
+      throw new F1QLCostLimitError('Final standings source integrity failed');
+    }
+    const publicRow = { ...row };
+    delete publicRow[FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD];
+    return publicRow;
+  });
 }
 
 function collectAnswerRows(
@@ -180,7 +206,7 @@ function answerOrderBy(program: F1QLResult['program']): string | undefined {
     return `${root.by} ${root.direction.toUpperCase()}, driver_id ASC`;
   }
   if (root.op === 'aggregate') {
-    return isUnfilteredFinalStandingsPointsProgram(program)
+    return isFinalStandingsPointsProgram(program)
       ? 'driver_id COLLATE "C" ASC'
       : 'driver_id ASC';
   }

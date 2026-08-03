@@ -477,12 +477,12 @@ describe('sealed official lap timing serving contract', () => {
 
   it('regenerates the complete nonempty bounded F1QL result with answer access denied', async () => {
     const content = fs.readFileSync('data/phase8-belgium-2022-f1ql-result.json');
-    expect(createHash('sha256').update(content).digest('hex')).toBe('4f38fe42338e863df55eb9441308e44e7452bde1cfe6694b8a9ca1c2ac3bbcde');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('aa96d9960858c9c94ed9bfbf6c86fb4b02bd6395fb9ac0bb1b29128e89ab07eb');
     const expected = JSON.parse(content.toString('utf8'));
     expect(expected).toMatchObject({
       emitter: 'localhost_sealed_official_lap_f1ql_v1',
       definitions_version: 'v10',
-      compiler_version: 'core-v9',
+      compiler_version: 'core-v10',
       fact_space_version: 'source-views-v3',
       answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
       rows: [{ metric_id: OFFICIAL_LAP_WINDOW_METRIC_ID, median_delta_seconds: 1.3335, winner_driver_id: 'max-verstappen' }]
@@ -492,12 +492,12 @@ describe('sealed official lap timing serving contract', () => {
 
   it('regenerates the complete nonempty event-mean F1QL result with answer access denied', async () => {
     const content = fs.readFileSync('data/phase9-belgium-2022-event-mean-result.json');
-    expect(createHash('sha256').update(content).digest('hex')).toBe('584db9b789e478c845c669cf80bf11f6bb798656dc3bb4b333f339de9893612c');
+    expect(createHash('sha256').update(content).digest('hex')).toBe('05e41955787200a2925c88d678201c4a71bbdc450d64522b600881a354787e60');
     const expected = JSON.parse(content.toString('utf8'));
     expect(expected).toMatchObject({
       emitter: 'localhost_sealed_official_event_mean_f1ql_v1',
       definitions_version: 'v10',
-      compiler_version: 'core-v9',
+      compiler_version: 'core-v10',
       fact_space_version: 'source-views-v3',
       answer_policy: { type: 'rejected', reason: 'capability_unsupported' },
       rows: [{

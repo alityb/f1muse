@@ -117,7 +117,7 @@ interface MaterializedPlan {
 
 interface ProofBindings {
   readonly parent: VerifiedPlannedF1QLParent;
-  readonly expected_plan: unknown;
+  readonly expected_plan: { readonly linked_entities: readonly LinkedSemanticEntity[] };
 }
 
 const activeProofs = new WeakSet<object>();
@@ -281,6 +281,15 @@ export function verifySemanticPlanProof(input: unknown): VerifiedSemanticPlanPro
 export function getSemanticPlanProofParent(input: unknown): VerifiedPlannedF1QLParent {
   const proof = verifySemanticPlanProof(input);
   return proofBindings.get(proof)!.parent;
+}
+
+export function getSemanticPlanProofAuthorizationBindings(input: unknown): {
+  readonly parent: VerifiedPlannedF1QLParent;
+  readonly linked_entities: readonly LinkedSemanticEntity[];
+} {
+  const proof = verifySemanticPlanProof(input);
+  const bindings = proofBindings.get(proof)!;
+  return { parent: bindings.parent, linked_entities: bindings.expected_plan.linked_entities };
 }
 
 function independentlyMaterialize(query: SemanticQuery, resolution: VerifiedSemanticResolutionEvidence): MaterializedPlan {

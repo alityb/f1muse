@@ -8,6 +8,8 @@ import { renderF1QL } from '../../src/f1ql/render';
 import { parseF1QLProgram } from '../../src/f1ql/schema';
 import { F1QLProgram } from '../../src/f1ql/ast';
 import { lowerF1QL } from '../../src/f1ql/lower';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
+import { FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD } from '../../src/f1ql/final-standings-response-contract';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 
 const program: F1QLProgram = {
@@ -153,6 +155,60 @@ describe('F1QL standings vertical slice', () => {
     expect(compiled.sql).toContain('LIMIT 2');
     expect(compiled.sql).not.toContain('2025');
     expect(compiled.params).toEqual([[2025]]);
+  });
+
+  it('uses canonical ordering and excludes duplicate source grain for filtered points', () => {
+    const pair = materializeAnswerTemplate('final_standings_points', {
+      season: 2025,
+      driver_ids: ['lando-norris', 'max-verstappen']
+    });
+    const core = lowerF1QL(pair);
+    const compiled = compileF1QL(core);
+    expect(compiled.sql).toContain(`AS "${FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD}"`);
+    expect(compiled.sql).toContain('HAVING COUNT(*) > 1');
+    expect(() => interpretStandingsProgram(core, [
+      ...referenceRows,
+      { ...referenceRows[1], points: 999 }
+    ])).toThrow('Final standings source integrity failed');
+    expect(interpretStandingsProgram(core, [referenceRows[0], referenceRows[1]]))
+      .toEqual([
+        { driver_id: 'lando-norris', points: 423 },
+        { driver_id: 'max-verstappen', points: 421 }
+      ]);
+  });
+
+  it('keeps the integrity sentinel private for a valid reversed pair', async () => {
+    const pair = structuredClone(materializeAnswerTemplate('final_standings_points', {
+      season: 2025,
+      driver_ids: ['lando-norris', 'max-verstappen']
+    }));
+    pair.root.input.where.driver_id = ['max-verstappen', 'lando-norris'];
+    const result = await executeF1QL(pool, pair);
+    expect(result.rows).toEqual([
+      { driver_id: 'lando-norris', points: '423' },
+      { driver_id: 'max-verstappen', points: '421' }
+    ]);
+    expect(result.rows.every(row => !(FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD in row))).toBe(true);
+  });
+
+  it('rejects duplicate source grain outside the selected pair in PostgreSQL', async () => {
+    const pair = materializeAnswerTemplate('final_standings_points', {
+      season: 2025,
+      driver_ids: ['lando-norris', 'max-verstappen']
+    });
+    await pool.query(
+      `INSERT INTO season_driver_standing
+        (year, position_display_order, position_number, position_text, driver_id, points, championship_won)
+       VALUES (2025, 99, 4, '4', 'george-russell', 319, false)`
+    );
+    try {
+      await expect(executeF1QL(pool, pair)).rejects.toThrow('Final standings source integrity failed');
+    } finally {
+      await pool.query(
+        'DELETE FROM season_driver_standing WHERE year = 2025 AND driver_id = $1 AND position_display_order = 99',
+        ['george-russell']
+      );
+    }
   });
 
   it('matches the reference interpreter when executed against PostgreSQL', async () => {

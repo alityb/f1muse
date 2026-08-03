@@ -18,6 +18,7 @@ import {
   QUALIFYING_TOP_TEN_MAX,
   SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID
 } from './qualifying-counts';
+import { FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD } from './final-standings-response-contract';
 
 export const CLEAN_AIR_METHODOLOGY_VERSION = 'clean_air_gap_2_0s_v1';
 
@@ -66,10 +67,19 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
     return `${measure.function.toUpperCase()}(${field}) AS ${measure.as}`;
   });
   const rankSql = program.root.op === 'limit' ? compileLimit(program.root) : '';
+  const finalStandingsPoints = isFinalStandingsPointsAggregate(aggregate);
+  const integrityProjection = finalStandingsPoints
+    ? `, NOT EXISTS (
+          SELECT 1 FROM f1ql.driver_standings AS f1ql_integrity_source
+          WHERE f1ql_integrity_source.season = ANY($1::integer[])
+          GROUP BY f1ql_integrity_source.season, f1ql_integrity_source.driver_id
+          HAVING COUNT(*) > 1
+        ) AS "${FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD}"`
+    : '';
 
   return {
     sql: `
-      SELECT driver_id, ${measures.join(', ')}
+      SELECT driver_id, ${measures.join(', ')}${integrityProjection}
       FROM f1ql.driver_standings
       ${whereSql}
       GROUP BY driver_id
@@ -77,6 +87,17 @@ export function compileF1QL(program: CoreProgram): CompiledF1QL {
     `,
     params
   };
+}
+
+// eslint-disable-next-line complexity
+function isFinalStandingsPointsAggregate(aggregate: CoreAggregateNode): boolean {
+  const where = aggregate.input.op === 'filter' ? aggregate.input.where as StandingsFilter : undefined;
+  return aggregate.input.op === 'filter' && aggregate.input.input.op === 'source' &&
+    aggregate.input.input.source === 'standings' && typeof where?.season === 'number' &&
+    (where.driver_id === undefined || (Array.isArray(where.driver_id) && [1, 2].includes(where.driver_id.length))) &&
+    aggregate.group_by.length === 1 && aggregate.group_by[0] === 'driver_id' &&
+    aggregate.measures.length === 1 && aggregate.measures[0].as === 'points' &&
+    aggregate.measures[0].function === 'max' && aggregate.measures[0].field === 'points';
 }
 
 function isQualifyingCountRoot(root: CoreProgram['root']): root is CoreAggregateNode | (Extract<CoreProgram['root'], { op: 'sort' }> & { input: CoreAggregateNode }) {

@@ -1,11 +1,17 @@
 import { F1QLProgram } from './ast';
 
 export const FINAL_STANDINGS_ROWS_CAVEAT = 'final_standings_rows_only' as const;
+export const FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD = '__f1ql_source_integrity_ok' as const;
 
 export interface ResultCollectionEvidence {
   readonly row_limit: number;
   readonly has_more_rows: boolean;
 }
+
+export type ReviewedFinalStandingsDriverIds =
+  | readonly []
+  | readonly [string]
+  | readonly [string, string];
 
 // Validate the complete row-collection contract as one fail-closed gate.
 // eslint-disable-next-line complexity
@@ -52,29 +58,41 @@ export function finalStandingsResponseProjection(input: {
 // eslint-disable-next-line complexity
 export function reviewedFinalStandingsPointsProgramScope(program: F1QLProgram): {
   readonly season: number;
-  readonly driver_ids: readonly [] | readonly [string];
+  readonly driver_ids: ReviewedFinalStandingsDriverIds;
 } | null {
+  if (!isFinalStandingsPointsProgram(program)) {return null;}
   const root = program.root;
-  if (root.op !== 'aggregate' || root.input.op !== 'filter' || root.input.input.source !== 'standings' ||
-      root.group_by.length !== 1 || root.group_by[0] !== 'driver_id' || root.measures.length !== 1) {
-    return null;
-  }
-  const measure = root.measures[0];
+  if (root.op !== 'aggregate' || root.input.op !== 'filter') {return null;}
   const where = root.input.where;
-  if (measure.as !== 'points' || measure.function !== 'max' || measure.field !== 'points' ||
-      !Number.isSafeInteger(where.season)) {
-    return null;
-  }
   const keys = Object.keys(where).sort();
   if (keys.length === 1 && keys[0] === 'season') {
     return { season: where.season as number, driver_ids: [] };
   }
+  const driverIds = where.driver_id;
   if (keys.length !== 2 || keys[0] !== 'driver_id' || keys[1] !== 'season' ||
-      !Array.isArray(where.driver_id) || where.driver_id.length !== 1 ||
-      typeof where.driver_id[0] !== 'string' || !isCanonicalDriverId(where.driver_id[0])) {
+      !Array.isArray(driverIds) || ![1, 2].includes(driverIds.length) ||
+      driverIds.some(id => typeof id !== 'string' || !isCanonicalDriverId(id)) ||
+      new Set(driverIds).size !== driverIds.length ||
+      driverIds.some((id, index) => index > 0 && compareText(driverIds[index - 1], id) >= 0)) {
     return null;
   }
-  return { season: where.season as number, driver_ids: [where.driver_id[0]] };
+  return {
+    season: where.season as number,
+    driver_ids: [...driverIds] as unknown as readonly [string] | readonly [string, string]
+  };
+}
+
+export function isFinalStandingsPointsProgram(program: F1QLProgram): boolean {
+  const root = program.root;
+  if (root.op !== 'aggregate' || root.input.op !== 'filter' || root.input.input.source !== 'standings' ||
+      root.group_by.length !== 1 || root.group_by[0] !== 'driver_id' || root.measures.length !== 1 ||
+      !Number.isSafeInteger(root.input.where.season)) {
+    return false;
+  }
+  const measure = root.measures[0];
+  const driverIds = root.input.where.driver_id;
+  return measure.as === 'points' && measure.function === 'max' && measure.field === 'points' &&
+    (driverIds === undefined || (Array.isArray(driverIds) && [1, 2].includes(driverIds.length)));
 }
 
 export function isUnfilteredFinalStandingsPointsProgram(program: F1QLProgram): boolean {
@@ -83,4 +101,8 @@ export function isUnfilteredFinalStandingsPointsProgram(program: F1QLProgram): b
 
 function isCanonicalDriverId(value: string): boolean {
   return value.length <= 100 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
+}
+
+function compareText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }

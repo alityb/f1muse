@@ -16,7 +16,10 @@ import { proveAnswerIntent, VerifiedAnswerSemanticProof } from '../../src/f1ql/a
 import { executeF1QL } from '../../src/f1ql/executor';
 import { F1QLResultLimitError, F1QLStatementTimeoutError } from '../../src/f1ql/executor';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
-import { FINAL_STANDINGS_ROWS_CAVEAT } from '../../src/f1ql/final-standings-response-contract';
+import {
+  FINAL_STANDINGS_ROWS_CAVEAT,
+  FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD
+} from '../../src/f1ql/final-standings-response-contract';
 
 const nowMs = Date.parse('2026-07-24T00:01:00.000Z');
 const keyPair = generateKeyPairSync('ed25519');
@@ -86,6 +89,23 @@ async function unfilteredPointsProof(): Promise<VerifiedAnswerSemanticProof> {
   }, { inventoryMentions: async () => [] });
 }
 
+async function pairPointsProof(): Promise<VerifiedAnswerSemanticProof> {
+  const question = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
+  const lando = span(question, 'Lando Norris');
+  const oscar = span(question, 'Oscar Piastri');
+  return proveAnswerIntent(createAnswerQuestionContract(question), {
+    type: 'final_standings_points', season: 2025, season_reference: span(question, '2025'),
+    driver_references: [lando, oscar]
+  }, {
+    resolve: async () => ({ type: 'missing' }), resolveRound: async () => ({ type: 'missing' })
+  }, {
+    inventoryMentions: async () => [
+      { ...lando, candidates: ['lando_norris'], active_candidates: ['lando_norris'] },
+      { ...oscar, candidates: ['oscar_piastri'], active_candidates: ['oscar_piastri'] }
+    ]
+  });
+}
+
 async function currentProof(): Promise<VerifiedAnswerSemanticProof> {
   const question = 'Show the latest recorded 2026 driver standings.';
   return proveAnswerIntent(createAnswerQuestionContract(question), {
@@ -117,7 +137,9 @@ describe('answer execution service', () => {
     const client = {
       query: vi.fn(async (sql: string) => sql === 'COMMIT' || sql === 'BEGIN READ ONLY' || sql.startsWith('SELECT set_config')
         ? { rows: [] }
-        : { rows: [{ driver_id: 'lando-norris', points: '357' }] }),
+        : { rows: [{
+            driver_id: 'lando-norris', points: '357', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true
+          }] }),
       release: vi.fn()
     };
     const pool = {
@@ -147,7 +169,9 @@ describe('answer execution service', () => {
         }
         else {
           order.push('execute');
-          return { rows: [{ driver_id: 'lando-norris', points: '357.000' }] };
+          return { rows: [{
+            driver_id: 'lando-norris', points: '357.000', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true
+          }] };
         }
         return { rows: [] };
       }),
@@ -175,7 +199,8 @@ describe('answer execution service', () => {
     const { authorization, context } = authority(proof);
     const rows = Array.from({ length: 100 }, (_, index) => ({
       driver_id: `driver-${String(index).padStart(3, '0')}`,
-      points: '1.000'
+      points: '1.000',
+      [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true
     }));
     let probeAccessed = false;
     const probe = Object.defineProperty({ driver_id: 'probe-row' }, 'points', {
@@ -220,6 +245,99 @@ describe('answer execution service', () => {
       sparseAuthority.context,
       { now: () => nowMs }
     )).rejects.toThrow('invalid completeness probe row');
+  });
+
+  it('executes pair points with C ordering and duplicate-source exclusion', async () => {
+    const proof = await pairPointsProof();
+    const { authorization, context } = authority(proof);
+    const calls: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        calls.push(sql);
+        if (sql.includes('f1ql.answer_season_participation')) {
+          return { rows: [{ driver_id: 'lando-norris' }, { driver_id: 'oscar-piastri' }] };
+        }
+        if (sql.startsWith('SELECT * FROM')) {
+          return { rows: [
+            { driver_id: 'lando-norris', points: '374.000', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true },
+            { driver_id: 'oscar-piastri', points: '356.000', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: true }
+          ] };
+        }
+        return { rows: [] };
+      }),
+      release: vi.fn()
+    };
+    const result = await executeAuthorizedAnswer(
+      { query: vi.fn(), connect: vi.fn(async () => client) } as unknown as Pool,
+      authorization,
+      proof,
+      context,
+      { now: () => nowMs }
+    );
+    const resultSql = calls.find(sql => sql.startsWith('SELECT * FROM'));
+    expect(resultSql).toContain('HAVING COUNT(*) > 1');
+    expect(resultSql).toContain(`AS "${FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD}"`);
+    expect(resultSql).toContain('ORDER BY driver_id COLLATE "C" ASC LIMIT');
+    expect(result.response.rows.map(row => row.driver_id)).toEqual(['lando-norris', 'oscar-piastri']);
+    expect(result.serialized_response).not.toContain(FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD);
+  });
+
+  it('rolls back before response work when final standings source integrity fails', async () => {
+    const proof = await pairPointsProof();
+    const { authorization, context } = authority(proof);
+    const calls: string[] = [];
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        calls.push(sql);
+        if (sql.includes('f1ql.answer_season_participation')) {
+          return { rows: [{ driver_id: 'lando-norris' }, { driver_id: 'oscar-piastri' }] };
+        }
+        if (sql.startsWith('SELECT * FROM')) {
+          return { rows: [{
+            driver_id: 'lando-norris', points: '374.000', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: false
+          }] };
+        }
+        return { rows: [] };
+      }),
+      release: vi.fn()
+    };
+    await expect(executeAuthorizedAnswer(
+      { query: vi.fn(), connect: vi.fn(async () => client) } as unknown as Pool,
+      authorization,
+      proof,
+      context,
+      { now: () => nowMs }
+    )).rejects.toThrow('Final standings source integrity failed');
+    expect(calls).toContain('ROLLBACK');
+    expect(calls).not.toContain('COMMIT');
+  });
+
+  it('discards the client when integrity rollback fails', async () => {
+    const proof = await pairPointsProof();
+    const { authorization, context } = authority(proof);
+    const client = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes('f1ql.answer_season_participation')) {
+          return { rows: [{ driver_id: 'lando-norris' }, { driver_id: 'oscar-piastri' }] };
+        }
+        if (sql.startsWith('SELECT * FROM')) {
+          return { rows: [{
+            driver_id: 'lando-norris', points: '374.000', [FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD]: false
+          }] };
+        }
+        if (sql === 'ROLLBACK') {throw new Error('rollback failed');}
+        return { rows: [] };
+      }),
+      release: vi.fn()
+    };
+    await expect(executeAuthorizedAnswer(
+      { query: vi.fn(), connect: vi.fn(async () => client) } as unknown as Pool,
+      authorization,
+      proof,
+      context,
+      { now: () => nowMs }
+    )).rejects.toThrow('Final standings source integrity failed');
+    expect(client.release).toHaveBeenCalledWith(true);
   });
 
   it('executes current standings through release-bound read-only authority', async () => {

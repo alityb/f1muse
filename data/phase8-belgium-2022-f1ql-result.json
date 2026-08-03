@@ -2,7 +2,7 @@
   "version": 1,
   "emitter": "localhost_sealed_official_lap_f1ql_v1",
   "definitions_version": "v10",
-  "compiler_version": "core-v9",
+  "compiler_version": "core-v10",
   "fact_space_version": "source-views-v3",
   "answer_policy": {
     "type": "rejected",

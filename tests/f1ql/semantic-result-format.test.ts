@@ -39,6 +39,7 @@ import {
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const FILTERED_STANDINGS = 'What were Charles Leclerc final standings points in 2024?';
+const PAIR_STANDINGS = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
@@ -96,8 +97,8 @@ describe('generic proven semantic result formatting', () => {
     expect(Object.isFrozen(compatible)).toBe(true);
     expect(Object.isFrozen(compatible.rows)).toBe(true);
     expect(Object.isFrozen(compatible.rows[0])).toBe(true);
-    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v2');
-    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v2');
+    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v3');
+    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v3');
     expect([
       ANSWER_ENVELOPE_FIELD_ACCOUNTING,
       ANSWER_METADATA_FIELD_ACCOUNTING,
@@ -216,7 +217,7 @@ describe('generic proven semantic result formatting', () => {
       .toThrow('Final standings result collection evidence was invalid');
     expect(() => buildAnswerEnvelope(legacyProgram, decision.capability, [{
       driver_id: 'lando-norris', points: '374.000'
-    }])).toThrow('Filtered final standings driver was invalid');
+    }])).toThrow('Filtered final standings drivers were invalid');
     const malformedProgram = structuredClone(legacyProgram);
     if (malformedProgram.root.op !== 'aggregate' || malformedProgram.root.input.op !== 'filter') {
       throw new Error('filtered legacy fixture had the wrong shape');
@@ -238,7 +239,7 @@ describe('generic proven semantic result formatting', () => {
           ? { ...scope, values: ['lando-norris'] }
           : scope)
       }
-    }))).toThrow('Filtered final standings driver was invalid');
+    }))).toThrow('Filtered final standings drivers were invalid');
 
     const emptyExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, []);
     expect(() => formatSemanticPlanResult(emptyExecution)).toThrow('exactly one row');
@@ -247,7 +248,84 @@ describe('generic proven semantic result formatting', () => {
     }]);
     expect(() => formatSemanticPlanResult(wrongExecution)).toThrow('outside its proven predicate');
     const duplicateExecution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row, row]);
-    expect(() => formatSemanticPlanResult(duplicateExecution)).toThrow('collection evidence is invalid');
+    expect(() => formatSemanticPlanResult(duplicateExecution))
+      .toThrow('Final standings result collection evidence was invalid');
+  });
+
+  it('preserves the exact two-driver standings wire contract and rejects partial or substituted membership', async () => {
+    const lando = span(PAIR_STANDINGS, 'Lando Norris');
+    const oscar = span(PAIR_STANDINGS, 'Oscar Piastri');
+    const prepared = await prepare(
+      PAIR_STANDINGS,
+      [{ type: 'driver', span: lando }, { type: 'driver', span: oscar }],
+      [
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ]
+    );
+    expect(prepared.plan).toMatchObject({
+      topology: 'single_source_rows',
+      output_grain: ['driver_id'],
+      linked_entities: [
+        { type: 'driver', selected_id: 'lando-norris' },
+        { type: 'driver', selected_id: 'oscar-piastri' }
+      ],
+      branches: [{
+        predicates: [
+          { concept: { concept_id: 'driver_id' }, operator: 'in', values: ['lando-norris', 'oscar-piastri'] },
+          { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+        ],
+        fixed_grain: ['season'], residual_grain: ['driver_id']
+      }],
+      work: { requested_rows: 100 }
+    });
+    const rows = [
+      { driver_id: 'lando-norris', points: '374.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', points: '356.000', [PLANNED_INTEGRITY_FIELD]: true }
+    ];
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+    const generic = formatSemanticPlanResult(execution);
+    const compatible = formatSemanticPlanResultAsAnswerEnvelope(execution);
+    expect(generic.metadata.scope).toEqual([
+      {
+        source_id: 'driver_standings', concept_id: 'driver_id', label: 'driver', operator: 'in',
+        values: ['lando-norris', 'oscar-piastri']
+      },
+      { source_id: 'driver_standings', concept_id: 'season', label: 'season', operator: 'eq', values: [2025] }
+    ]);
+    expect(generic.metadata.coverage).toEqual({ status: 'sufficient', rows_returned: 2, row_limit: 100 });
+
+    const legacyProgram = materializeAnswerTemplate('final_standings_points', {
+      season: 2025, driver_ids: ['lando-norris', 'oscar-piastri']
+    });
+    const decision = authorizeAnswerProgram(legacyProgram);
+    if (decision.type !== 'approved') throw new Error('pair legacy oracle fixture was not authorized');
+    const legacy = buildAnswerEnvelope(legacyProgram, decision.capability, rows.map(({
+      [PLANNED_INTEGRITY_FIELD]: _, ...row
+    }) => row));
+    expect(canonicalizeSemanticFinalStandingsResponse(generic))
+      .toEqual(canonicalizeAnswerFinalStandingsResponse(legacy));
+    expect(canonicalizeSemanticFinalStandingsResponse(generic).overlap_id)
+      .toBe('driver_pair_filtered_final_standings_points');
+    expect(Buffer.from(JSON.stringify(compatible))).toEqual(Buffer.from(JSON.stringify(legacy)));
+
+    for (const mutation of [
+      [],
+      [rows[0]],
+      [rows[0], rows[0]],
+      [rows[0], { ...rows[1], driver_id: 'max-verstappen' }],
+      [rows[1], rows[0]]
+    ]) {
+      const mutated = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, mutation);
+      expect(() => formatSemanticPlanResult(mutated)).toThrow(SemanticResultFormatError);
+    }
+    expect(() => buildAnswerEnvelope(legacyProgram, decision.capability, [{
+      driver_id: 'lando-norris', points: '374.000'
+    }])).toThrow('Final standings result collection evidence was invalid');
+    expect(() => buildAnswerEnvelope(legacyProgram, decision.capability, [
+      { driver_id: 'lando-norris', points: '374.000' },
+      { driver_id: 'max-verstappen', points: '421.000' }
+    ])).toThrow('Filtered final standings drivers were invalid');
   });
 
   it('fails closed when canonical response metadata, schema, or row order drifts', async () => {
