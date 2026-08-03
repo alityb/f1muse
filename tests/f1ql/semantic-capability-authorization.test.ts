@@ -87,6 +87,21 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: ['oscar-piastri']
       }
     ]
+  }), (input: PositiveProfileInput): PositiveProfileCase => ({
+    question: 'Final 2025 standings points for Oscar Piastri and Lando Norris.',
+    entity_names: ['Oscar Piastri', 'Lando Norris'],
+    driver_mentions: [
+      {
+        name: 'Oscar Piastri',
+        candidates: candidateInventory('oscar-piastri', input.candidate_count, input.selected_index),
+        active_candidates: ['oscar-piastri']
+      },
+      {
+        name: 'Lando Norris',
+        candidates: candidateInventory('lando-norris', input.candidate_count, input.selected_index),
+        active_candidates: ['lando-norris']
+      }
+    ]
   })],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -173,20 +188,15 @@ describe('semantic complete-interaction capability authorization', () => {
     }])).rejects.toThrowError(expect.objectContaining({ reason: 'entity_inventory_mismatch' }));
   });
 
-  it('rejects pair identities swapped between their question spans', async () => {
-    const question = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
-    const proof = await semanticProof(question, ['Lando Norris', 'Oscar Piastri'], [
-      {
-        name: 'Lando Norris',
-        candidates: ['lando-norris', 'oscar-piastri'],
-        active_candidates: ['oscar-piastri']
-      },
-      {
-        name: 'Oscar Piastri',
-        candidates: ['lando-norris', 'oscar-piastri'],
-        active_candidates: ['lando-norris']
-      }
-    ]);
+  it.each([
+    ['Final 2025 standings points for Lando Norris and Oscar Piastri.', ['Lando Norris', 'Oscar Piastri']],
+    ['Final 2025 standings points for Oscar Piastri and Lando Norris.', ['Oscar Piastri', 'Lando Norris']]
+  ] as const)('rejects pair identities swapped between their question spans: %s', async (question, entityNames) => {
+    const proof = await semanticProof(question, entityNames, entityNames.map(name => ({
+      name,
+      candidates: ['lando-norris', 'oscar-piastri'],
+      active_candidates: [name === 'Lando Norris' ? 'oscar-piastri' : 'lando-norris']
+    })));
     expect(() => authorizeSemanticPlanCapability({
       proof,
       profile_id: 'semantic-single-source-v1',
@@ -204,6 +214,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['What were the final standings points in 2025?', 'semantic-single-source-v1', []],
     ['What were Charles Leclerc final standings points in 2024?', 'semantic-single-source-v1', ['Charles Leclerc']],
     ['Final 2025 standings points for Lando Norris and Oscar Piastri.', 'semantic-single-source-v1', ['Lando Norris', 'Oscar Piastri']],
+    ['Final 2025 standings points for Oscar Piastri and Lando Norris.', 'semantic-single-source-v1', ['Oscar Piastri', 'Lando Norris']],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {
@@ -216,6 +227,11 @@ describe('semantic complete-interaction capability authorization', () => {
           ? [
               { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
               { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+            ]
+        : question === 'Final 2025 standings points for Oscar Piastri and Lando Norris.'
+          ? [
+              { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] },
+              { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }
             ]
         : undefined
     );
@@ -323,7 +339,7 @@ describe('semantic complete-interaction capability authorization', () => {
     }
   });
 
-  it('binds pair authorization to the exact question, season, and complete driver set', async () => {
+  it('binds pair authorization to the exact questions, season, and per-span driver identities', async () => {
     const variants = [
       {
         question: 'List driver and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.',
@@ -339,6 +355,14 @@ describe('semantic complete-interaction capability authorization', () => {
         mentions: [
           { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
           { name: 'Oscar Piastri', candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] }
+        ]
+      },
+      {
+        question: 'Final 2025 standings points for Oscar Piastri and Lando Norris.',
+        entities: ['Oscar Piastri', 'Lando Norris'],
+        mentions: [
+          { name: 'Oscar Piastri', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+          { name: 'Lando Norris', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
         ]
       }
     ];

@@ -6,7 +6,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './linking-error';
 import { getF1QLProgramHash } from './program-normalization';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v18' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v19' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 type EventResolution =
@@ -122,7 +122,7 @@ export async function proveAnswerIntent(
     driverReferences = intent.driver_references;
   }
   const rawInventory = await driverResolver.inventoryMentions(contract.normalized_question, 'season' in intent ? intent.season : undefined);
-  const inventory = rawInventory.filter(mention => !isSummaryStructureMention(contract, mention));
+  const inventory = rawInventory.filter(mention => !isSummaryStructureMention(contract, mention)).sort(compareReferences);
   proveDriverReferenceInventory(driverReferences, inventory);
   const driverIds: string[] = [];
   const resolvedDriverIds = new Map<string, string>();
@@ -161,7 +161,9 @@ export async function proveAnswerIntent(
       variables.driver_a_id = resolvedDriverId(intent.driver_references[0], resolvedDriverIds);
       variables.driver_b_id = resolvedDriverId(intent.driver_references[1], resolvedDriverIds);
     } else {
-      variables.driver_ids = driverIds;
+      variables.driver_ids = intent.type === 'final_standings_points'
+        ? [...driverIds].sort(compareText)
+        : driverIds;
     }
   }
   if ('status' in intent) {

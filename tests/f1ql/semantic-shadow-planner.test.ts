@@ -32,6 +32,7 @@ const DEV_POINTS = 'Show the final 2025 standings points.';
 const IID_POINTS_ALL = 'What were the final standings points in 2025?';
 const FILTERED_POINTS = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
+const REVERSED_PAIR_POINTS = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
@@ -171,6 +172,10 @@ describe('pure non-executing semantic shadow orchestrator', () => {
       [PAIR_POINTS, [
         driverMention(PAIR_POINTS, 'Lando Norris', ['lando-norris'], ['lando-norris']),
         driverMention(PAIR_POINTS, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri'])
+      ]],
+      [REVERSED_PAIR_POINTS, [
+        driverMention(REVERSED_PAIR_POINTS, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri']),
+        driverMention(REVERSED_PAIR_POINTS, 'Lando Norris', ['lando-norris'], ['lando-norris'])
       ]]
     ] as const) {
       const observation = await orchestrateSemanticShadow(question, {
@@ -281,6 +286,46 @@ describe('pure non-executing semantic shadow orchestrator', () => {
 
     expect(compareTemplateAndSemanticPlan(templateProof, plan)).toBe('matched');
     expect(compareTemplateAndSemanticPlan(templateProof, mutation)).toBe('mismatched');
+  });
+
+  it('compares canonical pair membership separately from question-span identity order', async () => {
+    const mentions = [
+      driverMention(REVERSED_PAIR_POINTS, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri']),
+      driverMention(REVERSED_PAIR_POINTS, 'Lando Norris', ['lando-norris'], ['lando-norris'])
+    ];
+    const contract = createAnswerQuestionContract(REVERSED_PAIR_POINTS);
+    const driverResolver = { inventoryMentions: async () => mentions };
+    const intent = await deriveAnswerIntent(contract, driverResolver);
+    const templateProof = verifyAnswerSemanticProof(await proveAnswerIntent(
+      contract, intent, fixtureEventResolver({ type: 'missing' }), driverResolver
+    ));
+    const evidence = enumerateSemanticQueries(REVERSED_PAIR_POINTS, mentions.map(mention => ({
+      type: 'driver' as const,
+      span: { text: mention.text, start: mention.start, end: mention.end }
+    })));
+    if (evidence.type !== 'candidate_set') throw new Error('missing fixture candidates');
+    const admission = admitSemanticQueryCandidates(
+      { version: 2, candidates: evidence.candidates }, REVERSED_PAIR_POINTS, evidence
+    );
+    if (admission.type !== 'admitted') throw new Error('fixture was not admitted');
+    const resolution = await collectSemanticResolutionEvidence({
+      question: REVERSED_PAIR_POINTS, admission, driver_resolver: driverResolver,
+      event_resolver: fixtureEventResolver({ type: 'missing' })
+    });
+    const plan = planSemanticAnswerFromResolution({
+      question: REVERSED_PAIR_POINTS, admission, resolution
+    });
+    const swapped = structuredClone(plan);
+    swapped.linked_entities.reverse();
+
+    expect(templateProof.template_variables).toEqual({
+      season: 2025,
+      driver_ids: ['lando-norris', 'oscar-piastri']
+    });
+    expect(templateProof.mentions.map(mention => mention.selected_id))
+      .toEqual(['oscar-piastri', 'lando-norris']);
+    expect(compareTemplateAndSemanticPlan(templateProof, plan)).toBe('matched');
+    expect(compareTemplateAndSemanticPlan(templateProof, swapped)).toBe('mismatched');
   });
 
   it('classifies join-path ambiguity as clarification', () => {

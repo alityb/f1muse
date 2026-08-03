@@ -12,8 +12,8 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v7');
-    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v4');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v8');
+    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v5');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).every(Object.isFrozen)).toBe(true);
@@ -59,8 +59,8 @@ describe('Phase 11 current-template equivalence accounting', () => {
       ]);
     expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(68);
     expect(caseDispositions.filter(item => item.disposition === 'wire_envelope_contract_equivalent').map(item => item.id))
-      .toEqual(['dev-points', 'iid-points-pair', 'iid-points-all', 'holdout-historical-points', 'meta-pair-order']);
-    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(70);
+      .toEqual(['dev-points', 'iid-points-pair', 'iid-points-all', 'iid-tie', 'holdout-historical-points', 'meta-pair-order']);
+    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(69);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
       .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });

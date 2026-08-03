@@ -21,6 +21,7 @@ const QUESTION = 'List driver and championship points from final 2025 driver sta
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
+const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -243,7 +244,8 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it('maps the exact shared pair question through one metadata read and no result execution', async () => {
+  it.each([PAIR_POINTS_QUESTION, REVERSED_PAIR_POINTS_QUESTION])(
+    'maps the exact shared pair question through one metadata read and no result execution: %s', async question => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
@@ -256,7 +258,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
       proposer: { propose: async proposal => exactProposal(proposal) },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
-    }, { question: PAIR_POINTS_QUESTION }, undefined, () => {
+    }, { question }, undefined, () => {
       executionAttempts += 1;
       throw new Error('semantic shadow must not execute a result query');
     });
@@ -585,6 +587,11 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
       ? [
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 32, end: 44 } },
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 49, end: 62 } }
+        ]
+    : request.question === REVERSED_PAIR_POINTS_QUESTION
+      ? [
+          { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 32, end: 45 } },
+          { type: 'driver' as const, span: { text: 'Lando Norris', start: 50, end: 62 } }
         ]
     : [];
   const evidence = enumerateSemanticQueries(request.question, entityInventory);

@@ -7,7 +7,7 @@ import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v7' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v8' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =

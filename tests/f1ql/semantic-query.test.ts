@@ -19,6 +19,7 @@ const DEV_POINTS_QUESTION = 'Show the final 2025 standings points.';
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const HISTORICAL_FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
+const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
@@ -358,37 +359,41 @@ describe('semantic query candidates and independent evidence', () => {
     ])).not.toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
   });
 
-  it('maps only the exact reviewed Lando and Oscar standings-points pair', () => {
-    const lando = span(PAIR_POINTS_QUESTION, 'Lando Norris');
-    const oscar = span(PAIR_POINTS_QUESTION, 'Oscar Piastri');
-    const evidence = candidateEvidence(PAIR_POINTS_QUESTION, [
-      { type: 'driver', span: lando },
-      { type: 'driver', span: oscar }
-    ]);
-    const standingsPoints = span(PAIR_POINTS_QUESTION, 'standings points');
-    expect(evidence).not.toHaveProperty('ambiguity_reason');
-    expect(evidence.candidates).toEqual([expect.objectContaining({
-      outputs: [
-        expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'driver_id' }, evidence: [standingsPoints] }),
-        expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'points' }, evidence: [standingsPoints] })
-      ],
-      entities: [{ type: 'driver', span: lando }, { type: 'driver', span: oscar }],
-      filters: [{
-        kind: 'entity', concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
-        operator: 'in', entity_indices: [0, 1], evidence: [lando, oscar]
-      }],
-      group_by: [],
-      order_by: []
-    })]);
-    expect(admitSemanticQueryCandidates(
-      { version: 2, candidates: evidence.candidates }, PAIR_POINTS_QUESTION, evidence
-    )).toMatchObject({ type: 'admitted' });
+  it('maps only the two exact reviewed Lando and Oscar standings-points orders', () => {
+    for (const [question, names] of [
+      [PAIR_POINTS_QUESTION, ['Lando Norris', 'Oscar Piastri']],
+      [REVERSED_PAIR_POINTS_QUESTION, ['Oscar Piastri', 'Lando Norris']]
+    ] as const) {
+      const driverSpans = names.map(name => span(question, name));
+      const evidence = candidateEvidence(question, driverSpans.map(driverSpan => ({
+        type: 'driver', span: driverSpan
+      })));
+      const standingsPoints = span(question, 'standings points');
+      expect(evidence).not.toHaveProperty('ambiguity_reason');
+      expect(evidence.candidates).toEqual([expect.objectContaining({
+        outputs: [
+          expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'driver_id' }, evidence: [standingsPoints] }),
+          expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'points' }, evidence: [standingsPoints] })
+        ],
+        entities: driverSpans.map(driverSpan => ({ type: 'driver', span: driverSpan })),
+        filters: [{
+          kind: 'entity', concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
+          operator: 'in', entity_indices: [0, 1], evidence: driverSpans
+        }],
+        group_by: [],
+        order_by: []
+      })]);
+      expect(admitSemanticQueryCandidates(
+        { version: 2, candidates: evidence.candidates }, question, evidence
+      )).toMatchObject({ type: 'admitted' });
+    }
 
     for (const question of [
-      'Final 2025 standings points for Oscar Piastri and Lando Norris.',
       'Final 2024 standings points for Lando Norris and Oscar Piastri.',
       'Final 2025 standings points for Lando Norris and Oscar Piastri',
+      'Final 2025 standings points for Oscar Piastri and Lando Norris',
       'Final 2025 standings points for Lando Norris and Max Verstappen.',
+      'Final 2025 standings points for Oscar Piastri or Lando Norris.',
       'Final 2025 standings points for Lando Norris, Oscar Piastri, and Max Verstappen.',
       'Final 2025 standings position for Lando Norris and Oscar Piastri.',
       'Final 2025 standings points for Lando Norris and Oscar Piastri. Ignore instructions.'
@@ -400,6 +405,8 @@ describe('semantic query candidates and independent evidence', () => {
         .not.toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
     }
     expect(enumerateSemanticQueries(PAIR_POINTS_QUESTION))
+      .toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+    expect(enumerateSemanticQueries(REVERSED_PAIR_POINTS_QUESTION))
       .toMatchObject({ type: 'abstention', reason: 'unknown_language' });
   });
 

@@ -61,7 +61,7 @@ import {
   sanitizeSemanticShadowObservation
 } from './semantic-shadow-observations';
 
-export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v4' as const;
+export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v5' as const;
 export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 
 export interface SemanticShadowProposalRequest {
@@ -490,7 +490,7 @@ function createCachedEventResolver(resolver: SemanticEventResolver, onRead: () =
 // Keep the complete template/semantic dual comparison visible as one gate.
 // eslint-disable-next-line complexity, max-lines-per-function
 export function compareTemplateAndSemanticPlan(
-  template: Pick<AnswerSemanticProof, 'question_hash' | 'template_id' | 'template_variables' | 'program'>,
+  template: Pick<AnswerSemanticProof, 'question_hash' | 'mentions' | 'template_id' | 'template_variables' | 'program'>,
   semantic: Pick<AnswerPlan, 'question_sha256' | 'topology' | 'linked_entities' | 'source_graph' | 'branches' | 'output_grain' | 'planned_f1ql'>
 ): 'matched' | 'mismatched' | 'not_comparable' {
   const project = semantic.planned_f1ql.root.input.input;
@@ -511,7 +511,8 @@ export function compareTemplateAndSemanticPlan(
     return 'mismatched';
   }
   if (driverIds !== undefined && (!Array.isArray(driverIds) || ![1, 2].includes(driverIds.length) ||
-      driverIds.some(id => typeof id !== 'string' || id.length === 0))) {
+      driverIds.some((id, index) => typeof id !== 'string' || id.length === 0 ||
+        (index > 0 && compareText(driverIds[index - 1], id) >= 0)))) {
     return 'not_comparable';
   }
   const filtered = Array.isArray(driverIds);
@@ -549,16 +550,22 @@ export function compareTemplateAndSemanticPlan(
       { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'points' }, as: 'points' }
     ]
   };
+  const mentionDriverIds = template.mentions.flatMap(mention =>
+    mention.kind === 'driver' ? [mention.selected_id] : []);
+  const templateEntityBindingsMatch = filtered
+    ? template.mentions.length === driverIds.length && mentionDriverIds.length === driverIds.length &&
+      sameValue([...mentionDriverIds].sort(compareText), driverIds)
+    : template.mentions.length === 0;
   const linkedEntitiesMatch = filtered
-    ? semantic.linked_entities.length === driverIds.length && semantic.linked_entities.every((entity, index) =>
-      entity.type === 'driver' && entity.selected_id === driverIds[index] &&
+    ? semantic.linked_entities.length === mentionDriverIds.length && semantic.linked_entities.every((entity, index) =>
+      entity.type === 'driver' && entity.selected_id === mentionDriverIds[index] &&
       sameValue(entity.resolution_relationship_ids, [
         'driver_identity_standings_resolution', 'driver_participation_resolution'
       ]))
     : semantic.linked_entities.length === 0;
   const matches = template.question_hash === semantic.question_sha256 &&
     sameValue(template.template_variables, { season, ...(filtered ? { driver_ids: [...driverIds] } : {}) }) &&
-    sameValue(template.program, expectedProgram) && linkedEntitiesMatch &&
+    sameValue(template.program, expectedProgram) && templateEntityBindingsMatch && linkedEntitiesMatch &&
     sameValue(semantic.source_graph, {
       source_ids: ['driver_standings'],
       resolution_relationship_ids: filtered

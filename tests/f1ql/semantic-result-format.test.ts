@@ -40,6 +40,7 @@ import {
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const FILTERED_STANDINGS = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_STANDINGS = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
+const REVERSED_PAIR_STANDINGS = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
@@ -326,6 +327,42 @@ describe('generic proven semantic result formatting', () => {
       { driver_id: 'lando-norris', points: '374.000' },
       { driver_id: 'max-verstappen', points: '421.000' }
     ])).toThrow('Filtered final standings drivers were invalid');
+  });
+
+  it('preserves canonical wire bytes for the exact Oscar-first pair wording', async () => {
+    const oscar = span(REVERSED_PAIR_STANDINGS, 'Oscar Piastri');
+    const lando = span(REVERSED_PAIR_STANDINGS, 'Lando Norris');
+    const prepared = await prepare(
+      REVERSED_PAIR_STANDINGS,
+      [{ type: 'driver', span: oscar }, { type: 'driver', span: lando }],
+      [
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] },
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] }
+      ]
+    );
+    expect(prepared.plan.linked_entities.map(entity => entity.selected_id))
+      .toEqual(['oscar-piastri', 'lando-norris']);
+    expect(prepared.plan.branches[0].predicates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
+        operator: 'in', values: ['lando-norris', 'oscar-piastri']
+      })
+    ]));
+    const rows = [
+      { driver_id: 'lando-norris', points: '374.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', points: '356.000', [PLANNED_INTEGRITY_FIELD]: true }
+    ];
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+    const compatible = formatSemanticPlanResultAsAnswerEnvelope(execution);
+    const legacyProgram = materializeAnswerTemplate('final_standings_points', {
+      season: 2025, driver_ids: ['lando-norris', 'oscar-piastri']
+    });
+    const decision = authorizeAnswerProgram(legacyProgram);
+    if (decision.type !== 'approved') throw new Error('pair legacy oracle fixture was not authorized');
+    const legacy = buildAnswerEnvelope(legacyProgram, decision.capability, rows.map(({
+      [PLANNED_INTEGRITY_FIELD]: _, ...row
+    }) => row));
+    expect(Buffer.from(JSON.stringify(compatible))).toEqual(Buffer.from(JSON.stringify(legacy)));
   });
 
   it('fails closed when canonical response metadata, schema, or row order drifts', async () => {
