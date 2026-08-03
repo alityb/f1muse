@@ -18,6 +18,7 @@ import { SemanticShadowProposalRequest } from '../../src/f1ql/semantic-shadow-pl
 import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 
 const QUESTION = 'List driver and championship points from final 2025 driver standings.';
+const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -165,6 +166,41 @@ describe('WP8 stage-zero semantic shadow route', () => {
     });
     assertNoLeakage(JSON.stringify(response.body));
     assertNoLeakage(logs[0]);
+  });
+
+  it('maps iid-points-all through the enabled shadow route without result execution', async () => {
+    const fake = fakePool();
+    let executionAttempts = 0;
+    let providerCalls = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: {
+        propose: async proposal => {
+          providerCalls += 1;
+          return exactProposal(proposal);
+        }
+      },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: IID_POINTS_ALL_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow',
+        rollout_stage: 0,
+        observation: {
+          outcome: 'answer',
+          reason: 'plan_proven',
+          result_query_calls: 0
+        }
+      }
+    });
+    expect(providerCalls).toBe(1);
+    expect(executionAttempts).toBe(0);
   });
 
   it.each([

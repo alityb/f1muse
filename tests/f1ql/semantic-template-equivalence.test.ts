@@ -12,7 +12,7 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v4');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v5');
     expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v2');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
@@ -24,10 +24,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
         response_metadata_mapping: 'accounted',
         wire_envelope_contract: 'equivalent',
         compatibility_formatter_version: 'semantic-answer-compatibility-v1',
-        blockers: [
-          'current_question_language_unmapped',
-          'filtered_template_domain_unmapped'
-        ],
+        blockers: ['filtered_template_domain_unmapped'],
         overlap_id: 'unfiltered_final_standings_points'
       }]]);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(entry => entry.status === 'unmapped'))
@@ -59,13 +56,13 @@ describe('Phase 11 current-template equivalence accounting', () => {
       .toEqual(['dev-points', 'iid-points-all']);
     expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(73);
     expect(caseDispositions.filter(item => item.disposition === 'wire_envelope_contract_equivalent').map(item => item.id))
-      .toEqual(['dev-points']);
-    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(74);
+      .toEqual(['dev-points', 'iid-points-all']);
+    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(73);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
       .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'iid-points-all')!.question))
-      .toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+      .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
   });
 
   it('keeps filtered standings and every other template outside the sole partial oracle', () => {

@@ -7,11 +7,10 @@ import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v4' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v5' as const;
 
 export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
-  | 'current_question_language_unmapped'
   | 'filtered_template_domain_unmapped'
   | 'template_equivalence_unmapped';
 
@@ -50,10 +49,7 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
     response_metadata_mapping: 'accounted',
     wire_envelope_contract: 'equivalent',
     compatibility_formatter_version: SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
-    blockers: [
-      'current_question_language_unmapped',
-      'filtered_template_domain_unmapped'
-    ],
+    blockers: ['filtered_template_domain_unmapped'],
     overlap_id: 'unfiltered_final_standings_points'
   },
   official_driver_results_comparison: unmapped(),

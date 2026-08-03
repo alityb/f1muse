@@ -29,6 +29,7 @@ import {
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const DEV_POINTS = 'Show the final 2025 standings points.';
+const IID_POINTS_ALL = 'What were the final standings points in 2025?';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
@@ -160,26 +161,28 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     });
   });
 
-  it('maps the existing dev-points case through proof and template dual without execution', async () => {
-    const observation = await orchestrateSemanticShadow(DEV_POINTS, {
-      ...dependencies([]),
-      template_dual: true
-    });
+  it('maps both reviewed current cases through proof and template dual without execution', async () => {
+    for (const question of [DEV_POINTS, IID_POINTS_ALL]) {
+      const observation = await orchestrateSemanticShadow(question, {
+        ...dependencies([]),
+        template_dual: true
+      });
 
-    expect(observation).toMatchObject({
-      outcome: 'answer',
-      reason: 'plan_proven',
-      topology_code: 'single_source_rows',
-      source_set_code: 'driver_standings',
-      operator_set_code: 'filter_project_sort_limit',
-      candidate_counts: { comparison: 'exact', matched: 1, omitted: 0, extraneous: 0 },
-      result_query_calls: 0,
-      template_dual: {
-        enabled: true,
-        status: 'matched',
-        template_id: 'final_standings_points'
-      }
-    });
+      expect(observation).toMatchObject({
+        outcome: 'answer',
+        reason: 'plan_proven',
+        topology_code: 'single_source_rows',
+        source_set_code: 'driver_standings',
+        operator_set_code: 'filter_project_sort_limit',
+        candidate_counts: { comparison: 'exact', matched: 1, omitted: 0, extraneous: 0 },
+        result_query_calls: 0,
+        template_dual: {
+          enabled: true,
+          status: 'matched',
+          template_id: 'final_standings_points'
+        }
+      });
+    }
   });
 
   it('proves the template before proposal failure and retains its hashes', async () => {

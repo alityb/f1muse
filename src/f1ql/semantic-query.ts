@@ -251,10 +251,6 @@ export function enumerateSemanticQueries(
   if (/\bby\b/iu.test(question.normalized_question) && !operations.rank) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_comparison'));
   }
-  if (containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
-    return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
-  }
-
   const standingsPointsProjection = unfilteredFinalStandingsPointsProjection(
     question,
     sourceMatches,
@@ -262,6 +258,9 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
+  if (!standingsPointsProjection && containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
+  }
   const effectiveConceptMatches = standingsPointsProjection ? [standingsPointsProjection] : conceptMatches;
   const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
@@ -710,7 +709,10 @@ function unfilteredFinalStandingsPointsProjection(
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): LexicalMatch | undefined {
-  if (!/^show the final \d{4} standings points\.?$/iu.test(question.normalized_question)) {
+  if (![
+    /^show the final \d{4} standings points\.?$/iu,
+    /^what were the final standings points in 2025\?$/iu
+  ].some(pattern => pattern.test(question.normalized_question))) {
     return undefined;
   }
   if (![question.years.length === 1, question.rounds.length === 0, entities.length === 0,

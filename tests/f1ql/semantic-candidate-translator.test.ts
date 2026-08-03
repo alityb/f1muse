@@ -103,9 +103,9 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use the earliest explicit source phrase for that source when present, otherwise reuse the earliest output evidence span');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('operation, temporal, season, round, limit, filter, and comparison evidence');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('For the exact unfiltered form "show the final YYYY standings points"');
+      .toContain('For either exact unfiltered form "show the final YYYY standings points" or the current reviewed form "what were the final standings points in 2025?"');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('Never apply this rule to bare points, race points, named-driver filters');
+      .toContain('Never apply this rule to other years of the interrogative form, bare points, race points, named-driver filters');
   });
 
   it('fails closed for malformed, extra, duplicate, and overflowing candidate sets', async () => {
