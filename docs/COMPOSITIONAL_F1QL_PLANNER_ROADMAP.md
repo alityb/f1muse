@@ -19,6 +19,48 @@ column. Broad coverage comes from composing a small algebra over reviewed
 semantic concepts, not from allowing a model to invent sources, joins,
 formulas, or SQL.
 
+## Current Delivery Decision
+
+Phase 11 delivery proceeds by capability family and certified source, not by
+adding one exact-question exception for each evaluation case. Exact questions
+remain useful as regression and differential oracles, but a production
+milestone must promote a reusable closed set of concepts, operators, scopes,
+and interactions.
+
+The product target is:
+
+> Answer any unambiguous query expressible over certified retained data through
+> the concept's declared operators; clarify when multiple reviewed readings
+> survive, and abstain when language, semantics, authority, or coverage is
+> insufficient.
+
+"Present in the database" is not sufficient. A source becomes answer-eligible
+only after the catalog binds its authority, grain, keys, dimensions, measures,
+units, null behavior, valid filters and aggregations, coverage, integrity,
+relationships, work bounds, and least-privilege serving view. This prevents an
+arbitrary physical column from silently becoming a factual product contract.
+
+Delivery order is fixed:
+
+1. Close reusable single-source, safe-join, and aggregate-locality capabilities
+   over driver standings, race classification, qualifying classification, and
+   event metadata.
+2. Migrate the permanent answer corpus by semantic family. Do not implement the
+   remaining cases as independent exact-language rules.
+3. Onboard eligible retained career, constructor, and circuit facts through the
+   same certification checklist.
+4. Promote sealed official historical lap timing as a distinct raw-timing
+   authority with lap-window coverage semantics.
+5. Promote derived pace separately, preserving its methodology, narrower
+   coverage, and non-official authority.
+6. Expand production one signed source/operator/topology cohort at a time.
+
+The initial current-source closure must support every catalog-valid combination
+of select, entity/value filter, group, aggregate, rank, comparison, sort, limit,
+event, season, and final/current scope that fits the promoted topology and work
+budgets. Invalid aggregations, unsafe grains, unsupported temporal readings,
+and incomplete source coverage remain deterministic refusals.
+
 The model may propose semantic-query candidates. It must never author
 executable F1QL, Core, SQL, physical table names, join predicates, source
 integrity rules, or permissions. A deterministic semantic enumerator retains
@@ -640,6 +682,76 @@ a time.
 Definition of done: every plan in the bounded generated closure of each signed
 profile is either proven executable or deterministically rejected, and users
 can combine the promoted concepts without adding question-specific templates.
+
+Delivery within this work package is family-based:
+
+1. Driver standings single-source selection, filtering, grouping, aggregation,
+   ranking, ordering, and bounded final/current scopes.
+2. Race and qualifying classification single-source selection, filtering,
+   grouping, aggregation, ranking, ordering, event, and season scopes.
+3. Classification-to-event-metadata safe dimension joins.
+4. Cross-source aggregate-local comparisons where each measure remains at its
+   governed grain before composition.
+5. Corpus migration and removal of question-hash capability bindings wherever
+   the complete generated interaction family is proven and signed.
+
+### Work Package 11: Certified Retained-Data Onboarding
+
+Add a repeatable source-certification path for eligible facts already retained
+by F1Muse, beginning with career, constructor, and circuit analysis. Source
+onboarding must update the catalog, serving view, database binding, typed
+relationships, planner-visible concepts, operator allowlists, coverage matrix,
+formatter metadata, principal audit, discriminating populations, mutation
+suite, and capability profile together.
+
+No schema crawler or model may automatically expose a database field. New
+concepts are reviewed semantic contracts. Unsupported formulas and combinations
+remain absent even if their input columns exist.
+
+Definition of done: every newly exposed concept is queryable through all and
+only its declared operators, generated valid combinations pass SQL/reference
+parity, invalid combinations fail before result-query acquisition, and missing
+historical or entity coverage produces a typed abstention rather than a partial
+answer.
+
+### Work Package 12: Official Historical Lap Analytics
+
+Promote the sealed `official_timing` historical source separately from derived
+pace. Add official lap timing to the semantic catalog with race-event, driver,
+lap-number, inclusive lap-window, official deletion, explicit pit, and raw lap
+time semantics. Expose the existing
+`official_non_deleted_non_pit_window_median_v1` and
+`official_non_deleted_non_pit_event_mean_v1` measures without inventing
+clean-air, tyre, fuel, traffic, safety-car, or weather claims.
+
+The first factual scope remains the hash-pinned Belgian 2022 dataset. The
+existing closed compiler operations become regression anchors while the
+semantic planner gains the equivalent catalog-bound topology. Complete window
+coverage and at least two eligible laps per driver are mandatory. For example,
+Verstappen versus Alonso over supported Belgian 2022 laps may answer, while an
+Alonso versus Hamilton window must abstain because the retained dataset records
+Hamilton with zero completed laps.
+
+Definition of done: local migration, immutable dataset, security-barrier view,
+catalog/database binding, planner/proof/capability/formatter path, missing-row
+coverage behavior, SQL/reference parity, and internal/public canaries all pass.
+No partial lap-window result is permitted.
+
+### Work Package 13: Derived Pace Expansion
+
+Onboard `f1ql.lap_pace` only after official historical laps are distinct in the
+catalog and response contract. Bind every result to its methodology version and
+observed season/event coverage. Clean-air, compound, tyre-age, stint, and other
+filters are exposed only when their retained source fields and factual meaning
+are certified for the requested scope.
+
+Derived pace must never substitute for official raw lap timing, classification,
+fastest lap, or the historical official-window measures. Unsupported events,
+sessions, methodologies, and incomplete shared-driver windows abstain.
+
+Definition of done: each promoted pace measure has independent source evidence,
+eligibility and null semantics, discriminating SQL/reference fixtures, coverage
+metadata, capability-scoped production evidence, and separate canaries.
 
 ## Migration And Compatibility
 

@@ -303,6 +303,16 @@ The shadow route still never executes translated programs, and the answer policy
 still rejects this operation. Production migration, ingestion, grants, deployment,
 provider evaluation, and answer authorization are separate release decisions.
 
+Phase 11 integration is now explicitly Work Package 12 in
+`COMPOSITIONAL_F1QL_PLANNER_ROADMAP.md`. The sealed official source must enter
+the semantic catalog as raw official timing, not as generic or clean-air pace.
+The existing closed operation remains the compiler/reference oracle while a
+catalog-bound semantic plan proves the same metric and complete-window contract.
+Requests with retained identities but insufficient lap rows must abstain. In
+particular, the Belgian 2022 dataset records Lewis Hamilton with zero completed
+laps, so an Alonso-versus-Hamilton laps 2-10 request cannot produce a factual
+delta; it is a required missing-coverage case.
+
 Formula 1 TimingData streams can support lap-level reconstruction. FastF1's
 implementation documents that it derives lap, pit, and gap fields from mixed
 timing streams and that some values need post-processing or educated assignment.
