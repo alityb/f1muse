@@ -153,7 +153,10 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
-  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+  }, ({ year }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show count of finishing position in final ${year} race classification.`,
+    entity_names: []
+  }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and qualifying position for Charles Leclerc from round ${round} of final ${year} qualifying classification.`,
     entity_names: ['Charles Leclerc'],
     driver_mentions: [{
@@ -233,6 +236,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
+      { min: 0, max: 0 },
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
@@ -391,6 +395,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['List race date from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List circuit identifier from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List event name from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
+    ['Show count of finishing position in final 2025 race classification.', 'semantic-single-source-v1', []],
     ['Show count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
@@ -477,6 +482,60 @@ describe('semantic complete-interaction capability authorization', () => {
       season_values: [2025],
       rows: 1
     });
+  });
+
+  it('binds only the exact ungrouped recorded race-finishing-position count interaction', async () => {
+    const question = 'Show count of finishing position in final 2025 race classification.';
+    const proof = await semanticProof(question, []);
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_ids: ['event_classification'],
+      relationship_ids: [],
+      operator_signature: 'limit(sort(project(aggregate(filter(source)))))',
+      predicate_bindings: ['event_classification.season:eq'],
+      aggregate_bindings: [
+        'event_classification.finishing_position:count->count_finishing_position'
+      ],
+      group_bindings: [],
+      output_bindings: ['aggregate:count_finishing_position->count_finishing_position'],
+      sort_bindings: ['count_finishing_position:asc:last'],
+      entity_count: 0,
+      event_count: 0,
+      season_count: 1,
+      season_values: [2025],
+      rows: 1
+    });
+  });
+
+  it('rejects driver-filtered and latest-recorded race-position count interactions', async () => {
+    const filteredQuestion = 'Show count of finishing position for Norris in final 2025 race classification.';
+    const filteredProof = await semanticProof(filteredQuestion, ['Norris'], [{
+      name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris']
+    }]);
+    const latestProof = await semanticProof(
+      'Show count of finishing position in latest recorded 2026 race classification.', []
+    );
+    const attestation = release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] });
+    for (const proof of [filteredProof, latestProof]) {
+      expect(() => authorizeSemanticPlanCapability({
+        proof,
+        profile_id: 'semantic-single-source-v1',
+        principal_class: 'internal_canary',
+        request_id: randomUUID(),
+        canary: canary(),
+        release_attestation: attestation,
+        now_ms: NOW
+      })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+    }
   });
 
   it.each([
@@ -864,7 +923,7 @@ describe('semantic complete-interaction capability authorization', () => {
       },
       {
         profileId: 'semantic-single-source-v1' as const,
-        question: (year: number) => `Show count of finishing position in final ${year} race classification.`
+        question: (year: number) => `Show count of finishing position in round 1 of final ${year} race classification.`
       },
       {
         profileId: 'semantic-single-source-v1' as const,

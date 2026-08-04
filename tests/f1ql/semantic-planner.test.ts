@@ -18,6 +18,7 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const NAMED_RACE_METADATA = 'List driver and finishing position and event name from final 2025 race classification and event metadata at Monaco.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
+const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 
 describe('deterministic semantic planner', () => {
   it('materializes a frozen deterministic single-source row plan from a live admission', async () => {
@@ -117,6 +118,20 @@ describe('deterministic semantic planner', () => {
     });
     expect(plan.planned_f1ql.root.input.keys).toEqual([
       { output_id: 'count_qualifying_position', direction: 'asc', nulls: 'last' }
+    ]);
+  });
+
+  it('uses the same bounded scalar topology for race finishing-position counts', async () => {
+    const admission = admitted(RACE_SCALAR_COUNT);
+    const plan = await planSemanticAnswer({ question: RACE_SCALAR_COUNT, admission, ...resolvers([]) });
+    expect(plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['event_classification'] },
+      output_grain: [],
+      work: { source_scan_units: 30, requested_rows: 1 }
+    });
+    expect(plan.planned_f1ql.root.input.keys).toEqual([
+      { output_id: 'count_finishing_position', direction: 'asc', nulls: 'last' }
     ]);
   });
 

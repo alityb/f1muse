@@ -734,17 +734,20 @@ status, sprint qualifying, or driver identity. Singleton, five-driver,
 unfiltered, season-wide, caller-limited, latest-recorded, interim, timing, grid,
 sprint, status, mixed-source, and broader-output qualifying rankings remain
 refused.
-An ungrouped qualifying-count slice is also complete for one final historical
-season from 1950 through 2025. It returns exactly one
-`count_qualifying_position` scalar using `COUNT(qualifying_position)` over
+Ungrouped classification-position count slices are also complete for one final
+historical season from 1950 through 2025. They return exactly one
+`count_finishing_position` or `count_qualifying_position` scalar using
+`COUNT(finishing_position)` or `COUNT(qualifying_position)` over the respective
 governed retained rows. Null positions are excluded; an integrity-clean
 all-null source is factual zero, while absent source rows are integrity failure.
-The count does not mean qualifying appearances, events, poles, top-ten results,
-or complete schedule/entrant coverage. Source-wide event-driver grain and
-position bounds remain mandatory, but equal positions are valid because no
-sporting rank is inferred. Driver, event, status, or position filters, grouped
-and ranked counts, race counts, alternate aggregates, broader output,
-latest-recorded scope, and caller limits remain refused.
+The race count does not mean starts, events, wins, classified finishes, or
+complete schedule/entrant coverage. The qualifying count does not mean
+appearances, events, poles, top-ten results, or complete schedule/entrant
+coverage. Source-wide event-driver grain and position bounds remain mandatory,
+but equal positions are valid because no sporting rank is inferred. Driver,
+event, status, or position filters, grouped and ranked counts, alternate
+aggregates, broader output, latest-recorded scope, and caller limits remain
+refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, combined

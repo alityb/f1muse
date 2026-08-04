@@ -743,7 +743,9 @@ function buildOutputChoices(
     }
     const countable = explicit.filter(output => source.measures.find(measure => measure.id === output.concept.concept_id)?.allowed_aggregations.includes('count'));
     if (operations.count) {
-      if (countable.length !== 1) {
+      const unsupportedMeasures = explicit.filter(output => source.measures.some(measure =>
+        measure.id === output.concept.concept_id && !measure.allowed_aggregations.includes('count')));
+      if (countable.length !== 1 || unsupportedMeasures.length > 0) {
         return { outputs: [], defaulted: false };
       }
       const dimensions = explicit.filter(output => source.dimensions.some(dimension => dimension.id === output.concept.concept_id));

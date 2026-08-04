@@ -26,6 +26,7 @@ const STANDINGS = 'List driver and championship points from final 2025 driver st
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
+const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 
 describe('independent semantic whole-plan proof', () => {
   it('uses one frozen resolver transcript for planning and independent proof', async () => {
@@ -57,6 +58,7 @@ describe('independent semantic whole-plan proof', () => {
   it.each([
     ['single-source rows', STANDINGS, []],
     ['single-source scalar aggregate', SCALAR_COUNT, []],
+    ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
     ['safe metadata join', RACE_METADATA, []]
   ])('reproduces %s without planner decision imports', async (_name, question, entities) => {
     const prepared = await prepare(question, entities, [], { type: 'resolved', season: 2025, round: 1 });

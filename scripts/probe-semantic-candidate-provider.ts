@@ -17,9 +17,9 @@ import reviewedSnapshotInput from '../tests/fixtures/compositional-regression.sn
 import { compositionalRegressionCorpusInput } from '../tests/fixtures/compositional-regression-corpus';
 
 const PROBE_CASE_INDEX = 0;
-const PROBE_CORPUS_SHA256 = '55366ee368d1cc3b7561ca2d46c9ecb8cb63168428a03c528f3875a59d727c79';
-const PROBE_CORPUS_INPUT_SHA256 = '6cff1dd93abb08086b677401d191f390c8fb04317a6a268f250f34ceb21f3034';
-const PROBE_SNAPSHOT_INPUT_SHA256 = '10aba70a12f5742a27c07082bab75e7f81fb39b75e546aedbe05864b1bf11093';
+const PROBE_CORPUS_SHA256 = 'f613c0ca19f678accb91d73c7880f5258cbd3c1160d6bfc5f4676771ca345192';
+const PROBE_CORPUS_INPUT_SHA256 = 'a743ac8f309e3aaeb5dadb24af1edfbc9840aa5423d588c4a810efd650e8fe96';
+const PROBE_SNAPSHOT_INPUT_SHA256 = '9bfcc9a36102584ab6232d986eabe97253cff0fa5b3569d95b1bbb757649844f';
 const PROBE_CASE_ID = 'promoted-single-source-rows';
 const PROBE_QUESTION_SHA256 = '9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c';
 const PROBE_CANDIDATE_SET_SHA256 = '4f423f15bbed9f528702913eab5c804fbee8112f8978e0e2d339ea9d16d1e604';
@@ -279,9 +279,9 @@ function matchesPinnedFixtureInputs(corpusInput: unknown, snapshotInput: unknown
   if (!isRecord(corpusInput) || !isRecord(snapshotInput)) {return false;}
   return sha256(stableSerialize(corpusInput)) === PROBE_CORPUS_INPUT_SHA256 &&
     sha256(stableSerialize(snapshotInput)) === PROBE_SNAPSHOT_INPUT_SHA256 &&
-    Array.isArray(corpusInput.cases) && corpusInput.cases.length === 28 &&
+    Array.isArray(corpusInput.cases) && corpusInput.cases.length === 29 &&
     snapshotInput.corpus_hash === PROBE_CORPUS_SHA256 &&
-    Array.isArray(snapshotInput.cases) && snapshotInput.cases.length === 28;
+    Array.isArray(snapshotInput.cases) && snapshotInput.cases.length === 29;
 }
 
 function matchesPinnedCorpusCase(

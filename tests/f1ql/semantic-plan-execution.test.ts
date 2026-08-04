@@ -128,6 +128,12 @@ const cases = [
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
     rows: [{ count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-race-scalar-aggregate',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true }]
   }
 ] as const;
 

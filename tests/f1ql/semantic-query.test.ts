@@ -27,6 +27,7 @@ const RACE_QUESTION = 'List driver and finishing position for round 1 of the fin
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
 
 describe('semantic query candidates and independent evidence', () => {
   it('enumerates one catalog-bound explicit standings query and freezes all evidence', () => {
@@ -272,6 +273,26 @@ describe('semantic query candidates and independent evidence', () => {
     ]);
   });
 
+  it('enumerates an ungrouped season-wide count of recorded race finishing positions', () => {
+    const aggregate = candidateEvidence(RACE_SCALAR_COUNT_QUESTION).candidates[0];
+    expect(aggregate).toMatchObject({
+      outputs: [{
+        kind: 'aggregate', function: 'count',
+        concept: { source_id: 'event_classification', concept_id: 'finishing_position' }
+      }],
+      entities: [],
+      filters: [],
+      group_by: [],
+      comparison: { relation: 'count' },
+      order_by: []
+    });
+    expect(aggregate.scopes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'session', source_id: 'event_classification', value: 'race' }),
+      expect.objectContaining({ kind: 'season', value: 2025 }),
+      expect.objectContaining({ kind: 'temporal', value: 'final' })
+    ]));
+  });
+
   it('fails closed on every unpromoted explicit source combination', () => {
     expect(enumerateSemanticQueries('List championship points and finishing position from final 2025 driver standings and race classification.')).toMatchObject({
       type: 'abstention', reason: 'unsupported_source_combination'
@@ -402,6 +423,32 @@ describe('semantic query candidates and independent evidence', () => {
     'Show count of top ten qualifying positions in final 2025 qualifying classification.'
   ])('does not conflate recorded qualifying-position rows with broader count semantics: %s', question => {
     expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it.each([
+    'Show count of race starts in final 2025 race classification.',
+    'Show count of race events in final 2025 race classification.',
+    'Show count of wins in final 2025 race classification.',
+    'Show count of classified finishes in final 2025 race classification.'
+  ])('does not conflate recorded finishing-position rows with broader race count semantics: %s', question => {
+    expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it.each([
+    'Show count of finishing position and race points in final 2025 race classification.',
+    'Show count of qualifying position and best qualifying time in final 2025 qualifying classification.'
+  ])('rejects a count request with an additional non-countable measure: %s', question => {
+    expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+  });
+
+  it.each([
+    'Show count of finishing position equal to 1 in final 2025 race classification.',
+    'Show count of finishing position with race classification status classified in final 2025 race classification.',
+    'Show top 1 count of finishing position in final 2025 race classification.',
+    'Rank drivers by count of finishing position in final 2025 race classification.',
+    'Show count of finishing position by driver in final 2025 race classification.'
+  ])('refuses filtered, limited, grouped, or ranked race-position counts before planning: %s', question => {
+    expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention' });
   });
 
   it('keeps provider omission from collapsing independent ambiguity', () => {
