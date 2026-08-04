@@ -218,9 +218,13 @@ function eventPointsPlan() {
   };
 }
 
-function eventClassificationSelectionPlan(driverIds: readonly string[] = []) {
+function classificationSelectionPlan(
+  sourceId: 'event_classification' | 'qualifying_classification',
+  driverIds: readonly string[] = []
+) {
+  const positionId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
   const driverPredicate = driverIds.length === 0 ? [] : [{
-    concept: ref('event_classification', 'driver_id'),
+    concept: ref(sourceId, 'driver_id'),
     ...(driverIds.length === 1
       ? { operator: 'eq' as const, value: driverIds[0] }
       : { operator: 'in' as const, values: [...driverIds] })
@@ -234,16 +238,16 @@ function eventClassificationSelectionPlan(driverIds: readonly string[] = []) {
         input: {
           op: 'project',
           input: {
-            op: 'filter', input: { op: 'source', source_id: 'event_classification' },
+            op: 'filter', input: { op: 'source', source_id: sourceId },
             predicates: [
               ...driverPredicate,
-              predicate('event_classification', 'round', 1),
-              predicate('event_classification', 'season', 2025)
+              predicate(sourceId, 'round', 1),
+              predicate(sourceId, 'season', 2025)
             ]
           },
           outputs: [
-            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
-            { kind: 'concept', concept: ref('event_classification', 'finishing_position'), as: 'finishing_position' }
+            { kind: 'concept', concept: ref(sourceId, 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref(sourceId, positionId), as: positionId }
           ]
         }
       }
@@ -342,7 +346,7 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(decidePlannedParticipation(standingsRankPlan())).toEqual({
       type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
     });
-    expect(decidePlannedParticipation(eventClassificationSelectionPlan(['alpha-driver', 'beta-driver']))).toEqual({
+    expect(decidePlannedParticipation(classificationSelectionPlan('event_classification', ['alpha-driver', 'beta-driver']))).toEqual({
       type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
     });
     const composition = parsePlannedF1QLProgram(scalarCompositionPlan());
@@ -728,7 +732,7 @@ describe('internal planned F1QL and Core pipeline', () => {
   });
 
   it('matches PostgreSQL for selected event classification rows and checks the full event grain', async () => {
-    const plan = eventClassificationSelectionPlan(['alpha-driver', 'beta-driver']);
+    const plan = classificationSelectionPlan('event_classification', ['alpha-driver', 'beta-driver']);
     const core = lowerPlannedF1QL(plan);
     const compiled = compilePlannedF1QL(core);
     const reference: PlannedReferenceDatabase = {
@@ -747,7 +751,7 @@ describe('internal planned F1QL and Core pipeline', () => {
       { driver_id: 'beta-driver', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
 
-    const singletonCore = lowerPlannedF1QL(eventClassificationSelectionPlan(['alpha-driver']));
+    const singletonCore = lowerPlannedF1QL(classificationSelectionPlan('event_classification', ['alpha-driver']));
     const singletonCompiled = compilePlannedF1QL(singletonCore);
     await pool.query('BEGIN');
     try {
@@ -766,6 +770,53 @@ describe('internal planned F1QL and Core pipeline', () => {
       expect(corruptRows).toEqual(interpretPlannedF1QL(singletonCore, corruptReference));
       expect(corruptRows).toEqual([{
         driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: false
+      }]);
+    } finally {
+      await pool.query('ROLLBACK');
+    }
+  });
+
+  it('matches PostgreSQL for selected qualifying rows and checks the full event grain', async () => {
+    const plan = classificationSelectionPlan('qualifying_classification', ['alpha-driver', 'beta-driver']);
+    const core = lowerPlannedF1QL(plan);
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      qualifying_classification: [
+        { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 2, classification_status: 'classified' },
+        { season: 2025, round: 1, driver_id: 'alpha-driver', qualifying_position: 1, classification_status: 'classified' }
+      ]
+    };
+    expect(compiled.sql).toContain('COLLATE "C"');
+    expect(compiled.sql).toContain('planned_scope');
+    expect(compiled.sql).not.toContain('alpha-driver');
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([
+      { driver_id: 'alpha-driver', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'beta-driver', qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+
+    const singletonCore = lowerPlannedF1QL(
+      classificationSelectionPlan('qualifying_classification', ['alpha-driver'])
+    );
+    const singletonCompiled = compilePlannedF1QL(singletonCore);
+    await pool.query('BEGIN');
+    try {
+      await pool.query(`INSERT INTO driver (id, name, full_name, abbreviation)
+        VALUES ('beta-driver', 'Canonical Beta', 'Canonical Beta Driver', 'CBT')`);
+      await pool.query(`INSERT INTO qualifying_results
+        (season, round, driver_id, team_id, qualifying_position, session_type)
+        VALUES (2025, 1, 'beta-driver', 'planned-team', 20, 'RACE_QUALIFYING')`);
+      const corruptReference: PlannedReferenceDatabase = {
+        qualifying_classification: [
+          ...reference.qualifying_classification!,
+          { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 20, classification_status: 'classified' }
+        ]
+      };
+      const corruptRows = (await pool.query(singletonCompiled.sql, singletonCompiled.params)).rows;
+      expect(corruptRows).toEqual(interpretPlannedF1QL(singletonCore, corruptReference));
+      expect(corruptRows).toEqual([{
+        driver_id: 'alpha-driver', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: false
       }]);
     } finally {
       await pool.query('ROLLBACK');

@@ -1,22 +1,22 @@
 {
   "version": 1,
   "corpus_version": 1,
-  "corpus_hash": "659fdd496afb11cb329b5e3f5084b841370ac6f3808e9244f6021bf34fb7950f",
+  "corpus_hash": "36e77faf477aa08bec0f2e98881ee158ed28588acc18cf8c520db465089f0333",
   "coverage": {
-    "cases_total": 21,
+    "cases_total": 22,
     "action_counts": {
-      "answer": 9,
+      "answer": 10,
       "clarify": 5,
       "abstain": 7
     },
     "split_counts": {
-      "development": 6,
+      "development": 7,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7
     },
     "topology_counts": {
-      "single_source_rows": 4,
+      "single_source_rows": 5,
       "single_source_aggregate": 1,
       "row_dimension_join": 2,
       "scalar_aggregate_compose": 2
@@ -24,12 +24,12 @@
     "source_set_counts": {
       "driver_standings": 3,
       "event_classification": 1,
-      "qualifying_classification": 1,
+      "qualifying_classification": 2,
       "event_classification_event_metadata": 2,
       "event_classification_qualifying_classification": 2
     },
     "plan_family_counts": {
-      "single_source": 4,
+      "single_source": 5,
       "safe_dimension_join": 2,
       "aggregate_locality": 2,
       "other": 1
@@ -52,11 +52,11 @@
       "unsupported_scope": 1
     },
     "coverage_tag_counts": {
-      "promoted_topology": 6,
+      "promoted_topology": 7,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7,
-      "plan_family_single_source": 4,
+      "plan_family_single_source": 5,
       "plan_family_safe_dimension_join": 2,
       "plan_family_aggregate_locality": 2,
       "provider_admission": 1
@@ -66,9 +66,9 @@
       "aggregation": 1,
       "aggregate_locality": 2,
       "join_cardinality": 2,
-      "resolver_event": 3,
-      "resolver_identity": 4,
-      "template_free": 5,
+      "resolver_event": 4,
+      "resolver_identity": 5,
+      "template_free": 6,
       "metric_ambiguity": 1,
       "output_shape_ambiguity": 1,
       "scope_ambiguity": 1,
@@ -510,6 +510,179 @@
         "work_hash": "34cf9f5d2306005d7369a0e3f3c95e44d9db0e8aaa6b30ed1b61a766d893d441",
         "participation_hash": "b5bcfc0f987adb38719f12bd10fa8c8881124c4ae4a69bf290d34b9cf04cd5a9",
         "compiled_hash": "483b99246f64b4d38c22393d37653fe23eaf73e3617224be7faf8cd097b9498e"
+      },
+      "plan_family": "single_source"
+    },
+    {
+      "id": "family-filtered-qualifying-classification",
+      "split": "development",
+      "action": "answer",
+      "reason": "semantic_plan_proven",
+      "question_sha256": "72fef43a21e3107d1d9cdc55a39b882a69639e3ca3ca605fea1588e7e539dc10",
+      "coverage_tags": [
+        "promoted_topology",
+        "plan_family_single_source"
+      ],
+      "risk_tags": [
+        "template_free",
+        "resolver_event",
+        "resolver_identity"
+      ],
+      "entity_inventory": [
+        {
+          "type": "driver",
+          "span": {
+            "text": "Charles Leclerc",
+            "start": 40,
+            "end": 55
+          }
+        },
+        {
+          "type": "driver",
+          "span": {
+            "text": "George Russell",
+            "start": 57,
+            "end": 71
+          }
+        },
+        {
+          "type": "driver",
+          "span": {
+            "text": "Lando Norris",
+            "start": 73,
+            "end": 85
+          }
+        },
+        {
+          "type": "driver",
+          "span": {
+            "text": "Oscar Piastri",
+            "start": 87,
+            "end": 100
+          }
+        }
+      ],
+      "evidence": {
+        "type": "candidate_set",
+        "candidate_count": 1,
+        "evidence_hash": "a7ad56f79958b49087d6a140a61359996d0cf0be315c256be1cefbbedd954588",
+        "candidate_set_hash": "133e1d1ed2527fb0b985f3da8a8cf31f110c0b2f8b9d8670228144bdfea4b1fe"
+      },
+      "admission": {
+        "type": "admitted",
+        "reason": null,
+        "query_hash": "40394a9dafa3aa543bda8b783134070c2b4224d3a71c46be83f5f22399ed7cda"
+      },
+      "resolution": {
+        "resolution_hash": "51dfd69b5edac69fd392b89926e2e70b69963eefeb1a85e59d31d5d4c41e15dd",
+        "source_ids": [
+          "qualifying_classification"
+        ],
+        "entities": [
+          {
+            "entity_index": 0,
+            "type": "driver",
+            "selected_id": "charles-leclerc",
+            "candidate_ids": [
+              "charles-leclerc"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          },
+          {
+            "entity_index": 1,
+            "type": "driver",
+            "selected_id": "george-russell",
+            "candidate_ids": [
+              "george-russell"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          },
+          {
+            "entity_index": 2,
+            "type": "driver",
+            "selected_id": "lando-norris",
+            "candidate_ids": [
+              "lando-norris"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          },
+          {
+            "entity_index": 3,
+            "type": "driver",
+            "selected_id": "oscar-piastri",
+            "candidate_ids": [
+              "oscar-piastri"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          }
+        ],
+        "resolved_round": 1,
+        "resolver_reads": 2,
+        "resolver_candidates": 5
+      },
+      "plan": {
+        "topology": "single_source_rows",
+        "source_ids": [
+          "qualifying_classification"
+        ],
+        "resolution_relationship_ids": [
+          "driver_identity_qualifying_resolution",
+          "driver_participation_resolution"
+        ],
+        "row_relationship_ids": [],
+        "branches": [
+          {
+            "source_id": "qualifying_classification",
+            "fixed_grain": [
+              "round",
+              "season"
+            ],
+            "residual_grain": [
+              "driver_id"
+            ],
+            "aggregate": null
+          }
+        ],
+        "output_grain": [
+          "driver_id"
+        ],
+        "integrity_checks": [
+          "position_bounds",
+          "source_presence",
+          "unique_grain"
+        ],
+        "work": {
+          "source_scan_units": 1,
+          "resolver_reads": 2,
+          "resolver_candidates": 5,
+          "sources": 1,
+          "row_joins": 0,
+          "compositions": 0,
+          "operator_depth": 4,
+          "requested_rows": 100
+        },
+        "answer_plan_hash": "0c5427f53e8cb0ee5ae654d12dde992a7997736160acef9a50e2324c2e4fffd7",
+        "planned_f1ql_hash": "2ee262c76b6db5491a22074ca2a632ed722bdc97ee088a0737905ba8a9245f16",
+        "core_hash": "f6d652ae203dd1ac5ef6f3d92f0f1f6f773d09dbd94731d98399aea05ebd6164"
+      },
+      "proof": {
+        "proof_hash": "cd82d728896dee61c797234575adacee1ad27a996b98ad845288d6614def3bdf",
+        "topology_hash": "5d187cd7d4154b9f6385763dbf3af234d595d5f8e648e1afc4ca5adfb2cb3f7c",
+        "work_hash": "34cf9f5d2306005d7369a0e3f3c95e44d9db0e8aaa6b30ed1b61a766d893d441",
+        "participation_hash": "b5bcfc0f987adb38719f12bd10fa8c8881124c4ae4a69bf290d34b9cf04cd5a9",
+        "compiled_hash": "a5facee743c8aa3b76b158f0c75cc7dc40c30d2581caac671c6b21b17573dfe1"
       },
       "plan_family": "single_source"
     },

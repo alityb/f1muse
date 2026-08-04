@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 7 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 8 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -12,7 +12,8 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     topology: ['single_source_rows'],
     source_sets: [
       ['driver_standings'],
-      ['event_classification']
+      ['event_classification'],
+      ['qualifying_classification']
     ],
     relationship_ids: [],
     operator_signatures: [
@@ -89,6 +90,38 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         output_bindings: [
           'concept:event_classification.driver_id->driver_id',
           'concept:event_classification.finishing_position->finishing_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
+      },
+      {
+        entity_count: { min: 1, max: 1 },
+        predicate_bindings: [
+          'qualifying_classification.driver_id:eq',
+          'qualifying_classification.round:eq',
+          'qualifying_classification.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:qualifying_classification.driver_id->driver_id',
+          'concept:qualifying_classification.qualifying_position->qualifying_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 2, max: 4 },
+        predicate_bindings: [
+          'qualifying_classification.driver_id:in',
+          'qualifying_classification.round:eq',
+          'qualifying_classification.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:qualifying_classification.driver_id->driver_id',
+          'concept:qualifying_classification.qualifying_position->qualifying_position'
         ],
         sort_bindings: ['driver_id:asc:last'],
         requested_rows: 100

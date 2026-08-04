@@ -509,6 +509,20 @@ describe('semantic query candidates and independent evidence', () => {
     expect(enumerateSemanticQueries(defaultedSeasonWideRaceQuestion, [{
       type: 'driver', span: span(defaultedSeasonWideRaceQuestion, 'Max Verstappen')
     }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+
+    const seasonWideQualifyingQuestion = 'List driver and qualifying position for Max Verstappen from final 2025 qualifying classification.';
+    expect(enumerateSemanticQueries(seasonWideQualifyingQuestion, [{
+      type: 'driver', span: span(seasonWideQualifyingQuestion, 'Max Verstappen')
+    }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+
+    for (const question of [
+      'List top 1 driver and finishing position for Max Verstappen from round 1 of final 2025 race classification.',
+      'List top 1 driver and qualifying position for Max Verstappen from round 1 of final 2025 qualifying classification.'
+    ]) {
+      expect(enumerateSemanticQueries(question, [{
+        type: 'driver', span: span(question, 'Max Verstappen')
+      }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+    }
   });
 
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {

@@ -319,9 +319,21 @@ export function enumerateSemanticQueries(
     }
     return verifiedEvidence(candidateSetEvidence(question, catalogHash, composition, maxCandidates, compositionAmbiguity));
   }
-  if (sourceIds.length === 1 && sourceIds[0] === 'event_classification' &&
-      entities.some(entity => entity.type === 'driver') && !entities.some(entity => entity.type === 'event') &&
-      question.rounds.length === 0 && !operations.count && !operations.rank) {
+  const filteredClassificationSelection = sourceIds.length === 1 &&
+    (sourceIds[0] === 'event_classification' || sourceIds[0] === 'qualifying_classification') &&
+    entities.some(entity => entity.type === 'driver');
+  const classificationPositionId = sourceIds[0] === 'event_classification'
+    ? 'finishing_position'
+    : 'qualifying_position';
+  const hasOnlySelectionConcepts = effectiveConceptMatches.every(match =>
+    match.source_id !== sourceIds[0] ||
+    match.concept_id === 'driver_id' ||
+    match.concept_id === classificationPositionId
+  );
+  if (filteredClassificationSelection && hasOnlySelectionConcepts && (operations.limit || (
+    !entities.some(entity => entity.type === 'event') && question.rounds.length === 0 &&
+    !operations.count && !operations.rank
+  ))) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   const sourceCompatibility = sourceIds.map(sourceId => {

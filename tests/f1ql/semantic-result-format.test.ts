@@ -44,6 +44,7 @@ const PAIR_STANDINGS = 'Final 2025 standings points for Lando Norris and Oscar P
 const REVERSED_PAIR_STANDINGS = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_CLASSIFICATION = 'List driver and finishing position from round 1 of final 2025 race classification.';
+const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from round 1 of final 2025 qualifying classification.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
 
@@ -574,12 +575,17 @@ describe('generic proven semantic result formatting', () => {
     expect(formatted.metadata.ordering).toEqual([{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }]);
   });
 
-  it('does not mint result provenance for an unfiltered event without complete coverage', async () => {
+  it.each([
+    RACE_CLASSIFICATION,
+    QUALIFYING_CLASSIFICATION
+  ])('does not mint result provenance for an unfiltered classification without complete coverage: %s', async question => {
     const prepared = await prepare(
-      RACE_CLASSIFICATION, [], [], { type: 'resolved', season: 2025, round: 1 }
+      question, [], [], { type: 'resolved', season: 2025, round: 1 }
     );
     await expect(executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
-      driver_id: 'lando-norris', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true
+      driver_id: 'lando-norris',
+      ...(question === RACE_CLASSIFICATION ? { finishing_position: 1 } : { qualifying_position: 1 }),
+      [PLANNED_INTEGRITY_FIELD]: true
     }])).rejects.toThrow('profile_rejected');
   });
 
@@ -612,7 +618,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v6',
+        format_version: 'semantic-result-format-v7',
         answer: { headline: 'Final 2025 race classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -622,7 +628,61 @@ describe('generic proven semantic result formatting', () => {
       expect(formatted.metadata.sources.map(source => source.id)).toEqual(['event_classification']);
       expect(formatted.metadata.sources[0].coverage.certified)
         .toBe('No event-complete historical or steward-decision ledger claim.');
-      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v6');
+      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v7');
+    }
+    expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
+
+    const partial = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows.slice(0, -1));
+    expect(() => formatSemanticPlanResult(partial)).toThrow(SemanticResultFormatError);
+    const substituted = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      ...rows[0], driver_id: 'max-verstappen'
+    }]);
+    expect(() => formatSemanticPlanResult(substituted)).toThrow(SemanticResultFormatError);
+    const integrityFailed = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      ...rows[0], [PLANNED_INTEGRITY_FIELD]: false
+    }]);
+    expect(() => formatSemanticPlanResult(integrityFailed)).toThrow('failed source integrity');
+  });
+
+  it.each([1, 2, 3, 4] as const)('requires exact one-event qualifying membership for %i selected drivers', async cardinality => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, cardinality);
+    const question = `List driver and qualifying position for ${drivers.map(([name]) => name).join(', ')} from round 1 of final 2025 qualifying classification.`;
+    const entities = drivers.map(([name]) => ({ type: 'driver' as const, span: span(question, name) }));
+    const mentions = drivers.map(([name, id]) => ({
+      ...span(question, name), candidates: [id], active_candidates: [id]
+    }));
+    const prepared = await prepare(
+      question, entities, mentions, { type: 'resolved', season: 2025, round: 1 }
+    );
+    const rows = drivers.map(([, driver_id], index) => ({
+      driver_id,
+      qualifying_position: index === cardinality - 1 ? null : index + 1,
+      [PLANNED_INTEGRITY_FIELD]: true
+    })).sort((left, right) => Buffer.compare(Buffer.from(left.driver_id), Buffer.from(right.driver_id)));
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+    const formatted = formatSemanticPlanResult(execution);
+    expect(formatted.rows).toHaveLength(cardinality);
+    expect(formatted.metadata.scope.find(scope => scope.concept_id === 'driver_id')).toMatchObject({
+      operator: cardinality === 1 ? 'eq' : 'in',
+      values: rows.map(row => row.driver_id)
+    });
+    if (cardinality === 4) {
+      expect(formatted).toMatchObject({
+        format_version: 'semantic-result-format-v7',
+        answer: { headline: 'Final 2025 qualifying classification result for round 1.' },
+        metadata: {
+          coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
+          ordering: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }]
+        }
+      });
+      expect(formatted.metadata.sources.map(source => source.id)).toEqual(['qualifying_classification']);
+      expect(formatted.metadata.sources[0].coverage.certified)
+        .toBe('No per-event complete historical qualifying or steward-decision claim.');
     }
     expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
 

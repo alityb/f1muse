@@ -115,7 +115,9 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('one to four specific driver entities');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('Do not extend that race-selection rule to season-wide filtered selections');
+      .toContain('driver and qualifying position from a final YYYY qualifying classification at exactly one round or named event');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('Do not extend either classification-selection rule to season-wide filtered selections or user-supplied limits');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });

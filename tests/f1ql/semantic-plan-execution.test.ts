@@ -63,6 +63,17 @@ const cases = [
       { driver_id: 'lando-norris', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'oscar-piastri', finishing_position: null, [PLANNED_INTEGRITY_FIELD]: true }
     ]
+  },
+  {
+    id: 'family-filtered-qualifying-classification',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'charles-leclerc', qualifying_position: 5, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'george-russell', qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'lando-norris', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', qualifying_position: null, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
   }
 ] as const;
 
