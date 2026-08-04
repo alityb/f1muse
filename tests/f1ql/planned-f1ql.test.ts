@@ -161,6 +161,26 @@ function eventMetadataRowsPlan() {
   };
 }
 
+function eventDatePlan() {
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 1,
+      input: {
+        op: 'sort', keys: [{ output_id: 'date', direction: 'asc', nulls: 'last' }],
+        input: {
+          op: 'project',
+          input: {
+            op: 'filter', input: { op: 'source', source_id: 'event_metadata' },
+            predicates: [predicate('event_metadata', 'round', 1), predicate('event_metadata', 'season', 2025)]
+          },
+          outputs: [{ kind: 'concept', concept: ref('event_metadata', 'date'), as: 'date' }]
+        }
+      }
+    }
+  };
+}
+
 function emptyScalarCountPlan() {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
@@ -712,6 +732,49 @@ describe('internal planned F1QL and Core pipeline', () => {
       { event_name: 'Formula 1 Planned Grand Prix', round: 1, [PLANNED_INTEGRITY_FIELD]: true },
       { event_name: null, round: 2, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
+  });
+
+  it('matches PostgreSQL for one-event race date and checks the complete event key', async () => {
+    const core = lowerPlannedF1QL(eventDatePlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_metadata: [{
+        season: 2025, round: 1, event_id: 'planned-gp', event_name: 'Formula 1 Planned Grand Prix',
+        circuit_id: 'planned-circuit', date: '2025-01-01'
+      }]
+    };
+    const client = await pool.connect();
+    let sqlRows: Record<string, unknown>[];
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query("SET LOCAL datestyle = 'SQL, DMY'");
+        sqlRows = (await client.query(compiled.sql, compiled.params)).rows;
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([{ date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true }]);
+
+    await pool.query('BEGIN');
+    try {
+      await pool.query(`INSERT INTO race (id, year, round, grand_prix_id, circuit_id, official_name, date)
+        VALUES (9804, 2025, 1, 'planned_gp', 'other-circuit', 'DUPLICATE PLANNED EVENT', '2025-01-02')`);
+      const corruptReference: PlannedReferenceDatabase = {
+        event_metadata: [
+          ...reference.event_metadata!,
+          { season: 2025, round: 1, event_id: 'planned-gp', event_name: 'Formula 1 Planned Grand Prix', circuit_id: 'other-circuit', date: '2025-01-02' }
+        ]
+      };
+      const corruptRows = (await pool.query(compiled.sql, compiled.params)).rows;
+      expect(corruptRows).toEqual(interpretPlannedF1QL(core, corruptReference));
+      expect(corruptRows).toEqual([{ date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: false }]);
+    } finally {
+      await pool.query('ROLLBACK');
+    }
   });
 
   it('matches PostgreSQL exact numeric projection and ordering beyond safe integers', async () => {

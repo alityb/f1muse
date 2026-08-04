@@ -74,6 +74,12 @@ const cases = [
       { driver_id: 'lando-norris', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'oscar-piastri', qualifying_position: null, [PLANNED_INTEGRITY_FIELD]: true }
     ]
+  },
+  {
+    id: 'family-event-date',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true }]
   }
 ] as const;
 

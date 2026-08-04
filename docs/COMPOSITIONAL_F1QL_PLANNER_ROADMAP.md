@@ -702,13 +702,17 @@ historical season, one explicit round or uniquely resolved named event, and one
 to four drivers, returning only driver identity and nullable finishing
 position. The matching qualifying-classification slice is complete over the
 same season, event, and driver bounds, returning only driver identity and
-nullable qualifying position. Unfiltered event selection remains refused until
-the catalog can provide event-complete membership witnesses. Season-wide
-filtered selection, user-supplied limits, classification status, qualifying
-timing, grid position, sprint qualifying, grouping, aggregation, ranking, and
-comparison remain outside these slices and must be promoted through separate
-complete-interaction and response-coverage contracts. No production release or
-routing change is claimed by these local milestones.
+nullable qualifying position. A date-only event-metadata slice is complete for
+one final historical season from 1950 through 2025 and exactly one explicit
+round or uniquely resolved named event, returning one nullable canonical race
+date. Unfiltered event classification selection remains refused until the
+catalog can provide event-complete membership witnesses. Season-wide filtered
+selection, user-supplied limits, broader event metadata, non-race session dates,
+classification status, qualifying timing, grid position, sprint qualifying,
+grouping, aggregation, ranking, and comparison remain outside these slices and
+must be promoted through separate complete-interaction and response-coverage
+contracts. No production release or routing change is claimed by these local
+milestones.
 
 ### Work Package 11: Certified Retained-Data Onboarding
 

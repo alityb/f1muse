@@ -46,7 +46,8 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const RACE_CLASSIFICATION = 'List driver and finishing position from round 1 of final 2025 race classification.';
 const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from round 1 of final 2025 qualifying classification.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
-const EVENT_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
+const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
+const EVENT_NAME_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
 
 describe('generic proven semantic result formatting', () => {
   it('derives standings metadata and preserves the complete family wire contract', async () => {
@@ -618,7 +619,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v7',
+        format_version: 'semantic-result-format-v8',
         answer: { headline: 'Final 2025 race classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -628,7 +629,7 @@ describe('generic proven semantic result formatting', () => {
       expect(formatted.metadata.sources.map(source => source.id)).toEqual(['event_classification']);
       expect(formatted.metadata.sources[0].coverage.certified)
         .toBe('No event-complete historical or steward-decision ledger claim.');
-      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v7');
+      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v8');
     }
     expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
 
@@ -673,7 +674,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v7',
+        format_version: 'semantic-result-format-v8',
         answer: { headline: 'Final 2025 qualifying classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -844,10 +845,39 @@ describe('generic proven semantic result formatting', () => {
     }])).rejects.toThrow('nonnegative count');
   });
 
-  it('does not mint result provenance for an interaction outside the signed profiles', async () => {
+  it('formats exactly one nullable race date and rejects missing or overfull event evidence', async () => {
     const prepared = await prepare(EVENT_DATE, [], [], { type: 'resolved', season: 2025, round: 1 });
+    const formatted = await executeAndFormat(prepared, [{
+      date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
+    }]);
+    expect(formatted).toMatchObject({
+      format_version: 'semantic-result-format-v8',
+      rows: [{ date: '2025-01-01' }],
+      metadata: {
+        coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
+        ordering: [{ output_id: 'date', direction: 'asc', nulls: 'last' }]
+      }
+    });
+    expect((await executeAndFormat(prepared, [{
+      date: null, [PLANNED_INTEGRITY_FIELD]: true
+    }])).rows).toEqual([{ date: null }]);
+    await expect(executeAndFormat(prepared, [])).rejects.toThrow('exactly one row');
+    await expect(executeAndFormat(prepared, [
+      { date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true },
+      { date: '2025-01-02', [PLANNED_INTEGRITY_FIELD]: true }
+    ])).rejects.toThrow('collection evidence was incomplete');
+    await expect(executeAndFormat(prepared, [{
+      date: '2025-02-30', [PLANNED_INTEGRITY_FIELD]: true
+    }])).rejects.toThrow('ISO date');
+    await expect(executeAndFormat(prepared, [{
+      date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: false
+    }])).rejects.toThrow('failed source integrity');
+  });
+
+  it('keeps broader event metadata projections outside the signed profiles', async () => {
+    const prepared = await prepare(EVENT_NAME_DATE, [], [], { type: 'resolved', season: 2025, round: 1 });
     await expect(executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
-      event_name: 'Australian Grand Prix', date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
+      event_name: 'Australian Grand Prix', date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true
     }])).rejects.toThrow('profile_rejected');
   });
 

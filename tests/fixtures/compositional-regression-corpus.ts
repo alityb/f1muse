@@ -8,6 +8,7 @@ const HOLDOUT_COMPOSE = 'In final 2024, show count of finishing position from ra
 const FILTERED_STANDINGS = 'List driver and championship points for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
 const FILTERED_RACE_CLASSIFICATION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
 const FILTERED_QUALIFYING_CLASSIFICATION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 qualifying classification.';
+const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
 
 const noResolvers = {
   driver_mentions: [],
@@ -17,11 +18,11 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 22,
-    action_counts: { answer: 10, clarify: 5, abstain: 7 },
-    split_counts: { development: 7, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 23,
+    action_counts: { answer: 11, clarify: 5, abstain: 7 },
+    split_counts: { development: 8, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
-      single_source_rows: 5,
+      single_source_rows: 6,
       single_source_aggregate: 1,
       row_dimension_join: 2,
       scalar_aggregate_compose: 2
@@ -30,11 +31,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       driver_standings: 3,
       event_classification: 1,
       qualifying_classification: 2,
+      event_metadata: 1,
       event_classification_event_metadata: 2,
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 5,
+      single_source: 6,
       safe_dimension_join: 2,
       aggregate_locality: 2,
       other: 1
@@ -57,11 +59,11 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 7,
+      promoted_topology: 8,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 5,
+      plan_family_single_source: 6,
       plan_family_safe_dimension_join: 2,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
@@ -71,9 +73,9 @@ export const compositionalRegressionCorpusInput: unknown = {
       aggregation: 1,
       aggregate_locality: 2,
       join_cardinality: 2,
-      resolver_event: 4,
+      resolver_event: 5,
       resolver_identity: 5,
-      template_free: 6,
+      template_free: 7,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -171,6 +173,16 @@ export const compositionalRegressionCorpusInput: unknown = {
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
         source_ids: ['qualifying_classification'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-event-date', split: 'development', question: EVENT_DATE,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_event'], entities: [], provider_mode: 'enumerated',
+      resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2025, round: 1 } },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['event_metadata'], plan_family: 'single_source'
       }
     },
     {

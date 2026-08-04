@@ -17,6 +17,7 @@ import {
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION,
   SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256,
   SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT,
+  SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT,
   SEMANTIC_CANDIDATE_JSON_SCHEMA,
   SEMANTIC_CANDIDATE_PROVIDER_DIAGNOSTIC_CODES,
   SEMANTIC_CANDIDATE_SYSTEM_PROMPT,
@@ -118,6 +119,8 @@ describe('semantic candidate translator foundation', () => {
       .toContain('driver and qualifying position from a final YYYY qualifying classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Do not extend either classification-selection rule to season-wide filtered selections or user-supplied limits');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('requests that name race date from final YYYY event metadata at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });

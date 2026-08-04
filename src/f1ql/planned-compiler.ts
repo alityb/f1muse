@@ -71,7 +71,8 @@ function compileProject(project: PlannedCoreProjectNode, context: SqlContext): S
   const outputs = project.outputs.map(output => {
     if (output.kind === 'aggregate') {return `${quoteId(output.measure_as)} AS ${quoteId(output.as)}`;}
     if (output.kind === 'composed_aggregate') {return `${quoteId(`${output.source_id}__${output.measure_as}`)} AS ${quoteId(output.as)}`;}
-    return `${quoteId(coreColumn(output.concept))} AS ${quoteId(output.as)}`;
+    const column = quoteId(coreColumn(output.concept));
+    return `${output.concept.physical_type === 'date' ? `to_char(${column}, 'YYYY-MM-DD')` : column} AS ${quoteId(output.as)}`;
   });
   const integrity = compileProjectIntegrity(project, input.integrity_field);
   return {

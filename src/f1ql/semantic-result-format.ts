@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v7' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v8' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -184,6 +184,11 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
     core.root.count, core.root.input.keys, project, branches, sources, columns
   ) && (rows.length === 0 || execution.has_more_rows)) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
+  }
+  if (isEventDateSelectionContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  ) && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Event date result collection evidence was incomplete');
   }
 
   let finalStandingsContract;
@@ -742,6 +747,39 @@ function isClassificationSelectionContract(
     reviewedEventDriverPredicate(mode, driverPredicate, sourceId) && key.output_id === 'driver_id' &&
     key.direction === 'asc' && key.nulls === 'last' && key.physical_type === 'text' &&
     key.semantic_type === 'driver_id';
+}
+
+// eslint-disable-next-line complexity
+function isEventDateSelectionContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const branch = branches[0];
+  const seasonPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'season');
+  const roundPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'round');
+  const source = sources[0];
+  const key = ordering[0];
+  return rowLimit === 1 && sources.length === 1 && source?.id === 'event_metadata' &&
+    branches.length === 1 && branch.input.source_id === 'event_metadata' && branch.predicates.length === 2 &&
+    project.input.op === 'filter' && project.outputs.length === 1 && project.outputs[0].kind === 'concept' &&
+    project.outputs[0].concept.source_id === 'event_metadata' &&
+    project.outputs[0].concept.concept_id === 'date' && project.outputs[0].as === 'date' &&
+    project.output_grain.length === 0 && columns.length === 1 && columns[0].source_id === 'event_metadata' &&
+    columns[0].concept_id === 'date' && columns[0].id === 'date' && columns[0].kind === 'dimension' &&
+    columns[0].aggregation === null && ordering.length === 1 && key.output_id === 'date' &&
+    key.direction === 'asc' && key.nulls === 'last' &&
+    Boolean(seasonPredicate && seasonPredicate.concept.source_id === 'event_metadata' &&
+      seasonPredicate.operator === 'eq' && typeof seasonPredicate.value === 'number' &&
+      Number.isSafeInteger(seasonPredicate.value) && source.scope.season_min !== null &&
+      seasonPredicate.value >= source.scope.season_min && source.scope.final_season_through !== null &&
+      seasonPredicate.value <= source.scope.final_season_through) &&
+    Boolean(roundPredicate && roundPredicate.concept.source_id === 'event_metadata' &&
+      roundPredicate.operator === 'eq' && typeof roundPredicate.value === 'number' &&
+      Number.isSafeInteger(roundPredicate.value) && roundPredicate.value >= 1 && roundPredicate.value <= 30);
 }
 
 function reviewedEventDriverPredicate(

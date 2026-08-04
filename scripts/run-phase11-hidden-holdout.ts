@@ -453,6 +453,7 @@ function expectedCoverage(cases: readonly HiddenCase[]) {
     source_set_counts: {
       driver_standings: sourceSets.driver_standings ?? 0,
       event_classification: sourceSets.event_classification ?? 0,
+      event_metadata: sourceSets.event_metadata ?? 0,
       qualifying_classification: sourceSets.qualifying_classification ?? 0,
       event_classification_event_metadata: sourceSets.event_classification_event_metadata ?? 0,
       event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0

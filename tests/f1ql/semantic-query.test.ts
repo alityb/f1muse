@@ -523,6 +523,26 @@ describe('semantic query candidates and independent evidence', () => {
         type: 'driver', span: span(question, 'Max Verstappen')
       }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
     }
+
+    const eventDate = 'List race date from round 1 of final 2025 event metadata.';
+    expect(enumerateSemanticQueries(eventDate)).toMatchObject({
+      type: 'candidate_set',
+      candidates: [expect.objectContaining({
+        outputs: [expect.objectContaining({
+          kind: 'concept', concept: { source_id: 'event_metadata', concept_id: 'date' }
+        })]
+      })]
+    });
+    const namedEventDate = 'List race date from final 2025 event metadata at Monaco.';
+    expect(enumerateSemanticQueries(namedEventDate, [{
+      type: 'event', span: span(namedEventDate, 'Monaco')
+    }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
+    for (const question of [
+      'List race date from final 2025 event metadata.',
+      'List top 1 race date from round 1 of final 2025 event metadata.'
+    ]) {
+      expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+    }
   });
 
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {

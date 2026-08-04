@@ -87,6 +87,7 @@ const coverageSchema = z.object({
   source_set_counts: z.object({
     driver_standings: countSchema,
     event_classification: countSchema,
+    event_metadata: countSchema,
     qualifying_classification: countSchema,
     event_classification_event_metadata: countSchema,
     event_classification_qualifying_classification: countSchema
@@ -637,6 +638,7 @@ function computeCoverage(results: readonly z.infer<typeof resultCaseSchema>[]): 
     source_set_counts: {
       driver_standings: sourceSets.driver_standings ?? 0,
       event_classification: sourceSets.event_classification ?? 0,
+      event_metadata: sourceSets.event_metadata ?? 0,
       qualifying_classification: sourceSets.qualifying_classification ?? 0,
       event_classification_event_metadata: sourceSets.event_classification_event_metadata ?? 0,
       event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0
@@ -681,7 +683,7 @@ function planFamilyMatches(
   if (planFamily === 'single_source') {
     return topology === 'single_source_rows' && (
       sameStrings(sourceIds, ['driver_standings']) || sameStrings(sourceIds, ['event_classification']) ||
-      sameStrings(sourceIds, ['qualifying_classification'])
+      sameStrings(sourceIds, ['event_metadata']) || sameStrings(sourceIds, ['qualifying_classification'])
     );
   }
   if (planFamily === 'safe_dimension_join') {

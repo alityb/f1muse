@@ -336,6 +336,15 @@ export function enumerateSemanticQueries(
   ))) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
+  const eventDateSelection = sourceIds.length === 1 && sourceIds[0] === 'event_metadata' &&
+    effectiveConceptMatches.length > 0 && effectiveConceptMatches.every(match =>
+      match.source_id === 'event_metadata' && match.concept_id === 'date'
+    );
+  if (eventDateSelection && (operations.limit || (
+    !entities.some(entity => entity.type === 'event') && question.rounds.length === 0
+  ))) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   const sourceCompatibility = sourceIds.map(sourceId => {
     const source = catalog.sources.find(item => item.id === sourceId && item.usage === 'answer_fact');
     const compatible = Boolean(source) && !question.years.some(year => source!.scope.season_min === null || source!.scope.season_max === null || year.value < source!.scope.season_min || year.value > source!.scope.season_max) &&

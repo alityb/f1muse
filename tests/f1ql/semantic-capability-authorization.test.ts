@@ -88,7 +88,10 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
-  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+  }, ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List race date from round ${round} of final ${year} event metadata.`,
+    entity_names: []
+  }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position for Charles Leclerc from round ${round} of final ${year} race classification.`,
     entity_names: ['Charles Leclerc'],
     driver_mentions: [{
@@ -166,13 +169,14 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 0, max: 0 },
       { min: 1, max: 1 },
       { min: 2, max: 4 },
+      { min: 0, max: 0 },
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 1, max: 1 },
       { min: 2, max: 4 }
     ]);
     expect(profile.source_sets).toEqual([
-      ['driver_standings'], ['event_classification'], ['qualifying_classification']
+      ['driver_standings'], ['event_classification'], ['event_metadata'], ['qualifying_classification']
     ]);
     expect(profile.limits).toMatchObject({ entities: 4, events: 1, seasons: 1 });
     expect(profile.complete_interactions.every(interaction =>
@@ -263,6 +267,21 @@ describe('semantic complete-interaction capability authorization', () => {
     })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
+  it('rejects latest-recorded 2026 event metadata from the historical-final profile', async () => {
+    const proof = await semanticProof(
+      'List race date from round 1 of latest recorded 2026 event metadata.', []
+    );
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  });
+
   it('rejects a resolver inventory above the 100-candidate boundary', async () => {
     const question = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
     await expect(semanticProof(question, ['Norris'], [{
@@ -279,6 +298,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['What were Charles Leclerc final standings points in 2024?', 'semantic-single-source-v1', ['Charles Leclerc']],
     ['Final 2025 standings points for Lando Norris and Oscar Piastri.', 'semantic-single-source-v1', ['Lando Norris', 'Oscar Piastri']],
     ['Final 2025 standings points for Oscar Piastri and Lando Norris.', 'semantic-single-source-v1', ['Oscar Piastri', 'Lando Norris']],
+    ['List race date from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {
@@ -332,6 +352,25 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(Object.isFrozen(authorization.interaction)).toBe(true);
     expect(verifySemanticCapabilityAuthorization(authorization)).toBe(authorization);
     expect(() => verifySemanticCapabilityAuthorization({ ...authorization })).toThrow('invalid_authorization');
+  });
+
+  it('authorizes a uniquely resolved named-event date interaction', async () => {
+    const proof = await semanticProof(
+      'List race date from final 2025 event metadata at Monaco.', [], undefined, ['Monaco']
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization).toMatchObject({
+      profile_id: 'semantic-single-source-v1',
+      semantic_plan_proof_hash: proof.proof_hash
+    });
   });
 
   it('rejects valid components assembled into a profile not selected by the signed release', async () => {
@@ -821,17 +860,22 @@ describe('semantic complete-interaction capability authorization', () => {
 async function semanticProof(
   question: string,
   entityNames: readonly string[],
-  driverMentions?: PositiveProfileCase['driver_mentions']
+  driverMentions?: PositiveProfileCase['driver_mentions'],
+  eventNames: readonly string[] = []
 ) {
-  return (await semanticArtifacts(question, entityNames, driverMentions)).proof;
+  return (await semanticArtifacts(question, entityNames, driverMentions, eventNames)).proof;
 }
 
 async function semanticArtifacts(
   question: string,
   entityNames: readonly string[],
-  driverMentions?: PositiveProfileCase['driver_mentions']
+  driverMentions?: PositiveProfileCase['driver_mentions'],
+  eventNames: readonly string[] = []
 ) {
-  const entities = entityNames.map(name => ({ type: 'driver' as const, span: span(question, name) }));
+  const entities = [
+    ...entityNames.map(name => ({ type: 'driver' as const, span: span(question, name) })),
+    ...eventNames.map(name => ({ type: 'event' as const, span: span(question, name) }))
+  ];
   const evidence = enumerateSemanticQueries(question, entities);
   if (evidence.type !== 'candidate_set') throw new Error('test evidence was not a candidate set');
   const admission = admitSemanticQueryCandidates({ version: 2, candidates: evidence.candidates }, question, evidence);
