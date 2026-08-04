@@ -26,6 +26,8 @@ const FOUR_DRIVER_POINTS_QUESTION = 'List driver and championship points for Cha
 const FOUR_DRIVER_STANDINGS_RANK_QUESTION = 'Rank Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by championship position in final 2025 driver standings.';
 const FOUR_DRIVER_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
 const FOUR_DRIVER_NAMED_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 race classification at Monaco.';
+const FOUR_DRIVER_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
+const FOUR_DRIVER_NAMED_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from final 2025 race classification at Monaco.';
 const FOUR_DRIVER_QUALIFYING_QUESTION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 qualifying classification.';
 const FOUR_DRIVER_NAMED_QUALIFYING_QUESTION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 qualifying classification at Monaco.';
 const EVENT_DATE_QUESTION = 'List race date from round 1 of final 2025 event metadata.';
@@ -48,6 +50,21 @@ const DANGLING_ALTERNATIVE_POINTS_QUESTION = 'List driver and championship point
 const MIXED_ENTITY_ALTERNATIVE_QUESTION = 'List driver and finishing position for Max Verstappen or Monaco from final 2025 race classification.';
 const FIVE_DRIVER_POINTS_QUESTION = 'List driver and championship points for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc from final 2025 driver standings.';
 const FIVE_DRIVER_RACE_QUESTION = 'List driver and finishing position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc from round 1 of final 2025 race classification.';
+const FIVE_DRIVER_RACE_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc by finishing position from round 1 of final 2025 race classification.';
+const SINGLE_DRIVER_RACE_RANK_QUESTION = 'Rank drivers Max Verstappen by finishing position from round 1 of final 2025 race classification.';
+const SEASON_WIDE_RACE_RANK_QUESTION = 'Rank drivers Max Verstappen and Lando Norris by finishing position from final 2025 race classification.';
+const LIMITED_RACE_RANK_QUESTION = 'Show top 2 drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.';
+const RACE_POINTS_RANK_QUESTION = 'Rank drivers Max Verstappen and Lando Norris by race points from round 1 of final 2025 race classification.';
+const BROADER_RACE_RANK_QUESTION = 'Rank drivers Max Verstappen and Lando Norris by finishing position and qualifying position from round 1 of final 2025 race classification.';
+const LATEST_RACE_RANK_QUESTION = 'Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of latest recorded 2026 race classification.';
+const QUOTED_RACE_RANK_QUESTION = '"Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification."';
+const SINGLE_QUOTED_RACE_RANK_QUESTION = "'Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.'";
+const CURLY_QUOTED_RACE_RANK_QUESTION = '‘Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.’';
+const GUILLEMET_QUOTED_RACE_RANK_QUESTION = '«Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.»';
+const UNMATCHED_QUOTED_RACE_RANK_QUESTION = '‛Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.';
+const EMBEDDED_QUOTED_RACE_RANK_QUESTION = "Rank drivers Max Verstappen and Lando Norris by'finishing position'from round 1 of final 2025 race classification.";
+const NEGATED_RACE_RANK_QUESTION = '¬ Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.';
+const APOSTROPHIZED_RACE_RANK_QUESTION = "Rank drivers Pat O'Connor and Liam O’Brien by finishing position from round 1 of final 2025 race classification.";
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -232,6 +249,40 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
+  it('proves apostrophized driver names without treating them as quoted language or executing results', async () => {
+    const fake = fakePool(async sql => {
+      if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped) {
+        return { rows: [
+          { driver_id: 'liam-obrien', identity: 'Liam O’Brien', participation_source: 'entrant' },
+          { driver_id: 'pat-oconnor', identity: "Pat O'Connor", participation_source: 'entrant' }
+        ] };
+      }
+      if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round) {
+        return { rows: [{ season: 2025, round: 1 }] };
+      }
+      return { rows: [] };
+    });
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: APOSTROPHIZED_RACE_RANK_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'answer', reason: 'plan_proven', result_query_calls: 0 }
+      }
+    });
+    expect(executionAttempts).toBe(0);
+  });
+
   it('maps holdout-historical-points through one metadata read and no result execution', async () => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [{
@@ -347,7 +398,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it('proves a four-driver race family through bounded identity and event reads without result execution', async () => {
+  it.each([
+    FOUR_DRIVER_RACE_QUESTION,
+    FOUR_DRIVER_RACE_RANK_QUESTION
+  ])('proves a four-driver race family through bounded identity and event reads without result execution: %s', async question => {
     const fake = fakePool(async sql => {
       if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped) {
         return { rows: [
@@ -368,7 +422,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
       proposer: { propose: async proposal => exactProposal(proposal) },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
-    }, { question: FOUR_DRIVER_RACE_QUESTION }, undefined, () => {
+    }, { question }, undefined, () => {
       executionAttempts += 1;
       throw new Error('semantic shadow must not execute a result query');
     });
@@ -393,7 +447,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it('proves the same four-driver family through named-event resolution without result execution', async () => {
+  it.each([
+    FOUR_DRIVER_NAMED_RACE_QUESTION,
+    FOUR_DRIVER_NAMED_RACE_RANK_QUESTION
+  ])('proves the same four-driver family through named-event resolution without result execution: %s', async question => {
     const fake = fakePool(async sql => {
       if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped) {
         return { rows: [
@@ -414,7 +471,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
       proposer: { propose: async proposal => exactProposal(proposal) },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
-    }, { question: FOUR_DRIVER_NAMED_RACE_QUESTION }, undefined, () => {
+    }, { question }, undefined, () => {
       executionAttempts += 1;
       throw new Error('semantic shadow must not execute a result query');
     });
@@ -674,7 +731,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it('rejects five-driver race language before provider, event resolution, or result execution', async () => {
+  it.each([
+    FIVE_DRIVER_RACE_QUESTION,
+    FIVE_DRIVER_RACE_RANK_QUESTION
+  ])('rejects five-driver race language before provider, event resolution, or result execution: %s', async question => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
@@ -691,7 +751,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
       proposer: { propose: async () => {providerCalls += 1; return {};} },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
-    }, { question: FIVE_DRIVER_RACE_QUESTION }, undefined, () => {
+    }, { question }, undefined, () => {
       executionAttempts += 1;
       throw new Error('semantic shadow must not execute a result query');
     });
@@ -704,6 +764,50 @@ describe('WP8 stage-zero semantic shadow route', () => {
       }
     });
     expect(fake.calls.some(call => call.sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round)).toBe(false);
+    expect(providerCalls).toBe(0);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each([
+    [SINGLE_DRIVER_RACE_RANK_QUESTION, 'unsupported_scope'],
+    [SEASON_WIDE_RACE_RANK_QUESTION, 'unsupported_scope'],
+    [LIMITED_RACE_RANK_QUESTION, 'unsupported_scope'],
+    [RACE_POINTS_RANK_QUESTION, 'unsupported_scope'],
+    [BROADER_RACE_RANK_QUESTION, 'unsupported_scope'],
+    [LATEST_RACE_RANK_QUESTION, 'unsupported_scope'],
+    [QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [SINGLE_QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [CURLY_QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [GUILLEMET_QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [UNMATCHED_QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [EMBEDDED_QUOTED_RACE_RANK_QUESTION, 'unknown_language'],
+    [NEGATED_RACE_RANK_QUESTION, 'unknown_language']
+  ] as const)('rejects unsupported race-ranking language before provider or result execution: %s', async (question, reason) => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'abstain', reason, result_query_calls: 0 }
+      }
+    });
     expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
@@ -1081,13 +1185,18 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 50, end: 62 } }
         ]
     : request.question === FOUR_DRIVER_POINTS_QUESTION || request.question === FOUR_DRIVER_STANDINGS_RANK_QUESTION ||
-        request.question === FOUR_DRIVER_RACE_QUESTION ||
+        request.question === FOUR_DRIVER_RACE_QUESTION || request.question === FOUR_DRIVER_RACE_RANK_QUESTION ||
         request.question === FOUR_DRIVER_QUALIFYING_QUESTION
       ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
           type: 'driver' as const,
           span: questionSpan(request.question, text)
         }))
-    : request.question === FOUR_DRIVER_NAMED_RACE_QUESTION
+    : request.question === APOSTROPHIZED_RACE_RANK_QUESTION
+      ? ["Pat O'Connor", 'Liam O’Brien'].map(text => ({
+          type: 'driver' as const,
+          span: questionSpan(request.question, text)
+        }))
+    : request.question === FOUR_DRIVER_NAMED_RACE_QUESTION || request.question === FOUR_DRIVER_NAMED_RACE_RANK_QUESTION
       ? [
           ...['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
             type: 'driver' as const,

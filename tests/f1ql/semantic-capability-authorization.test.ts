@@ -137,6 +137,22 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `Rank drivers ${drivers.map(([name]) => name).join(', ')} by finishing position from round ${round} of final ${year} race classification.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
   }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and qualifying position for Charles Leclerc from round ${round} of final ${year} qualifying classification.`,
     entity_names: ['Charles Leclerc'],
@@ -196,6 +212,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 0, max: 0 },
       { min: 0, max: 0 },
       { min: 1, max: 1 },
+      { min: 2, max: 4 },
       { min: 2, max: 4 },
       { min: 1, max: 1 },
       { min: 2, max: 4 }

@@ -280,14 +280,24 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
+  const racePositionRanking = finalRacePositionRanking(
+    question,
+    sourceMatches,
+    conceptMatches,
+    operations,
+    entities
+  );
   const standingsProjection = standingsPointsProjection ?? standingsPositionRanking;
   if (!standingsPointsProjection && containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
     return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
   }
-  const effectiveConceptMatches = standingsProjection ? [standingsProjection] : conceptMatches;
+  const effectiveConceptMatches = standingsProjection ? [standingsProjection] : racePositionRanking ?? conceptMatches;
   const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
+  }
+  if (operations.rank && sourceIds.includes('event_classification') && !racePositionRanking) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   if (question.years.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
@@ -388,6 +398,10 @@ export function enumerateSemanticQueries(
       !standingsPositionRanking) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
+  if (compatibleSourceIds.length === 1 && compatibleSourceIds[0] === 'event_classification' && operations.rank &&
+      !racePositionRanking) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   if (question.rounds.length > 0 && entities.some(entity => entity.type === 'event')) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
@@ -410,7 +424,8 @@ export function enumerateSemanticQueries(
       sourceMatches,
       operations,
       question.normalized_question,
-      standingsProjection
+      standingsProjection,
+      racePositionRanking
     );
     usedDefaultOutputs ||= outputChoices.defaulted;
     if (outputChoices.outputs.length === 0) {
@@ -699,11 +714,13 @@ function buildOutputChoices(
   sourceMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
   question: string,
-  standingsProjection?: LexicalMatch
+  standingsProjection?: LexicalMatch,
+  racePositionRanking?: readonly LexicalMatch[]
 ): { readonly outputs: readonly (readonly SemanticQuery['outputs'][number][])[]; readonly defaulted: boolean } {
   if (source.id === 'driver_standings' && standingsProjection) {
     return { outputs: [standingsProjectionOutputs(standingsProjection)], defaulted: false };
   }
+  if (source.id === 'event_classification' && racePositionRanking) {return { outputs: [raceRankingOutputs(racePositionRanking)], defaulted: false };}
   const explicit = matches.map(match => {
     const concept = { source_id: match.source_id, concept_id: match.concept_id! };
     return { kind: 'concept' as const, concept, evidence: [match.span] };
@@ -768,6 +785,16 @@ function standingsProjectionOutputs(
   ];
 }
 
+function raceRankingOutputs(
+  projection: readonly LexicalMatch[]
+): readonly SemanticQuery['outputs'][number][] {
+  return projection.map(match => ({
+    kind: 'concept',
+    concept: { source_id: match.source_id, concept_id: match.concept_id! },
+    evidence: [match.span]
+  }));
+}
+
 // eslint-disable-next-line complexity
 function finalStandingsPositionRankingProjection(
   question: AnswerQuestionContract,
@@ -787,6 +814,34 @@ function finalStandingsPositionRankingProjection(
     return undefined;
   }
   return selected[0];
+}
+
+// eslint-disable-next-line complexity
+function finalRacePositionRanking(
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): readonly LexicalMatch[] | undefined {
+  const concepts = canonicalConceptMatches(conceptMatches.filter(match => match.source_id === 'event_classification'));
+  const hasBroaderConcept = conceptMatches.some(match =>
+    match.source_id !== 'event_classification' && !concepts.some(concept =>
+      concept.span.start <= match.span.start && concept.span.end >= match.span.end));
+  const drivers = entities.filter(entity => entity.type === 'driver');
+  const events = entities.filter(entity => entity.type === 'event');
+  if (question.years.length !== 1 || question.rounds.length + events.length !== 1 ||
+      operations.temporal.length !== 1 || operations.temporal[0].value !== 'final' ||
+      !operations.rank || operations.count || operations.limit ||
+      drivers.length < 2 || drivers.length > 4 || events.length > 1 ||
+      entities.some(entity => entity.type !== 'driver' && entity.type !== 'event') ||
+      !sourceMatches.some(match => match.source_id === 'event_classification') ||
+      hasBroaderConcept || concepts.length !== 2) {
+    return undefined;
+  }
+  const driver = concepts.find(match => match.concept_id === 'driver_id');
+  const position = concepts.find(match => match.concept_id === 'finishing_position');
+  return driver && position ? [driver, position] : undefined;
 }
 
 // eslint-disable-next-line complexity
@@ -1400,6 +1455,14 @@ function containsUnknownLanguage(
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): boolean {
+  const questionCharacters = Array.from(question.normalized_question);
+  if (questionCharacters.some((character, index) => {
+    if (!/[\p{Quotation_Mark}`]/u.test(character)) {return false;}
+    return !(["'", '’'].includes(character) &&
+      entities.some(entity => entity.span.start < index && index < entity.span.end) &&
+      /\p{L}/u.test(questionCharacters[index - 1] ?? '') &&
+      /\p{L}/u.test(questionCharacters[index + 1] ?? ''));
+  })) {return true;}
   const characters = Array.from(question.normalized_question);
   const spans = [
     ...sources.map(match => match.span),
@@ -1416,8 +1479,8 @@ function containsUnknownLanguage(
     characters.fill(' ', span.start, span.end);
   }
   const remainder = characters.join('').replace(/\b(?:a|all|an|and|at|by|each|for|from|give|in|list|of|on|or|per|recorded|return|round|season|show|the|with)\b/giu, ' ')
-    .replace(/[\p{P}\p{S}\s]/gu, '');
-  return /[\p{L}\p{N}]/u.test(remainder);
+    .replace(/[\p{P}\s]/gu, '');
+  return /[\p{L}\p{N}\p{S}]/u.test(remainder);
 }
 
 function hasUnsupportedComparison(question: string): boolean {

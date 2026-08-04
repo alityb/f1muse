@@ -75,6 +75,16 @@ const cases = [
     ]
   },
   {
+    id: 'family-race-position-ranking',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'lando-norris', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'max-verstappen', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', finishing_position: null, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
     id: 'family-filtered-qualifying-classification',
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,

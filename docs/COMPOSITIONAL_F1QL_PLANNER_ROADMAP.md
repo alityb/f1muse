@@ -715,16 +715,22 @@ driver identity and recorded non-null championship position. It orders official
 position then driver identity, never derives rank from points, and requires
 complete requested membership plus source-wide grain, null, bound, and unique
 position integrity. Singleton, five-driver, unfiltered, caller-limited,
-latest-recorded, and interim ranking requests remain refused.
-Selected-driver race ranking remains deferred until nullable finishing-position
-ordering, tie behavior, and selected-source integrity are certified as a
-separate complete interaction.
+latest-recorded, and interim standings-ranking requests remain refused. A
+selected-driver race-ranking slice is also complete for exactly one final
+historical event and two to four drivers. It returns only driver identity and
+recorded nullable finishing position, orders position ascending with nulls last
+then driver identity, preserves equal and null positions as source facts, and
+requires exact requested membership plus source-wide grain and position-bound
+integrity. It never derives rank from race points, status, laps, or source
+display order. Singleton, five-driver, unfiltered, season-wide, caller-limited,
+latest-recorded, interim, race-points, status, mixed-source, and broader-output
+race rankings remain refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, combined
 or broader event metadata, non-race session dates, classification status,
 qualifying timing, grid position, sprint qualifying, grouping, aggregation,
-other ranking, and comparison remain outside these slices and must be promoted
+qualifying or unfiltered ranking, and comparison remain outside these slices and must be promoted
 through separate complete-interaction and response-coverage contracts. No
 production release or routing change is claimed by these local milestones.
 

@@ -21,6 +21,7 @@ const HISTORICAL_FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final sta
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const STANDINGS_POSITION_RANK_QUESTION = 'Rank Max Verstappen, Lando Norris, and Oscar Piastri by championship position in final 2025 driver standings.';
+const RACE_POSITION_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, and Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
@@ -86,6 +87,30 @@ describe('semantic query candidates and independent evidence', () => {
       order_by: [{ output_index: 1, direction: 'asc' }]
     });
     expect(standingsRanking.limit).toBeUndefined();
+
+    const raceRanking = candidateEvidence(
+      RACE_POSITION_RANK_QUESTION,
+      driverNames.map(text => ({ type: 'driver', span: span(RACE_POSITION_RANK_QUESTION, text) }))
+    ).candidates[0];
+    expect(raceRanking).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'event_classification', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'event_classification', concept_id: 'finishing_position' } }
+      ],
+      filters: [{ kind: 'entity', operator: 'in', entity_indices: [0, 1, 2] }],
+      comparison: { relation: 'rank' },
+      order_by: [{ output_index: 1, direction: 'asc' }]
+    });
+    expect(raceRanking.limit).toBeUndefined();
+
+    const reorderedQuestion = 'Rank by finishing position the drivers Max Verstappen, Lando Norris, and Oscar Piastri from round 1 of final 2025 race classification.';
+    const reorderedRanking = candidateEvidence(
+      reorderedQuestion,
+      driverNames.map(text => ({ type: 'driver', span: span(reorderedQuestion, text) }))
+    ).candidates[0];
+    expect(reorderedRanking.outputs.map(output => output.concept.concept_id)).toEqual([
+      'driver_id', 'finishing_position'
+    ]);
   });
 
   it.each([
@@ -106,6 +131,48 @@ describe('semantic query candidates and independent evidence', () => {
     expect(enumerateSemanticQueries(question, names.map(text => ({
       type: 'driver', span: span(question, text)
     })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it.each([
+    'Rank drivers Max Verstappen by finishing position from round 1 of final 2025 race classification.',
+    'Rank drivers Max Verstappen and Lando Norris by finishing position from final 2025 race classification.',
+    'Show top 2 drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.',
+    'Rank drivers Max Verstappen and Lando Norris by race points from round 1 of final 2025 race classification.',
+    'Rank drivers Max Verstappen and Lando Norris by finishing position and qualifying position from round 1 of final 2025 race classification.',
+    'Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of latest recorded 2026 race classification.'
+  ])('rejects race rankings outside the selected-driver recorded-position family: %s', question => {
+    const names = ['Max Verstappen', 'Lando Norris'].filter(name => question.includes(name));
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+  });
+
+  it('rejects unknown language appended to a selected-driver race ranking', () => {
+    const question = 'Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification secretly.';
+    expect(enumerateSemanticQueries(question, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it.each([
+    '"Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification."',
+    "'Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.'",
+    '‘Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.’',
+    '«Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.»',
+    '‛Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.',
+    "Rank drivers Max Verstappen and Lando Norris by'finishing position'from round 1 of final 2025 race classification.",
+    '¬ Rank drivers Max Verstappen and Lando Norris by finishing position from round 1 of final 2025 race classification.'
+  ])('rejects quoted or symbol-negated race ranking instructions: %s', question => {
+    expect(enumerateSemanticQueries(question, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it('does not treat apostrophes inside driver names as quoted language', () => {
+    const question = "Rank drivers Pat O'Connor and Liam O’Brien by finishing position from round 1 of final 2025 race classification.";
+    expect(enumerateSemanticQueries(question, ["Pat O'Connor", 'Liam O’Brien'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
   });
 
   it('enumerates only the promoted row join and aggregate-local scalar composition', () => {
@@ -749,7 +816,7 @@ describe('semantic query candidates and independent evidence', () => {
   });
 
   it('uses exact Unicode-code-point spans and rejects UTF-16-style or forged references', () => {
-    const question = `🏁 ${STANDINGS_QUESTION}`;
+    const question = `𐄀 ${STANDINGS_QUESTION}`;
     const evidence = candidateEvidence(question);
     expect(evidence.candidates[0].outputs[0].evidence[0]).toEqual(span(question, 'driver'));
     const forged = structuredClone(evidence.candidates[0]);

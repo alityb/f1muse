@@ -111,6 +111,19 @@ describe('semantic catalog', () => {
       operation_class: 'position_filter',
       required_checks: ['non_null_position', 'unique_relevant_position']
     });
+    expect(race.integrity.operation_checks).toContainEqual({
+      operation_class: 'ranking',
+      required_checks: ['position_bounds'],
+      null_position_policy: 'preserve_last',
+      equal_position_policy: 'preserve'
+    });
+    expect(SEMANTIC_CATALOG.sources.find(source => source.id === 'driver_standings')?.integrity.operation_checks)
+      .toContainEqual({
+        operation_class: 'ranking',
+        required_checks: ['non_null_position', 'unique_relevant_position'],
+        null_position_policy: 'reject',
+        equal_position_policy: 'reject'
+      });
     expect(race.measures.find(item => item.id === 'finishing_position')?.language).toMatchObject({
       names: ['finishing position'],
       ambiguity_groups: ['classification_position']
@@ -148,7 +161,13 @@ describe('semantic catalog', () => {
     ['missing position bounds', (catalog: any) => { catalog.sources[3].integrity.position_bounds = []; }],
     ['missing position bounds contract', (catalog: any) => { catalog.sources[3].integrity.position_bounds = []; catalog.sources[3].integrity.required_checks = ['source_presence', 'unique_grain']; }],
     ['duplicate position bounds', (catalog: any) => { catalog.sources[3].integrity.position_bounds.push(structuredClone(catalog.sources[3].integrity.position_bounds[0])); }],
-    ['missing ranking safety', (catalog: any) => { catalog.sources[3].integrity.operation_checks[0].required_checks = ['non_null_position']; }],
+    ['ranking null-policy mismatch', (catalog: any) => { catalog.sources[3].integrity.operation_checks[0].required_checks = ['unique_relevant_position']; }],
+    ['ranking tie-policy mismatch', (catalog: any) => { catalog.sources[3].integrity.operation_checks[0].required_checks = ['non_null_position']; }],
+    ['missing ranking position policy', (catalog: any) => { delete catalog.sources[3].integrity.operation_checks[0].null_position_policy; }],
+    ['race ranking null-policy mismatch', (catalog: any) => { catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.push('non_null_position'); catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.sort(); }],
+    ['race ranking tie-policy mismatch', (catalog: any) => { catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.push('unique_relevant_position'); catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.sort(); }],
+    ['global race ranking tie-policy mismatch', (catalog: any) => { catalog.sources[4].integrity.required_checks.push('unique_relevant_position'); catalog.sources[4].integrity.required_checks.sort(); }],
+    ['missing race ranking contract', (catalog: any) => { catalog.sources[4].integrity.operation_checks = catalog.sources[4].integrity.operation_checks.filter((item: any) => item.operation_class !== 'ranking'); }],
     ['missing ranking contract', (catalog: any) => { catalog.sources[3].integrity.operation_checks = []; }],
     ['missing participation season scope', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_participation_resolution').required_scope_predicates = []; }],
     ['missing resolution deduplication', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['single_resolved_key']; }],

@@ -344,6 +344,36 @@ function classificationSelectionPlan(
   };
 }
 
+function selectedRacePositionRankPlan(driverIds = ['alpha-driver', 'beta-driver']) {
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 100,
+      input: {
+        op: 'sort', keys: [
+          { output_id: 'finishing_position', direction: 'asc', nulls: 'last' },
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
+        ],
+        input: {
+          op: 'project',
+          input: {
+            op: 'filter', input: { op: 'source', source_id: 'event_classification' },
+            predicates: [
+              { concept: ref('event_classification', 'driver_id'), operator: 'in', values: driverIds },
+              predicate('event_classification', 'round', 1),
+              predicate('event_classification', 'season', 2025)
+            ]
+          },
+          outputs: [
+            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref('event_classification', 'finishing_position'), as: 'finishing_position' }
+          ]
+        }
+      }
+    }
+  };
+}
+
 function scalarCompositionPlan() {
   const aggregate = (sourceId: 'event_classification' | 'qualifying_classification', driverId: string) => {
     const conceptId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
@@ -1107,6 +1137,140 @@ describe('internal planned F1QL and Core pipeline', () => {
       }]);
     } finally {
       await pool.query('ROLLBACK');
+    }
+  });
+
+  it('matches PostgreSQL for nullable and tied selected-driver race ranking with source-wide integrity', async () => {
+    const core = lowerPlannedF1QL(selectedRacePositionRankPlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_classification: [
+        { season: 2025, round: 1, driver_id: 'beta-driver', finishing_position: 2, points: '9007199254740992' },
+        { season: 2025, round: 1, driver_id: 'alpha-driver', finishing_position: 1, points: '9007199254740993' }
+      ]
+    };
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([
+      { driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'beta-driver', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+
+    const missingCore = lowerPlannedF1QL(selectedRacePositionRankPlan(['alpha-driver', 'missing-driver']));
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
+    expect(missingRows).toEqual([{
+      driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: false
+    }]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE race_data SET position_number = NULL WHERE race_id = 9801 AND driver_id = $1', ['beta_driver']);
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+          VALUES (9801, 'race', 'outside_driver', 'planned-team', 3, NULL, 0)`);
+        const nullReference: PlannedReferenceDatabase = {
+          event_classification: [
+            reference.event_classification![1],
+            { ...reference.event_classification![0], finishing_position: null },
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: null, points: 0 }
+          ]
+        };
+        const nullRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(nullRows).toEqual(interpretPlannedF1QL(core, nullReference));
+        expect(nullRows).toEqual([
+          { driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'beta-driver', finishing_position: null, [PLANNED_INTEGRITY_FIELD]: true }
+        ]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE race_data SET position_number = 1 WHERE race_id = 9801 AND driver_id = $1', ['beta_driver']);
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+          VALUES (9801, 'race', 'outside_driver', 'planned-team', 3, 1, 0)`);
+        const tiedReference: PlannedReferenceDatabase = {
+          event_classification: [
+            reference.event_classification![1],
+            { ...reference.event_classification![0], finishing_position: 1 },
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 1, points: 0 }
+          ]
+        };
+        const tiedRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(tiedRows).toEqual(interpretPlannedF1QL(core, tiedReference));
+        expect(tiedRows).toEqual([
+          { driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'beta-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true }
+        ]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+          VALUES (9801, 'race', 'outside_driver', 'planned-team', 3, 0, 0)`);
+        const invalidReference: PlannedReferenceDatabase = {
+          event_classification: [
+            ...reference.event_classification!,
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 0, points: 0 }
+          ]
+        };
+        const invalidRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(invalidRows).toEqual(interpretPlannedF1QL(core, invalidReference));
+        expect(invalidRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+          VALUES (9801, 'race', 'outside_driver', 'planned-team', 3, 31, 0)`);
+        const aboveBoundReference: PlannedReferenceDatabase = {
+          event_classification: [
+            ...reference.event_classification!,
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 31, points: 0 }
+          ]
+        };
+        const aboveBoundRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(aboveBoundRows).toEqual(interpretPlannedF1QL(core, aboveBoundReference));
+        expect(aboveBoundRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO race (id, year, round, grand_prix_id, circuit_id, official_name, date)
+          VALUES (9804, 2025, 1, 'planned_gp', 'planned-circuit', 'DUPLICATE PLANNED EVENT', '2025-01-02')`);
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+          VALUES (9804, 'race', 'outside_driver', 'planned-team', 3, 3, 0),
+                 (9801, 'race', 'outside_driver', 'planned-team', 3, 3, 0)`);
+        const duplicateReference: PlannedReferenceDatabase = {
+          event_classification: [
+            ...reference.event_classification!,
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 3, points: 0 },
+            { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 3, points: 0 }
+          ]
+        };
+        const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(duplicateRows).toEqual(interpretPlannedF1QL(core, duplicateReference));
+        expect(duplicateRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
     }
   });
 

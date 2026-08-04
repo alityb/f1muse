@@ -129,6 +129,10 @@ describe('semantic candidate translator foundation', () => {
       .toContain('A circuit identifier is a raw identifier, not a circuit, venue, or Grand Prix name');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('an event name is recorded source text, not a circuit or venue name');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Preserve null positions last and equal positions; driver identity only stabilizes their presentation order');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });
@@ -171,7 +175,7 @@ describe('semantic candidate translator foundation', () => {
   });
 
   it('rejects out-of-range, empty, and UTF-16-confused code-point spans', async () => {
-    const question = `🏁 ${STANDINGS}`;
+    const question = `𐄀 ${STANDINGS}`;
     const evidence = candidateEvidence(question);
     const valid = proposalSet(evidence.candidates) as ProposalSet;
 

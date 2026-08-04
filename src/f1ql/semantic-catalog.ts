@@ -100,7 +100,9 @@ const sourceSchema = z.object({
     required_checks: z.array(sourceIntegrityCheckSchema).min(1).max(12),
     operation_checks: z.array(z.object({
       operation_class: operationClassSchema,
-      required_checks: z.array(sourceIntegrityCheckSchema).min(1).max(12)
+      required_checks: z.array(sourceIntegrityCheckSchema).min(1).max(12),
+      null_position_policy: z.enum(['preserve_last', 'reject']).optional(),
+      equal_position_policy: z.enum(['preserve', 'reject']).optional()
     }).strict()).max(10),
     position_bounds: z.array(z.object({
       measure_id: idSchema,
@@ -476,7 +478,12 @@ const rawCatalog = {
         unique_key_required: true,
         required_checks: ['position_bounds', 'source_presence', 'unique_grain'],
         operation_checks: [
-          { operation_class: 'ranking', required_checks: ['non_null_position', 'unique_relevant_position'] }
+          {
+            operation_class: 'ranking',
+            required_checks: ['non_null_position', 'unique_relevant_position'],
+            null_position_policy: 'reject',
+            equal_position_policy: 'reject'
+          }
         ],
         position_bounds: [{ measure_id: 'championship_position', min: 1, max: null }],
         completeness_checks: ['Scalar standings answers require exactly one recorded row for every requested driver-season.']
@@ -544,7 +551,7 @@ const rawCatalog = {
       authority: {
         primary: 'FIA final race classification represented by the governed race-result projection.',
         supplementary: ['Official Formula 1 race results.'],
-        prohibited_derivations: ['Do not infer missing classifications or points.', 'Do not treat race points as championship standings authority.', 'Do not include sprint results.']
+        prohibited_derivations: ['Do not infer missing classifications or points.', 'Do not treat driver identity ordering as sporting precedence for equal or null positions.', 'Do not treat race points as championship standings authority.', 'Do not include sprint results.']
       },
       integrity: {
         source_presence_required: true,
@@ -552,10 +559,16 @@ const rawCatalog = {
         required_checks: ['position_bounds', 'source_presence', 'unique_grain'],
         operation_checks: [
           { operation_class: 'comparison', required_checks: ['non_null_position'] },
-          { operation_class: 'position_filter', required_checks: ['non_null_position', 'unique_relevant_position'] }
+          { operation_class: 'position_filter', required_checks: ['non_null_position', 'unique_relevant_position'] },
+          {
+            operation_class: 'ranking',
+            required_checks: ['position_bounds'],
+            null_position_policy: 'preserve_last',
+            equal_position_policy: 'preserve'
+          }
         ],
         position_bounds: [{ measure_id: 'finishing_position', min: 1, max: 30 }],
-        completeness_checks: ['Comparison and join plans must reject duplicate logical driver-event keys.', 'Position comparisons use only non-null numeric positions.']
+        completeness_checks: ['Comparison and join plans must reject duplicate logical driver-event keys.', 'Position comparisons use only non-null numeric positions.', 'Selected-driver ranking preserves null positions last and equal recorded positions; driver identity only stabilizes presentation order.']
       },
       coverage: {
         observed: 'Recorded race classification inventory was observed for seasons 1950 through 2026.',
@@ -697,7 +710,12 @@ const rawCatalog = {
         operation_checks: [
           { operation_class: 'comparison', required_checks: ['non_null_position'] },
           { operation_class: 'position_filter', required_checks: ['non_null_position', 'unique_relevant_position'] },
-          { operation_class: 'ranking', required_checks: ['non_null_position', 'unique_relevant_position'] }
+          {
+            operation_class: 'ranking',
+            required_checks: ['non_null_position', 'unique_relevant_position'],
+            null_position_policy: 'reject',
+            equal_position_policy: 'reject'
+          }
         ],
         position_bounds: [{ measure_id: 'qualifying_position', min: 1, max: 30 }],
         completeness_checks: ['Comparison and aggregate plans require unique driver-event keys.', 'Position rankings require unique relevant positions within each event.']
@@ -1253,6 +1271,10 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     assertUniqueAndSorted(source.integrity.operation_checks.map(item => item.operation_class), `operation checks for source ${source.id}`);
     for (const operationCheck of source.integrity.operation_checks) {
       assertUniqueAndSorted(operationCheck.required_checks, `${operationCheck.operation_class} checks for source ${source.id}`);
+      if (operationCheck.operation_class !== 'ranking' &&
+          (operationCheck.null_position_policy !== undefined || operationCheck.equal_position_policy !== undefined)) {
+        throw new Error(`source ${source.id} position policies require a ranking operation`);
+      }
     }
     assertUniqueAndSorted(source.coverage.unsupported_ids, `unsupported coverage IDs for source ${source.id}`);
     validateLanguage(source.id, source.language);
@@ -1345,14 +1367,24 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     } else if (boundedMeasures.length > 0) {
       throw new Error(`source ${source.id} position bounds lack a required machine check`);
     }
-    if (source.integrity.operation_checks.some(item => item.operation_class === 'ranking') && positionMeasures.length > 0) {
-      const rankingChecks = source.integrity.operation_checks.find(item => item.operation_class === 'ranking')?.required_checks ?? [];
-      if (!rankingChecks.includes('non_null_position') || !rankingChecks.includes('unique_relevant_position')) {
-        throw new Error(`source ${source.id} ranking requires non-null and uniqueness operation checks`);
+    const ranking = source.integrity.operation_checks.find(item => item.operation_class === 'ranking');
+    if (ranking && positionMeasures.length > 0) {
+      if (ranking.null_position_policy === undefined || ranking.equal_position_policy === undefined) {
+        throw new Error(`source ${source.id} ranking requires explicit null and equal-position policies`);
+      }
+      const effectiveRankingChecks = new Set([
+        ...source.integrity.required_checks,
+        ...ranking.required_checks
+      ]);
+      const rejectsNulls = effectiveRankingChecks.has('non_null_position');
+      const rejectsEqualPositions = effectiveRankingChecks.has('unique_relevant_position');
+      if ((ranking.null_position_policy === 'reject') !== rejectsNulls ||
+          (ranking.equal_position_policy === 'reject') !== rejectsEqualPositions) {
+        throw new Error(`source ${source.id} ranking checks do not match its position policies`);
       }
     }
-    if (source.id === 'driver_standings' && !source.integrity.operation_checks.some(item => item.operation_class === 'ranking')) {
-      throw new Error('driver standings must retain ranking integrity checks');
+    if (positionMeasures.length > 0 && !ranking) {
+      throw new Error(`source ${source.id} must retain an explicit ranking position policy`);
     }
     for (const bound of source.integrity.position_bounds) {
       const bounded = source.measures.find(item => item.id === bound.measure_id);

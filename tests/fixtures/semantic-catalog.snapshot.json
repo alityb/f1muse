@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "catalog_hash": "a69e5d859a217eb2daaaecbf19af9539aa4bb859647a8c973d67f239b2c440c2",
+  "catalog_hash": "484808cf26447e1ab374988324307df02f82b74e6512ce3e62e26376f59785cf",
   "family_ids": [
     "event_metadata",
     "identity_participation",
@@ -668,7 +668,9 @@
               "required_checks": [
                 "non_null_position",
                 "unique_relevant_position"
-              ]
+              ],
+              "null_position_policy": "reject",
+              "equal_position_policy": "reject"
             }
           ],
           "position_bounds": [
@@ -971,6 +973,7 @@
           ],
           "prohibited_derivations": [
             "Do not infer missing classifications or points.",
+            "Do not treat driver identity ordering as sporting precedence for equal or null positions.",
             "Do not treat race points as championship standings authority.",
             "Do not include sprint results."
           ]
@@ -996,6 +999,14 @@
                 "non_null_position",
                 "unique_relevant_position"
               ]
+            },
+            {
+              "operation_class": "ranking",
+              "required_checks": [
+                "position_bounds"
+              ],
+              "null_position_policy": "preserve_last",
+              "equal_position_policy": "preserve"
             }
           ],
           "position_bounds": [
@@ -1007,7 +1018,8 @@
           ],
           "completeness_checks": [
             "Comparison and join plans must reject duplicate logical driver-event keys.",
-            "Position comparisons use only non-null numeric positions."
+            "Position comparisons use only non-null numeric positions.",
+            "Selected-driver ranking preserves null positions last and equal recorded positions; driver identity only stabilizes presentation order."
           ]
         },
         "coverage": {
@@ -1584,7 +1596,9 @@
               "required_checks": [
                 "non_null_position",
                 "unique_relevant_position"
-              ]
+              ],
+              "null_position_policy": "reject",
+              "equal_position_policy": "reject"
             }
           ],
           "position_bounds": [

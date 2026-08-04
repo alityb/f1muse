@@ -156,7 +156,7 @@ describe('WP8 semantic shadow report', () => {
     expect(report.fingerprint_totals).toEqual({ reads: 0 });
     expect(report.provider_identity).toEqual({ distinct: 2, consistent: false });
     expect(report.repetition).toEqual({
-      expected_question_groups: 26, expected_repetitions_per_group: 3, expected_attempts: 78,
+      expected_question_groups: 27, expected_repetitions_per_group: 3, expected_attempts: 81,
       question_groups: 2, repeated_groups: 1, complete_groups: 0, incomplete_groups: 2,
       overfull_groups: 0, stable_groups: 0, drifted_groups: 1, status: 'fail'
     });
@@ -176,10 +176,10 @@ describe('WP8 semantic shadow report', () => {
     expect(serialized).not.toContain(PROVIDER.model_sha256);
   });
 
-  it.skipIf(!supportsRetainedV2())('requires all 26 question groups with exactly three stable semantic repetitions', () => {
+  it.skipIf(!supportsRetainedV2())('requires all 27 question groups with exactly three stable semantic repetitions', () => {
     const corpusSha256 = HASH('c');
     const runSha256 = HASH('d');
-    const questionHashes = Array.from({ length: 26 }, (_, index) =>
+    const questionHashes = Array.from({ length: 27 }, (_, index) =>
       createHash('sha256').update(`reviewed-question-${index}`).digest('hex'));
     const requirements: SemanticShadowReportRequirements = {
       corpus_sha256: corpusSha256,
@@ -209,9 +209,9 @@ describe('WP8 semantic shadow report', () => {
       }));
     const report = buildSemanticShadowReport(records, requirements);
     expect(report.repetition).toEqual({
-      expected_question_groups: 26, expected_repetitions_per_group: 3, expected_attempts: 78,
-      question_groups: 26, repeated_groups: 26, complete_groups: 26, incomplete_groups: 0,
-      overfull_groups: 0, stable_groups: 26, drifted_groups: 0, status: 'pass'
+      expected_question_groups: 27, expected_repetitions_per_group: 3, expected_attempts: 81,
+      question_groups: 27, repeated_groups: 27, complete_groups: 27, incomplete_groups: 0,
+      overfull_groups: 0, stable_groups: 27, drifted_groups: 0, status: 'pass'
     });
     expect(report.provider_identity).toEqual({ distinct: 1, consistent: true });
     expect(report.safety).toMatchObject({
@@ -334,7 +334,7 @@ describe('WP8 semantic shadow report', () => {
     const requirements = reviewedSemanticShadowReportRequirements(JSON.parse(
       readFileSync('tests/fixtures/compositional-regression.snapshot.json', 'utf8')
     ));
-    expect(requirements.cases).toHaveLength(26);
+    expect(requirements.cases).toHaveLength(27);
     expect(requirements.cases.every(item => item.candidate_counts && item.template_dual_status)).toBe(true);
     expect(requirements.cases.filter(item => item.outcome === 'answer').every(item =>
       item.plan_work && item.operator_set_code && item.hashes?.semantic_proof_sha256)).toBe(true);
