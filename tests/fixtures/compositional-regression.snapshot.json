@@ -1,22 +1,22 @@
 {
   "version": 1,
   "corpus_version": 1,
-  "corpus_hash": "55aabcd1b92c4a54ffaddfc4d2d884e4941649c64bf89a1886db3f56c5cc2a54",
+  "corpus_hash": "e1930af767500518d153529f79c3d1b08bdebb8b753555aba4c6f4a9ad2cba80",
   "coverage": {
-    "cases_total": 23,
+    "cases_total": 24,
     "action_counts": {
-      "answer": 11,
+      "answer": 12,
       "clarify": 5,
       "abstain": 7
     },
     "split_counts": {
-      "development": 8,
+      "development": 9,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7
     },
     "topology_counts": {
-      "single_source_rows": 6,
+      "single_source_rows": 7,
       "single_source_aggregate": 1,
       "row_dimension_join": 2,
       "scalar_aggregate_compose": 2
@@ -24,13 +24,13 @@
     "source_set_counts": {
       "driver_standings": 3,
       "event_classification": 1,
-      "event_metadata": 1,
+      "event_metadata": 2,
       "qualifying_classification": 2,
       "event_classification_event_metadata": 2,
       "event_classification_qualifying_classification": 2
     },
     "plan_family_counts": {
-      "single_source": 6,
+      "single_source": 7,
       "safe_dimension_join": 2,
       "aggregate_locality": 2,
       "other": 1
@@ -53,11 +53,11 @@
       "unsupported_scope": 1
     },
     "coverage_tag_counts": {
-      "promoted_topology": 8,
+      "promoted_topology": 9,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7,
-      "plan_family_single_source": 6,
+      "plan_family_single_source": 7,
       "plan_family_safe_dimension_join": 2,
       "plan_family_aggregate_locality": 2,
       "provider_admission": 1
@@ -67,9 +67,9 @@
       "aggregation": 1,
       "aggregate_locality": 2,
       "join_cardinality": 2,
-      "resolver_event": 5,
+      "resolver_event": 6,
       "resolver_identity": 5,
-      "template_free": 7,
+      "template_free": 8,
       "metric_ambiguity": 1,
       "output_shape_ambiguity": 1,
       "scope_ambiguity": 1,
@@ -766,6 +766,111 @@
         "work_hash": "7c040509dc64b60e4d3ed0814f912e8cf806e94aadab437644daf443d502f80f",
         "participation_hash": "858cf128134a59fc1e2a7e0178b375c8efdc8f3b2ab346b1685cd5de8a123ccb",
         "compiled_hash": "808a60fda28e4d7edbd6f008352edc5c086600d17d32e9d6782422618829f85c"
+      },
+      "plan_family": "single_source"
+    },
+    {
+      "id": "family-event-circuit",
+      "split": "development",
+      "action": "answer",
+      "reason": "semantic_plan_proven",
+      "question_sha256": "74d0f7273f82f269c3139d29c704f4ea3aa3d5945b7f7a7c67706071b77eb83e",
+      "coverage_tags": [
+        "promoted_topology",
+        "plan_family_single_source"
+      ],
+      "risk_tags": [
+        "template_free",
+        "resolver_event"
+      ],
+      "entity_inventory": [
+        {
+          "type": "event",
+          "span": {
+            "text": "Monaco",
+            "start": 58,
+            "end": 64
+          }
+        }
+      ],
+      "evidence": {
+        "type": "candidate_set",
+        "candidate_count": 1,
+        "evidence_hash": "9630006cd5bfb1f50059666951d9ca19cd6e3648d063f9b48dae86296281d32e",
+        "candidate_set_hash": "243a9462539041da7483ed6cddaa31d099f1c6befa68dd2f828b35d3e695f101"
+      },
+      "admission": {
+        "type": "admitted",
+        "reason": null,
+        "query_hash": "3673761997b164704f448ff3bb78783596155950c566c9529c5775a5653c95b7"
+      },
+      "resolution": {
+        "resolution_hash": "aed1e6d5aac2a16358e45fbddf94f05695b161492a22277fcf744afb03978cb6",
+        "source_ids": [
+          "event_metadata"
+        ],
+        "entities": [
+          {
+            "entity_index": 0,
+            "type": "event",
+            "selected_id": "event:2025:8",
+            "candidate_ids": [
+              "event:2025:8"
+            ],
+            "resolution_relationship_ids": [
+              "event_identity_metadata_resolution"
+            ]
+          }
+        ],
+        "resolved_round": 8,
+        "resolver_reads": 2,
+        "resolver_candidates": 1
+      },
+      "plan": {
+        "topology": "single_source_rows",
+        "source_ids": [
+          "event_metadata"
+        ],
+        "resolution_relationship_ids": [
+          "event_identity_metadata_resolution"
+        ],
+        "row_relationship_ids": [],
+        "branches": [
+          {
+            "source_id": "event_metadata",
+            "fixed_grain": [
+              "round",
+              "season"
+            ],
+            "residual_grain": [],
+            "aggregate": null
+          }
+        ],
+        "output_grain": [],
+        "integrity_checks": [
+          "source_presence",
+          "unique_event_key"
+        ],
+        "work": {
+          "source_scan_units": 1,
+          "resolver_reads": 2,
+          "resolver_candidates": 1,
+          "sources": 1,
+          "row_joins": 0,
+          "compositions": 0,
+          "operator_depth": 4,
+          "requested_rows": 1
+        },
+        "answer_plan_hash": "18d444a2dcf3649e859c3db0e7f1fea416d575bcdad239c2c9aa86b5bf7d2e18",
+        "planned_f1ql_hash": "5fc3375fc5b789e1120f37f72566398e9872af0d834732cae351c83d0d288aec",
+        "core_hash": "a68177124a6a8ccabc8d5dfc8920545426c7ba15568bd420ccbd735057861bfe"
+      },
+      "proof": {
+        "proof_hash": "9491608f36f39ff5472e8642d8e8867a079c3928b764fdffb0ec23c0d5c3c9b4",
+        "topology_hash": "8ae6eb9162626c86b66b916117353b332afffeba9d945ca352a8bfca9e2acb80",
+        "work_hash": "7c040509dc64b60e4d3ed0814f912e8cf806e94aadab437644daf443d502f80f",
+        "participation_hash": "858cf128134a59fc1e2a7e0178b375c8efdc8f3b2ab346b1685cd5de8a123ccb",
+        "compiled_hash": "806ca01a976fdd434c274065a2e81e48c4029b984f96c4a7df1643e49a59965b"
       },
       "plan_family": "single_source"
     },

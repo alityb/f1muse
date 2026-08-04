@@ -336,13 +336,26 @@ export function enumerateSemanticQueries(
   ))) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
-  const eventDateSelection = sourceIds.length === 1 && sourceIds[0] === 'event_metadata' &&
-    effectiveConceptMatches.length > 0 && effectiveConceptMatches.every(match =>
-      match.source_id === 'event_metadata' && match.concept_id === 'date'
-    );
-  if (eventDateSelection && (operations.limit || (
-    !entities.some(entity => entity.type === 'event') && question.rounds.length === 0
-  ))) {
+  const eventScalarConceptIds = new Set(effectiveConceptMatches.flatMap(match =>
+    match.source_id === 'event_metadata' && (match.concept_id === 'circuit_id' || match.concept_id === 'date')
+      ? [match.concept_id]
+      : []
+  ));
+  const eventMetadataSelection = sourceIds.length === 1 && sourceIds[0] === 'event_metadata';
+  const eventMetadataSource = eventMetadataSelection
+    ? catalog.sources.find(source => source.id === 'event_metadata' && source.usage === 'answer_fact')
+    : undefined;
+  const eventScalarSelection = eventMetadataSelection && effectiveConceptMatches.length > 0 &&
+    eventScalarConceptIds.size === 1 &&
+    effectiveConceptMatches.every(match => match.source_id === 'event_metadata' &&
+      match.concept_id !== undefined && eventScalarConceptIds.has(match.concept_id));
+  const eventSelectorCount = question.rounds.length + entities.filter(entity => entity.type === 'event').length;
+  if (eventMetadataSelection && (!eventScalarSelection || operations.count || operations.rank || operations.limit ||
+      question.years.length !== 1 || operations.temporal.some(temporal => temporal.value !== 'final') ||
+      eventMetadataSource?.scope.final_season_through === null || question.years.some(year =>
+        eventMetadataSource === undefined || year.value > eventMetadataSource.scope.final_season_through!
+      ) ||
+      eventSelectorCount !== 1 || entities.some(entity => entity.type !== 'event'))) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   const sourceCompatibility = sourceIds.map(sourceId => {

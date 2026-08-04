@@ -80,6 +80,12 @@ const cases = [
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
     rows: [{ date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-event-circuit',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ circuit_id: 'monaco', [PLANNED_INTEGRITY_FIELD]: true }]
   }
 ] as const;
 

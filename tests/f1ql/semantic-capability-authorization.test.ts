@@ -91,6 +91,9 @@ const POSITIVE_PROFILE_CASES = {
   }, ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List race date from round ${round} of final ${year} event metadata.`,
     entity_names: []
+  }), ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List circuit identifier from round ${round} of final ${year} event metadata.`,
+    entity_names: []
   }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position for Charles Leclerc from round ${round} of final ${year} race classification.`,
     entity_names: ['Charles Leclerc'],
@@ -170,6 +173,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 0, max: 0 },
+      { min: 0, max: 0 },
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 1, max: 1 },
@@ -182,6 +186,29 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(profile.complete_interactions.every(interaction =>
       !('question_sha256' in interaction) && !('season_values' in interaction) && !('entity_values' in interaction)
     )).toBe(true);
+    expect(profile.scope).toBe('historical_final');
+    expect(profile.complete_interactions.filter(interaction =>
+      interaction.predicate_bindings.includes('event_metadata.season:eq')
+    )).toEqual([
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: ['event_metadata.round:eq', 'event_metadata.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: ['concept:event_metadata.date->date'],
+        sort_bindings: ['date:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: ['event_metadata.round:eq', 'event_metadata.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: ['concept:event_metadata.circuit_id->circuit_id'],
+        sort_bindings: ['circuit_id:asc:last'],
+        requested_rows: 1
+      }
+    ]);
   });
 
   it('positively generates every current signed profile across bounded historical and resolver inputs', async () => {
@@ -267,19 +294,13 @@ describe('semantic complete-interaction capability authorization', () => {
     })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
-  it('rejects latest-recorded 2026 event metadata from the historical-final profile', async () => {
-    const proof = await semanticProof(
-      'List race date from round 1 of latest recorded 2026 event metadata.', []
-    );
-    expect(() => authorizeSemanticPlanCapability({
-      proof,
-      profile_id: 'semantic-single-source-v1',
-      principal_class: 'internal_canary',
-      request_id: randomUUID(),
-      canary: canary(),
-      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
-      now_ms: NOW
-    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  it.each([
+    'List race date from round 1 of latest recorded 2026 event metadata.',
+    'List circuit identifier from round 1 of latest recorded 2026 event metadata.'
+  ])('rejects latest-recorded 2026 event metadata before capability authorization: %s', question => {
+    expect(enumerateSemanticQueries(question)).toMatchObject({
+      type: 'abstention', reason: 'unsupported_scope'
+    });
   });
 
   it('rejects a resolver inventory above the 100-candidate boundary', async () => {
@@ -299,6 +320,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['Final 2025 standings points for Lando Norris and Oscar Piastri.', 'semantic-single-source-v1', ['Lando Norris', 'Oscar Piastri']],
     ['Final 2025 standings points for Oscar Piastri and Lando Norris.', 'semantic-single-source-v1', ['Oscar Piastri', 'Lando Norris']],
     ['List race date from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
+    ['List circuit identifier from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {
@@ -354,9 +376,12 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(() => verifySemanticCapabilityAuthorization({ ...authorization })).toThrow('invalid_authorization');
   });
 
-  it('authorizes a uniquely resolved named-event date interaction', async () => {
+  it.each([
+    'List race date from final 2025 event metadata at Monaco.',
+    'List circuit identifier from final 2025 event metadata at Monaco.'
+  ])('authorizes a uniquely resolved named-event scalar interaction: %s', async question => {
     const proof = await semanticProof(
-      'List race date from final 2025 event metadata at Monaco.', [], undefined, ['Monaco']
+      question, [], undefined, ['Monaco']
     );
     const authorization = authorizeSemanticPlanCapability({
       proof,

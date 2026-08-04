@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v8' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v9' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -185,10 +185,10 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   ) && (rows.length === 0 || execution.has_more_rows)) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
   }
-  if (isEventDateSelectionContract(
+  if (isEventScalarSelectionContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   ) && execution.has_more_rows) {
-    throw new SemanticResultFormatError('Event date result collection evidence was incomplete');
+    throw new SemanticResultFormatError('Event metadata scalar result collection evidence was incomplete');
   }
 
   let finalStandingsContract;
@@ -237,7 +237,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
     const subject = subjectValue === null ? `result ${index + 1}` : subjectValue;
     return {
       subject,
-      values: Object.fromEntries(columns.filter(column => column.id !== subjectColumn?.id).map(column => [column.id, row[column.id]]))
+      values: Object.fromEntries(columns.filter(column =>
+        column.id !== subjectColumn?.id || subjectValue === null
+      ).map(column => [column.id, row[column.id]]))
     };
   });
   const answer: FormattedAnswer = rows.length === 0
@@ -750,7 +752,7 @@ function isClassificationSelectionContract(
 }
 
 // eslint-disable-next-line complexity
-function isEventDateSelectionContract(
+function isEventScalarSelectionContract(
   rowLimit: number,
   ordering: readonly PlannedCoreSortKey[],
   project: PlannedCoreProjectNode,
@@ -763,14 +765,16 @@ function isEventDateSelectionContract(
   const roundPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'round');
   const source = sources[0];
   const key = ordering[0];
+  const output = project.outputs[0];
+  const conceptId = output?.kind === 'concept' ? output.concept.concept_id : null;
   return rowLimit === 1 && sources.length === 1 && source?.id === 'event_metadata' &&
     branches.length === 1 && branch.input.source_id === 'event_metadata' && branch.predicates.length === 2 &&
-    project.input.op === 'filter' && project.outputs.length === 1 && project.outputs[0].kind === 'concept' &&
-    project.outputs[0].concept.source_id === 'event_metadata' &&
-    project.outputs[0].concept.concept_id === 'date' && project.outputs[0].as === 'date' &&
+    project.input.op === 'filter' && project.outputs.length === 1 && output?.kind === 'concept' &&
+    output.concept.source_id === 'event_metadata' && ['circuit_id', 'date'].includes(conceptId ?? '') &&
+    output.as === conceptId &&
     project.output_grain.length === 0 && columns.length === 1 && columns[0].source_id === 'event_metadata' &&
-    columns[0].concept_id === 'date' && columns[0].id === 'date' && columns[0].kind === 'dimension' &&
-    columns[0].aggregation === null && ordering.length === 1 && key.output_id === 'date' &&
+    columns[0].concept_id === conceptId && columns[0].id === conceptId && columns[0].kind === 'dimension' &&
+    columns[0].aggregation === null && ordering.length === 1 && key.output_id === conceptId &&
     key.direction === 'asc' && key.nulls === 'last' &&
     Boolean(seasonPredicate && seasonPredicate.concept.source_id === 'event_metadata' &&
       seasonPredicate.operator === 'eq' && typeof seasonPredicate.value === 'number' &&

@@ -47,7 +47,10 @@ const RACE_CLASSIFICATION = 'List driver and finishing position from round 1 of 
 const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from round 1 of final 2025 qualifying classification.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
+const EVENT_CIRCUIT = 'List circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_NAME_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
+const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_NAME = 'List Grand Prix name from round 1 of final 2025 event metadata.';
 
 describe('generic proven semantic result formatting', () => {
   it('derives standings metadata and preserves the complete family wire contract', async () => {
@@ -619,7 +622,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v8',
+        format_version: 'semantic-result-format-v9',
         answer: { headline: 'Final 2025 race classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -629,7 +632,7 @@ describe('generic proven semantic result formatting', () => {
       expect(formatted.metadata.sources.map(source => source.id)).toEqual(['event_classification']);
       expect(formatted.metadata.sources[0].coverage.certified)
         .toBe('No event-complete historical or steward-decision ledger claim.');
-      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v8');
+      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v9');
     }
     expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
 
@@ -674,7 +677,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v8',
+        format_version: 'semantic-result-format-v9',
         answer: { headline: 'Final 2025 qualifying classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -851,7 +854,7 @@ describe('generic proven semantic result formatting', () => {
       date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v8',
+      format_version: 'semantic-result-format-v9',
       rows: [{ date: '2025-01-01' }],
       metadata: {
         coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
@@ -874,11 +877,45 @@ describe('generic proven semantic result formatting', () => {
     }])).rejects.toThrow('failed source integrity');
   });
 
-  it('keeps broader event metadata projections outside the signed profiles', async () => {
-    const prepared = await prepare(EVENT_NAME_DATE, [], [], { type: 'resolved', season: 2025, round: 1 });
-    await expect(executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
-      event_name: 'Australian Grand Prix', date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: true
-    }])).rejects.toThrow('profile_rejected');
+  it('formats exactly one nullable circuit identifier and rejects invalid event evidence', async () => {
+    const prepared = await prepare(EVENT_CIRCUIT, [], [], { type: 'resolved', season: 2025, round: 1 });
+    const formatted = await executeAndFormat(prepared, [{
+      circuit_id: ' Circuit_ID_01 ', [PLANNED_INTEGRITY_FIELD]: true
+    }]);
+    expect(formatted).toMatchObject({
+      format_version: 'semantic-result-format-v9',
+      answer: { facts: [{ subject: ' Circuit_ID_01 ', values: {} }] },
+      rows: [{ circuit_id: ' Circuit_ID_01 ' }],
+      metadata: {
+        coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
+        ordering: [{ output_id: 'circuit_id', direction: 'asc', nulls: 'last' }]
+      }
+    });
+    expect((await executeAndFormat(prepared, [{
+      circuit_id: null, [PLANNED_INTEGRITY_FIELD]: true
+    }]))).toMatchObject({
+      answer: { facts: [{ subject: 'result 1', values: { circuit_id: null } }] },
+      rows: [{ circuit_id: null }]
+    });
+    await expect(executeAndFormat(prepared, [])).rejects.toThrow('exactly one row');
+    await expect(executeAndFormat(prepared, [
+      { circuit_id: 'albert-park', [PLANNED_INTEGRITY_FIELD]: true },
+      { circuit_id: 'silverstone', [PLANNED_INTEGRITY_FIELD]: true }
+    ])).rejects.toThrow('collection evidence was incomplete');
+    await expect(executeAndFormat(prepared, [{
+      circuit_id: '   ', [PLANNED_INTEGRITY_FIELD]: true
+    }])).rejects.toThrow('nonempty');
+    await expect(executeAndFormat(prepared, [{
+      circuit_id: 'albert-park', [PLANNED_INTEGRITY_FIELD]: false
+    }])).rejects.toThrow('failed source integrity');
+  });
+
+  it('rejects broader event metadata projections before planning or formatting', () => {
+    for (const question of [EVENT_NAME_DATE, EVENT_DATE_CIRCUIT, EVENT_NAME]) {
+      expect(enumerateSemanticQueries(question)).toMatchObject({
+        type: 'abstention', reason: 'unsupported_scope'
+      });
+    }
   });
 
   it('keeps database and route work outside the formatter', () => {

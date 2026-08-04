@@ -62,7 +62,7 @@ const v2BaseSchema = commonSchema.extend({
   evidence_binding: z.object({
     corpus_sha256: hashSchema,
     run_sha256: hashSchema,
-    case_index: z.number().int().min(0).max(22),
+    case_index: z.number().int().min(0).max(23),
     repetition_index: z.number().int().min(0).max(2),
     attempt_sha256: hashSchema,
     provider_raw_candidate_set_sha256: hashSchema.optional()

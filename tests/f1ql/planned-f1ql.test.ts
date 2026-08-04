@@ -181,6 +181,26 @@ function eventDatePlan() {
   };
 }
 
+function eventCircuitPlan(round = 1) {
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 1,
+      input: {
+        op: 'sort', keys: [{ output_id: 'circuit_id', direction: 'asc', nulls: 'last' }],
+        input: {
+          op: 'project',
+          input: {
+            op: 'filter', input: { op: 'source', source_id: 'event_metadata' },
+            predicates: [predicate('event_metadata', 'round', round), predicate('event_metadata', 'season', 2025)]
+          },
+          outputs: [{ kind: 'concept', concept: ref('event_metadata', 'circuit_id'), as: 'circuit_id' }]
+        }
+      }
+    }
+  };
+}
+
 function emptyScalarCountPlan() {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
@@ -774,6 +794,51 @@ describe('internal planned F1QL and Core pipeline', () => {
       expect(corruptRows).toEqual([{ date: '2025-01-01', [PLANNED_INTEGRITY_FIELD]: false }]);
     } finally {
       await pool.query('ROLLBACK');
+    }
+  });
+
+  it('matches PostgreSQL for a one-event circuit identifier', async () => {
+    const core = lowerPlannedF1QL(eventCircuitPlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_metadata: [{
+        season: 2025, round: 1, event_id: 'planned-gp', event_name: 'Formula 1 Planned Grand Prix',
+        circuit_id: 'planned-circuit', date: '2025-01-01'
+      }]
+    };
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([{ circuit_id: 'planned-circuit', [PLANNED_INTEGRITY_FIELD]: true }]);
+
+    const missingCore = lowerPlannedF1QL(eventCircuitPlan(4));
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
+    expect(missingRows).toEqual([]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO race (id, year, round, grand_prix_id, circuit_id, official_name, date)
+          VALUES (9804, 2025, 1, 'planned_gp', 'Other_Circuit', 'DUPLICATE PLANNED EVENT', '2025-01-02')`);
+        const corruptReference: PlannedReferenceDatabase = {
+          event_metadata: [
+            ...reference.event_metadata!,
+            {
+              season: 2025, round: 1, event_id: 'planned-gp', event_name: 'Formula 1 Planned Grand Prix',
+              circuit_id: 'Other_Circuit', date: '2025-01-02'
+            }
+          ]
+        };
+        const corruptRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(corruptRows).toEqual(interpretPlannedF1QL(core, corruptReference));
+        expect(corruptRows).toEqual([{ circuit_id: 'Other_Circuit', [PLANNED_INTEGRITY_FIELD]: false }]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
     }
   });
 

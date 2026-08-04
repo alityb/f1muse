@@ -29,6 +29,11 @@ const FOUR_DRIVER_QUALIFYING_QUESTION = 'List driver and qualifying position for
 const FOUR_DRIVER_NAMED_QUALIFYING_QUESTION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 qualifying classification at Monaco.';
 const EVENT_DATE_QUESTION = 'List race date from round 1 of final 2025 event metadata.';
 const NAMED_EVENT_DATE_QUESTION = 'List race date from final 2025 event metadata at Monaco.';
+const EVENT_CIRCUIT_QUESTION = 'List circuit identifier from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_CIRCUIT_QUESTION = 'List circuit identifier from final 2025 event metadata at Monaco.';
+const EVENT_DATE_CIRCUIT_QUESTION = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_NAME_QUESTION = 'List Grand Prix name from round 1 of final 2025 event metadata.';
+const LATEST_EVENT_CIRCUIT_QUESTION = 'List circuit identifier from round 1 of latest recorded 2026 event metadata.';
 const SEASON_WIDE_DRIVER_RACE_QUESTION = 'List driver and finishing position for Max Verstappen from final 2025 race classification.';
 const SEASON_WIDE_DRIVER_QUALIFYING_QUESTION = 'List driver and qualifying position for Max Verstappen from final 2025 qualifying classification.';
 const LIMITED_DRIVER_QUALIFYING_QUESTION = 'List top 1 driver and qualifying position for Max Verstappen from round 1 of final 2025 qualifying classification.';
@@ -506,8 +511,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
 
   it.each([
     [EVENT_DATE_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
-    [NAMED_EVENT_DATE_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
-  ] as const)('proves one-event race-date metadata without result execution: %s', async (
+    [NAMED_EVENT_DATE_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
+    [EVENT_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
+    [NAMED_EVENT_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
+  ] as const)('proves one-event scalar metadata without result execution: %s', async (
     question, resolverSql, resolverParameters
   ) => {
     const fake = fakePool(async sql => {
@@ -540,6 +547,35 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(fake.calls.filter(call => call.sql === resolverSql)).toEqual([{
       sql: resolverSql, parameters: resolverParameters
     }]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each([
+    EVENT_DATE_CIRCUIT_QUESTION,
+    EVENT_NAME_QUESTION,
+    LATEST_EVENT_CIRCUIT_QUESTION
+  ])('rejects broader event metadata before provider or result execution: %s', async question => {
+    const fake = fakePool();
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'abstain', reason: 'unsupported_scope', result_query_calls: 0 }
+      }
+    });
+    expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
 
@@ -1054,7 +1090,7 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           })),
           { type: 'event' as const, span: questionSpan(request.question, 'Monaco') }
         ]
-    : request.question === NAMED_EVENT_DATE_QUESTION
+    : request.question === NAMED_EVENT_DATE_QUESTION || request.question === NAMED_EVENT_CIRCUIT_QUESTION
       ? [{ type: 'event' as const, span: questionSpan(request.question, 'Monaco') }]
     : request.question === OUTPUT_ALTERNATIVE_POINTS_QUESTION
       ? ['Max Verstappen', 'Lando Norris'].map(text => ({
