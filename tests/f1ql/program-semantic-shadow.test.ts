@@ -18,6 +18,7 @@ import { SemanticShadowProposalRequest } from '../../src/f1ql/semantic-shadow-pl
 import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 
 const QUESTION = 'List driver and championship points from final 2025 driver standings.';
+const SCALAR_COUNT_QUESTION = 'Show count of qualifying position in final 2025 qualifying classification.';
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
@@ -260,6 +261,36 @@ describe('WP8 stage-zero semantic shadow route', () => {
       }
     });
     expect(providerCalls).toBe(1);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('proves a scalar qualifying count without result execution', async () => {
+    const fake = fakePool();
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => {providerCalls += 1; return exactProposal(proposal);} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: SCALAR_COUNT_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+    expect(response).toMatchObject({
+      status: 200,
+      body: { observation: {
+        outcome: 'answer', reason: 'plan_proven', topology_code: 'single_source_aggregate',
+        result_query_calls: 0
+      } }
+    });
+    expect(providerCalls).toBe(1);
+    expect(fake.calls).toEqual([
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ]);
     expect(executionAttempts).toBe(0);
   });
 

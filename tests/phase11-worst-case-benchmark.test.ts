@@ -16,8 +16,8 @@ describe('Phase 11 worst-case legal benchmark contract', () => {
 
     expect(Object.isFrozen(loaded.definitions)).toBe(true);
     expect(preparation).toMatchObject({
-      workload_count: 3,
-      fixture_rows_total: 201,
+      workload_count: 4,
+      fixture_rows_total: 202,
       workloads: [
         {
           family: 'single_source', topology: 'single_source_rows', work_units: 1,
@@ -26,6 +26,10 @@ describe('Phase 11 worst-case legal benchmark contract', () => {
         {
           family: 'safe_dimension_join', topology: 'row_dimension_join', work_units: 2,
           requested_rows: 100, resolver_candidates: 1, reference_rows: 100
+        },
+        {
+          family: 'single_source', topology: 'single_source_aggregate', work_units: 30,
+          requested_rows: 1, resolver_candidates: 0, reference_rows: 1
         },
         {
           family: 'aggregate_locality', topology: 'scalar_aggregate_compose', work_units: 60,

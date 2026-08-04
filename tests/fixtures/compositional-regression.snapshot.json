@@ -1,7 +1,7 @@
 {
   "version": 1,
   "corpus_version": 1,
-  "corpus_hash": "e179f96913f5ee8d57b5a105a5a428db7e3753a86ae8a34dcceccb140f5429c5",
+  "corpus_hash": "55366ee368d1cc3b7561ca2d46c9ecb8cb63168428a03c528f3875a59d727c79",
   "coverage": {
     "cases_total": 28,
     "action_counts": {
@@ -30,10 +30,10 @@
       "event_classification_qualifying_classification": 2
     },
     "plan_family_counts": {
-      "single_source": 11,
+      "single_source": 12,
       "safe_dimension_join": 2,
       "aggregate_locality": 2,
-      "other": 1
+      "other": 0
     },
     "ambiguity_reason_counts": {
       "attachment_ambiguous": 1,
@@ -57,7 +57,7 @@
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7,
-      "plan_family_single_source": 11,
+      "plan_family_single_source": 12,
       "plan_family_safe_dimension_join": 2,
       "plan_family_aggregate_locality": 2,
       "provider_admission": 1
@@ -1660,7 +1660,8 @@
       "reason": "semantic_plan_proven",
       "question_sha256": "c438e702a5af8ec33a665d9531f863882e92722ab31bcf31ee423c8dc6a54809",
       "coverage_tags": [
-        "promoted_topology"
+        "promoted_topology",
+        "plan_family_single_source"
       ],
       "risk_tags": [
         "aggregation"
@@ -1736,7 +1737,7 @@
         "participation_hash": "858cf128134a59fc1e2a7e0178b375c8efdc8f3b2ab346b1685cd5de8a123ccb",
         "compiled_hash": "89b770d3fb13378c10c4b65a363f79fa58f11d8d0b88449b29c06486d2a80f05"
       },
-      "plan_family": null
+      "plan_family": "single_source"
     },
     {
       "id": "holdout-single-source-rows",

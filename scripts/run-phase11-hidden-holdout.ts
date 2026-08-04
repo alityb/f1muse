@@ -385,10 +385,10 @@ function validateDeclaredStructure(item: HiddenCase): void {
     row_dimension_join: ['source', 'filter', 'join', 'project', 'sort', 'limit'],
     scalar_aggregate_compose: ['source', 'filter', 'aggregate', 'compose', 'project', 'sort', 'limit']
   };
-  const familyTopology = {
-    single_source: 'single_source_rows',
-    safe_dimension_join: 'row_dimension_join',
-    aggregate_locality: 'scalar_aggregate_compose'
+  const familyTopologies = {
+    single_source: ['single_source_aggregate', 'single_source_rows'],
+    safe_dimension_join: ['row_dimension_join'],
+    aggregate_locality: ['scalar_aggregate_compose']
   } as const;
   const structure = item.structure;
   const knownConcepts = new Set(SEMANTIC_CATALOG.sources.flatMap(source =>
@@ -398,7 +398,8 @@ function validateDeclaredStructure(item: HiddenCase): void {
       new Set(structure.source_ids).size !== structure.source_ids.length ||
       new Set(structure.operations).size !== structure.operations.length ||
       new Set(structure.output_concept_ids).size !== structure.output_concept_ids.length ||
-      structure.topology !== item.expected.topology || familyTopology[item.expected.plan_family] !== structure.topology ||
+      structure.topology !== item.expected.topology ||
+      !familyTopologies[item.expected.plan_family].includes(structure.topology as never) ||
       !sameStrings(structure.source_ids, item.expected.source_ids) ||
       !sameStrings(structure.operations, expectedOperations[structure.topology]) ||
       structure.output_concept_ids.some(id => !structure.source_ids.includes(id.split('.')[0] as never) || !knownConcepts.has(id))) {

@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v13' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v14' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -175,6 +175,12 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   );
   if (classificationCollectionContract && execution.has_more_rows) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
+  }
+  const qualifyingScalarCountContract = isQualifyingPositionScalarCountContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  );
+  if (qualifyingScalarCountContract && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Qualifying count result collection evidence was incomplete');
   }
   const rows: Record<string, unknown>[] = [];
   for (let index = 0; index < rowCount; index += 1) {
@@ -906,6 +912,43 @@ function isEventScalarSelectionContract(
     Boolean(roundPredicate && roundPredicate.concept.source_id === 'event_metadata' &&
       roundPredicate.operator === 'eq' && typeof roundPredicate.value === 'number' &&
       Number.isSafeInteger(roundPredicate.value) && roundPredicate.value >= 1 && roundPredicate.value <= 30);
+}
+
+// Keep the recorded-position count distinct from appearances, events, poles, and ranked counts.
+// eslint-disable-next-line complexity
+function isQualifyingPositionScalarCountContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const branch = branches[0];
+  const source = sources[0];
+  const seasonPredicate = branch?.predicates[0];
+  const aggregate = project.input.op === 'aggregate' ? project.input : undefined;
+  const measure = aggregate?.measures[0];
+  const output = project.outputs[0];
+  const key = ordering[0];
+  return rowLimit === 1 && sources.length === 1 && source?.id === 'qualifying_classification' &&
+    branches.length === 1 && branch.input.source_id === 'qualifying_classification' &&
+    branch.predicates.length === 1 && aggregate !== undefined && aggregate.group_by.length === 0 &&
+    aggregate.measures.length === 1 && measure?.source_id === 'qualifying_classification' &&
+    measure.concept_id === 'qualifying_position' && measure.function === 'count' &&
+    measure.as === 'count_qualifying_position' && project.outputs.length === 1 &&
+    output?.kind === 'aggregate' && output.measure_as === 'count_qualifying_position' &&
+    output.as === 'count_qualifying_position' && project.output_grain.length === 0 &&
+    columns.length === 1 && columns[0].source_id === 'qualifying_classification' &&
+    columns[0].concept_id === 'qualifying_position' && columns[0].id === 'count_qualifying_position' &&
+    columns[0].kind === 'aggregate' && columns[0].aggregation === 'count' &&
+    columns[0].physical_type === 'integer' && columns[0].nullable === false && ordering.length === 1 &&
+    key.output_id === 'count_qualifying_position' && key.direction === 'asc' && key.nulls === 'last' &&
+    Boolean(seasonPredicate && seasonPredicate.concept.source_id === 'qualifying_classification' &&
+      seasonPredicate.concept.concept_id === 'season' && seasonPredicate.operator === 'eq' &&
+      typeof seasonPredicate.value === 'number' && Number.isSafeInteger(seasonPredicate.value) &&
+      source.scope.season_min !== null && seasonPredicate.value >= source.scope.season_min &&
+      source.scope.final_season_through !== null && seasonPredicate.value <= source.scope.final_season_through);
 }
 
 function reviewedEventDriverPredicate(

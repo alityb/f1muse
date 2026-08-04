@@ -39,6 +39,7 @@ describe('Phase 11 compositional regression corpus', () => {
         row_dimension_join: 2,
         scalar_aggregate_compose: 2
       },
+      plan_family_counts: { single_source: 12, safe_dimension_join: 2, aggregate_locality: 2, other: 0 },
       ambiguity_reason_counts: { temporal_ambiguous: 0 }
     });
     expect(first.cases.filter(item => item.split === 'public_holdout').map(item => item.plan_family)).toEqual([

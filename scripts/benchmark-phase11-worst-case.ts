@@ -29,7 +29,7 @@ export const WORST_CASE_BENCHMARK_METADATA_PATH = path.resolve(
 
 const ZERO_HASH = '0'.repeat(64);
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
-const topologySchema = z.enum(['single_source_rows', 'row_dimension_join', 'scalar_aggregate_compose']);
+const topologySchema = z.enum(['single_source_rows', 'single_source_aggregate', 'row_dimension_join', 'scalar_aggregate_compose']);
 const familySchema = z.enum(['single_source', 'safe_dimension_join', 'aggregate_locality']);
 const entitySchema = z.object({
   type: z.enum(['driver', 'event']),
@@ -60,9 +60,12 @@ const hashSetSchema = z.object({
   formatter_output_sha256: sha256Schema
 }).strict();
 const workloadSchema = z.object({
-  id: z.enum(['maximum_rows_standings', 'maximum_rows_safe_join', 'maximum_work_and_resolver_compose']),
+  id: z.enum([
+    'maximum_rows_standings', 'single_source_scalar_aggregate', 'maximum_rows_safe_join',
+    'maximum_work_and_resolver_compose'
+  ]),
   family: familySchema,
-  boundary: z.enum(['maximum_rows', 'family_coverage', 'maximum_work_and_resolver_candidates']),
+  boundary: z.enum(['maximum_rows', 'promoted_topology', 'family_coverage', 'maximum_work_and_resolver_candidates']),
   question: z.string().min(1).max(1_000),
   entities: z.array(entitySchema).max(8),
   resolver: z.object({
@@ -99,7 +102,7 @@ const definitionsSchema = z.object({
     maximum_rows: z.literal(PLANNED_F1QL_MAX_ROWS),
     maximum_resolver_candidates_per_mention: z.literal(SEMANTIC_RESOLVER_MAX_CANDIDATES)
   }).strict(),
-  workloads: z.array(workloadSchema).length(3)
+  workloads: z.array(workloadSchema).length(4)
 }).strict().superRefine((definitions, context) => {
   const workloads = definitions.workloads;
   if (new Set(workloads.map(item => item.id)).size !== workloads.length ||
@@ -118,11 +121,11 @@ const definitionsSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'benchmark workload exceeds a current legal limit' });
   }
   const familyTopologies = {
-    single_source: 'single_source_rows',
-    safe_dimension_join: 'row_dimension_join',
-    aggregate_locality: 'scalar_aggregate_compose'
+    single_source: ['single_source_aggregate', 'single_source_rows'],
+    safe_dimension_join: ['row_dimension_join'],
+    aggregate_locality: ['scalar_aggregate_compose']
   } as const;
-  if (workloads.some(item => familyTopologies[item.family] !== item.expected.topology) ||
+  if (workloads.some(item => !familyTopologies[item.family].includes(item.expected.topology as never)) ||
       workloads.some(item => item.boundary === 'maximum_rows' && item.expected.requested_rows !== PLANNED_F1QL_MAX_ROWS) ||
       workloads.some(item => item.boundary === 'maximum_work_and_resolver_candidates' &&
         (item.expected.work_units !== PLANNED_F1QL_MAX_WORK_UNITS ||
@@ -250,6 +253,18 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         }
       },
       {
+        id: 'single_source_scalar_aggregate',
+        family: 'single_source',
+        boundary: 'promoted_topology',
+        question: 'Show count of qualifying position in final 2025 qualifying classification.',
+        entities: [],
+        resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
+        expected: {
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: 1,
+          resolver_candidates: 0, reference_rows: 1, hashes: hashes()
+        }
+      },
+      {
         id: 'maximum_work_and_resolver_compose',
         family: 'aggregate_locality',
         boundary: 'maximum_work_and_resolver_candidates',
@@ -320,9 +335,9 @@ export async function prepareWorstCaseBenchmark(
     };
   }));
   const fixtureRowsTotal = workloads.reduce((total, item) => total + item.reference_rows, 0);
-  if (prepared.length !== familySchema.options.length || fixtureRowsTotal === 0 ||
+  if (prepared.length !== definitions.workloads.length || fixtureRowsTotal === 0 ||
       workloads.some(item => item.reference_rows === 0)) {
-    throw new Error('worst-case benchmark requires one non-empty workload per current plan family');
+    throw new Error('worst-case benchmark requires every declared family and topology workload to be non-empty');
   }
   return deepFreeze({
     definitions,
@@ -506,6 +521,7 @@ async function createResolution(
 function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDatabase {
   if (id === 'maximum_rows_standings') {return standingsReferenceDatabase();}
   if (id === 'maximum_rows_safe_join') {return safeJoinReferenceDatabase();}
+  if (id === 'single_source_scalar_aggregate') {return scalarQualifyingCountReferenceDatabase();}
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -513,6 +529,22 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
       season: 2025, round, driver_id: 'lando-norris', team_id: 'mclaren',
       qualifying_position: (round % 20) + 1, best_time_ms: 80_000 + round,
       best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified'
+    }))
+  };
+}
+
+function scalarQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
+  return {
+    qualifying_classification: Array.from({ length: PLANNED_F1QL_MAX_ROWS }, (_unused, index) => ({
+      season: 2025,
+      round: (index % 30) + 1,
+      driver_id: `benchmark-driver-${String(index + 1).padStart(3, '0')}`,
+      team_id: 'benchmark-team',
+      qualifying_position: (index % 30) + 1,
+      best_time_ms: 80_000 + index,
+      best_session: 'Q3',
+      eliminated_in_round: null,
+      classification_status: 'classified'
     }))
   };
 }

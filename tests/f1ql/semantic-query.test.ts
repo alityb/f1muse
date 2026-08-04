@@ -395,6 +395,15 @@ describe('semantic query candidates and independent evidence', () => {
     });
   });
 
+  it.each([
+    'Show count of qualifying appearances in final 2025 qualifying classification.',
+    'Show count of qualifying events in final 2025 qualifying classification.',
+    'Show count of poles in final 2025 qualifying classification.',
+    'Show count of top ten qualifying positions in final 2025 qualifying classification.'
+  ])('does not conflate recorded qualifying-position rows with broader count semantics: %s', question => {
+    expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
   it('keeps provider omission from collapsing independent ambiguity', () => {
     const evidence = candidateEvidence('List position for final 2025.');
     const provider = { version: 2, candidates: [evidence.candidates[0]] };

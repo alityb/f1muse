@@ -46,6 +46,7 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const RACE_CLASSIFICATION = 'List driver and finishing position from round 1 of final 2025 race classification.';
 const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from round 1 of final 2025 qualifying classification.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
 const EVENT_CIRCUIT = 'List circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_NAME_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
@@ -402,7 +403,7 @@ describe('generic proven semantic result formatting', () => {
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     const formatted = formatSemanticPlanResult(execution);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       answer: {
         headline: 'Final 2025 driver standings result.',
         facts: [
@@ -685,7 +686,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v13',
+        format_version: 'semantic-result-format-v14',
         answer: { headline: 'Final 2025 race classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -695,7 +696,7 @@ describe('generic proven semantic result formatting', () => {
       expect(formatted.metadata.sources.map(source => source.id)).toEqual(['event_classification']);
       expect(formatted.metadata.sources[0].coverage.certified)
         .toBe('No event-complete historical or steward-decision ledger claim.');
-      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v13');
+      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v14');
     }
     expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
 
@@ -733,7 +734,7 @@ describe('generic proven semantic result formatting', () => {
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     const formatted = formatSemanticPlanResult(execution);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       rows: [
         { driver_id: 'lando-norris', finishing_position: 2 },
         { driver_id: 'max-verstappen', finishing_position: 2 },
@@ -795,7 +796,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v13',
+        format_version: 'semantic-result-format-v14',
         answer: { headline: 'Final 2025 qualifying classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -841,7 +842,7 @@ describe('generic proven semantic result formatting', () => {
     ];
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     expect(formatSemanticPlanResult(execution)).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       rows: rows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row),
       metadata: {
         coverage: { status: 'sufficient', rows_returned: 3, row_limit: 100 },
@@ -906,6 +907,52 @@ describe('generic proven semantic result formatting', () => {
         { source_id: 'event_classification', concept_id: 'driver_id', label: 'driver', operator: 'eq', values: ['lando-norris'] },
         { source_id: 'qualifying_classification', concept_id: 'driver_id', label: 'driver', operator: 'eq', values: ['lando-norris'] }
       ]);
+  });
+
+  it('formats only one complete integrity-clean scalar count of recorded qualifying positions', async () => {
+    const prepared = await prepare(SCALAR_COUNT);
+    expect(prepared.plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      output_grain: [],
+      work: { requested_rows: 1 }
+    });
+    const row = { count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true };
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row]);
+    expect(formatSemanticPlanResult(execution)).toMatchObject({
+      format_version: 'semantic-result-format-v14',
+      rows: [{ count_qualifying_position: 2 }],
+      answer: { facts: [{ subject: 'result 1', values: { count_qualifying_position: '2' } }] },
+      metadata: {
+        coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
+        columns: [{
+          id: 'count_qualifying_position', aggregation: 'count', units: 'count', nullable: false
+        }],
+        ordering: [{ output_id: 'count_qualifying_position', direction: 'asc', nulls: 'last' }]
+      }
+    });
+    expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
+
+    const zero = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      ...row, count_qualifying_position: 0
+    }]);
+    expect(formatSemanticPlanResult(zero).rows).toEqual([{ count_qualifying_position: 0 }]);
+
+    for (const rows of [
+      [],
+      [{ [PLANNED_INTEGRITY_FIELD]: true }],
+      [{ ...row, extra: true }],
+      [{ ...row, count_qualifying_position: null }],
+      [{ ...row, count_qualifying_position: -1 }],
+      [{ ...row, count_qualifying_position: 1.5 }],
+      [{ ...row, count_qualifying_position: Number.MAX_SAFE_INTEGER + 1 }],
+      [{ ...row, count_qualifying_position: '2' }],
+      [{ ...row, [PLANNED_INTEGRITY_FIELD]: false }]
+    ]) {
+      const mutated = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+      expect(() => formatSemanticPlanResult(mutated)).toThrow(SemanticResultFormatError);
+    }
+    const overflow = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row, row]);
+    expect(() => formatSemanticPlanResult(overflow)).toThrow('collection evidence was incomplete');
   });
 
   it('distinguishes an empty row result from a scalar zero', async () => {
@@ -1024,7 +1071,7 @@ describe('generic proven semantic result formatting', () => {
       date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       rows: [{ date: '2025-01-01' }],
       metadata: {
         coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
@@ -1053,7 +1100,7 @@ describe('generic proven semantic result formatting', () => {
       circuit_id: ' Circuit_ID_01 ', [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       answer: { facts: [{ subject: ' Circuit_ID_01 ', values: {} }] },
       rows: [{ circuit_id: ' Circuit_ID_01 ' }],
       metadata: {
@@ -1086,7 +1133,7 @@ describe('generic proven semantic result formatting', () => {
       event_name: ' Formula 1 Australian Grand Prix ', [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v13',
+      format_version: 'semantic-result-format-v14',
       answer: { facts: [{ subject: 'result 1', values: { event_name: ' Formula 1 Australian Grand Prix ' } }] },
       rows: [{ event_name: ' Formula 1 Australian Grand Prix ' }],
       metadata: {

@@ -681,7 +681,7 @@ function planFamilyMatches(
   sourceIds: readonly string[]
 ): boolean {
   if (planFamily === 'single_source') {
-    return topology === 'single_source_rows' && (
+    return (topology === 'single_source_rows' || topology === 'single_source_aggregate') && (
       sameStrings(sourceIds, ['driver_standings']) || sameStrings(sourceIds, ['event_classification']) ||
       sameStrings(sourceIds, ['event_metadata']) || sameStrings(sourceIds, ['qualifying_classification'])
     );

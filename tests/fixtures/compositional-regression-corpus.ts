@@ -41,10 +41,10 @@ export const compositionalRegressionCorpusInput: unknown = {
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 11,
+      single_source: 12,
       safe_dimension_join: 2,
       aggregate_locality: 2,
-      other: 1
+      other: 0
     },
     ambiguity_reason_counts: {
       attachment_ambiguous: 1,
@@ -68,7 +68,7 @@ export const compositionalRegressionCorpusInput: unknown = {
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 11,
+      plan_family_single_source: 12,
       plan_family_safe_dimension_join: 2,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
@@ -306,11 +306,11 @@ export const compositionalRegressionCorpusInput: unknown = {
     },
     {
       id: 'promoted-single-source-aggregate', split: 'development', question: SCALAR_COUNT,
-      coverage_tags: ['promoted_topology'], risk_tags: ['aggregation'], entities: [],
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'], risk_tags: ['aggregation'], entities: [],
       provider_mode: 'enumerated', resolver: noResolvers,
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
-        source_ids: ['qualifying_classification'], plan_family: null
+        source_ids: ['qualifying_classification'], plan_family: 'single_source'
       }
     },
     {

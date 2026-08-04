@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 14 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 15 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
     id: 'semantic-single-source-v1',
     version: SEMANTIC_CAPABILITY_PROFILE_VERSION,
     catalog_hash: SEMANTIC_CATALOG_HASH,
-    topology: ['single_source_rows'],
+    topology: ['single_source_aggregate', 'single_source_rows'],
     source_sets: [
       ['driver_standings'],
       ['event_classification'],
@@ -18,6 +18,7 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     ],
     relationship_ids: [],
     operator_signatures: [
+      'limit(sort(project(aggregate(filter(source)))))',
       'limit(sort(project(filter(source))))'
     ],
     operators: ['aggregate', 'filter', 'limit', 'project', 'sort', 'source'],
@@ -221,6 +222,19 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
           'driver_id:asc:last'
         ],
         requested_rows: 100
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: ['qualifying_classification.season:eq'],
+        aggregate_bindings: [
+          'qualifying_classification.qualifying_position:count->count_qualifying_position'
+        ],
+        group_bindings: [],
+        output_bindings: [
+          'aggregate:count_qualifying_position->count_qualifying_position'
+        ],
+        sort_bindings: ['count_qualifying_position:asc:last'],
+        requested_rows: 1
       }
     ],
     ...catalogConceptAllowlist(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']),

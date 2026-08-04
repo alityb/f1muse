@@ -17,9 +17,9 @@ import reviewedSnapshotInput from '../tests/fixtures/compositional-regression.sn
 import { compositionalRegressionCorpusInput } from '../tests/fixtures/compositional-regression-corpus';
 
 const PROBE_CASE_INDEX = 0;
-const PROBE_CORPUS_SHA256 = 'e179f96913f5ee8d57b5a105a5a428db7e3753a86ae8a34dcceccb140f5429c5';
-const PROBE_CORPUS_INPUT_SHA256 = '48deacc5fe0f78eda88ab8c38aa57a958bd7691e5d3ece76b9eb70f298229cea';
-const PROBE_SNAPSHOT_INPUT_SHA256 = '3abfd85483332b92dfc97a341cd45ee65bf61a4b72732443139d05766d694a41';
+const PROBE_CORPUS_SHA256 = '55366ee368d1cc3b7561ca2d46c9ecb8cb63168428a03c528f3875a59d727c79';
+const PROBE_CORPUS_INPUT_SHA256 = '6cff1dd93abb08086b677401d191f390c8fb04317a6a268f250f34ceb21f3034';
+const PROBE_SNAPSHOT_INPUT_SHA256 = '10aba70a12f5742a27c07082bab75e7f81fb39b75e546aedbe05864b1bf11093';
 const PROBE_CASE_ID = 'promoted-single-source-rows';
 const PROBE_QUESTION_SHA256 = '9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c';
 const PROBE_CANDIDATE_SET_SHA256 = '4f423f15bbed9f528702913eab5c804fbee8112f8978e0e2d339ea9d16d1e604';

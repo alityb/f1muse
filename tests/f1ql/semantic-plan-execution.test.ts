@@ -122,6 +122,12 @@ const cases = [
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
     rows: [{ event_name: 'Australian Grand Prix', [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'promoted-single-source-aggregate',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true }]
   }
 ] as const;
 

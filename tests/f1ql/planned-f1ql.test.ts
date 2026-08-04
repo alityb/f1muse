@@ -250,13 +250,13 @@ function eventNamePlan(round = 1) {
   };
 }
 
-function emptyScalarCountPlan() {
+function scalarQualifyingCountPlan(classificationStatus?: 'dns') {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 1,
       input: {
-        op: 'sort', keys: [{ output_id: 'count_qualifying_position', direction: 'desc', nulls: 'last' }],
+        op: 'sort', keys: [{ output_id: 'count_qualifying_position', direction: 'asc', nulls: 'last' }],
         input: {
           op: 'project',
           input: {
@@ -264,7 +264,9 @@ function emptyScalarCountPlan() {
             input: {
               op: 'filter', input: { op: 'source', source_id: 'qualifying_classification' },
               predicates: [
-                predicate('qualifying_classification', 'classification_status', 'dns'),
+                ...(classificationStatus === undefined ? [] : [
+                  predicate('qualifying_classification', 'classification_status', classificationStatus)
+                ]),
                 predicate('qualifying_classification', 'season', 2025)
               ]
             },
@@ -1435,8 +1437,103 @@ describe('internal planned F1QL and Core pipeline', () => {
     }
   });
 
+  it('matches PostgreSQL for scalar recorded qualifying-position counts and source-wide integrity', async () => {
+    const core = lowerPlannedF1QL(scalarQualifyingCountPlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      qualifying_classification: [
+        { season: 2025, round: 1, driver_id: 'alpha-driver', qualifying_position: 1, classification_status: 'classified' },
+        { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 2, classification_status: 'classified' },
+        { season: 2025, round: 2, driver_id: 'outside-driver', qualifying_position: 11, classification_status: 'classified' }
+      ]
+    };
+    const rows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(rows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(rows).toEqual([{ count_qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true }]);
+
+    const missingPlan: any = structuredClone(scalarQualifyingCountPlan());
+    missingPlan.root.input.input.input.input.predicates[0].value = 2024;
+    const missingCore = lowerPlannedF1QL(missingPlan);
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, { qualifying_classification: [] }));
+    expect(missingRows).toEqual([{ count_qualifying_position: 0, [PLANNED_INTEGRITY_FIELD]: false }]);
+
+    const client = await pool.connect();
+    try {
+      for (const mutation of [
+        { position: null, expectedCount: 2, expectedIntegrity: true },
+        { position: 1, expectedCount: 3, expectedIntegrity: true },
+        { position: 0, expectedCount: 3, expectedIntegrity: false },
+        { position: 31, expectedCount: 3, expectedIntegrity: false }
+      ] as const) {
+        await client.query('BEGIN');
+        try {
+          await client.query(
+            'UPDATE qualifying_results SET qualifying_position = $1 WHERE season = 2025 AND round = 1 AND driver_id = $2',
+            [mutation.position, 'beta_driver']
+          );
+          const mutatedReference: PlannedReferenceDatabase = {
+            qualifying_classification: [
+              reference.qualifying_classification![0],
+              { ...reference.qualifying_classification![1], qualifying_position: mutation.position },
+              reference.qualifying_classification![2]
+            ]
+          };
+          const mutatedRows = (await client.query(compiled.sql, compiled.params)).rows;
+          expect(mutatedRows).toEqual(interpretPlannedF1QL(core, mutatedReference));
+          expect(mutatedRows).toEqual([{
+            count_qualifying_position: mutation.expectedCount,
+            [PLANNED_INTEGRITY_FIELD]: mutation.expectedIntegrity
+          }]);
+        } finally {
+          await client.query('ROLLBACK');
+        }
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE qualifying_results SET qualifying_position = NULL WHERE season = 2025');
+        const allNullReference: PlannedReferenceDatabase = {
+          qualifying_classification: reference.qualifying_classification!.map(row => ({
+            ...row, qualifying_position: null
+          }))
+        };
+        const allNullRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(allNullRows).toEqual(interpretPlannedF1QL(core, allNullReference));
+        expect(allNullRows).toEqual([{
+          count_qualifying_position: 0, [PLANNED_INTEGRITY_FIELD]: true
+        }]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          VALUES (2025, 1, 'beta-driver', 'planned-team', 3, 'RACE_QUALIFYING')`);
+        const duplicateReference: PlannedReferenceDatabase = {
+          qualifying_classification: [
+            ...reference.qualifying_classification!,
+            { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 3, classification_status: 'classified' }
+          ]
+        };
+        const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(duplicateRows).toEqual(interpretPlannedF1QL(core, duplicateReference));
+        expect(duplicateRows).toEqual([{
+          count_qualifying_position: 4, [PLANNED_INTEGRITY_FIELD]: false
+        }]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+  });
+
   it('preserves valid source integrity for a scalar zero-count result', async () => {
-    const core = lowerPlannedF1QL(emptyScalarCountPlan());
+    const core = lowerPlannedF1QL(scalarQualifyingCountPlan('dns'));
     const compiled = compilePlannedF1QL(core);
     const reference: PlannedReferenceDatabase = {
       qualifying_classification: [
@@ -1447,7 +1544,7 @@ describe('internal planned F1QL and Core pipeline', () => {
     expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
     expect(sqlRows).toEqual([{ count_qualifying_position: 0, [PLANNED_INTEGRITY_FIELD]: true }]);
 
-    const missingDriverPlan: any = structuredClone(emptyScalarCountPlan());
+    const missingDriverPlan: any = structuredClone(scalarQualifyingCountPlan('dns'));
     missingDriverPlan.root.input.input.input.input.predicates.splice(1, 0,
       predicate('qualifying_classification', 'driver_id', 'missing-driver'));
     const missingCore = lowerPlannedF1QL(missingDriverPlan);

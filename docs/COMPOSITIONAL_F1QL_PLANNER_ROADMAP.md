@@ -734,11 +734,22 @@ status, sprint qualifying, or driver identity. Singleton, five-driver,
 unfiltered, season-wide, caller-limited, latest-recorded, interim, timing, grid,
 sprint, status, mixed-source, and broader-output qualifying rankings remain
 refused.
+An ungrouped qualifying-count slice is also complete for one final historical
+season from 1950 through 2025. It returns exactly one
+`count_qualifying_position` scalar using `COUNT(qualifying_position)` over
+governed retained rows. Null positions are excluded; an integrity-clean
+all-null source is factual zero, while absent source rows are integrity failure.
+The count does not mean qualifying appearances, events, poles, top-ten results,
+or complete schedule/entrant coverage. Source-wide event-driver grain and
+position bounds remain mandatory, but equal positions are valid because no
+sporting rank is inferred. Driver, event, status, or position filters, grouped
+and ranked counts, race counts, alternate aggregates, broader output,
+latest-recorded scope, and caller limits remain refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, combined
 or broader event metadata, non-race session dates, classification status,
-qualifying timing, grid position, sprint qualifying, grouping, aggregation,
+qualifying timing, grid position, sprint qualifying, other grouping or aggregation,
 unfiltered ranking, and comparison remain outside these slices and must be promoted
 through separate complete-interaction and response-coverage contracts. No
 production release or routing change is claimed by these local milestones.

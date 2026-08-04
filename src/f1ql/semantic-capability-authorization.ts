@@ -30,7 +30,7 @@ import {
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 
-export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v14' as const;
+export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v15' as const;
 export const SEMANTIC_CAPABILITY_AUTHORIZATION_TTL_MS = 5_000;
 
 interface SemanticPlanInteraction {
