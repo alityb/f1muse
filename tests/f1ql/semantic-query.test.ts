@@ -20,6 +20,7 @@ const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const HISTORICAL_FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
+const STANDINGS_POSITION_RANK_QUESTION = 'Rank Max Verstappen, Lando Norris, and Oscar Piastri by championship position in final 2025 driver standings.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
@@ -69,6 +70,42 @@ describe('semantic query candidates and independent evidence', () => {
     expect(ranking.comparison).toMatchObject({ relation: 'rank' });
     expect(ranking.order_by).toEqual([expect.objectContaining({ output_index: 1, direction: 'desc' })]);
     expect(ranking.limit).toMatchObject({ value: 10 });
+
+    const driverNames = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri'];
+    const standingsRanking = candidateEvidence(
+      STANDINGS_POSITION_RANK_QUESTION,
+      driverNames.map(text => ({ type: 'driver', span: span(STANDINGS_POSITION_RANK_QUESTION, text) }))
+    ).candidates[0];
+    expect(standingsRanking).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'championship_position' } }
+      ],
+      filters: [{ kind: 'entity', operator: 'in', entity_indices: [0, 1, 2] }],
+      comparison: { relation: 'rank' },
+      order_by: [{ output_index: 1, direction: 'asc' }]
+    });
+    expect(standingsRanking.limit).toBeUndefined();
+  });
+
+  it.each([
+    'Rank Max Verstappen by championship position in final 2025 driver standings.',
+    'Show top 3 Max Verstappen, Lando Norris, and Oscar Piastri by championship position in final 2025 driver standings.',
+    'Rank Max Verstappen and Lando Norris by championship points in final 2025 driver standings.',
+    'Rank Max Verstappen and Lando Norris by championship position in latest recorded 2026 driver standings.'
+  ])('rejects standings rankings outside the selected-driver official-position family: %s', question => {
+    const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name));
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+  });
+
+  it('rejects unknown language appended to a selected-driver standings ranking', () => {
+    const question = 'Rank Max Verstappen and Lando Norris by championship position in final 2025 driver standings secretly.';
+    const names = ['Max Verstappen', 'Lando Norris'];
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
   });
 
   it('enumerates only the promoted row join and aggregate-local scalar composition', () => {

@@ -88,6 +88,22 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `Rank ${drivers.map(([name]) => name).join(', ')} by championship position in final ${year} driver standings.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
   }, ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List race date from round ${round} of final ${year} event metadata.`,
     entity_names: []
@@ -171,6 +187,7 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(profile.complete_interactions.map(interaction => interaction.entity_count)).toEqual([
       { min: 0, max: 0 },
       { min: 1, max: 1 },
+      { min: 2, max: 4 },
       { min: 2, max: 4 },
       { min: 0, max: 0 },
       { min: 0, max: 0 },

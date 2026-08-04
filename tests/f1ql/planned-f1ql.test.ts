@@ -135,6 +135,35 @@ function standingsRankPlan() {
   };
 }
 
+function selectedStandingsPositionRankPlan(driverIds = ['alpha-driver', 'beta-driver']) {
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 100,
+      input: {
+        op: 'sort', keys: [
+          { output_id: 'championship_position', direction: 'asc', nulls: 'last' },
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
+        ],
+        input: {
+          op: 'project',
+          input: {
+            op: 'filter', input: { op: 'source', source_id: 'driver_standings' },
+            predicates: [
+              { concept: ref('driver_standings', 'driver_id'), operator: 'in', values: driverIds },
+              predicate('driver_standings', 'season', 2025)
+            ]
+          },
+          outputs: [
+            { kind: 'concept', concept: ref('driver_standings', 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref('driver_standings', 'championship_position'), as: 'championship_position' }
+          ]
+        }
+      }
+    }
+  };
+}
+
 function eventMetadataRowsPlan() {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
@@ -364,7 +393,8 @@ describe('internal planned F1QL and Core pipeline', () => {
       INSERT INTO season_driver_standing
         (year, position_display_order, position_number, driver_id, points, championship_won) VALUES
         (2025, 1, 1, 'alpha_driver', 100, true),
-        (2025, 2, 2, 'beta_driver', 90, false);
+        (2025, 2, 2, 'beta_driver', 90, false),
+        (2025, 3, 3, 'outside_driver', 80, false);
     `);
   });
 
@@ -733,6 +763,106 @@ describe('internal planned F1QL and Core pipeline', () => {
       { driver_id: 'alpha-driver', min_championship_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'beta-driver', min_championship_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
+  });
+
+  it('matches PostgreSQL for selected-driver official standings ranking and source-wide integrity', async () => {
+    const core = lowerPlannedF1QL(selectedStandingsPositionRankPlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      driver_standings: [
+        { season: 2025, driver_id: 'alpha-driver', championship_position: 1, championship_won: true, points: 100 },
+        { season: 2025, driver_id: 'beta-driver', championship_position: 2, championship_won: false, points: 100 },
+        { season: 2025, driver_id: 'outside-driver', championship_position: 3, championship_won: false, points: 80 }
+      ]
+    };
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([
+      { driver_id: 'alpha-driver', championship_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'beta-driver', championship_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+
+    const missingCore = lowerPlannedF1QL(selectedStandingsPositionRankPlan(['alpha-driver', 'missing-driver']));
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
+    expect(missingRows).toEqual([{
+      driver_id: 'alpha-driver', championship_position: 1, [PLANNED_INTEGRITY_FIELD]: false
+    }]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE season_driver_standing SET position_number = NULL WHERE year = 2025 AND driver_id = $1', ['outside_driver']);
+        const nullReference: PlannedReferenceDatabase = {
+          driver_standings: [
+            reference.driver_standings![0],
+            reference.driver_standings![1],
+            { ...reference.driver_standings![2], championship_position: null }
+          ]
+        };
+        const nullRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(nullRows).toEqual(interpretPlannedF1QL(core, nullReference));
+        expect(nullRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE season_driver_standing SET position_number = 1 WHERE year = 2025 AND driver_id = $1', ['outside_driver']);
+        const tiedReference: PlannedReferenceDatabase = {
+          driver_standings: [
+            reference.driver_standings![0],
+            reference.driver_standings![1],
+            { ...reference.driver_standings![2], championship_position: 1 }
+          ]
+        };
+        const tiedRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(tiedRows).toEqual(interpretPlannedF1QL(core, tiedReference));
+        expect(tiedRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query('UPDATE season_driver_standing SET position_number = 0 WHERE year = 2025 AND driver_id = $1', ['outside_driver']);
+        const outOfBoundsReference: PlannedReferenceDatabase = {
+          driver_standings: [
+            reference.driver_standings![0],
+            reference.driver_standings![1],
+            { ...reference.driver_standings![2], championship_position: 0 }
+          ]
+        };
+        const outOfBoundsRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(outOfBoundsRows).toEqual(interpretPlannedF1QL(core, outOfBoundsReference));
+        expect(outOfBoundsRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO season_driver_standing
+          (year, position_display_order, position_number, driver_id, points, championship_won)
+          VALUES (2025, 4, 4, 'outside_driver', 70, false)`);
+        const duplicateReference: PlannedReferenceDatabase = {
+          driver_standings: [
+            ...reference.driver_standings!,
+            { season: 2025, driver_id: 'outside-driver', championship_position: 4, championship_won: false, points: 70 }
+          ]
+        };
+        const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(duplicateRows).toEqual(interpretPlannedF1QL(core, duplicateReference));
+        expect(duplicateRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
   });
 
   it('matches PostgreSQL row projection under descending nulls-last and UTF-8 byte ordering', async () => {

@@ -119,6 +119,10 @@ describe('semantic candidate translator foundation', () => {
       .toContain('driver and qualifying position from a final YYYY qualifying classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Do not extend either classification-selection rule to season-wide filtered selections or user-supplied limits');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('rank two to four specific drivers by championship position in final YYYY driver standings');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('Never rank official championship position by points');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('requests that name either race date or circuit identifier from final YYYY event metadata at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

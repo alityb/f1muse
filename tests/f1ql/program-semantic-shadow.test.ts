@@ -23,6 +23,7 @@ const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings poin
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const FOUR_DRIVER_POINTS_QUESTION = 'List driver and championship points for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
+const FOUR_DRIVER_STANDINGS_RANK_QUESTION = 'Rank Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by championship position in final 2025 driver standings.';
 const FOUR_DRIVER_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
 const FOUR_DRIVER_NAMED_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 race classification at Monaco.';
 const FOUR_DRIVER_QUALIFYING_QUESTION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 qualifying classification.';
@@ -303,7 +304,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it('proves a four-driver standings family request through one metadata read and no result execution', async () => {
+  it.each([
+    FOUR_DRIVER_POINTS_QUESTION,
+    FOUR_DRIVER_STANDINGS_RANK_QUESTION
+  ])('proves a four-driver standings family request through one metadata read and no result execution: %s', async question => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
@@ -318,7 +322,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
       proposer: { propose: async proposal => exactProposal(proposal) },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
-    }, { question: FOUR_DRIVER_POINTS_QUESTION }, undefined, () => {
+    }, { question }, undefined, () => {
       executionAttempts += 1;
       throw new Error('semantic shadow must not execute a result query');
     });
@@ -1068,7 +1072,8 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 32, end: 45 } },
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 50, end: 62 } }
         ]
-    : request.question === FOUR_DRIVER_POINTS_QUESTION || request.question === FOUR_DRIVER_RACE_QUESTION ||
+    : request.question === FOUR_DRIVER_POINTS_QUESTION || request.question === FOUR_DRIVER_STANDINGS_RANK_QUESTION ||
+        request.question === FOUR_DRIVER_RACE_QUESTION ||
         request.question === FOUR_DRIVER_QUALIFYING_QUESTION
       ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
           type: 'driver' as const,

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 10 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 11 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -61,6 +61,21 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
           'concept:driver_standings.points->points'
         ],
         sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
+      },
+      {
+        entity_count: { min: 2, max: 4 },
+        predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.championship_position->championship_position'
+        ],
+        sort_bindings: [
+          'championship_position:asc:last',
+          'driver_id:asc:last'
+        ],
         requested_rows: 100
       },
       {
