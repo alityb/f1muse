@@ -344,29 +344,33 @@ function classificationSelectionPlan(
   };
 }
 
-function selectedRacePositionRankPlan(driverIds = ['alpha-driver', 'beta-driver']) {
+function selectedClassificationPositionRankPlan(
+  sourceId: 'event_classification' | 'qualifying_classification',
+  driverIds = ['alpha-driver', 'beta-driver']
+) {
+  const positionId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 100,
       input: {
         op: 'sort', keys: [
-          { output_id: 'finishing_position', direction: 'asc', nulls: 'last' },
+          { output_id: positionId, direction: 'asc', nulls: 'last' },
           { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
         ],
         input: {
           op: 'project',
           input: {
-            op: 'filter', input: { op: 'source', source_id: 'event_classification' },
+            op: 'filter', input: { op: 'source', source_id: sourceId },
             predicates: [
-              { concept: ref('event_classification', 'driver_id'), operator: 'in', values: driverIds },
-              predicate('event_classification', 'round', 1),
-              predicate('event_classification', 'season', 2025)
+              { concept: ref(sourceId, 'driver_id'), operator: 'in', values: driverIds },
+              predicate(sourceId, 'round', 1),
+              predicate(sourceId, 'season', 2025)
             ]
           },
           outputs: [
-            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
-            { kind: 'concept', concept: ref('event_classification', 'finishing_position'), as: 'finishing_position' }
+            { kind: 'concept', concept: ref(sourceId, 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref(sourceId, positionId), as: positionId }
           ]
         }
       }
@@ -1141,7 +1145,7 @@ describe('internal planned F1QL and Core pipeline', () => {
   });
 
   it('matches PostgreSQL for nullable and tied selected-driver race ranking with source-wide integrity', async () => {
-    const core = lowerPlannedF1QL(selectedRacePositionRankPlan());
+    const core = lowerPlannedF1QL(selectedClassificationPositionRankPlan('event_classification'));
     const compiled = compilePlannedF1QL(core);
     const reference: PlannedReferenceDatabase = {
       event_classification: [
@@ -1156,7 +1160,9 @@ describe('internal planned F1QL and Core pipeline', () => {
       { driver_id: 'beta-driver', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
 
-    const missingCore = lowerPlannedF1QL(selectedRacePositionRankPlan(['alpha-driver', 'missing-driver']));
+    const missingCore = lowerPlannedF1QL(selectedClassificationPositionRankPlan(
+      'event_classification', ['alpha-driver', 'missing-driver']
+    ));
     const missingCompiled = compilePlannedF1QL(missingCore);
     const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
     expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
@@ -1261,6 +1267,114 @@ describe('internal planned F1QL and Core pipeline', () => {
             ...reference.event_classification!,
             { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 3, points: 0 },
             { season: 2025, round: 1, driver_id: 'outside-driver', finishing_position: 3, points: 0 }
+          ]
+        };
+        const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(duplicateRows).toEqual(interpretPlannedF1QL(core, duplicateReference));
+        expect(duplicateRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+  });
+
+  it('matches PostgreSQL for selected-driver qualifying ranking and rejects event-wide nulls and ties', async () => {
+    const core = lowerPlannedF1QL(selectedClassificationPositionRankPlan('qualifying_classification'));
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      qualifying_classification: [
+        { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 2, classification_status: 'classified' },
+        { season: 2025, round: 1, driver_id: 'alpha-driver', qualifying_position: 1, classification_status: 'classified' }
+      ]
+    };
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([
+      { driver_id: 'alpha-driver', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'beta-driver', qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+
+    const missingCore = lowerPlannedF1QL(selectedClassificationPositionRankPlan(
+      'qualifying_classification', ['alpha-driver', 'missing-driver']
+    ));
+    const missingCompiled = compilePlannedF1QL(missingCore);
+    const missingRows = (await pool.query(missingCompiled.sql, missingCompiled.params)).rows;
+    expect(missingRows).toEqual(interpretPlannedF1QL(missingCore, reference));
+    expect(missingRows).toEqual([{
+      driver_id: 'alpha-driver', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: false
+    }]);
+
+    const client = await pool.connect();
+    try {
+      for (const mutation of [
+        {
+          sql: 'UPDATE qualifying_results SET qualifying_position = NULL WHERE season = 2025 AND round = 1 AND driver_id = $1',
+          params: ['beta_driver'],
+          row: { ...reference.qualifying_classification![0], qualifying_position: null }
+        },
+        {
+          sql: `INSERT INTO qualifying_results
+            (season, round, driver_id, team_id, qualifying_position, session_type)
+            VALUES (2025, 1, 'outside_driver', 'planned-team', NULL, 'RACE_QUALIFYING')`,
+          params: [],
+          row: { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: null, classification_status: 'classified' }
+        },
+        {
+          sql: 'UPDATE qualifying_results SET qualifying_position = 1 WHERE season = 2025 AND round = 1 AND driver_id = $1',
+          params: ['beta_driver'],
+          row: { ...reference.qualifying_classification![0], qualifying_position: 1 }
+        },
+        {
+          sql: `INSERT INTO qualifying_results
+            (season, round, driver_id, team_id, qualifying_position, session_type)
+            VALUES (2025, 1, 'outside_driver', 'planned-team', 1, 'RACE_QUALIFYING')`,
+          params: [],
+          row: { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: 1, classification_status: 'classified' }
+        },
+        {
+          sql: `INSERT INTO qualifying_results
+            (season, round, driver_id, team_id, qualifying_position, session_type)
+            VALUES (2025, 1, 'outside_driver', 'planned-team', 0, 'RACE_QUALIFYING')`,
+          params: [],
+          row: { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: 0, classification_status: 'classified' }
+        },
+        {
+          sql: `INSERT INTO qualifying_results
+            (season, round, driver_id, team_id, qualifying_position, session_type)
+            VALUES (2025, 1, 'outside_driver', 'planned-team', 31, 'RACE_QUALIFYING')`,
+          params: [],
+          row: { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: 31, classification_status: 'classified' }
+        }
+      ] as const) {
+        await client.query('BEGIN');
+        try {
+          await client.query(mutation.sql, [...mutation.params]);
+          const mutationReference: PlannedReferenceDatabase = {
+            qualifying_classification: mutation.sql.startsWith('UPDATE')
+              ? [reference.qualifying_classification![1], mutation.row]
+              : [...reference.qualifying_classification!, mutation.row]
+          };
+          const mutationRows = (await client.query(compiled.sql, compiled.params)).rows;
+          expect(mutationRows).toEqual(interpretPlannedF1QL(core, mutationReference));
+          expect(mutationRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+        } finally {
+          await client.query('ROLLBACK');
+        }
+      }
+
+      await client.query('BEGIN');
+      try {
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          VALUES (2025, 1, 'outside_driver', 'planned-team', 3, 'RACE_QUALIFYING'),
+                 (2025, 1, 'outside-driver', 'planned-team', 4, 'RACE_QUALIFYING')`);
+        const duplicateReference: PlannedReferenceDatabase = {
+          qualifying_classification: [
+            ...reference.qualifying_classification!,
+            { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: 3, classification_status: 'classified' },
+            { season: 2025, round: 1, driver_id: 'outside-driver', qualifying_position: 4, classification_status: 'classified' }
           ]
         };
         const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;

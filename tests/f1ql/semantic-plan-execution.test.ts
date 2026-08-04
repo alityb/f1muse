@@ -96,6 +96,16 @@ const cases = [
     ]
   },
   {
+    id: 'family-qualifying-position-ranking',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'oscar-piastri', qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'lando-norris', qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'max-verstappen', qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
     id: 'family-event-date',
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,

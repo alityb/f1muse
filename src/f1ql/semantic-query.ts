@@ -287,16 +287,25 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
+  const qualifyingPositionRanking = finalQualifyingPositionRanking(
+    question,
+    sourceMatches,
+    conceptMatches,
+    operations,
+    entities
+  );
+  const classificationPositionRanking = racePositionRanking ?? qualifyingPositionRanking;
   const standingsProjection = standingsPointsProjection ?? standingsPositionRanking;
   if (!standingsPointsProjection && containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
     return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
   }
-  const effectiveConceptMatches = standingsProjection ? [standingsProjection] : racePositionRanking ?? conceptMatches;
+  const effectiveConceptMatches = standingsProjection ? [standingsProjection] : classificationPositionRanking ?? conceptMatches;
   const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
   }
-  if (operations.rank && sourceIds.includes('event_classification') && !racePositionRanking) {
+  if (operations.rank && !operations.count && sourceIds.some(sourceId =>
+    sourceId === 'event_classification' || sourceId === 'qualifying_classification') && !classificationPositionRanking) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   if (question.years.length === 0) {
@@ -402,6 +411,10 @@ export function enumerateSemanticQueries(
       !racePositionRanking) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
+  if (compatibleSourceIds.length === 1 && compatibleSourceIds[0] === 'qualifying_classification' && operations.rank &&
+      !operations.count && !qualifyingPositionRanking) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   if (question.rounds.length > 0 && entities.some(entity => entity.type === 'event')) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
@@ -425,7 +438,7 @@ export function enumerateSemanticQueries(
       operations,
       question.normalized_question,
       standingsProjection,
-      racePositionRanking
+      classificationPositionRanking
     );
     usedDefaultOutputs ||= outputChoices.defaulted;
     if (outputChoices.outputs.length === 0) {
@@ -715,12 +728,10 @@ function buildOutputChoices(
   operations: OperationEvidence,
   question: string,
   standingsProjection?: LexicalMatch,
-  racePositionRanking?: readonly LexicalMatch[]
+  classificationPositionRanking?: readonly LexicalMatch[]
 ): { readonly outputs: readonly (readonly SemanticQuery['outputs'][number][])[]; readonly defaulted: boolean } {
-  if (source.id === 'driver_standings' && standingsProjection) {
-    return { outputs: [standingsProjectionOutputs(standingsProjection)], defaulted: false };
-  }
-  if (source.id === 'event_classification' && racePositionRanking) {return { outputs: [raceRankingOutputs(racePositionRanking)], defaulted: false };}
+  const reviewedProjection = reviewedProjectionOutputs(source, standingsProjection, classificationPositionRanking);
+  if (reviewedProjection) {return { outputs: [reviewedProjection], defaulted: false };}
   const explicit = matches.map(match => {
     const concept = { source_id: match.source_id, concept_id: match.concept_id! };
     return { kind: 'concept' as const, concept, evidence: [match.span] };
@@ -768,6 +779,21 @@ function buildOutputChoices(
   };
 }
 
+function reviewedProjectionOutputs(
+  source: SemanticCatalogSource,
+  standingsProjection?: LexicalMatch,
+  classificationPositionRanking?: readonly LexicalMatch[]
+): readonly SemanticQuery['outputs'][number][] | undefined {
+  if (source.id === 'driver_standings' && standingsProjection) {
+    return standingsProjectionOutputs(standingsProjection);
+  }
+  if ((source.id === 'event_classification' || source.id === 'qualifying_classification') &&
+      classificationPositionRanking) {
+    return classificationRankingOutputs(classificationPositionRanking);
+  }
+  return undefined;
+}
+
 function standingsProjectionOutputs(
   projection: LexicalMatch
 ): readonly SemanticQuery['outputs'][number][] {
@@ -785,7 +811,7 @@ function standingsProjectionOutputs(
   ];
 }
 
-function raceRankingOutputs(
+function classificationRankingOutputs(
   projection: readonly LexicalMatch[]
 ): readonly SemanticQuery['outputs'][number][] {
   return projection.map(match => ({
@@ -824,9 +850,36 @@ function finalRacePositionRanking(
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): readonly LexicalMatch[] | undefined {
-  const concepts = canonicalConceptMatches(conceptMatches.filter(match => match.source_id === 'event_classification'));
+  return finalClassificationPositionRanking(
+    question, sourceMatches, conceptMatches, operations, entities, 'event_classification', 'finishing_position'
+  );
+}
+
+function finalQualifyingPositionRanking(
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): readonly LexicalMatch[] | undefined {
+  return finalClassificationPositionRanking(
+    question, sourceMatches, conceptMatches, operations, entities, 'qualifying_classification', 'qualifying_position'
+  );
+}
+
+// eslint-disable-next-line complexity
+function finalClassificationPositionRanking(
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceId: 'event_classification' | 'qualifying_classification',
+  positionId: 'finishing_position' | 'qualifying_position'
+): readonly LexicalMatch[] | undefined {
+  const concepts = canonicalConceptMatches(conceptMatches.filter(match => match.source_id === sourceId));
   const hasBroaderConcept = conceptMatches.some(match =>
-    match.source_id !== 'event_classification' && !concepts.some(concept =>
+    match.source_id !== sourceId && !concepts.some(concept =>
       concept.span.start <= match.span.start && concept.span.end >= match.span.end));
   const drivers = entities.filter(entity => entity.type === 'driver');
   const events = entities.filter(entity => entity.type === 'event');
@@ -835,12 +888,12 @@ function finalRacePositionRanking(
       !operations.rank || operations.count || operations.limit ||
       drivers.length < 2 || drivers.length > 4 || events.length > 1 ||
       entities.some(entity => entity.type !== 'driver' && entity.type !== 'event') ||
-      !sourceMatches.some(match => match.source_id === 'event_classification') ||
+      !sourceMatches.some(match => match.source_id === sourceId) ||
       hasBroaderConcept || concepts.length !== 2) {
     return undefined;
   }
   const driver = concepts.find(match => match.concept_id === 'driver_id');
-  const position = concepts.find(match => match.concept_id === 'finishing_position');
+  const position = concepts.find(match => match.concept_id === positionId);
   return driver && position ? [driver, position] : undefined;
 }
 

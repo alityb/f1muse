@@ -124,6 +124,12 @@ describe('semantic catalog', () => {
         null_position_policy: 'reject',
         equal_position_policy: 'reject'
       });
+    expect(qualifying.integrity.operation_checks).toContainEqual({
+      operation_class: 'ranking',
+      required_checks: ['non_null_position', 'unique_relevant_position'],
+      null_position_policy: 'reject',
+      equal_position_policy: 'reject'
+    });
     expect(race.measures.find(item => item.id === 'finishing_position')?.language).toMatchObject({
       names: ['finishing position'],
       ambiguity_groups: ['classification_position']
@@ -168,6 +174,10 @@ describe('semantic catalog', () => {
     ['race ranking tie-policy mismatch', (catalog: any) => { catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.push('unique_relevant_position'); catalog.sources[4].integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks.sort(); }],
     ['global race ranking tie-policy mismatch', (catalog: any) => { catalog.sources[4].integrity.required_checks.push('unique_relevant_position'); catalog.sources[4].integrity.required_checks.sort(); }],
     ['missing race ranking contract', (catalog: any) => { catalog.sources[4].integrity.operation_checks = catalog.sources[4].integrity.operation_checks.filter((item: any) => item.operation_class !== 'ranking'); }],
+    ['qualifying ranking null-policy mismatch', (catalog: any) => { catalog.sources.find((source: any) => source.id === 'qualifying_classification').integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks = ['unique_relevant_position']; }],
+    ['qualifying ranking tie-policy mismatch', (catalog: any) => { catalog.sources.find((source: any) => source.id === 'qualifying_classification').integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').required_checks = ['non_null_position']; }],
+    ['missing qualifying ranking position policy', (catalog: any) => { delete catalog.sources.find((source: any) => source.id === 'qualifying_classification').integrity.operation_checks.find((item: any) => item.operation_class === 'ranking').equal_position_policy; }],
+    ['missing qualifying ranking contract', (catalog: any) => { const source = catalog.sources.find((item: any) => item.id === 'qualifying_classification'); source.integrity.operation_checks = source.integrity.operation_checks.filter((item: any) => item.operation_class !== 'ranking'); }],
     ['missing ranking contract', (catalog: any) => { catalog.sources[3].integrity.operation_checks = []; }],
     ['missing participation season scope', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_participation_resolution').required_scope_predicates = []; }],
     ['missing resolution deduplication', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['single_resolved_key']; }],

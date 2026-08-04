@@ -9,6 +9,7 @@ const FILTERED_STANDINGS = 'List driver and championship points for Charles Lecl
 const STANDINGS_POSITION_RANKING = 'Rank Max Verstappen, Lando Norris, Oscar Piastri by championship position in final 2025 driver standings.';
 const FILTERED_RACE_CLASSIFICATION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
 const RACE_POSITION_RANKING = 'Rank drivers Max Verstappen, Lando Norris, Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
+const QUALIFYING_POSITION_RANKING = 'Rank drivers Max Verstappen, Lando Norris, Oscar Piastri by qualifying position from round 1 of final 2025 qualifying classification.';
 const FILTERED_QUALIFYING_CLASSIFICATION = 'List driver and qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 qualifying classification.';
 const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
 const EVENT_CIRCUIT = 'List circuit identifier from final 2025 event metadata at Monaco.';
@@ -22,11 +23,11 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 27,
-    action_counts: { answer: 15, clarify: 5, abstain: 7 },
-    split_counts: { development: 12, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 28,
+    action_counts: { answer: 16, clarify: 5, abstain: 7 },
+    split_counts: { development: 13, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
-      single_source_rows: 10,
+      single_source_rows: 11,
       single_source_aggregate: 1,
       row_dimension_join: 2,
       scalar_aggregate_compose: 2
@@ -34,13 +35,13 @@ export const compositionalRegressionCorpusInput: unknown = {
     source_set_counts: {
       driver_standings: 4,
       event_classification: 2,
-      qualifying_classification: 2,
+      qualifying_classification: 3,
       event_metadata: 3,
       event_classification_event_metadata: 2,
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 10,
+      single_source: 11,
       safe_dimension_join: 2,
       aggregate_locality: 2,
       other: 1
@@ -63,11 +64,11 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 12,
+      promoted_topology: 13,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 10,
+      plan_family_single_source: 11,
       plan_family_safe_dimension_join: 2,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
@@ -77,9 +78,9 @@ export const compositionalRegressionCorpusInput: unknown = {
       aggregation: 1,
       aggregate_locality: 2,
       join_cardinality: 2,
-      resolver_event: 8,
-      resolver_identity: 7,
-      template_free: 11,
+      resolver_event: 9,
+      resolver_identity: 8,
+      template_free: 12,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -215,6 +216,29 @@ export const compositionalRegressionCorpusInput: unknown = {
         driver_mentions: [
           { text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] },
           { text: 'George Russell', candidates: ['george-russell'], active_candidates: ['george-russell'] },
+          { text: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+          { text: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+        ],
+        event_resolution: { type: 'resolved', season: 2025, round: 1 }
+      },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['qualifying_classification'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-qualifying-position-ranking', split: 'development', question: QUALIFYING_POSITION_RANKING,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_event', 'resolver_identity'],
+      entities: [
+        { type: 'driver', text: 'Max Verstappen' },
+        { type: 'driver', text: 'Lando Norris' },
+        { type: 'driver', text: 'Oscar Piastri' }
+      ],
+      provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [
+          { text: 'Max Verstappen', candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] },
           { text: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
           { text: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
         ],

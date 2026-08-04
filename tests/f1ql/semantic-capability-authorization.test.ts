@@ -177,6 +177,22 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `Rank drivers ${drivers.map(([name]) => name).join(', ')} by qualifying position from round ${round} of final ${year} qualifying classification.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
   }],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -215,6 +231,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 2, max: 4 },
       { min: 2, max: 4 },
       { min: 1, max: 1 },
+      { min: 2, max: 4 },
       { min: 2, max: 4 }
     ]);
     expect(profile.source_sets).toEqual([
@@ -294,7 +311,7 @@ describe('semantic complete-interaction capability authorization', () => {
       expect(generatedInteractions.map(completeInteractionKey).sort())
         .toEqual(profile.complete_interactions.map(completeInteractionKey).sort());
     }
-  }, 60_000);
+  }, 90_000);
 
   it('rejects latest-recorded 2026 data from a historical-final capability profile', async () => {
     const proof = await semanticProof(

@@ -133,6 +133,12 @@ describe('semantic candidate translator foundation', () => {
       .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Preserve null positions last and equal positions; driver identity only stabilizes their presentation order');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('rank two to four specific drivers by recorded qualifying position from final YYYY qualifying classification at exactly one round or named event');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Require non-null, unique recorded positions across the event');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('never derive rank from best time, grid position, status, sprint qualifying, or driver identity');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });

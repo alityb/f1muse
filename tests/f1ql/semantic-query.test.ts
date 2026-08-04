@@ -22,6 +22,7 @@ const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and O
 const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const STANDINGS_POSITION_RANK_QUESTION = 'Rank Max Verstappen, Lando Norris, and Oscar Piastri by championship position in final 2025 driver standings.';
 const RACE_POSITION_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, and Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
+const QUALIFYING_POSITION_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, and Oscar Piastri by qualifying position from round 1 of final 2025 qualifying classification.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
@@ -103,6 +104,21 @@ describe('semantic query candidates and independent evidence', () => {
     });
     expect(raceRanking.limit).toBeUndefined();
 
+    const qualifyingRanking = candidateEvidence(
+      QUALIFYING_POSITION_RANK_QUESTION,
+      driverNames.map(text => ({ type: 'driver', span: span(QUALIFYING_POSITION_RANK_QUESTION, text) }))
+    ).candidates[0];
+    expect(qualifyingRanking).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'qualifying_classification', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'qualifying_classification', concept_id: 'qualifying_position' } }
+      ],
+      filters: [{ kind: 'entity', operator: 'in', entity_indices: [0, 1, 2] }],
+      comparison: { relation: 'rank' },
+      order_by: [{ output_index: 1, direction: 'asc' }]
+    });
+    expect(qualifyingRanking.limit).toBeUndefined();
+
     const reorderedQuestion = 'Rank by finishing position the drivers Max Verstappen, Lando Norris, and Oscar Piastri from round 1 of final 2025 race classification.';
     const reorderedRanking = candidateEvidence(
       reorderedQuestion,
@@ -110,6 +126,15 @@ describe('semantic query candidates and independent evidence', () => {
     ).candidates[0];
     expect(reorderedRanking.outputs.map(output => output.concept.concept_id)).toEqual([
       'driver_id', 'finishing_position'
+    ]);
+
+    const reorderedQualifyingQuestion = 'Rank by qualifying position the drivers Max Verstappen, Lando Norris, and Oscar Piastri from round 1 of final 2025 qualifying classification.';
+    const reorderedQualifyingRanking = candidateEvidence(
+      reorderedQualifyingQuestion,
+      driverNames.map(text => ({ type: 'driver', span: span(reorderedQualifyingQuestion, text) }))
+    ).candidates[0];
+    expect(reorderedQualifyingRanking.outputs.map(output => output.concept.concept_id)).toEqual([
+      'driver_id', 'qualifying_position'
     ]);
   });
 
@@ -170,6 +195,52 @@ describe('semantic query candidates and independent evidence', () => {
 
   it('does not treat apostrophes inside driver names as quoted language', () => {
     const question = "Rank drivers Pat O'Connor and Liam O’Brien by finishing position from round 1 of final 2025 race classification.";
+    expect(enumerateSemanticQueries(question, ["Pat O'Connor", 'Liam O’Brien'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
+  });
+
+  it.each([
+    'Rank drivers Max Verstappen by qualifying position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position from final 2025 qualifying classification.',
+    'Show top 2 drivers Max Verstappen and Lando Norris by qualifying position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by best time from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by grid position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position and status from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by driver and qualifying position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers by qualifying position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of interim 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of final 2025 sprint qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position and finishing position from round 1 of final 2025 qualifying classification.',
+    'Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of latest recorded 2026 qualifying classification.'
+  ])('rejects qualifying rankings outside the selected-driver recorded-position family: %s', question => {
+    const names = ['Max Verstappen', 'Lando Norris'].filter(name => question.includes(name));
+    const reason = /\b(?:best time|grid position|interim|sprint qualifying)\b/iu.test(question)
+      ? 'unknown_language'
+      : 'unsupported_scope';
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason });
+  });
+
+  it('rejects unknown language appended to a selected-driver qualifying ranking', () => {
+    const question = 'Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of final 2025 qualifying classification secretly.';
+    expect(enumerateSemanticQueries(question, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it.each([
+    '"Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of final 2025 qualifying classification."',
+    '¬ Rank drivers Max Verstappen and Lando Norris by qualifying position from round 1 of final 2025 qualifying classification.'
+  ])('rejects quoted or symbol-negated qualifying ranking instructions: %s', question => {
+    expect(enumerateSemanticQueries(question, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
+  });
+
+  it('allows apostrophes only inside verified qualifying-ranking driver names', () => {
+    const question = "Rank drivers Pat O'Connor and Liam O’Brien by qualifying position from round 1 of final 2025 qualifying classification.";
     expect(enumerateSemanticQueries(question, ["Pat O'Connor", 'Liam O’Brien'].map(text => ({
       type: 'driver', span: span(question, text)
     })))).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });

@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v12' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v13' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -170,7 +170,7 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   const columns = project.outputs.map(output => describeOutput(output, project.input));
   const classificationCollectionContract = isClassificationSelectionContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
-  ) || isRacePositionRankingContract(
+  ) || isClassificationPositionRankingContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   );
   if (classificationCollectionContract && execution.has_more_rows) {
@@ -202,6 +202,12 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   );
   if (standingsPositionRanking) {
     validateFinalStandingsPositionRanking(rows);
+  }
+  const qualifyingPositionRanking = isClassificationPositionRankingContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  ) && sources[0]?.id === 'qualifying_classification';
+  if (qualifyingPositionRanking) {
+    validateQualifyingPositionRanking(rows);
   }
   let finalStandingsContract;
   if (isFinalStandingsPointsContract(sources, columns, project.output_grain) || standingsPositionRanking) {
@@ -763,9 +769,9 @@ function validateFinalStandingsPositionRanking(rows: readonly Record<string, unk
   }
 }
 
-// Keep nullable and equal race positions while binding the exact reviewed ranking shape.
+// Bind the complete reviewed one-event position-ranking shape for both classification sources.
 // eslint-disable-next-line complexity
-function isRacePositionRankingContract(
+function isClassificationPositionRankingContract(
   rowLimit: number,
   ordering: readonly PlannedCoreSortKey[],
   project: PlannedCoreProjectNode,
@@ -775,33 +781,46 @@ function isRacePositionRankingContract(
 ): boolean {
   const branch = branches[0];
   const source = sources[0];
+  const sourceId = source?.id;
+  let positionId: 'finishing_position' | 'qualifying_position' | undefined;
+  if (sourceId === 'event_classification') {positionId = 'finishing_position';}
+  else if (sourceId === 'qualifying_classification') {positionId = 'qualifying_position';}
   const seasonPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'season');
   const roundPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'round');
   const driverPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
   const positionKey = ordering[0];
   const driverKey = ordering[1];
-  return rowLimit === MAX_F1QL_RESPONSE_ROWS && sources.length === 1 && source?.id === 'event_classification' &&
-    project.input.op === 'filter' && branches.length === 1 && branch.input.source_id === 'event_classification' &&
+  return rowLimit === MAX_F1QL_RESPONSE_ROWS && sources.length === 1 && positionId !== undefined &&
+    project.input.op === 'filter' && branches.length === 1 && branch.input.source_id === sourceId &&
     branch.predicates.length === 3 && project.outputs.length === 2 &&
     project.outputs.every(output => output.kind === 'concept') && sameStrings(project.output_grain, ['driver_id']) &&
-    columns.length === 2 && columns[0].source_id === 'event_classification' &&
+    columns.length === 2 && columns[0].source_id === sourceId &&
     columns[0].concept_id === 'driver_id' && columns[0].id === 'driver_id' && columns[0].kind === 'dimension' &&
-    columns[0].aggregation === null && columns[1].source_id === 'event_classification' &&
-    columns[1].concept_id === 'finishing_position' && columns[1].id === 'finishing_position' &&
+    columns[0].aggregation === null && columns[1].source_id === sourceId &&
+    columns[1].concept_id === positionId && columns[1].id === positionId &&
     columns[1].kind === 'measure' && columns[1].aggregation === null && ordering.length === 2 &&
-    positionKey.output_id === 'finishing_position' && positionKey.direction === 'asc' &&
+    positionKey.output_id === positionId && positionKey.direction === 'asc' &&
     positionKey.nulls === 'last' && positionKey.semantic_type === 'position' &&
     driverKey.output_id === 'driver_id' && driverKey.direction === 'asc' && driverKey.nulls === 'last' &&
     driverKey.semantic_type === 'driver_id' &&
-    Boolean(seasonPredicate && seasonPredicate.concept.source_id === 'event_classification' &&
+    Boolean(seasonPredicate && seasonPredicate.concept.source_id === sourceId &&
       seasonPredicate.operator === 'eq' && typeof seasonPredicate.value === 'number' &&
       Number.isSafeInteger(seasonPredicate.value) && source.scope.season_min !== null &&
       seasonPredicate.value >= source.scope.season_min && source.scope.final_season_through !== null &&
       seasonPredicate.value <= source.scope.final_season_through) &&
-    Boolean(roundPredicate && roundPredicate.concept.source_id === 'event_classification' &&
+    Boolean(roundPredicate && roundPredicate.concept.source_id === sourceId &&
       roundPredicate.operator === 'eq' && typeof roundPredicate.value === 'number' &&
       Number.isSafeInteger(roundPredicate.value) && roundPredicate.value >= 1 && roundPredicate.value <= 30) &&
-    reviewedEventDriverPredicate('multi', driverPredicate, 'event_classification');
+    reviewedEventDriverPredicate('multi', driverPredicate, sourceId);
+}
+
+function validateQualifyingPositionRanking(rows: readonly Record<string, unknown>[]): void {
+  for (let index = 0; index < rows.length; index += 1) {
+    const position = rows[index].qualifying_position;
+    if (typeof position !== 'number' || (index > 0 && position <= (rows[index - 1].qualifying_position as number))) {
+      throw new SemanticResultFormatError('Qualifying ranking positions were incomplete or non-unique');
+    }
+  }
 }
 
 // Keep the complete reviewed event-selection admission visible as one fail-closed gate.

@@ -725,12 +725,21 @@ integrity. It never derives rank from race points, status, laps, or source
 display order. Singleton, five-driver, unfiltered, season-wide, caller-limited,
 latest-recorded, interim, race-points, status, mixed-source, and broader-output
 race rankings remain refused.
+The matching selected-driver qualifying-ranking slice is complete for the same
+one-event and two-to-four-driver bounds. It returns only driver identity and
+recorded qualifying position, orders position then driver identity, and requires
+exact selected membership plus source-wide grain, bounds, non-null positions,
+and unique positions. It never derives rank from best time, grid position,
+status, sprint qualifying, or driver identity. Singleton, five-driver,
+unfiltered, season-wide, caller-limited, latest-recorded, interim, timing, grid,
+sprint, status, mixed-source, and broader-output qualifying rankings remain
+refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, combined
 or broader event metadata, non-race session dates, classification status,
 qualifying timing, grid position, sprint qualifying, grouping, aggregation,
-qualifying or unfiltered ranking, and comparison remain outside these slices and must be promoted
+unfiltered ranking, and comparison remain outside these slices and must be promoted
 through separate complete-interaction and response-coverage contracts. No
 production release or routing change is claimed by these local milestones.
 
