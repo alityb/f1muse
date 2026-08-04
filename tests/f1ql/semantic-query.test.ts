@@ -587,15 +587,25 @@ describe('semantic query candidates and independent evidence', () => {
     expect(enumerateSemanticQueries(namedEventCircuit, [{
       type: 'event', span: span(namedEventCircuit, 'Monaco')
     }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
+    const eventName = 'List Grand Prix name from round 1 of final 2025 event metadata.';
+    expect(enumerateSemanticQueries(eventName)).toMatchObject({
+      type: 'candidate_set',
+      candidates: [expect.objectContaining({
+        outputs: [expect.objectContaining({
+          kind: 'concept', concept: { source_id: 'event_metadata', concept_id: 'event_name' }
+        })]
+      })]
+    });
+    const namedEventName = 'List event name from final 2025 event metadata at Monaco.';
+    expect(enumerateSemanticQueries(namedEventName, [{
+      type: 'event', span: span(namedEventName, 'Monaco')
+    }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
     for (const question of [
       'List circuit name from round 1 of final 2025 event metadata.',
       'List venue name from round 1 of final 2025 event metadata.'
     ]) {
       expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unknown_language' });
     }
-    expect(enumerateSemanticQueries(
-      'List Grand Prix name from round 1 of final 2025 event metadata.'
-    )).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
     const driverCircuit = 'List circuit identifier for Max Verstappen from round 1 of final 2025 event metadata.';
     expect(enumerateSemanticQueries(driverCircuit, [{
       type: 'driver', span: span(driverCircuit, 'Max Verstappen')
@@ -605,8 +615,11 @@ describe('semantic query candidates and independent evidence', () => {
       'List top 1 race date from round 1 of final 2025 event metadata.',
       'List circuit identifier from final 2025 event metadata.',
       'List top 1 circuit identifier from round 1 of final 2025 event metadata.',
+      'List event name from final 2025 event metadata.',
+      'List top 1 event name from round 1 of final 2025 event metadata.',
       'List race date and circuit identifier from round 1 of final 2025 event metadata.',
-      'List circuit identifier from round 1 of latest recorded 2026 event metadata.'
+      'List circuit identifier from round 1 of latest recorded 2026 event metadata.',
+      'List event name from round 1 of latest recorded 2026 event metadata.'
     ]) {
       expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
     }

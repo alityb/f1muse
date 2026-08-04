@@ -34,7 +34,11 @@ const EVENT_CIRCUIT_QUESTION = 'List circuit identifier from round 1 of final 20
 const NAMED_EVENT_CIRCUIT_QUESTION = 'List circuit identifier from final 2025 event metadata at Monaco.';
 const EVENT_DATE_CIRCUIT_QUESTION = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_NAME_QUESTION = 'List Grand Prix name from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_NAME_QUESTION = 'List event name from final 2025 event metadata at Monaco.';
 const LATEST_EVENT_CIRCUIT_QUESTION = 'List circuit identifier from round 1 of latest recorded 2026 event metadata.';
+const SEASON_WIDE_EVENT_NAME_QUESTION = 'List event name from final 2025 event metadata.';
+const LIMITED_EVENT_NAME_QUESTION = 'List top 1 event name from round 1 of final 2025 event metadata.';
+const LATEST_EVENT_NAME_QUESTION = 'List event name from round 1 of latest recorded 2026 event metadata.';
 const SEASON_WIDE_DRIVER_RACE_QUESTION = 'List driver and finishing position for Max Verstappen from final 2025 race classification.';
 const SEASON_WIDE_DRIVER_QUALIFYING_QUESTION = 'List driver and qualifying position for Max Verstappen from final 2025 qualifying classification.';
 const LIMITED_DRIVER_QUALIFYING_QUESTION = 'List top 1 driver and qualifying position for Max Verstappen from round 1 of final 2025 qualifying classification.';
@@ -517,7 +521,9 @@ describe('WP8 stage-zero semantic shadow route', () => {
     [EVENT_DATE_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
     [NAMED_EVENT_DATE_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
     [EVENT_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
-    [NAMED_EVENT_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
+    [NAMED_EVENT_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
+    [EVENT_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
+    [NAMED_EVENT_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
   ] as const)('proves one-event scalar metadata without result execution: %s', async (
     question, resolverSql, resolverParameters
   ) => {
@@ -556,8 +562,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
 
   it.each([
     EVENT_DATE_CIRCUIT_QUESTION,
-    EVENT_NAME_QUESTION,
-    LATEST_EVENT_CIRCUIT_QUESTION
+    LATEST_EVENT_CIRCUIT_QUESTION,
+    SEASON_WIDE_EVENT_NAME_QUESTION,
+    LIMITED_EVENT_NAME_QUESTION,
+    LATEST_EVENT_NAME_QUESTION
   ])('rejects broader event metadata before provider or result execution: %s', async question => {
     const fake = fakePool();
     let providerCalls = 0;
@@ -1095,7 +1103,8 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           })),
           { type: 'event' as const, span: questionSpan(request.question, 'Monaco') }
         ]
-    : request.question === NAMED_EVENT_DATE_QUESTION || request.question === NAMED_EVENT_CIRCUIT_QUESTION
+    : request.question === NAMED_EVENT_DATE_QUESTION || request.question === NAMED_EVENT_CIRCUIT_QUESTION ||
+        request.question === NAMED_EVENT_NAME_QUESTION
       ? [{ type: 'event' as const, span: questionSpan(request.question, 'Monaco') }]
     : request.question === OUTPUT_ALTERNATIVE_POINTS_QUESTION
       ? ['Max Verstappen', 'Lando Norris'].map(text => ({

@@ -96,6 +96,12 @@ const cases = [
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
     rows: [{ circuit_id: 'monaco', [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-event-name',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ event_name: 'Australian Grand Prix', [PLANNED_INTEGRITY_FIELD]: true }]
   }
 ] as const;
 

@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v10' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v11' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -404,6 +404,10 @@ function validateValue(value: unknown, column: SemanticResultColumn, output: Pla
     throw new SemanticResultFormatError(`Semantic result field ${column.id} must be an ISO date`);
   }
   if (['circuit_id', 'driver_id', 'event_id', 'status', 'team_id'].includes(column.semantic_type) &&
+      (typeof value !== 'string' || value.trim().length === 0)) {
+    throw new SemanticResultFormatError(`Semantic result field ${column.id} must be nonempty`);
+  }
+  if (column.source_id === 'event_metadata' && column.concept_id === 'event_name' &&
       (typeof value !== 'string' || value.trim().length === 0)) {
     throw new SemanticResultFormatError(`Semantic result field ${column.id} must be nonempty`);
   }
@@ -822,7 +826,7 @@ function isEventScalarSelectionContract(
   return rowLimit === 1 && sources.length === 1 && source?.id === 'event_metadata' &&
     branches.length === 1 && branch.input.source_id === 'event_metadata' && branch.predicates.length === 2 &&
     project.input.op === 'filter' && project.outputs.length === 1 && output?.kind === 'concept' &&
-    output.concept.source_id === 'event_metadata' && ['circuit_id', 'date'].includes(conceptId ?? '') &&
+    output.concept.source_id === 'event_metadata' && ['circuit_id', 'date', 'event_name'].includes(conceptId ?? '') &&
     output.as === conceptId &&
     project.output_grain.length === 0 && columns.length === 1 && columns[0].source_id === 'event_metadata' &&
     columns[0].concept_id === conceptId && columns[0].id === conceptId && columns[0].kind === 'dimension' &&

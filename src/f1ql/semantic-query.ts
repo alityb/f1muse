@@ -345,7 +345,7 @@ export function enumerateSemanticQueries(
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   const eventScalarConceptIds = new Set(effectiveConceptMatches.flatMap(match =>
-    match.source_id === 'event_metadata' && (match.concept_id === 'circuit_id' || match.concept_id === 'date')
+    match.source_id === 'event_metadata' && ['circuit_id', 'date', 'event_name'].includes(match.concept_id ?? '')
       ? [match.concept_id]
       : []
   ));

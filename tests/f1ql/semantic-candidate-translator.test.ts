@@ -124,9 +124,11 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never rank official championship position by points');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('requests that name either race date or circuit identifier from final YYYY event metadata at exactly one round or named event');
+      .toContain('requests that name race date, circuit identifier, or event name from final YYYY event metadata at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('A circuit identifier is a raw identifier, not a circuit, venue, or Grand Prix name');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('an event name is recorded source text, not a circuit or venue name');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });

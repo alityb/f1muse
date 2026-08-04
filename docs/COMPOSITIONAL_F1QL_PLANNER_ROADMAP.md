@@ -705,8 +705,10 @@ same season, event, and driver bounds, returning only driver identity and
 nullable qualifying position. A scalar event-metadata slice is complete for one
 final historical season from 1950 through 2025 and exactly one explicit round
 or uniquely resolved named event, returning either one nullable canonical race
-date or one nullable raw circuit identifier. Circuit identifiers preserve exact
-nonblank source bytes and are not circuit, venue, or Grand Prix names. A
+date, one nullable raw circuit identifier, or one nullable raw event name.
+Circuit identifiers preserve exact nonblank source bytes and are not circuit,
+venue, or Grand Prix names. Event names likewise preserve exact nonblank source
+text and are not circuit or venue names. A
 selected-driver standings-ranking slice is complete for one final historical
 season from 1950 through 2025 and exactly two to four drivers, returning only
 driver identity and recorded non-null championship position. It orders official
@@ -714,6 +716,9 @@ position then driver identity, never derives rank from points, and requires
 complete requested membership plus source-wide grain, null, bound, and unique
 position integrity. Singleton, five-driver, unfiltered, caller-limited,
 latest-recorded, and interim ranking requests remain refused.
+Selected-driver race ranking remains deferred until nullable finishing-position
+ordering, tie behavior, and selected-source integrity are certified as a
+separate complete interaction.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, combined
