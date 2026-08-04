@@ -30,11 +30,13 @@ const cases = [
   {
     id: 'promoted-single-source-rows',
     profile: 'semantic-single-source-v1' as const,
+    answer_compatible: true,
     rows: [{ driver_id: 'lando-norris', points: '357.000', [PLANNED_INTEGRITY_FIELD]: true }]
   },
   {
     id: 'promoted-safe-dimension-join',
     profile: 'semantic-safe-dimension-join-v1' as const,
+    answer_compatible: false,
     rows: [{
       driver_id: 'lando-norris', finishing_position: 1,
       event_name: 'Australian Grand Prix', circuit_id: 'albert-park',
@@ -44,11 +46,23 @@ const cases = [
   {
     id: 'promoted-aggregate-locality',
     profile: 'semantic-aggregate-locality-v1' as const,
+    answer_compatible: false,
     rows: [{
       event_classification__count_finishing_position: 1,
       qualifying_classification__count_qualifying_position: 1,
       [PLANNED_INTEGRITY_FIELD]: true
     }]
+  },
+  {
+    id: 'family-filtered-race-classification',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'charles-leclerc', finishing_position: 5, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'george-russell', finishing_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'lando-norris', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', finishing_position: null, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
   }
 ] as const;
 
@@ -72,7 +86,11 @@ describe('authorized semantic plan execution', () => {
       parent.core_program,
       input.authorization.result_collection.completeness_probe_rows
     );
-    const database = recordingPool(parent.compiled.sql, item.rows);
+    const participationRows = parent.participation.type === 'required'
+      ? parent.participation.requirements.flatMap(requirement =>
+          requirement.driver_ids.map(driver_id => ({ driver_id })))
+      : undefined;
+    const database = recordingPool(parent.compiled.sql, item.rows, { participationRows });
     const result = await executeAuthorizedSemanticPlan(
       database.pool,
       input.authorization,
@@ -101,7 +119,7 @@ describe('authorized semantic plan execution', () => {
     const expectedSql = [
       'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY',
       "SELECT set_config('statement_timeout', $1, true)",
-      ...(item.profile === 'semantic-aggregate-locality-v1' ? [
+      ...(parent.participation.type === 'required' ? [
         `SELECT DISTINCT REPLACE(driver_id, '_', '-') AS driver_id FROM f1ql.answer_season_participation WHERE season = $1 AND REPLACE(driver_id, '_', '-') = ANY($2::text[])`
       ] : []),
       "SELECT set_config('statement_timeout', $1, true)",
@@ -114,14 +132,17 @@ describe('authorized semantic plan execution', () => {
         { sql: "SELECT set_config('statement_timeout', $1, true)", params: ['3000ms'] },
         { sql: "SELECT set_config('statement_timeout', $1, true)", params: ['3000ms'] }
       ]);
-    if (item.profile === 'semantic-aggregate-locality-v1') {
+    if (parent.participation.type === 'required') {
       expect(database.calls.find(call => call.sql.startsWith('SELECT DISTINCT REPLACE(driver_id'))?.params)
-        .toEqual([2025, ['lando-norris']]);
+        .toEqual([
+          parent.participation.requirements[0].season,
+          parent.participation.requirements[0].driver_ids
+        ]);
     }
     expect(database.calls.at(-1)?.sql).toBe('COMMIT');
     expect(database.releases).toEqual([false]);
     expect(formatSemanticPlanResult(result).rows).toHaveLength(item.rows.length);
-    if (item.profile === 'semantic-single-source-v1') {
+    if (item.answer_compatible) {
       expect(formatSemanticPlanResultAsAnswerEnvelope(result).mode).toBe('gated_execution');
     } else {
       expect(() => formatSemanticPlanResultAsAnswerEnvelope(result)).toThrow('no reviewed answer-envelope');
@@ -281,6 +302,29 @@ describe('authorized semantic plan execution', () => {
       { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
     )).rejects.toThrow('Driver did not participate');
     expect(database.calls.some(call => call.sql.startsWith('SELECT DISTINCT REPLACE(driver_id'))).toBe(true);
+    expect(database.calls.some(call => call.sql === parent.compiled.sql)).toBe(false);
+    expect(database.calls.at(-1)?.sql).toBe('ROLLBACK');
+  });
+
+  it('rejects an event-classification request before result SQL when any selected driver is absent', async () => {
+    const race = prepared.get(cases[3].id)!;
+    const parent = getSemanticPlanProofParent(race.proof);
+    const input = createSemanticPlanExecutionOfflineInput(race.proof, cases[3].profile);
+    const database = recordingPool(parent.compiled.sql, cases[3].rows, {
+      participationRows: [
+        { driver_id: 'charles-leclerc' },
+        { driver_id: 'george-russell' },
+        { driver_id: 'lando-norris' }
+      ]
+    });
+
+    await expect(executeAuthorizedSemanticPlan(
+      database.pool,
+      input.authorization,
+      race.proof,
+      input.context,
+      { now: () => SEMANTIC_EXECUTION_OFFLINE_NOW + 1 }
+    )).rejects.toThrow('Driver did not participate');
     expect(database.calls.some(call => call.sql === parent.compiled.sql)).toBe(false);
     expect(database.calls.at(-1)?.sql).toBe('ROLLBACK');
   });

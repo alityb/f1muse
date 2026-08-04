@@ -88,6 +88,30 @@ const POSITIVE_PROFILE_CASES = {
         active_candidates: [id]
       }))
     };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver and finishing position for Charles Leclerc from round ${round} of final ${year} race classification.`,
+    entity_names: ['Charles Leclerc'],
+    driver_mentions: [{
+      name: 'Charles Leclerc',
+      candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
+      active_candidates: ['charles-leclerc']
+    }]
+  }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `List driver and finishing position for ${drivers.map(([name]) => name).join(', ')} from round ${round} of final ${year} race classification.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
   }],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -112,13 +136,17 @@ const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 50 }).chain(cand
 }));
 
 describe('semantic complete-interaction capability authorization', () => {
-  it('defines standings points as structural cardinality families without static question or identity allowlists', () => {
+  it('defines single-source selections as structural cardinality families without static question or identity allowlists', () => {
     const profile = SEMANTIC_CAPABILITY_PROFILES.find(item => item.id === 'semantic-single-source-v1')!;
     expect(profile.complete_interactions.map(interaction => interaction.entity_count)).toEqual([
       { min: 0, max: 0 },
       { min: 1, max: 1 },
+      { min: 2, max: 4 },
+      { min: 1, max: 1 },
       { min: 2, max: 4 }
     ]);
+    expect(profile.source_sets).toEqual([['driver_standings'], ['event_classification']]);
+    expect(profile.limits).toMatchObject({ entities: 4, events: 1, seasons: 1 });
     expect(profile.complete_interactions.every(interaction =>
       !('question_sha256' in interaction) && !('season_values' in interaction) && !('entity_values' in interaction)
     )).toBe(true);
@@ -165,6 +193,21 @@ describe('semantic complete-interaction capability authorization', () => {
   it('rejects latest-recorded 2026 data from a historical-final capability profile', async () => {
     const proof = await semanticProof(
       'List driver and championship points from latest recorded 2026 driver standings.', []
+    );
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  });
+
+  it('rejects latest-recorded 2026 race classification from the historical-final profile', async () => {
+    const proof = await semanticProof(
+      'List driver and finishing position from round 1 of latest recorded 2026 race classification.', []
     );
     expect(() => authorizeSemanticPlanCapability({
       proof,
@@ -280,6 +323,10 @@ describe('semantic complete-interaction capability authorization', () => {
     [
       'List driver and finishing position and event name for round 1 of final 2025 race classification and event metadata.',
       'semantic-safe-dimension-join-v1'
+    ],
+    [
+      'List driver, finishing position, and race classification status from round 1 of final 2025 race classification.',
+      'semantic-single-source-v1'
     ]
   ] as const)('rejects an unreviewed complete interaction despite individually allowed components', async (question, profileId) => {
     const proof = await semanticProof(question, []);
@@ -349,6 +396,108 @@ describe('semantic complete-interaction capability authorization', () => {
     });
   });
 
+  it.each([1, 2, 3, 4] as const)('authorizes one-event race classification through driver cardinality %i', async cardinality => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, cardinality);
+    const question = `List driver and finishing position for ${drivers.map(([name]) => name).join(', ')} from round 30 of final 2025 race classification.`;
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_rows',
+      source_ids: ['event_classification'],
+      entity_count: cardinality,
+      event_count: 1,
+      season_count: 1,
+      season_values: [2025],
+      output_bindings: [
+        'concept:event_classification.driver_id->driver_id',
+        'concept:event_classification.finishing_position->finishing_position'
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      rows: cardinality === 1 ? 1 : 100
+    });
+    expect(authorization.interaction.predicate_bindings).toEqual([
+      `event_classification.driver_id:${cardinality === 1 ? 'eq' : 'in'}`,
+      'event_classification.round:eq',
+      'event_classification.season:eq'
+    ]);
+  });
+
+  it('rejects an unfiltered event selection without an event-complete coverage witness', async () => {
+    const proof = await semanticProof(
+      'List driver and finishing position from round 1 of final 2025 race classification.', []
+    );
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+  });
+
+  it('authorizes the same one-event interaction after unique named-event resolution', async () => {
+    const question = 'List driver and finishing position for Charles Leclerc from final 2025 race classification at Monaco.';
+    const charles = span(question, 'Charles Leclerc');
+    const entities = [
+      { type: 'driver' as const, span: charles },
+      { type: 'event' as const, span: span(question, 'Monaco') }
+    ];
+    const evidence = enumerateSemanticQueries(question, entities);
+    if (evidence.type !== 'candidate_set') throw new Error('named-event evidence was not a candidate set');
+    const admission = admitSemanticQueryCandidates({ version: 2, candidates: evidence.candidates }, question, evidence);
+    if (admission.type !== 'admitted') throw new Error('named-event query was not admitted');
+    const resolution = await collectSemanticResolutionEvidence({
+      question,
+      admission,
+      driver_resolver: {
+        inventoryMentions: async () => [{
+          ...charles, candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc']
+        }]
+      },
+      event_resolver: {
+        resolve: async () => ({ type: 'resolved', season: 2025, round: 8 }),
+        resolveRound: async () => ({ type: 'missing' })
+      }
+    });
+    const plan = planSemanticAnswerFromResolution({ question, admission, resolution });
+    const proof = proveSemanticAnswerPlan({ question, entity_inventory: entities, evidence, admission, resolution, plan });
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      source_ids: ['event_classification'], event_count: 1, season_count: 1, entity_count: 1
+    });
+    expect(resolution.entities).toMatchObject([
+      { type: 'driver', selected_id: 'charles-leclerc' },
+      { type: 'event', selected_id: 'event:2025:8' }
+    ]);
+  });
+
   it('rejects five-driver standings points before a capability proof can be minted', () => {
     const drivers = [
       ['Charles Leclerc', 'charles-leclerc'],
@@ -359,6 +508,17 @@ describe('semantic complete-interaction capability authorization', () => {
     ];
     const question = `List driver and championship points for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
     expect(enumerateSemanticQueries(question, drivers.map(([name]) => ({
+      type: 'driver' as const,
+      span: span(question, name)
+    })))).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+  });
+
+  it('rejects five-driver race classification before a capability proof can be minted', () => {
+    const drivers = [
+      'Charles Leclerc', 'George Russell', 'Lando Norris', 'Max Verstappen', 'Oscar Piastri'
+    ];
+    const question = `List driver and finishing position for ${drivers.join(', ')} from round 1 of final 2025 race classification.`;
+    expect(enumerateSemanticQueries(question, drivers.map(name => ({
       type: 'driver' as const,
       span: span(question, name)
     })))).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
@@ -593,7 +753,9 @@ async function expectPositiveProfileAuthorization(
     testCase.question, testCase.entity_names, testCase.driver_mentions
   );
   if (testCase.driver_mentions) {
-    expect(resolution.resolver_candidates).toBe(input.candidate_count * testCase.driver_mentions.length);
+    const eventCandidateCount = /\bround\s+\d{1,2}\b/iu.test(testCase.question) ? 1 : 0;
+    expect(resolution.resolver_candidates)
+      .toBe(input.candidate_count * testCase.driver_mentions.length + eventCandidateCount);
     for (const [index, mention] of testCase.driver_mentions.entries()) {
       expect(resolution.entities[index].candidate_ids).toEqual([...mention.candidates].sort());
       expect(resolution.entities[index].selected_id).toBe(mention.active_candidates[0]);

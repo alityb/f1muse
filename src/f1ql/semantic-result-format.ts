@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v5' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v6' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -180,6 +180,11 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   validateRelationshipOutputs(rows, project.outputs, project.input);
   validateUniqueGrain(rows, project.output_grain);
   validateOrdering(rows, core.root.input.keys);
+  if (isEventClassificationSelectionContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  ) && (rows.length === 0 || execution.has_more_rows)) {
+    throw new SemanticResultFormatError('Race classification result collection evidence was incomplete');
+  }
 
   let finalStandingsContract;
   if (isFinalStandingsPointsContract(sources, columns, project.output_grain)) {
@@ -447,7 +452,7 @@ function validateProjectedPredicates(
     let expectedValues: readonly (string | number | boolean)[] = [];
     if (predicate.operator === 'eq') {expectedValues = [predicate.value];}
     else if (predicate.operator === 'in' && requiresCompleteMembership) {expectedValues = predicate.values;}
-    if (rows.length > 0 && expectedValues.some(value => !values.includes(value))) {
+    if (expectedValues.some(value => !values.includes(value))) {
       throw new SemanticResultFormatError(`Semantic result field ${output.as} was partial for its proven predicate`);
     }
   }
@@ -687,6 +692,64 @@ function isFinalStandingsPointsContract(
     columns[0].source_id === 'driver_standings' && columns[0].concept_id === 'driver_id' &&
     columns[0].id === 'driver_id' && columns[1].source_id === 'driver_standings' &&
     columns[1].concept_id === 'points' && columns[1].id === 'points';
+}
+
+// Keep the complete reviewed event-selection admission visible as one fail-closed gate.
+// eslint-disable-next-line complexity
+function isEventClassificationSelectionContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const branch = branches[0];
+  const driverPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
+  let mode: 'multi' | 'singleton' | 'unsupported' = 'unsupported';
+  if (driverPredicate?.operator === 'eq') {mode = 'singleton';}
+  else if (driverPredicate?.operator === 'in') {mode = 'multi';}
+  const expectedGrain = mode === 'singleton' ? [] : ['driver_id'];
+  if (mode === 'unsupported' || sources.length !== 1 || sources[0].id !== 'event_classification' ||
+      columns.length !== 2 || columns[0].source_id !== 'event_classification' ||
+      columns[0].concept_id !== 'driver_id' || columns[0].id !== 'driver_id' ||
+      columns[1].source_id !== 'event_classification' || columns[1].concept_id !== 'finishing_position' ||
+      columns[1].id !== 'finishing_position' || columns[0].kind !== 'dimension' ||
+      columns[1].kind !== 'measure' || columns.some(column => column.aggregation !== null) ||
+      project.input.op !== 'filter' || branches.length !== 1 || project.outputs.length !== 2 ||
+      project.outputs.some(output => output.kind !== 'concept') || !sameStrings(project.output_grain, expectedGrain) ||
+      rowLimit !== (mode === 'singleton' ? 1 : MAX_F1QL_RESPONSE_ROWS) || ordering.length !== 1 ||
+      branch.predicates.length !== 3) {
+    return false;
+  }
+  const seasonPredicate = branch.predicates.find(predicate => predicate.concept.concept_id === 'season');
+  const roundPredicate = branch.predicates.find(predicate => predicate.concept.concept_id === 'round');
+  const key = ordering[0];
+  const source = sources[0];
+  return branch.input.source_id === 'event_classification' &&
+    Boolean(seasonPredicate && seasonPredicate.concept.source_id === 'event_classification' &&
+      seasonPredicate.operator === 'eq' && typeof seasonPredicate.value === 'number' &&
+      Number.isSafeInteger(seasonPredicate.value) && source.scope.season_min !== null &&
+      seasonPredicate.value >= source.scope.season_min && source.scope.final_season_through !== null &&
+      seasonPredicate.value <= source.scope.final_season_through) &&
+    Boolean(roundPredicate && roundPredicate.concept.source_id === 'event_classification' &&
+      roundPredicate.operator === 'eq' && typeof roundPredicate.value === 'number' &&
+      Number.isSafeInteger(roundPredicate.value) && roundPredicate.value >= 1 && roundPredicate.value <= 30) &&
+    reviewedEventDriverPredicate(mode, driverPredicate) && key.output_id === 'driver_id' &&
+    key.direction === 'asc' && key.nulls === 'last' && key.physical_type === 'text' &&
+    key.semantic_type === 'driver_id';
+}
+
+function reviewedEventDriverPredicate(
+  mode: 'multi' | 'singleton' | 'unsupported',
+  predicate: PlannedCorePredicate | undefined
+): boolean {
+  if (!predicate || predicate.concept.source_id !== 'event_classification') {return false;}
+  if (mode === 'singleton') {return predicate.operator === 'eq' && isCanonicalDriverId(predicate.value);}
+  return mode === 'multi' && predicate.operator === 'in' &&
+    predicate.values.length >= 2 && predicate.values.length <= 4 &&
+    predicate.values.every(isCanonicalDriverId) &&
+    predicate.values.every((value, index) => index === 0 || predicate.values[index - 1] < value);
 }
 
 // Keep the complete reviewed compatibility admission visible as one fail-closed gate.

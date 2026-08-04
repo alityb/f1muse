@@ -500,6 +500,15 @@ describe('semantic query candidates and independent evidence', () => {
       'Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc'
     ].map(text => ({ type: 'driver' as const, span: span(fiveDriverQuestion, text) }))))
       .toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+
+    const seasonWideRaceQuestion = 'List driver and finishing position for Max Verstappen from final 2025 race classification.';
+    expect(enumerateSemanticQueries(seasonWideRaceQuestion, [{
+      type: 'driver', span: span(seasonWideRaceQuestion, 'Max Verstappen')
+    }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+    const defaultedSeasonWideRaceQuestion = 'Show final 2025 race classification for Max Verstappen.';
+    expect(enumerateSemanticQueries(defaultedSeasonWideRaceQuestion, [{
+      type: 'driver', span: span(defaultedSeasonWideRaceQuestion, 'Max Verstappen')
+    }])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
   });
 
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {

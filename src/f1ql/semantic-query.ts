@@ -319,6 +319,11 @@ export function enumerateSemanticQueries(
     }
     return verifiedEvidence(candidateSetEvidence(question, catalogHash, composition, maxCandidates, compositionAmbiguity));
   }
+  if (sourceIds.length === 1 && sourceIds[0] === 'event_classification' &&
+      entities.some(entity => entity.type === 'driver') && !entities.some(entity => entity.type === 'event') &&
+      question.rounds.length === 0 && !operations.count && !operations.rank) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   const sourceCompatibility = sourceIds.map(sourceId => {
     const source = catalog.sources.find(item => item.id === sourceId && item.usage === 'answer_fact');
     const compatible = Boolean(source) && !question.years.some(year => source!.scope.season_min === null || source!.scope.season_max === null || year.value < source!.scope.season_min || year.value > source!.scope.season_max) &&

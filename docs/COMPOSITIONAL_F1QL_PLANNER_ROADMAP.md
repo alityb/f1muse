@@ -695,6 +695,18 @@ Delivery within this work package is family-based:
 5. Corpus migration and removal of question-hash capability bindings wherever
    the complete generated interaction family is proven and signed.
 
+Local delivery note: final driver-standings points selection is complete across
+all final seasons from 1950 through 2025 for zero to four drivers. The first
+race-classification selection slice is also complete locally for one final
+historical season, one explicit round or uniquely resolved named event, and one
+to four drivers, returning only driver identity and nullable finishing
+position. Unfiltered event selection remains refused until the catalog can
+provide an event-complete membership witness. Season-wide filtered selection,
+classification status, grouping, aggregation, ranking, and comparison remain
+outside this slice and must be promoted through separate complete-interaction
+and response-coverage contracts. No production release or routing change is
+claimed by either local milestone.
+
 ### Work Package 11: Certified Retained-Data Onboarding
 
 Add a repeatable source-certification path for eligible facts already retained

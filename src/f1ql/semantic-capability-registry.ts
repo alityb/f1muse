@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 6 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 7 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -11,7 +11,8 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     catalog_hash: SEMANTIC_CATALOG_HASH,
     topology: ['single_source_rows'],
     source_sets: [
-      ['driver_standings']
+      ['driver_standings'],
+      ['event_classification']
     ],
     relationship_ids: [],
     operator_signatures: [
@@ -59,6 +60,38 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         ],
         sort_bindings: ['driver_id:asc:last'],
         requested_rows: 100
+      },
+      {
+        entity_count: { min: 1, max: 1 },
+        predicate_bindings: [
+          'event_classification.driver_id:eq',
+          'event_classification.round:eq',
+          'event_classification.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_classification.driver_id->driver_id',
+          'concept:event_classification.finishing_position->finishing_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 2, max: 4 },
+        predicate_bindings: [
+          'event_classification.driver_id:in',
+          'event_classification.round:eq',
+          'event_classification.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_classification.driver_id->driver_id',
+          'concept:event_classification.finishing_position->finishing_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
       }
     ],
     ...catalogConceptAllowlist(['driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification']),
@@ -66,7 +99,7 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     canary_stages: [100],
     scope: 'historical_final',
     result_collection: { version: SEMANTIC_RESULT_COLLECTION_VERSION, completeness_probe_rows: 1 },
-    limits: { sources: 1, joins: 0, depth: 6, outputs: 8, groups: 3, entities: 4, events: 30, seasons: 20, rows: 100, work_units: 60 }
+    limits: { sources: 1, joins: 0, depth: 6, outputs: 8, groups: 3, entities: 4, events: 1, seasons: 1, rows: 100, work_units: 60 }
   },
   {
     id: 'semantic-safe-dimension-join-v1',

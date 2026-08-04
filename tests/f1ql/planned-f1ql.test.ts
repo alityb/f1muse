@@ -218,6 +218,39 @@ function eventPointsPlan() {
   };
 }
 
+function eventClassificationSelectionPlan(driverIds: readonly string[] = []) {
+  const driverPredicate = driverIds.length === 0 ? [] : [{
+    concept: ref('event_classification', 'driver_id'),
+    ...(driverIds.length === 1
+      ? { operator: 'eq' as const, value: driverIds[0] }
+      : { operator: 'in' as const, values: [...driverIds] })
+  }];
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: driverIds.length === 1 ? 1 : 100,
+      input: {
+        op: 'sort', keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }],
+        input: {
+          op: 'project',
+          input: {
+            op: 'filter', input: { op: 'source', source_id: 'event_classification' },
+            predicates: [
+              ...driverPredicate,
+              predicate('event_classification', 'round', 1),
+              predicate('event_classification', 'season', 2025)
+            ]
+          },
+          outputs: [
+            { kind: 'concept', concept: ref('event_classification', 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref('event_classification', 'finishing_position'), as: 'finishing_position' }
+          ]
+        }
+      }
+    }
+  };
+}
+
 function scalarCompositionPlan() {
   const aggregate = (sourceId: 'event_classification' | 'qualifying_classification', driverId: string) => {
     const conceptId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
@@ -307,6 +340,9 @@ describe('internal planned F1QL and Core pipeline', () => {
 
     expect(estimatePlannedF1QLCost(raceMetadataPlan())).toMatchObject({ units: 2, sources: 2, joins: 1, requested_rows: 30 });
     expect(decidePlannedParticipation(standingsRankPlan())).toEqual({
+      type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
+    });
+    expect(decidePlannedParticipation(eventClassificationSelectionPlan(['alpha-driver', 'beta-driver']))).toEqual({
       type: 'required', requirements: [{ season: 2025, driver_ids: ['alpha-driver', 'beta-driver'] }]
     });
     const composition = parsePlannedF1QLProgram(scalarCompositionPlan());
@@ -689,6 +725,51 @@ describe('internal planned F1QL and Core pipeline', () => {
       { points: '9007199254740993', driver_id: 'alpha-driver', [PLANNED_INTEGRITY_FIELD]: true },
       { points: '9007199254740992', driver_id: 'beta-driver', [PLANNED_INTEGRITY_FIELD]: true }
     ]);
+  });
+
+  it('matches PostgreSQL for selected event classification rows and checks the full event grain', async () => {
+    const plan = eventClassificationSelectionPlan(['alpha-driver', 'beta-driver']);
+    const core = lowerPlannedF1QL(plan);
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_classification: [
+        { season: 2025, round: 1, driver_id: 'beta-driver', finishing_position: 2, points: '9007199254740992' },
+        { season: 2025, round: 1, driver_id: 'alpha-driver', finishing_position: 1, points: '9007199254740993' }
+      ]
+    };
+    expect(compiled.sql).toContain('COLLATE "C"');
+    expect(compiled.sql).toContain('planned_scope');
+    expect(compiled.sql).not.toContain('alpha-driver');
+    const sqlRows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(sqlRows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(sqlRows).toEqual([
+      { driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'beta-driver', finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
+
+    const singletonCore = lowerPlannedF1QL(eventClassificationSelectionPlan(['alpha-driver']));
+    const singletonCompiled = compilePlannedF1QL(singletonCore);
+    await pool.query('BEGIN');
+    try {
+      await pool.query(`INSERT INTO race (id, year, round, grand_prix_id, circuit_id, official_name, date)
+        VALUES (9804, 2025, 1, 'planned_gp', 'planned-circuit', 'DUPLICATE PLANNED EVENT', '2025-01-02')`);
+      await pool.query(`INSERT INTO race_data
+        (race_id, type, driver_id, constructor_id, position_display_order, position_number, race_points)
+        VALUES (9804, 'race', 'beta_driver', 'planned-team', 20, 20, 0)`);
+      const corruptReference: PlannedReferenceDatabase = {
+        event_classification: [
+          ...reference.event_classification!,
+          { season: 2025, round: 1, driver_id: 'beta-driver', finishing_position: 20, points: 0 }
+        ]
+      };
+      const corruptRows = (await pool.query(singletonCompiled.sql, singletonCompiled.params)).rows;
+      expect(corruptRows).toEqual(interpretPlannedF1QL(singletonCore, corruptReference));
+      expect(corruptRows).toEqual([{
+        driver_id: 'alpha-driver', finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: false
+      }]);
+    } finally {
+      await pool.query('ROLLBACK');
+    }
   });
 
   it('preserves valid source integrity for a scalar zero-count result', async () => {
