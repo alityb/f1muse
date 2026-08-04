@@ -94,7 +94,8 @@ function isFinalStandingsPointsAggregate(aggregate: CoreAggregateNode): boolean 
   const where = aggregate.input.op === 'filter' ? aggregate.input.where as StandingsFilter : undefined;
   return aggregate.input.op === 'filter' && aggregate.input.input.op === 'source' &&
     aggregate.input.input.source === 'standings' && typeof where?.season === 'number' &&
-    (where.driver_id === undefined || (Array.isArray(where.driver_id) && [1, 2].includes(where.driver_id.length))) &&
+    (where.driver_id === undefined ||
+      (Array.isArray(where.driver_id) && where.driver_id.length >= 1 && where.driver_id.length <= 4)) &&
     aggregate.group_by.length === 1 && aggregate.group_by[0] === 'driver_id' &&
     aggregate.measures.length === 1 && aggregate.measures[0].as === 'points' &&
     aggregate.measures[0].function === 'max' && aggregate.measures[0].field === 'points';

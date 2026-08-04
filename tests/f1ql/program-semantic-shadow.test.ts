@@ -22,6 +22,12 @@ const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const REVERSED_PAIR_POINTS_QUESTION = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
+const FOUR_DRIVER_POINTS_QUESTION = 'List driver and championship points for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
+const OUTPUT_ALTERNATIVE_POINTS_QUESTION = 'For Max Verstappen and Lando Norris, list driver or championship points from final 2025 driver standings.';
+const ALL_NAMED_DRIVER_POINTS_QUESTION = 'List all driver and championship points for Max Verstappen from final 2025 driver standings.';
+const DANGLING_ALTERNATIVE_POINTS_QUESTION = 'List driver and championship points for Max Verstappen or from final 2025 driver standings.';
+const MIXED_ENTITY_ALTERNATIVE_QUESTION = 'List driver and finishing position for Max Verstappen or Monaco from final 2025 race classification.';
+const FIVE_DRIVER_POINTS_QUESTION = 'List driver and championship points for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc from final 2025 driver standings.';
 const INTERNAL_TOKEN = 'semantic-shadow-internal-token-000001';
 const TIMESTAMP = '2026-07-30T12:00:00.000Z';
 const HASH = (character: string) => character.repeat(64);
@@ -279,6 +285,125 @@ describe('WP8 stage-zero semantic shadow route', () => {
       { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
       { sql: 'ROLLBACK', parameters: undefined }
     ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('proves a four-driver standings family request through one metadata read and no result execution', async () => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
+          { driver_id: 'george-russell', identity: 'George Russell', participation_source: 'entrant' },
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'oscar-piastri', identity: 'Oscar Piastri', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: FOUR_DRIVER_POINTS_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'answer', reason: 'plan_proven', result_query_calls: 0 }
+      }
+    });
+    expect(fake.calls).toEqual([
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each([
+    [OUTPUT_ALTERNATIVE_POINTS_QUESTION, 'clarify', 'output_shape_ambiguous', 1, false],
+    [ALL_NAMED_DRIVER_POINTS_QUESTION, 'abstain', 'unsupported_concept', 0, false],
+    [DANGLING_ALTERNATIVE_POINTS_QUESTION, 'abstain', 'unsupported_concept', 0, false],
+    [MIXED_ENTITY_ALTERNATIVE_QUESTION, 'abstain', 'unsupported_concept', 0, true]
+  ] as const)('never plans conflicting language at stage zero: %s', async (question, outcome, reason, expectedProviderCalls, expectsEventRead) => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => {providerCalls += 1; return exactProposal(proposal);} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome, reason, result_query_calls: 0 }
+      }
+    });
+    const expectedCalls: QueryCall[] = [
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ];
+    if (expectsEventRead) {
+      expectedCalls.push(
+        { sql: 'BEGIN READ ONLY', parameters: undefined },
+        { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+        { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, parameters: [2025, 501] },
+        { sql: 'ROLLBACK', parameters: undefined }
+      );
+    }
+    expect(fake.calls).toEqual(expectedCalls);
+    expect(providerCalls).toBe(expectedProviderCalls);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('rejects five-driver standings language before provider or result execution', async () => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
+          { driver_id: 'george-russell', identity: 'George Russell', participation_source: 'entrant' },
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' },
+          { driver_id: 'oscar-piastri', identity: 'Oscar Piastri', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: FIVE_DRIVER_POINTS_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'abstain', reason: 'unsupported_scope', result_query_calls: 0 }
+      }
+    });
+    expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
 
@@ -593,12 +718,36 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 32, end: 45 } },
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 50, end: 62 } }
         ]
+    : request.question === FOUR_DRIVER_POINTS_QUESTION
+      ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
+          type: 'driver' as const,
+          span: questionSpan(request.question, text)
+        }))
+    : request.question === OUTPUT_ALTERNATIVE_POINTS_QUESTION
+      ? ['Max Verstappen', 'Lando Norris'].map(text => ({
+          type: 'driver' as const,
+          span: questionSpan(request.question, text)
+        }))
+    : request.question === ALL_NAMED_DRIVER_POINTS_QUESTION
+      ? [{
+          type: 'driver' as const,
+          span: questionSpan(request.question, 'Max Verstappen')
+        }]
     : [];
   const evidence = enumerateSemanticQueries(request.question, entityInventory);
   if (evidence.type !== 'candidate_set') {
     throw new Error('fixture question did not enumerate candidates');
   }
   return { version: request.semantic_query_version, candidates: evidence.candidates };
+}
+
+function questionSpan(question: string, text: string) {
+  const questionPoints = Array.from(question);
+  const textPoints = Array.from(text);
+  const start = questionPoints.findIndex((_point, index) =>
+    textPoints.every((point, offset) => questionPoints[index + offset] === point));
+  if (start < 0) throw new Error(`missing test span ${text}`);
+  return { text, start, end: start + textPoints.length };
 }
 
 function assertNoLeakage(serialized: string): void {

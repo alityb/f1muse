@@ -64,45 +64,31 @@ const POSITIVE_PROFILE_CASES = {
   'semantic-single-source-v1': [({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and championship points from final ${year} driver standings.`,
     entity_names: []
-  }), (input: PositiveProfileInput): PositiveProfileCase => ({
-    question: 'What were Charles Leclerc final standings points in 2024?',
+  }), ({ year, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver and championship points for Charles Leclerc from final ${year} driver standings.`,
     entity_names: ['Charles Leclerc'],
     driver_mentions: [{
       name: 'Charles Leclerc',
-      candidates: candidateInventory('charles-leclerc', input.candidate_count, input.selected_index),
+      candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
       active_candidates: ['charles-leclerc']
     }]
-  }), (input: PositiveProfileInput): PositiveProfileCase => ({
-    question: 'Final 2025 standings points for Lando Norris and Oscar Piastri.',
-    entity_names: ['Lando Norris', 'Oscar Piastri'],
-    driver_mentions: [
-      {
-        name: 'Lando Norris',
-        candidates: candidateInventory('lando-norris', input.candidate_count, input.selected_index),
-        active_candidates: ['lando-norris']
-      },
-      {
-        name: 'Oscar Piastri',
-        candidates: candidateInventory('oscar-piastri', input.candidate_count, input.selected_index),
-        active_candidates: ['oscar-piastri']
-      }
-    ]
-  }), (input: PositiveProfileInput): PositiveProfileCase => ({
-    question: 'Final 2025 standings points for Oscar Piastri and Lando Norris.',
-    entity_names: ['Oscar Piastri', 'Lando Norris'],
-    driver_mentions: [
-      {
-        name: 'Oscar Piastri',
-        candidates: candidateInventory('oscar-piastri', input.candidate_count, input.selected_index),
-        active_candidates: ['oscar-piastri']
-      },
-      {
-        name: 'Lando Norris',
-        candidates: candidateInventory('lando-norris', input.candidate_count, input.selected_index),
-        active_candidates: ['lando-norris']
-      }
-    ]
-  })],
+  }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `List driver and championship points for ${drivers.map(([name]) => name).join(', ')} from final ${year} driver standings.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
+  }],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
     entity_names: []
@@ -118,7 +104,7 @@ const POSITIVE_PROFILE_CASES = {
   })]
 } satisfies Record<SemanticCapabilityProfileId, readonly PositiveProfileFactory[]>;
 
-const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 100 }).chain(candidateCount => fc.record({
+const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 50 }).chain(candidateCount => fc.record({
   year: fc.integer({ min: 1950, max: 2025 }),
   round: fc.integer({ min: 1, max: 30 }),
   candidate_count: fc.constant(candidateCount),
@@ -126,6 +112,18 @@ const positiveProfileInputArbitrary = fc.integer({ min: 1, max: 100 }).chain(can
 }));
 
 describe('semantic complete-interaction capability authorization', () => {
+  it('defines standings points as structural cardinality families without static question or identity allowlists', () => {
+    const profile = SEMANTIC_CAPABILITY_PROFILES.find(item => item.id === 'semantic-single-source-v1')!;
+    expect(profile.complete_interactions.map(interaction => interaction.entity_count)).toEqual([
+      { min: 0, max: 0 },
+      { min: 1, max: 1 },
+      { min: 2, max: 4 }
+    ]);
+    expect(profile.complete_interactions.every(interaction =>
+      !('question_sha256' in interaction) && !('season_values' in interaction) && !('entity_values' in interaction)
+    )).toBe(true);
+  });
+
   it('positively generates every current signed profile across bounded historical and resolver inputs', async () => {
     expect(Object.keys(POSITIVE_PROFILE_CASES).sort()).toEqual([...SEMANTIC_CAPABILITY_PROFILE_IDS].sort());
     for (const profile of SEMANTIC_CAPABILITY_PROFILES) {
@@ -186,26 +184,6 @@ describe('semantic complete-interaction capability authorization', () => {
       candidates: candidateInventory('lando-norris', 101, 100),
       active_candidates: ['lando-norris']
     }])).rejects.toThrowError(expect.objectContaining({ reason: 'entity_inventory_mismatch' }));
-  });
-
-  it.each([
-    ['Final 2025 standings points for Lando Norris and Oscar Piastri.', ['Lando Norris', 'Oscar Piastri']],
-    ['Final 2025 standings points for Oscar Piastri and Lando Norris.', ['Oscar Piastri', 'Lando Norris']]
-  ] as const)('rejects pair identities swapped between their question spans: %s', async (question, entityNames) => {
-    const proof = await semanticProof(question, entityNames, entityNames.map(name => ({
-      name,
-      candidates: ['lando-norris', 'oscar-piastri'],
-      active_candidates: [name === 'Lando Norris' ? 'oscar-piastri' : 'lando-norris']
-    })));
-    expect(() => authorizeSemanticPlanCapability({
-      proof,
-      profile_id: 'semantic-single-source-v1',
-      principal_class: 'internal_canary',
-      request_id: randomUUID(),
-      canary: canary(),
-      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
-      now_ms: NOW
-    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
   it.each([
@@ -312,7 +290,7 @@ describe('semantic complete-interaction capability authorization', () => {
     })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
-  it('binds singleton-filtered authorization to the reviewed question, season, and driver', async () => {
+  it('authorizes singleton-filtered standings points by structure across final seasons and identities', async () => {
     const variants = [
       {
         question: 'List driver and championship points for Norris from final 2024 driver standings.',
@@ -320,14 +298,14 @@ describe('semantic complete-interaction capability authorization', () => {
         mentions: [{ name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
       },
       {
-        question: 'What were Charles Leclerc final standings points in 2024?',
-        entities: ['Charles Leclerc'],
-        mentions: [{ name: 'Charles Leclerc', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
+        question: 'List driver and championship points for Giuseppe Farina from final 1950 driver standings.',
+        entities: ['Giuseppe Farina'],
+        mentions: [{ name: 'Giuseppe Farina', candidates: ['giuseppe-farina'], active_candidates: ['giuseppe-farina'] }]
       }
     ];
     for (const variant of variants) {
       const proof = await semanticProof(variant.question, variant.entities, variant.mentions);
-      expect(() => authorizeSemanticPlanCapability({
+      const authorization = authorizeSemanticPlanCapability({
         proof,
         profile_id: 'semantic-single-source-v1',
         principal_class: 'internal_canary',
@@ -335,40 +313,28 @@ describe('semantic complete-interaction capability authorization', () => {
         canary: canary(),
         release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
         now_ms: NOW
-      })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
+      });
+      expect(authorization.interaction).toMatchObject({
+        entity_count: 1,
+        predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq']
+      });
     }
   });
 
-  it('binds pair authorization to the exact questions, season, and per-span driver identities', async () => {
-    const variants = [
-      {
-        question: 'List driver and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.',
-        entities: ['Lando Norris', 'Oscar Piastri'],
-        mentions: [
-          { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
-          { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
-        ]
-      },
-      {
-        question: 'Final 2025 standings points for Lando Norris and Oscar Piastri.',
-        entities: ['Lando Norris', 'Oscar Piastri'],
-        mentions: [
-          { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
-          { name: 'Oscar Piastri', candidates: ['max-verstappen'], active_candidates: ['max-verstappen'] }
-        ]
-      },
-      {
-        question: 'Final 2025 standings points for Oscar Piastri and Lando Norris.',
-        entities: ['Oscar Piastri', 'Lando Norris'],
-        mentions: [
-          { name: 'Oscar Piastri', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
-          { name: 'Lando Norris', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
-        ]
-      }
-    ];
-    for (const variant of variants) {
-      const proof = await semanticProof(variant.question, variant.entities, variant.mentions);
-      expect(() => authorizeSemanticPlanCapability({
+  it.each([2, 3, 4] as const)('authorizes exact resolved driver sets through cardinality %i', async cardinality => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, cardinality);
+    const question = `List driver and championship points for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    const authorization = authorizeSemanticPlanCapability({
         proof,
         profile_id: 'semantic-single-source-v1',
         principal_class: 'internal_canary',
@@ -376,8 +342,26 @@ describe('semantic complete-interaction capability authorization', () => {
         canary: canary(),
         release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
         now_ms: NOW
-      })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
-    }
+    });
+    expect(authorization.interaction).toMatchObject({
+      entity_count: cardinality,
+      predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq']
+    });
+  });
+
+  it('rejects five-driver standings points before a capability proof can be minted', () => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Max Verstappen', 'max-verstappen'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ];
+    const question = `List driver and championship points for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
+    expect(enumerateSemanticQueries(question, drivers.map(([name]) => ({
+      type: 'driver' as const,
+      span: span(question, name)
+    })))).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
   });
 
   it('rejects generated pairwise and higher-order combinations outside reviewed complete interactions', async () => {

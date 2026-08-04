@@ -39,6 +39,8 @@ const referenceRows: StandingsRow[] = [
   { season: 2025, driver_id: 'max-verstappen', championship_position: 2, points: 421, championship_won: false },
   { season: 2025, driver_id: 'lando-norris', championship_position: 1, points: 423, championship_won: true },
   { season: 2025, driver_id: 'george-russell', championship_position: 4, points: 319, championship_won: false },
+  { season: 2025, driver_id: 'oscar-piastri', championship_position: 3, points: 356, championship_won: false },
+  { season: 2025, driver_id: 'charles-leclerc', championship_position: 5, points: 242, championship_won: false },
   { season: 2024, driver_id: 'max-verstappen', championship_position: 1, points: 437, championship_won: true }
 ];
 
@@ -107,6 +109,9 @@ beforeAll(async () => {
     `INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
       (2025, 'red-bull', 'red-bull', 'max-verstappen', false),
       (2025, 'mclaren', 'mclaren', 'lando-norris', false),
+      (2025, 'ferrari', 'ferrari', 'charles-leclerc', false),
+      (2025, 'mercedes', 'mercedes', 'george-russell', false),
+      (2025, 'mclaren', 'mclaren', 'oscar-piastri', false),
       (2025, 'test-team', 'test-team', 'driver-dns', false),
       (2027, 'team-a', 'team-a', 'driver-a', false),
       (2027, 'team-b', 'team-b', 'driver-b', false)`
@@ -175,6 +180,26 @@ describe('F1QL standings vertical slice', () => {
         { driver_id: 'lando-norris', points: 423 },
         { driver_id: 'max-verstappen', points: 421 }
       ]);
+  });
+
+  it.each([3, 4] as const)('retains source-wide integrity for %i-driver points programs', cardinality => {
+    const driverIds = ['charles-leclerc', 'george-russell', 'lando-norris', 'max-verstappen'].slice(0, cardinality);
+    const filtered = materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: driverIds });
+    const core = lowerF1QL(filtered);
+    expect(compileF1QL(core).sql).toContain(`AS "${FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD}"`);
+    expect(() => interpretStandingsProgram(core, [
+      ...referenceRows,
+      { ...referenceRows[0], points: 999 }
+    ])).toThrow('Final standings source integrity failed');
+  });
+
+  it('matches PostgreSQL and reference ordering for four-driver final points', async () => {
+    const driverIds = ['charles-leclerc', 'george-russell', 'lando-norris', 'oscar-piastri'];
+    const filtered = materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: driverIds });
+    const expected = interpretStandingsProgram(lowerF1QL(filtered), referenceRows);
+    const result = await executeF1QL(pool, filtered);
+    expect(result.rows.map(row => ({ driver_id: row.driver_id, points: Number(row.points) }))).toEqual(expected);
+    expect(result.rows.every(row => !(FINAL_STANDINGS_SOURCE_INTEGRITY_FIELD in row))).toBe(true);
   });
 
   it('keeps the integrity sentinel private for a valid reversed pair', async () => {

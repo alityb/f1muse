@@ -7,12 +7,11 @@ import { F1QLProgram } from './ast';
 import { normalizeF1QLProgram } from './program-normalization';
 import { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v8' as const;
+export const SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION = 'semantic-template-equivalence-v9' as const;
 
-export type SemanticTemplateEquivalenceStatus = 'partial' | 'unmapped';
+export type SemanticTemplateEquivalenceStatus = 'equivalent' | 'unmapped';
 export type SemanticTemplateEquivalenceBlocker =
-  | 'higher_cardinality_filtered_template_domain_unmapped'
-  | 'template_equivalence_unmapped';
+  'template_equivalence_unmapped';
 
 export interface SemanticTemplateEquivalenceEntry {
   readonly status: SemanticTemplateEquivalenceStatus;
@@ -44,12 +43,12 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
   final_standings_driver_ranking: unmapped(),
   final_standings_leader: unmapped(),
   final_standings_points: {
-    status: 'partial',
+    status: 'equivalent',
     canonical_response_contract: 'equivalent',
     response_metadata_mapping: 'accounted',
     wire_envelope_contract: 'equivalent',
     compatibility_formatter_version: SEMANTIC_ANSWER_COMPATIBILITY_VERSION,
-    blockers: ['higher_cardinality_filtered_template_domain_unmapped'],
+    blockers: [],
     overlap_id: 'reviewed_final_standings_points_domains'
   },
   official_driver_results_comparison: unmapped(),
@@ -74,11 +73,11 @@ export function classifySemanticTemplateEquivalence(
   programInput: F1QLProgram | undefined
 ): 'program_shape_overlap' | 'unmapped' {
   const entry = SEMANTIC_TEMPLATE_EQUIVALENCE[templateId];
-  if (entry.status !== 'partial') {return 'unmapped';}
+  if (entry.status !== 'equivalent') {return 'unmapped';}
   const variables = validateAnswerTemplateVariables(templateId, variablesInput);
   const driverIds = variables.driver_ids;
   if (templateId !== 'final_standings_points' ||
-      (driverIds !== undefined && (!Array.isArray(driverIds) || ![1, 2].includes(driverIds.length))) ||
+      (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length < 1 || driverIds.length > 4)) ||
       !Number.isSafeInteger(variables.season) || programInput === undefined) {
     return 'unmapped';
   }

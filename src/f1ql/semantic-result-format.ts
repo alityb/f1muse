@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v4' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v5' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -700,10 +700,10 @@ function finalStandingsCompatibilityScope(
   columns: readonly SemanticResultColumn[]
 ): { readonly season: number; readonly driver_ids: ReviewedFinalStandingsDriverIds } | null {
   const driverPredicate = branches[0]?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
-  let mode: 'pair' | 'singleton' | 'unfiltered' | 'unsupported' = 'unsupported';
+  let mode: 'multi' | 'singleton' | 'unfiltered' | 'unsupported' = 'unsupported';
   if (driverPredicate === undefined) {mode = 'unfiltered';}
   else if (driverPredicate.operator === 'eq') {mode = 'singleton';}
-  else if (driverPredicate.operator === 'in') {mode = 'pair';}
+  else if (driverPredicate.operator === 'in') {mode = 'multi';}
   const expectedGrain = mode === 'singleton' ? [] : ['driver_id'];
   if (mode === 'unsupported' || rowLimit !== (mode === 'singleton' ? 1 : MAX_F1QL_RESPONSE_ROWS) ||
       !isFinalStandingsPointsContract(sources, columns, project.output_grain) ||
@@ -745,7 +745,7 @@ function requestedDriverRowCount(branches: ReturnType<typeof inputBranches>): nu
 }
 
 function reviewedDriverPredicate(
-  mode: 'pair' | 'singleton' | 'unfiltered' | 'unsupported',
+  mode: 'multi' | 'singleton' | 'unfiltered' | 'unsupported',
   predicate: PlannedCorePredicate | undefined
 ): boolean {
   if (mode === 'unfiltered') {return predicate === undefined;}
@@ -753,14 +753,16 @@ function reviewedDriverPredicate(
   if (mode === 'singleton') {
     return predicate.operator === 'eq' && isCanonicalDriverId(predicate.value);
   }
-  return mode === 'pair' && predicate.operator === 'in' && predicate.values.length === 2 &&
-    predicate.values.every(isCanonicalDriverId) && predicate.values[0] < predicate.values[1];
+  return mode === 'multi' && predicate.operator === 'in' &&
+    predicate.values.length >= 2 && predicate.values.length <= 4 &&
+    predicate.values.every(isCanonicalDriverId) &&
+    predicate.values.every((value, index) => index === 0 || predicate.values[index - 1] < value);
 }
 
 function driverIdsForPredicate(predicate: PlannedCorePredicate | undefined): ReviewedFinalStandingsDriverIds {
   if (predicate?.operator === 'eq') {return [predicate.value as string];}
   if (predicate?.operator === 'in') {
-    return [...predicate.values] as unknown as readonly [string, string];
+    return [...predicate.values] as unknown as ReviewedFinalStandingsDriverIds;
   }
   return [];
 }

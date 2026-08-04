@@ -11,6 +11,7 @@ import {
 } from '../../src/f1ql/semantic-shadow-planner';
 import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
 import { proveAnswerIntent, verifyAnswerSemanticProof } from '../../src/f1ql/answer-semantic-proof';
+import { materializeAnswerTemplate } from '../../src/f1ql/answer-templates';
 import { sanitizeSemanticShadowObservation } from '../../src/f1ql/semantic-shadow-observations';
 import {
   collectSemanticResolutionEvidence,
@@ -326,6 +327,45 @@ describe('pure non-executing semantic shadow orchestrator', () => {
       .toEqual(['oscar-piastri', 'lando-norris']);
     expect(compareTemplateAndSemanticPlan(templateProof, plan)).toBe('matched');
     expect(compareTemplateAndSemanticPlan(templateProof, swapped)).toBe('mismatched');
+  });
+
+  it('compares canonical four-driver membership separately from question-span identity order', async () => {
+    const question = 'List driver and championship points for Oscar Piastri, Lando Norris, George Russell, Charles Leclerc from final 2025 driver standings.';
+    const drivers = [
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['Lando Norris', 'lando-norris'],
+      ['George Russell', 'george-russell'],
+      ['Charles Leclerc', 'charles-leclerc']
+    ] as const;
+    const mentions = drivers.map(([name, id]) => driverMention(question, name, [id], [id]));
+    const entities = mentions.map(mention => ({
+      type: 'driver' as const, span: { text: mention.text, start: mention.start, end: mention.end }
+    }));
+    const evidence = enumerateSemanticQueries(question, entities);
+    if (evidence.type !== 'candidate_set') throw new Error('missing fixture candidates');
+    const admission = admitSemanticQueryCandidates({ version: 2, candidates: evidence.candidates }, question, evidence);
+    if (admission.type !== 'admitted') throw new Error('fixture was not admitted');
+    const driverResolver = { inventoryMentions: async () => mentions };
+    const resolution = await collectSemanticResolutionEvidence({
+      question, admission, driver_resolver: driverResolver,
+      event_resolver: fixtureEventResolver({ type: 'missing' })
+    });
+    const plan = planSemanticAnswerFromResolution({ question, admission, resolution });
+    const canonicalIds = drivers.map(([, id]) => id).sort();
+    const template = {
+      question_hash: createAnswerQuestionContract(question).sha256,
+      mentions: drivers.map(([, selected_id]) => ({ kind: 'driver' as const, selected_id })),
+      template_id: 'final_standings_points' as const,
+      template_variables: { season: 2025, driver_ids: canonicalIds },
+      program: materializeAnswerTemplate('final_standings_points', {
+        season: 2025, driver_ids: canonicalIds
+      })
+    };
+    const swapped = structuredClone(plan);
+    swapped.linked_entities.reverse();
+
+    expect(compareTemplateAndSemanticPlan(template as never, plan)).toBe('matched');
+    expect(compareTemplateAndSemanticPlan(template as never, swapped)).toBe('mismatched');
   });
 
   it('classifies join-path ambiguity as clarification', () => {

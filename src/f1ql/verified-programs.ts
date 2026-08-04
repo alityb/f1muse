@@ -7,7 +7,7 @@ import { F1QL_DEFINITIONS_VERSION } from './validation';
 export { F1QL_FACT_SPACE_VERSION } from './fact-space-version';
 export { getF1QLProgramHash, normalizeF1QLProgram } from './program-normalization';
 
-export const F1QL_COMPILER_VERSION = 'core-v10';
+export const F1QL_COMPILER_VERSION = 'core-v11';
 
 export interface VerifiedProgram {
   id: string;

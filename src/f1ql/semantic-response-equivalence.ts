@@ -25,7 +25,7 @@ import {
   getF1QLProgramHash
 } from './verified-programs';
 
-export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v3' as const;
+export const SEMANTIC_RESPONSE_EQUIVALENCE_VERSION = 'semantic-response-equivalence-v4' as const;
 
 const MAX_EQUIVALENCE_ARRAY_LENGTH = 256;
 
@@ -156,6 +156,7 @@ export interface CanonicalFinalStandingsResponse {
   readonly version: typeof SEMANTIC_RESPONSE_EQUIVALENCE_VERSION;
   readonly overlap_id:
     | 'driver_pair_filtered_final_standings_points'
+    | 'multi_driver_filtered_final_standings_points'
     | 'single_driver_filtered_final_standings_points'
     | 'unfiltered_final_standings_points';
   readonly source_id: 'driver_standings';
@@ -288,6 +289,7 @@ function canonicalResponse(
   let overlapId: CanonicalFinalStandingsResponse['overlap_id'] = 'unfiltered_final_standings_points';
   if (scope.driver_ids.length === 1) {overlapId = 'single_driver_filtered_final_standings_points';}
   else if (scope.driver_ids.length === 2) {overlapId = 'driver_pair_filtered_final_standings_points';}
+  else if (scope.driver_ids.length > 2) {overlapId = 'multi_driver_filtered_final_standings_points';}
   return deepFreeze({
     version: SEMANTIC_RESPONSE_EQUIVALENCE_VERSION,
     overlap_id: overlapId,
@@ -430,7 +432,7 @@ function semanticSeason(scopeInput: unknown): number {
   return scopeValues[0] as number;
 }
 
-function semanticDriver(scopeInput: unknown): readonly [string] | readonly [string, string] {
+function semanticDriver(scopeInput: unknown): ReviewedFinalStandingsDriverIds {
   const scope = snapshotDataObject(
     scopeInput,
     Object.keys(SEMANTIC_SCOPE_FIELD_ACCOUNTING),
@@ -438,13 +440,14 @@ function semanticDriver(scopeInput: unknown): readonly [string] | readonly [stri
   );
   const scopeValues = snapshotDataArray(scope.values, 'semantic scope values');
   const singleton = scope.operator === 'eq' && scopeValues.length === 1;
-  const pair = scope.operator === 'in' && scopeValues.length === 2;
+  const multi = scope.operator === 'in' && scopeValues.length >= 2 && scopeValues.length <= 4;
   if (scope.source_id !== 'driver_standings' || scope.concept_id !== 'driver_id' || scope.label !== 'driver' ||
-      (!singleton && !pair) || scopeValues.some(value => !isCanonicalDriverId(value)) ||
-      (pair && compareText(scopeValues[0] as string, scopeValues[1] as string) >= 0)) {
+      (!singleton && !multi) || scopeValues.some(value => !isCanonicalDriverId(value)) ||
+      (multi && scopeValues.some((value, index) => index > 0 &&
+        compareText(scopeValues[index - 1] as string, value as string) >= 0))) {
     throw new SemanticResponseEquivalenceError('Semantic metadata did not match the reviewed standings contract');
   }
-  return [...scopeValues] as unknown as readonly [string] | readonly [string, string];
+  return [...scopeValues] as unknown as ReviewedFinalStandingsDriverIds;
 }
 
 function semanticScopeConcept(scopeInput: unknown): unknown {

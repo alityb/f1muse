@@ -98,8 +98,8 @@ describe('generic proven semantic result formatting', () => {
     expect(Object.isFrozen(compatible)).toBe(true);
     expect(Object.isFrozen(compatible.rows)).toBe(true);
     expect(Object.isFrozen(compatible.rows[0])).toBe(true);
-    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v3');
-    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v3');
+    expect(SEMANTIC_RESPONSE_EQUIVALENCE_VERSION).toBe('semantic-response-equivalence-v4');
+    expect(SEMANTIC_ANSWER_COMPATIBILITY_VERSION).toBe('semantic-answer-compatibility-v4');
     expect([
       ANSWER_ENVELOPE_FIELD_ACCOUNTING,
       ANSWER_METADATA_FIELD_ACCOUNTING,
@@ -327,6 +327,43 @@ describe('generic proven semantic result formatting', () => {
       { driver_id: 'lando-norris', points: '374.000' },
       { driver_id: 'max-verstappen', points: '421.000' }
     ])).toThrow('Filtered final standings drivers were invalid');
+  });
+
+  it.each([3, 4] as const)('preserves complete compatibility for %i filtered drivers', async cardinality => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, cardinality);
+    const question = `List driver and championship points for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
+    const entities = drivers.map(([name]) => ({ type: 'driver' as const, span: span(question, name) }));
+    const mentions = drivers.map(([name, id]) => ({
+      ...span(question, name), candidates: [id], active_candidates: [id]
+    }));
+    const prepared = await prepare(question, entities, mentions);
+    const rows = drivers.map(([, driver_id], index) => ({
+      driver_id, points: `${400 - index}.000`, [PLANNED_INTEGRITY_FIELD]: true
+    })).sort((left, right) => Buffer.compare(Buffer.from(left.driver_id), Buffer.from(right.driver_id)));
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
+    const generic = formatSemanticPlanResult(execution);
+    const compatible = formatSemanticPlanResultAsAnswerEnvelope(execution);
+    const driverIds = rows.map(row => row.driver_id);
+    const legacyProgram = materializeAnswerTemplate('final_standings_points', {
+      season: 2025, driver_ids: driverIds
+    });
+    const decision = authorizeAnswerProgram(legacyProgram);
+    if (decision.type !== 'approved') throw new Error('multi-driver legacy oracle fixture was not authorized');
+    const legacy = buildAnswerEnvelope(legacyProgram, decision.capability, rows.map(({
+      [PLANNED_INTEGRITY_FIELD]: _, ...row
+    }) => row));
+    expect(generic.metadata.coverage).toEqual({ status: 'sufficient', rows_returned: cardinality, row_limit: 100 });
+    expect(canonicalizeSemanticFinalStandingsResponse(generic).overlap_id)
+      .toBe('multi_driver_filtered_final_standings_points');
+    expect(Buffer.from(JSON.stringify(compatible))).toEqual(Buffer.from(JSON.stringify(legacy)));
+
+    const partial = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows.slice(0, -1));
+    expect(() => formatSemanticPlanResult(partial)).toThrow(SemanticResultFormatError);
   });
 
   it('preserves canonical wire bytes for the exact Oscar-first pair wording', async () => {

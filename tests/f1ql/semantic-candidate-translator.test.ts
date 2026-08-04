@@ -105,11 +105,13 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('For either exact unfiltered form "show the final YYYY standings points" or the current reviewed form "what were the final standings points in 2025?"');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('For only the exact filtered form "what were Charles Leclerc final standings points in 2024?"');
+      .toContain('For the exact filtered shorthand "what were Charles Leclerc final standings points in 2024?"');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('For only either exact pair form "final 2025 standings points for Lando Norris and Oscar Piastri." or "final 2025 standings points for Oscar Piastri and Lando Norris."');
+      .toContain('For either exact pair shorthand "final 2025 standings points for Lando Norris and Oscar Piastri." or "final 2025 standings points for Oscar Piastri and Lando Norris."');
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
-      .toContain('Never apply these rules to other years of either filtered form, bare points, race points, other named-driver filters');
+      .toContain('zero to four specific driver entities; use eq for one driver and in for two to four');
+    expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
+      .toContain('Never generalize bare points or standings-points shorthand beyond the exact shorthand forms');
   });
 
   it('fails closed for malformed, extra, duplicate, and overflowing candidate sets', async () => {

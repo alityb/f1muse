@@ -410,6 +410,98 @@ describe('semantic query candidates and independent evidence', () => {
       .toMatchObject({ type: 'abstention', reason: 'unknown_language' });
   });
 
+  it.each([1, 2, 3, 4] as const)(
+    'enumerates explicit catalog-grounded final standings points for %i resolved drivers',
+    cardinality => {
+      const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell'].slice(0, cardinality);
+      const question = `List driver and championship points for ${names.join(', ')} from final 2025 driver standings.`;
+      const driverSpans = names.map(name => span(question, name));
+      const evidence = candidateEvidence(question, driverSpans.map(driverSpan => ({
+        type: 'driver', span: driverSpan
+      })));
+      expect(evidence).not.toHaveProperty('ambiguity_reason');
+      expect(evidence.candidates).toEqual([expect.objectContaining({
+        outputs: [
+          expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'driver_id' } }),
+          expect.objectContaining({ concept: { source_id: 'driver_standings', concept_id: 'points' } })
+        ],
+        entities: driverSpans.map(driverSpan => ({ type: 'driver', span: driverSpan })),
+        filters: [{
+          kind: 'entity', concept: { source_id: 'driver_standings', concept_id: 'driver_id' },
+          operator: cardinality === 1 ? 'eq' : 'in',
+          entity_indices: Array.from({ length: cardinality }, (_, index) => index),
+          evidence: driverSpans
+        }]
+      })]);
+      expect(admitSemanticQueryCandidates(
+        { version: 2, candidates: evidence.candidates }, question, evidence
+      )).toMatchObject({ type: 'admitted' });
+    }
+  );
+
+  it('does not collapse alternative driver entities into an inclusive filter', () => {
+    const question = 'List driver and championship points for Max Verstappen or Lando Norris from final 2025 driver standings.';
+    expect(enumerateSemanticQueries(question, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver' as const, span: span(question, text)
+    })))).toEqual(expect.objectContaining({ type: 'abstention', reason: 'unsupported_concept' }));
+  });
+
+  it('does not collapse output alternatives or conflicting cardinality cues', () => {
+    const outputQuestion = 'For Max Verstappen and Lando Norris, list driver or championship points from final 2025 driver standings.';
+    const outputEvidence = candidateEvidence(outputQuestion, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver' as const, span: span(outputQuestion, text)
+    })));
+    expect(outputEvidence).toMatchObject({ ambiguity_reason: 'output_shape_ambiguous' });
+    expect(admitSemanticQueryCandidates(
+      { version: 2, candidates: outputEvidence.candidates }, outputQuestion, outputEvidence
+    )).toMatchObject({ type: 'clarification_required', reason: 'output_shape_ambiguous' });
+    const flankingOutputQuestion = 'For Max Verstappen, list driver or championship points for Lando Norris from final 2025 driver standings.';
+    expect(candidateEvidence(flankingOutputQuestion, ['Max Verstappen', 'Lando Norris'].map(text => ({
+      type: 'driver' as const, span: span(flankingOutputQuestion, text)
+    })))).toMatchObject({ ambiguity_reason: 'output_shape_ambiguous' });
+
+    for (const cue of ['all', 'each']) {
+      const question = `List ${cue} driver and championship points for Max Verstappen from final 2025 driver standings.`;
+      expect(enumerateSemanticQueries(question, [{
+        type: 'driver', span: span(question, 'Max Verstappen')
+      }])).toMatchObject({ type: 'abstention', reason: 'unsupported_concept' });
+    }
+
+    const danglingQuestion = 'List driver and championship points for Max Verstappen or from final 2025 driver standings.';
+    expect(enumerateSemanticQueries(danglingQuestion, [{
+      type: 'driver', span: span(danglingQuestion, 'Max Verstappen')
+    }])).toMatchObject({ type: 'abstention', reason: 'unsupported_concept' });
+
+    const mixedEntityQuestion = 'List driver and finishing position for Max Verstappen or Monaco from final 2025 race classification.';
+    expect(enumerateSemanticQueries(mixedEntityQuestion, [
+      { type: 'driver', span: span(mixedEntityQuestion, 'Max Verstappen') },
+      { type: 'event', span: span(mixedEntityQuestion, 'Monaco') }
+    ])).toMatchObject({ type: 'abstention', reason: 'unsupported_concept' });
+    const maskedMixedEntityQuestion = 'List finishing position for Max Verstappen or finishing position for Monaco from final 2025 race classification.';
+    expect(enumerateSemanticQueries(maskedMixedEntityQuestion, [
+      { type: 'driver', span: span(maskedMixedEntityQuestion, 'Max Verstappen') },
+      { type: 'event', span: span(maskedMixedEntityQuestion, 'Monaco') }
+    ])).toMatchObject({ type: 'abstention', reason: 'unsupported_concept' });
+    const scopedAlternativeQuestion = 'List driver and finishing position for Max Verstappen from final 2024 or 2025 race classification at Monaco.';
+    expect(enumerateSemanticQueries(scopedAlternativeQuestion, [
+      { type: 'driver', span: span(scopedAlternativeQuestion, 'Max Verstappen') },
+      { type: 'event', span: span(scopedAlternativeQuestion, 'Monaco') }
+    ])).toMatchObject({ type: 'candidate_set', ambiguity_reason: 'scope_ambiguous' });
+    const ambiguousEventAlternativeQuestion = 'List driver and finishing position from final 2025 race classification at Monaco or Silverstone.';
+    const monacoAlternative = span(ambiguousEventAlternativeQuestion, 'Monaco');
+    expect(enumerateSemanticQueries(ambiguousEventAlternativeQuestion, [
+      { type: 'driver', span: monacoAlternative },
+      { type: 'event', span: monacoAlternative },
+      { type: 'event', span: span(ambiguousEventAlternativeQuestion, 'Silverstone') }
+    ])).toMatchObject({ type: 'candidate_set', ambiguity_reason: 'entity_ambiguous' });
+
+    const fiveDriverQuestion = 'List driver and championship points for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc from final 2025 driver standings.';
+    expect(enumerateSemanticQueries(fiveDriverQuestion, [
+      'Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc'
+    ].map(text => ({ type: 'driver' as const, span: span(fiveDriverQuestion, text) }))))
+      .toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+  });
+
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {
     const evidence = candidateEvidence(STANDINGS_QUESTION);
     const provider = { version: 2, candidates: [evidence.candidates[0]] };

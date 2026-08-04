@@ -248,6 +248,21 @@ export function enumerateSemanticQueries(
   if (hasUnsupportedComparison(question.normalized_question)) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_comparison'));
   }
+  if (entities.filter(entity => entity.type === 'driver').length > 4) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
+  if (hasCrossTypeEntityAlternative(question, sourceMatches, conceptMatches, operations, entities)) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
+  }
+  if (hasUnconsumedAlternative(question, sourceMatches, conceptMatches, operations, entities)) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
+  }
+  if (hasConflictingDriverCardinality(question.normalized_question, entities)) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
+  }
+  if (hasEntityAlternative(question, sourceMatches, conceptMatches, operations, entities)) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
+  }
   if (/\bby\b/iu.test(question.normalized_question) && !operations.rank) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_comparison'));
   }
@@ -756,7 +771,7 @@ function alternativeOutputChoices(
 ): readonly (readonly SemanticQuery['outputs'][number][])[] | undefined {
   const orSpans = regexSpans(question, /\bor\b/giu);
   if (orSpans.length === 0) {return undefined;}
-  const semanticMatches = matches.filter(match => match.concept_id !== 'driver_id');
+  const semanticMatches = matches;
   if (orSpans.length > 1) {
     const separatesOutputs = orSpans.some(orSpan =>
       semanticMatches.some(match => match.span.end <= orSpan.start) && semanticMatches.some(match => match.span.start >= orSpan.end));
@@ -770,6 +785,100 @@ function alternativeOutputChoices(
   const leftOutput = outputs.find(output => output.concept.concept_id === left.concept_id)!;
   const rightOutput = outputs.find(output => output.concept.concept_id === right.concept_id)!;
   return [[...common, leftOutput], [...common, rightOutput]];
+}
+
+function hasEntityAlternative(
+  question: AnswerQuestionContract,
+  sources: readonly LexicalMatch[],
+  concepts: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): boolean {
+  const drivers = entities.filter(entity => entity.type === 'driver');
+  return regexSpans(question.normalized_question, /\bor\b/giu).some(orSpan =>
+    drivers.some(entity => entity.span.end <= orSpan.start) &&
+    drivers.some(entity => entity.span.start >= orSpan.end) &&
+    !isRecognizedNonEntityAlternative(orSpan, question, sources, concepts, operations));
+}
+
+function hasCrossTypeEntityAlternative(
+  question: AnswerQuestionContract,
+  sources: readonly LexicalMatch[],
+  concepts: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): boolean {
+  return regexSpans(question.normalized_question, /\bor\b/giu).some(orSpan => {
+    const left = entities.filter(entity => entity.span.end <= orSpan.start)
+      .sort((a, b) => b.span.end - a.span.end)[0];
+    const right = entities.filter(entity => entity.span.start >= orSpan.end)
+      .sort((a, b) => a.span.start - b.span.start)[0];
+    if (!left || !right || left.type === right.type) {return false;}
+    const typeCountAt = (target: SemanticEntityInventoryItem) => new Set(entities
+      .filter(entity => entity.span.start === target.span.start && entity.span.end === target.span.end)
+      .map(entity => entity.type)).size;
+    if (typeCountAt(left) > 1 || typeCountAt(right) > 1) {return false;}
+    return !isRecognizedNonEntityAlternative(orSpan, question, sources, concepts, operations);
+  });
+}
+
+function isRecognizedNonEntityAlternative(
+  orSpan: SemanticLiteralSpan,
+  question: AnswerQuestionContract,
+  sources: readonly LexicalMatch[],
+  concepts: readonly LexicalMatch[],
+  operations: OperationEvidence
+): boolean {
+  const straddles = (spans: readonly SemanticLiteralSpan[]) =>
+    spans.some(span => span.end <= orSpan.start) && spans.some(span => span.start >= orSpan.end);
+  if (straddles(question.years.map(copyMention)) || straddles(question.rounds.map(copyMention)) ||
+      straddles(operations.temporal.map(item => item.span))) {
+    return true;
+  }
+  const explicitSourceIds = new Set(sources.map(source => source.source_id));
+  const relevantConcepts = explicitSourceIds.size === 0
+    ? concepts
+    : concepts.filter(concept => explicitSourceIds.has(concept.source_id));
+  const leftConcept = relevantConcepts.filter(match => match.span.end <= orSpan.start)
+    .sort((a, b) => b.span.end - a.span.end || b.span.start - a.span.start)[0];
+  const rightConcept = relevantConcepts.filter(match => match.span.start >= orSpan.end)
+    .sort((a, b) => a.span.start - b.span.start || b.span.end - a.span.end)[0];
+  if (leftConcept && rightConcept &&
+      (leftConcept.source_id !== rightConcept.source_id || leftConcept.concept_id !== rightConcept.concept_id)) {
+    return true;
+  }
+  const leftSources = sources.filter(match => match.span.end <= orSpan.start);
+  const rightSources = sources.filter(match => match.span.start >= orSpan.end);
+  return leftSources.some(leftSource => rightSources.some(rightSource => leftSource.source_id !== rightSource.source_id));
+}
+
+function hasConflictingDriverCardinality(
+  question: string,
+  entities: readonly SemanticEntityInventoryItem[]
+): boolean {
+  return entities.some(entity => entity.type === 'driver') && /\b(?:all|each)\b/iu.test(question);
+}
+
+function hasUnconsumedAlternative(
+  question: AnswerQuestionContract,
+  sources: readonly LexicalMatch[],
+  concepts: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): boolean {
+  const categories: readonly (readonly SemanticLiteralSpan[])[] = [
+    sources.map(match => match.span),
+    concepts.map(match => match.span),
+    question.years.map(copyMention),
+    question.rounds.map(copyMention),
+    operations.temporal.map(item => item.span),
+    entities.filter(entity => entity.type === 'driver').map(entity => entity.span),
+    entities.filter(entity => entity.type === 'event').map(entity => entity.span)
+  ];
+  return regexSpans(question.normalized_question, /\bor\b/giu).some(orSpan =>
+    !categories.some(spans =>
+      spans.some(span => span.end <= orSpan.start) &&
+      spans.some(span => span.start >= orSpan.end)));
 }
 
 function buildCandidate(

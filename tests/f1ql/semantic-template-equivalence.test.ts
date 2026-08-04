@@ -12,19 +12,19 @@ import { answerEvaluationManifest } from '../fixtures/f1ql-answer-evaluation-man
 
 describe('Phase 11 current-template equivalence accounting', () => {
   it('exhaustively accounts for every current template without claiming completion', () => {
-    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v8');
-    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v5');
+    expect(SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION).toBe('semantic-template-equivalence-v9');
+    expect(semanticShadowActiveVersions().orchestrator).toBe('semantic-shadow-planner-v6');
     expect(Object.keys(SEMANTIC_TEMPLATE_EQUIVALENCE).sort()).toEqual(ANSWER_TEMPLATE_IDS);
     expect(Object.isFrozen(SEMANTIC_TEMPLATE_EQUIVALENCE)).toBe(true);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).every(Object.isFrozen)).toBe(true);
-    expect(Object.entries(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(([, entry]) => entry.status === 'partial'))
+    expect(Object.entries(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(([, entry]) => entry.status === 'equivalent'))
       .toEqual([['final_standings_points', {
-        status: 'partial',
+        status: 'equivalent',
         canonical_response_contract: 'equivalent',
         response_metadata_mapping: 'accounted',
         wire_envelope_contract: 'equivalent',
-        compatibility_formatter_version: 'semantic-answer-compatibility-v3',
-        blockers: ['higher_cardinality_filtered_template_domain_unmapped'],
+        compatibility_formatter_version: 'semantic-answer-compatibility-v4',
+        blockers: [],
         overlap_id: 'reviewed_final_standings_points_domains'
       }]]);
     expect(Object.values(SEMANTIC_TEMPLATE_EQUIVALENCE).filter(entry => entry.status === 'unmapped'))
@@ -72,7 +72,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
     }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
   });
 
-  it('maps only unfiltered, singleton-filtered, and pair-filtered standings program domains', () => {
+  it('maps the complete unfiltered and one-to-four-driver standings-points program domain', () => {
     const unfiltered = materializeAnswerTemplate('final_standings_points', { season: 2025 });
     expect(classifySemanticTemplateEquivalence('final_standings_points', { season: 2025 }, unfiltered))
       .toBe('program_shape_overlap');
@@ -95,13 +95,16 @@ describe('Phase 11 current-template equivalence accounting', () => {
       ...unfiltered,
       root: { ...unfiltered.root, measures: [{ as: 'points', function: 'min', field: 'points' }] }
     } as F1QLProgram)).toBe('unmapped');
-    expect(classifySemanticTemplateEquivalence('final_standings_points', {
-      season: 2025,
-      driver_ids: ['lando-norris', 'max-verstappen', 'oscar-piastri']
-    }, materializeAnswerTemplate('final_standings_points', {
-      season: 2025,
-      driver_ids: ['lando-norris', 'max-verstappen', 'oscar-piastri']
-    }))).toBe('unmapped');
+    for (const driverIds of [
+      ['lando-norris', 'max-verstappen', 'oscar-piastri'],
+      ['charles-leclerc', 'lando-norris', 'max-verstappen', 'oscar-piastri']
+    ]) {
+      expect(classifySemanticTemplateEquivalence('final_standings_points', {
+        season: 2025, driver_ids: driverIds
+      }, materializeAnswerTemplate('final_standings_points', {
+        season: 2025, driver_ids: driverIds
+      }))).toBe('program_shape_overlap');
+    }
     for (const templateId of ANSWER_TEMPLATE_IDS.filter(id => id !== 'final_standings_points')) {
       expect(classifySemanticTemplateEquivalence(templateId, undefined, undefined), templateId).toBe('unmapped');
     }
@@ -114,7 +117,7 @@ function dispositionFor(item: typeof answerEvaluationManifest[number]): 'program
   if (!templateId || !programs || programs.length !== 1) {
     throw new Error(`Answer case ${item.id} lacks one exact template program`);
   }
-  if (SEMANTIC_TEMPLATE_EQUIVALENCE[templateId].status !== 'partial') {return 'unmapped';}
+  if (SEMANTIC_TEMPLATE_EQUIVALENCE[templateId].status !== 'equivalent') {return 'unmapped';}
   return classifySemanticTemplateEquivalence(
     templateId,
     finalStandingsVariables(templateId, programs[0]),
@@ -156,7 +159,7 @@ function finalStandingsVariables(templateId: AnswerTemplateId, program: F1QLProg
       program.root.group_by.length !== 1 || program.root.group_by[0] !== 'driver_id' ||
       program.root.measures.length !== 1 || program.root.measures[0].as !== 'points' ||
       program.root.measures[0].function !== 'max' || program.root.measures[0].field !== 'points') {
-    throw new Error('Partial template case does not have the reviewed final standings shape');
+    throw new Error('Equivalent template case does not have the reviewed final standings shape');
   }
   const where = program.root.input.where;
   return {

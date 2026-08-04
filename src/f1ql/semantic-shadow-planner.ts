@@ -61,7 +61,7 @@ import {
   sanitizeSemanticShadowObservation
 } from './semantic-shadow-observations';
 
-export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v5' as const;
+export const SEMANTIC_SHADOW_ORCHESTRATOR_VERSION = 'semantic-shadow-planner-v6' as const;
 export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 
 export interface SemanticShadowProposalRequest {
@@ -510,7 +510,7 @@ export function compareTemplateAndSemanticPlan(
   if (!Number.isSafeInteger(season) || (season as number) < 1950 || (season as number) > 2025) {
     return 'mismatched';
   }
-  if (driverIds !== undefined && (!Array.isArray(driverIds) || ![1, 2].includes(driverIds.length) ||
+  if (driverIds !== undefined && (!Array.isArray(driverIds) || driverIds.length < 1 || driverIds.length > 4 ||
       driverIds.some((id, index) => typeof id !== 'string' || id.length === 0 ||
         (index > 0 && compareText(driverIds[index - 1], id) >= 0)))) {
     return 'not_comparable';

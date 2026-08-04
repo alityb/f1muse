@@ -31,10 +31,10 @@ describe('Phase 11 compositional regression corpus', () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.cases)).toBe(true);
     expect(first.coverage).toMatchObject({
-      cases_total: 19,
-      action_counts: { answer: 7, clarify: 5, abstain: 7 },
+      cases_total: 20,
+      action_counts: { answer: 8, clarify: 5, abstain: 7 },
       topology_counts: {
-        single_source_rows: 2,
+        single_source_rows: 3,
         single_source_aggregate: 1,
         row_dimension_join: 2,
         scalar_aggregate_compose: 2
@@ -54,11 +54,12 @@ describe('Phase 11 compositional regression corpus', () => {
     expect(() => parseCompositionalRegressionCorpus(corpus)).toThrow();
 
     const malformedResolver = structuredClone(compositionalRegressionCorpusInput) as any;
-    malformedResolver.cases[2].resolver.driver_mentions[0].active_candidates = ['not-enumerated'];
+    malformedResolver.cases.find((item: any) => item.id === 'promoted-aggregate-locality')
+      .resolver.driver_mentions[0].active_candidates = ['not-enumerated'];
     expect(() => parseCompositionalRegressionCorpus(malformedResolver)).toThrow();
 
     const wrongCoverage = structuredClone(compositionalRegressionCorpusInput) as any;
-    wrongCoverage.expected_coverage.cases_total = 20;
+    wrongCoverage.expected_coverage.cases_total = 21;
     await expect(runCompositionalRegressionCorpus(wrongCoverage)).rejects.toThrow('coverage mismatch');
 
     const snapshot = JSON.parse(readFileSync(COMPOSITIONAL_REGRESSION_SNAPSHOT_PATH, 'utf8'));
@@ -87,7 +88,7 @@ describe('Phase 11 compositional regression corpus', () => {
   it('preserves the existing 110-case exact-template evaluation as a separate suite', async () => {
     const compositional = await runCompositionalRegressionCorpus(compositionalRegressionCorpusInput);
     expect(answerEvaluationManifest).toHaveLength(110);
-    expect(compositional.cases).toHaveLength(19);
+    expect(compositional.cases).toHaveLength(20);
     const legacyIds = new Set(answerEvaluationManifest.map(item => item.id));
     expect(compositional.cases.every(item => !legacyIds.has(item.id))).toBe(true);
     expect(JSON.stringify(compositional)).not.toContain('template_id');

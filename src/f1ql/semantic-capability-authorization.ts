@@ -30,7 +30,7 @@ import {
   verifySemanticPlanProof
 } from './semantic-plan-proof';
 
-export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v5' as const;
+export const SEMANTIC_CAPABILITY_AUTHORIZATION_VERSION = 'semantic-capability-authorization-v6' as const;
 export const SEMANTIC_CAPABILITY_AUTHORIZATION_TTL_MS = 5_000;
 
 interface SemanticPlanInteraction {
@@ -395,6 +395,7 @@ interface ProfileShape {
   readonly principal_classes: readonly string[];
   readonly canary_stages: readonly number[];
   readonly complete_interactions: readonly {
+    readonly entity_count?: { readonly min: number; readonly max: number };
     readonly question_sha256?: string;
     readonly season_values?: readonly number[];
     readonly entity_values?: readonly string[];
@@ -483,12 +484,15 @@ function reviewedInteractionAllows(
   resolvedEntityValues: readonly string[]
 ): boolean {
   const {
+    entity_count: entityCount,
     question_sha256: questionSha256,
     season_values: seasonValues,
     entity_values: entityValues,
     ...structure
   } = reviewed;
   return stableSerialize(structure) === stableSerialize(completeInteraction(interaction)) &&
+    (entityCount === undefined ||
+      (interaction.entity_count >= entityCount.min && interaction.entity_count <= entityCount.max)) &&
     (questionSha256 === undefined || questionSha256 === proof.question_sha256) &&
     (seasonValues === undefined || stableSerialize(seasonValues) === stableSerialize(interaction.season_values)) &&
     (entityValues === undefined || stableSerialize(entityValues) === stableSerialize(resolvedEntityValues));

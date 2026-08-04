@@ -5,6 +5,7 @@ const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying
 const HOLDOUT_STANDINGS = 'Give driver and championship points from 2024 final driver standings.';
 const HOLDOUT_RACE_METADATA = 'Give driver and finishing position, event name, and circuit identifier for round 2 of final 2024 race classification and event metadata.';
 const HOLDOUT_COMPOSE = 'In final 2024, show count of finishing position from race classification and count of qualifying position from qualifying classification for Piastri.';
+const FILTERED_STANDINGS = 'List driver and championship points for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
 
 const noResolvers = {
   driver_mentions: [],
@@ -14,23 +15,23 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 19,
-    action_counts: { answer: 7, clarify: 5, abstain: 7 },
-    split_counts: { development: 4, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 20,
+    action_counts: { answer: 8, clarify: 5, abstain: 7 },
+    split_counts: { development: 5, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
-      single_source_rows: 2,
+      single_source_rows: 3,
       single_source_aggregate: 1,
       row_dimension_join: 2,
       scalar_aggregate_compose: 2
     },
     source_set_counts: {
-      driver_standings: 2,
+      driver_standings: 3,
       qualifying_classification: 1,
       event_classification_event_metadata: 2,
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 2,
+      single_source: 3,
       safe_dimension_join: 2,
       aggregate_locality: 2,
       other: 1
@@ -53,11 +54,11 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 4,
+      promoted_topology: 5,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 2,
+      plan_family_single_source: 3,
       plan_family_safe_dimension_join: 2,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
@@ -68,8 +69,8 @@ export const compositionalRegressionCorpusInput: unknown = {
       aggregate_locality: 2,
       join_cardinality: 2,
       resolver_event: 2,
-      resolver_identity: 2,
-      template_free: 3,
+      resolver_identity: 3,
+      template_free: 4,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -89,6 +90,31 @@ export const compositionalRegressionCorpusInput: unknown = {
       id: 'promoted-single-source-rows', split: 'development', question: STANDINGS,
       coverage_tags: ['promoted_topology', 'plan_family_single_source'], risk_tags: ['clean'], entities: [],
       provider_mode: 'enumerated', resolver: noResolvers,
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['driver_standings'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-filtered-standings-points', split: 'development', question: FILTERED_STANDINGS,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_identity'],
+      entities: [
+        { type: 'driver', text: 'Charles Leclerc' },
+        { type: 'driver', text: 'George Russell' },
+        { type: 'driver', text: 'Lando Norris' },
+        { type: 'driver', text: 'Oscar Piastri' }
+      ],
+      provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [
+          { text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] },
+          { text: 'George Russell', candidates: ['george-russell'], active_candidates: ['george-russell'] },
+          { text: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+          { text: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+        ],
+        event_resolution: { type: 'missing' }
+      },
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
         source_ids: ['driver_standings'], plan_family: 'single_source'
