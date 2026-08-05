@@ -140,6 +140,60 @@ const cases = [
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
     rows: [{ count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-filtered-qualifying-scalar-aggregate',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-singleton-standings-position',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{
+      driver_id: 'lando-norris', championship_position: 1, [PLANNED_INTEGRITY_FIELD]: true
+    }]
+  },
+  {
+    id: 'family-singleton-standings-summary',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{
+      driver_id: 'lando-norris', championship_position: 1, points: '357.000',
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]
+  },
+  {
+    id: 'family-filtered-standings-summary',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'charles-leclerc', championship_position: 3, points: '250.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'george-russell', championship_position: 3, points: null, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'lando-norris', championship_position: null, points: '357.000', [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', championship_position: null, points: null, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
+    id: 'family-filtered-standings-position',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'charles-leclerc', championship_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'george-russell', championship_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'lando-norris', championship_position: null, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', championship_position: null, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
+    id: 'family-event-date-name',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{
+      date: '2025-03-16', event_name: 'Australian Grand Prix',
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]
   }
 ] as const;
 

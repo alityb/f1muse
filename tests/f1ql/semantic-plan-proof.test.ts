@@ -28,6 +28,11 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
+const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
+const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
 
 describe('independent semantic whole-plan proof', () => {
   it('uses one frozen resolver transcript for planning and independent proof', async () => {
@@ -60,6 +65,7 @@ describe('independent semantic whole-plan proof', () => {
     ['single-source rows', STANDINGS, []],
     ['single-source scalar aggregate', SCALAR_COUNT, []],
     ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
+    ['single-source event date and name', EVENT_DATE_NAME, []],
     ['safe metadata join', RACE_METADATA, []]
   ])('reproduces %s without planner decision imports', async (_name, question, entities) => {
     const prepared = await prepare(question, entities, [], { type: 'resolved', season: 2025, round: 1 });
@@ -67,12 +73,51 @@ describe('independent semantic whole-plan proof', () => {
     expect(prepared.proof.topology_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.participation_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.compiled_hash).toMatch(/^[a-f0-9]{64}$/u);
+    if (question === EVENT_DATE_NAME) {
+      expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
+    }
   });
 
-  it('reproduces the filtered race scalar aggregate with one participation requirement', async () => {
-    const norris = span(FILTERED_RACE_SCALAR_COUNT, 'Norris');
+  it('reproduces one selected final standings-position row with one participation requirement', async () => {
+    const norris = span(SINGLETON_STANDINGS_POSITION, 'Norris');
     const prepared = await prepare(
-      FILTERED_RACE_SCALAR_COUNT,
+      SINGLETON_STANDINGS_POSITION,
+      [{ type: 'driver', span: norris }],
+      [{ ...norris, candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris'] }]
+    );
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({
+      type: 'required',
+      requirements: [{ season: 2025, driver_ids: ['lando-norris'] }]
+    });
+  });
+
+  it.each([MULTI_STANDINGS_POSITION, MULTI_STANDINGS_SUMMARY])(
+    'reproduces selected final standings rows with complete participation requirements: %s', async question => {
+    const lando = span(question, 'Lando Norris');
+    const oscar = span(question, 'Oscar Piastri');
+    const prepared = await prepare(
+      question,
+      [{ type: 'driver', span: lando }, { type: 'driver', span: oscar }],
+      [
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ]
+    );
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({
+      type: 'required',
+      requirements: [{ season: 2025, driver_ids: ['lando-norris', 'oscar-piastri'] }]
+    });
+  });
+
+  it.each([
+    ['race', FILTERED_RACE_SCALAR_COUNT],
+    ['qualifying', FILTERED_QUALIFYING_SCALAR_COUNT]
+  ])('reproduces the filtered %s scalar aggregate with one participation requirement', async (_source, question) => {
+    const norris = span(question, 'Norris');
+    const prepared = await prepare(
+      question,
       [{ type: 'driver', span: norris }],
       [{ ...norris, candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris'] }]
     );

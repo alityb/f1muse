@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 17 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 23 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -51,6 +51,56 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         ],
         sort_bindings: ['driver_id:asc:last'],
         requested_rows: 1
+      },
+      {
+        entity_count: { min: 1, max: 1 },
+        predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.championship_position->championship_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 1, max: 1 },
+        predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.championship_position->championship_position',
+          'concept:driver_standings.points->points'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 2, max: 4 },
+        predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.championship_position->championship_position',
+          'concept:driver_standings.points->points'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
+      },
+      {
+        entity_count: { min: 2, max: 4 },
+        predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:driver_standings.driver_id->driver_id',
+          'concept:driver_standings.championship_position->championship_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
       },
       {
         entity_count: { min: 2, max: 4 },
@@ -119,6 +169,21 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
           'concept:event_metadata.event_name->event_name'
         ],
         sort_bindings: ['event_name:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_metadata.round:eq',
+          'event_metadata.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_metadata.date->date',
+          'concept:event_metadata.event_name->event_name'
+        ],
+        sort_bindings: ['date:asc:last'],
         requested_rows: 1
       },
       {
@@ -255,6 +320,22 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
       {
         entity_count: { min: 0, max: 0 },
         predicate_bindings: ['qualifying_classification.season:eq'],
+        aggregate_bindings: [
+          'qualifying_classification.qualifying_position:count->count_qualifying_position'
+        ],
+        group_bindings: [],
+        output_bindings: [
+          'aggregate:count_qualifying_position->count_qualifying_position'
+        ],
+        sort_bindings: ['count_qualifying_position:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 1, max: 1 },
+        predicate_bindings: [
+          'qualifying_classification.driver_id:eq',
+          'qualifying_classification.season:eq'
+        ],
         aggregate_bindings: [
           'qualifying_classification.qualifying_position:count->count_qualifying_position'
         ],

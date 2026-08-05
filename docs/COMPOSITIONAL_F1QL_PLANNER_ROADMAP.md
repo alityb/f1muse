@@ -702,13 +702,18 @@ historical season, one explicit round or uniquely resolved named event, and one
 to four drivers, returning only driver identity and nullable finishing
 position. The matching qualifying-classification slice is complete over the
 same season, event, and driver bounds, returning only driver identity and
-nullable qualifying position. A scalar event-metadata slice is complete for one
+nullable qualifying position. A one-event metadata slice is complete for one
 final historical season from 1950 through 2025 and exactly one explicit round
 or uniquely resolved named event, returning either one nullable canonical race
-date, one nullable raw circuit identifier, or one nullable raw event name.
+date, one nullable raw circuit identifier, one nullable raw event name, or the
+exact canonical pair of race date followed by event name. Both pair fields retain
+their source nulls, one row is required, and ordering remains `date ASC NULLS LAST`.
 Circuit identifiers preserve exact nonblank source bytes and are not circuit,
 venue, or Grand Prix names. Event names likewise preserve exact nonblank source
-text and are not circuit or venue names. A
+text and are not circuit or venue names. Date plus circuit identifier, event name
+plus circuit identifier, all three metadata fields, caller limits, multi-event,
+latest-recorded, interim, season-wide, and non-race-session variants remain
+refused. A
 selected-driver standings-ranking slice is complete for one final historical
 season from 1950 through 2025 and exactly two to four drivers, returning only
 driver identity and recorded non-null championship position. It orders official
@@ -716,6 +721,34 @@ position then driver identity, never derives rank from points, and requires
 complete requested membership plus source-wide grain, null, bound, and unique
 position integrity. Singleton, five-driver, unfiltered, caller-limited,
 latest-recorded, and interim standings-ranking requests remain refused. A
+filtered standings-position selection slice is also complete for one final
+historical season and one to four uniquely resolved canonical drivers. It
+returns only `driver_id` and the nullable raw recorded `championship_position`,
+uses `driver_id:eq` for a singleton and `driver_id:in` for two to four drivers,
+and orders by driver identity rather than position. The singleton requests one
+row; the multi-driver form uses the private 100-row collection bound and requires
+exact selected membership. Source-wide driver-season grain and positive-position
+integrity remain mandatory, while null and equal positions are preserved as raw
+facts with the catalog null caveat rather than converted into rank. Positive
+positions have no artificial upper bound. `Championship rank` remains a field
+synonym unless a separate rank command is present. Caller limits are refused
+before provider admission; ranking remains a separate stricter interaction, and
+unfiltered, five-driver, all other broader-output, latest-recorded, and interim position
+selections remain outside the executable complete interaction even when semantic
+shadow can prove their candidate plans.
+A separate selected-driver summary interaction is complete locally for one
+through four uniquely resolved drivers and one final historical season. It returns
+exactly `driver_id`, nullable raw `championship_position`, and nullable exact-decimal
+championship `points`. A singleton uses `driver_id:eq`, empty output grain, and one
+row; two through four drivers use `driver_id:in`, residual driver grain, the private
+100-row collection bound, and exact selected membership. Participation,
+source-presence, driver-season grain, positive-position integrity, and
+driver-identity ordering requirements are unchanged. Null position and null points
+remain unavailable recorded facts; neither is derived or defaulted. This mixed
+projection does not acquire the points-only answer-envelope compatibility contract.
+Unfiltered, five-or-more-driver, caller-limited, ranked, latest-recorded, and interim
+mixed projections remain refused.
+A
 selected-driver race-ranking slice is also complete for exactly one final
 historical event and two to four drivers. It returns only driver identity and
 recorded nullable finishing position, orders position ascending with nulls last
@@ -737,7 +770,7 @@ refused.
 Ungrouped classification-position count slices are also complete for one final
 historical season from 1950 through 2025. The race slice permits either no
 driver filter or exactly one uniquely resolved canonical driver; the qualifying
-slice remains unfiltered. They return exactly one
+slice permits the same two modes. They return exactly one
 `count_finishing_position` or `count_qualifying_position` scalar using
 `COUNT(finishing_position)` or `COUNT(qualifying_position)` over the respective
 governed retained rows. Null positions are excluded; an integrity-clean
@@ -745,17 +778,18 @@ all-null source is factual zero, while absent source rows are integrity failure.
 The race count does not mean starts, events, wins, classified finishes, or
 complete schedule/entrant coverage. The qualifying count does not mean
 appearances, events, poles, top-ten results, or complete schedule/entrant
-coverage. A filtered race count additionally requires selected-driver season
+coverage. A filtered classification count additionally requires selected-driver season
 participation and selected source presence. Source-wide event-driver grain and
 position bounds remain mandatory even outside the selected driver, but equal
-positions are valid because no sporting rank is inferred. Multi-driver race
-filters, every qualifying driver filter, event, status, or position filters,
+positions are valid because no sporting rank is inferred. Multi-driver classification
+filters, event, status, or position filters,
 grouped and ranked counts, alternate aggregates, broader output,
 latest-recorded scope, and caller limits remain refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
-selection, latest-recorded 2026 event metadata, user-supplied limits, combined
-or broader event metadata, non-race session dates, classification status,
+selection, latest-recorded 2026 event metadata, user-supplied limits, event-metadata
+combinations other than the exact race-date-and-event-name pair, broader event
+metadata, non-race session dates, classification status,
 qualifying timing, grid position, sprint qualifying, other grouping or aggregation,
 unfiltered ranking, and comparison remain outside these slices and must be promoted
 through separate complete-interaction and response-coverage contracts. No

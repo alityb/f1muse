@@ -29,6 +29,10 @@ const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, 
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Norris in final 2025 race classification.';
+const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const SINGLETON_STANDINGS_POSITION_QUESTION = 'List driver and championship position for Norris from final 2025 driver standings.';
+const SINGLETON_STANDINGS_SUMMARY_QUESTION = 'List driver, championship position, and championship points for Norris from final 2025 driver standings.';
+const MULTI_STANDINGS_POSITION_QUESTION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 
 describe('semantic query candidates and independent evidence', () => {
   it('enumerates one catalog-bound explicit standings query and freezes all evidence', () => {
@@ -138,6 +142,143 @@ describe('semantic query candidates and independent evidence', () => {
     expect(reorderedQualifyingRanking.outputs.map(output => output.concept.concept_id)).toEqual([
       'driver_id', 'qualifying_position'
     ]);
+  });
+
+  it('enumerates one selected driver recorded final championship position without ranking', () => {
+    const norris = {
+      type: 'driver' as const,
+      span: span(SINGLETON_STANDINGS_POSITION_QUESTION, 'Norris')
+    };
+    const selection = candidateEvidence(SINGLETON_STANDINGS_POSITION_QUESTION, [norris]).candidates[0];
+    expect(selection).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'championship_position' } }
+      ],
+      entities: [norris],
+      filters: [{
+        kind: 'entity', operator: 'eq', entity_indices: [0],
+        concept: { source_id: 'driver_standings', concept_id: 'driver_id' }
+      }],
+      group_by: [],
+      order_by: []
+    });
+    expect(selection.comparison).toBeUndefined();
+    expect(selection.limit).toBeUndefined();
+  });
+
+  it('enumerates one selected driver recorded final championship position and points', () => {
+    const norris = {
+      type: 'driver' as const,
+      span: span(SINGLETON_STANDINGS_SUMMARY_QUESTION, 'Norris')
+    };
+    const selection = candidateEvidence(SINGLETON_STANDINGS_SUMMARY_QUESTION, [norris]).candidates[0];
+    expect(selection).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'championship_position' } },
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'points' } }
+      ],
+      entities: [norris],
+      filters: [{
+        kind: 'entity', operator: 'eq', entity_indices: [0],
+        concept: { source_id: 'driver_standings', concept_id: 'driver_id' }
+      }],
+      group_by: [],
+      order_by: []
+    });
+    expect(selection.comparison).toBeUndefined();
+    expect(selection.limit).toBeUndefined();
+  });
+
+  it.each([2, 3, 4] as const)(
+    'enumerates selected final championship position and points for %i drivers',
+    cardinality => {
+      const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell'].slice(0, cardinality);
+      const question = `List driver, championship position, and championship points for ${names.join(', ')} from final 2025 driver standings.`;
+      const driverSpans = names.map(name => span(question, name));
+      const selection = candidateEvidence(question, driverSpans.map(driverSpan => ({
+        type: 'driver', span: driverSpan
+      }))).candidates[0];
+      expect(selection).toMatchObject({
+        outputs: [
+          { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
+          { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'championship_position' } },
+          { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'points' } }
+        ],
+        filters: [{
+          kind: 'entity', operator: 'in',
+          entity_indices: Array.from({ length: cardinality }, (_, index) => index)
+        }],
+        group_by: [],
+        order_by: []
+      });
+      expect(selection.comparison).toBeUndefined();
+      expect(selection.limit).toBeUndefined();
+    }
+  );
+
+  it('canonicalizes reordered selected-driver standings summary outputs', () => {
+    const question = 'List championship points, driver, and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+    const names = ['Lando Norris', 'Oscar Piastri'];
+    const evidence = candidateEvidence(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })));
+    expect(evidence.candidates[0].outputs.map(output => output.concept.concept_id)).toEqual([
+      'driver_id', 'championship_position', 'points'
+    ]);
+    expect(admitSemanticQueryCandidates(
+      { version: 2, candidates: evidence.candidates }, question, evidence
+    )).toMatchObject({ type: 'admitted' });
+  });
+
+  it('enumerates selected final championship positions without ranking for multiple drivers', () => {
+    const names = ['Lando Norris', 'Oscar Piastri'];
+    const selection = candidateEvidence(MULTI_STANDINGS_POSITION_QUESTION, names.map(text => ({
+      type: 'driver', span: span(MULTI_STANDINGS_POSITION_QUESTION, text)
+    }))).candidates[0];
+    expect(selection).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'driver_id' } },
+        { kind: 'concept', concept: { source_id: 'driver_standings', concept_id: 'championship_position' } }
+      ],
+      filters: [{
+        kind: 'entity', operator: 'in', entity_indices: [0, 1],
+        concept: { source_id: 'driver_standings', concept_id: 'driver_id' }
+      }],
+      group_by: [],
+      order_by: []
+    });
+    expect(selection.comparison).toBeUndefined();
+    expect(selection.limit).toBeUndefined();
+  });
+
+  it('distinguishes championship rank as a selected field from an explicit ranking command', () => {
+    const selectionQuestion = 'List driver and championship rank for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+    const names = ['Lando Norris', 'Oscar Piastri'];
+    const selection = candidateEvidence(selectionQuestion, names.map(text => ({
+      type: 'driver', span: span(selectionQuestion, text)
+    }))).candidates[0];
+    expect(selection.comparison).toBeUndefined();
+    expect(selection.order_by).toEqual([]);
+
+    const rankingQuestion = 'Rank Lando Norris and Oscar Piastri by championship rank in final 2025 driver standings.';
+    const ranking = candidateEvidence(rankingQuestion, names.map(text => ({
+      type: 'driver', span: span(rankingQuestion, text)
+    }))).candidates[0];
+    expect(ranking.comparison).toMatchObject({ relation: 'rank' });
+    expect(ranking.order_by).toEqual([expect.objectContaining({ output_index: 1, direction: 'asc' })]);
+  });
+
+  it.each([
+    ['List top 1 driver and championship position for Norris from final 2025 driver standings.', ['Norris'], 'unsupported_scope'],
+    ['List top 1 driver, championship position, and championship points for Norris from final 2025 driver standings.', ['Norris'], 'unsupported_comparison'],
+    ['List top 2 driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.',
+      ['Lando Norris', 'Oscar Piastri'], 'unsupported_scope']
+  ])('rejects a caller limit on selected final championship-position rows: %s', (question, names, reason) => {
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention', reason });
   });
 
   it.each([
@@ -313,6 +454,28 @@ describe('semantic query candidates and independent evidence', () => {
     });
   });
 
+  it('enumerates the same scalar qualifying count for exactly one named driver', () => {
+    const norris = {
+      type: 'driver' as const,
+      span: span(FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION, 'Norris')
+    };
+    const aggregate = candidateEvidence(FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION, [norris]).candidates[0];
+    expect(aggregate).toMatchObject({
+      outputs: [{
+        kind: 'aggregate', function: 'count',
+        concept: { source_id: 'qualifying_classification', concept_id: 'qualifying_position' }
+      }],
+      entities: [norris],
+      filters: [{
+        kind: 'entity', operator: 'eq', entity_indices: [0],
+        concept: { source_id: 'qualifying_classification', concept_id: 'driver_id' }
+      }],
+      group_by: [],
+      comparison: { relation: 'count' },
+      order_by: []
+    });
+  });
+
   it('fails closed on every unpromoted explicit source combination', () => {
     expect(enumerateSemanticQueries('List championship points and finishing position from final 2025 driver standings and race classification.')).toMatchObject({
       type: 'abstention', reason: 'unsupported_source_combination'
@@ -466,9 +629,17 @@ describe('semantic query candidates and independent evidence', () => {
     'Show count of finishing position with race classification status classified in final 2025 race classification.',
     'Show top 1 count of finishing position in final 2025 race classification.',
     'Rank drivers by count of finishing position in final 2025 race classification.',
-    'Show count of finishing position by driver in final 2025 race classification.'
-  ])('refuses position/status-filtered, limited, grouped, or ranked race-position counts before planning: %s', question => {
-    expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention' });
+    'Show count of finishing position by driver in final 2025 race classification.',
+    'Show count of qualifying position equal to 1 in final 2025 qualifying classification.',
+    'Show count of qualifying position with qualifying classification status classified in final 2025 qualifying classification.',
+    'Show top 1 count of qualifying position for Norris in final 2025 qualifying classification.',
+    'Rank Norris by count of qualifying position in final 2025 qualifying classification.',
+    'Show count of qualifying position by driver in final 2025 qualifying classification.'
+  ])('refuses position/status-filtered, limited, grouped, or ranked classification-position counts before planning: %s', question => {
+    const entities = question.includes('Norris')
+      ? [{ type: 'driver' as const, span: span(question, 'Norris') }]
+      : [];
+    expect(enumerateSemanticQueries(question, entities)).toMatchObject({ type: 'abstention' });
   });
 
   it('keeps provider omission from collapsing independent ambiguity', () => {
@@ -751,6 +922,11 @@ describe('semantic query candidates and independent evidence', () => {
       'Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc'
     ].map(text => ({ type: 'driver' as const, span: span(fiveDriverQuestion, text) }))))
       .toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
+    const fiveDriverSummaryQuestion = 'List driver, championship position, and championship points for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc from final 2025 driver standings.';
+    expect(enumerateSemanticQueries(fiveDriverSummaryQuestion, [
+      'Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc'
+    ].map(text => ({ type: 'driver' as const, span: span(fiveDriverSummaryQuestion, text) }))))
+      .toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
 
     const seasonWideRaceQuestion = 'List driver and finishing position for Max Verstappen from final 2025 race classification.';
     expect(enumerateSemanticQueries(seasonWideRaceQuestion, [{
@@ -814,6 +990,29 @@ describe('semantic query candidates and independent evidence', () => {
     expect(enumerateSemanticQueries(namedEventName, [{
       type: 'event', span: span(namedEventName, 'Monaco')
     }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
+    const eventDateName = 'List race date and event name from round 1 of final 2025 event metadata.';
+    expect(enumerateSemanticQueries(eventDateName)).toMatchObject({
+      type: 'candidate_set',
+      candidates: [expect.objectContaining({
+        outputs: [
+          expect.objectContaining({ concept: { source_id: 'event_metadata', concept_id: 'date' } }),
+          expect.objectContaining({ concept: { source_id: 'event_metadata', concept_id: 'event_name' } })
+        ]
+      })]
+    });
+    const reversedEventDateName = 'List event name and race date from round 1 of final 2025 event metadata.';
+    expect((enumerateSemanticQueries(reversedEventDateName) as any).candidates[0].outputs.map(
+      (output: any) => output.concept.concept_id
+    )).toEqual(['date', 'event_name']);
+    const namedEventDateName = 'List event name and race date from final 2025 event metadata at Monaco.';
+    expect(enumerateSemanticQueries(namedEventDateName, [{
+      type: 'event', span: span(namedEventDateName, 'Monaco')
+    }])).toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });
+    const multipleEventDateName = 'List race date and event name from final 2025 event metadata at Monaco or Silverstone.';
+    expect(enumerateSemanticQueries(multipleEventDateName, [
+      { type: 'event', span: span(multipleEventDateName, 'Monaco') },
+      { type: 'event', span: span(multipleEventDateName, 'Silverstone') }
+    ])).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
     for (const question of [
       'List circuit name from round 1 of final 2025 event metadata.',
       'List venue name from round 1 of final 2025 event metadata.'
@@ -832,11 +1031,19 @@ describe('semantic query candidates and independent evidence', () => {
       'List event name from final 2025 event metadata.',
       'List top 1 event name from round 1 of final 2025 event metadata.',
       'List race date and circuit identifier from round 1 of final 2025 event metadata.',
+      'List event name and circuit identifier from round 1 of final 2025 event metadata.',
+      'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.',
+      'List race date and event name from final 2025 event metadata.',
+      'List top 1 race date and event name from round 1 of final 2025 event metadata.',
       'List circuit identifier from round 1 of latest recorded 2026 event metadata.',
-      'List event name from round 1 of latest recorded 2026 event metadata.'
+      'List event name from round 1 of latest recorded 2026 event metadata.',
+      'List race date and event name from round 1 of latest recorded 2026 event metadata.'
     ]) {
       expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention', reason: 'unsupported_scope' });
     }
+    expect(enumerateSemanticQueries(
+      'List race date and event name from round 1 of interim 2025 event metadata.'
+    )).toMatchObject({ type: 'abstention' });
   });
 
   it('requires active evidence bound to the exact question, catalog, and candidate-set hash', () => {
@@ -874,10 +1081,14 @@ describe('semantic query candidates and independent evidence', () => {
     ])).toMatchObject({ type: 'abstention', reason: 'unsupported_concept' });
 
     const globalQuestion = 'List championship position and championship points for Norris and Piastri from final 2025 driver standings.';
-    expect(candidateEvidence(globalQuestion, [
+    const global = candidateEvidence(globalQuestion, [
       { type: 'driver', span: span(globalQuestion, 'Norris') },
       { type: 'driver', span: span(globalQuestion, 'Piastri') }
-    ]).candidates[0].filters).toEqual([expect.objectContaining({ kind: 'entity', operator: 'in', entity_indices: [0, 1] })]);
+    ]).candidates[0];
+    expect(global.outputs.map(output => output.concept.concept_id)).toEqual([
+      'championship_position', 'points'
+    ]);
+    expect(global.filters).toEqual([expect.objectContaining({ kind: 'entity', operator: 'in', entity_indices: [0, 1] })]);
   });
 
   it('fails closed rather than pruning combined or partially unsupported explicit scopes', () => {

@@ -20,6 +20,12 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
+const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
+const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_DATE_NAME = 'List event name and race date from final 2025 event metadata at Monaco.';
 
 describe('deterministic semantic planner', () => {
   it('materializes a frozen deterministic single-source row plan from a live admission', async () => {
@@ -43,6 +49,75 @@ describe('deterministic semantic planner', () => {
     expect(Object.isFrozen(first.planned_f1ql.root)).toBe(true);
     expect(verifyAnswerPlan(first)).toBe(first);
     expect(() => verifyAnswerPlan({ ...first })).toThrow('provenance');
+  });
+
+  it('binds one resolved driver to one recorded final championship-position row', async () => {
+    const norris = span(SINGLETON_STANDINGS_POSITION, 'Norris');
+    const admission = admitted(SINGLETON_STANDINGS_POSITION, [{ type: 'driver', span: norris }]);
+    const plan = await planSemanticAnswer({
+      question: SINGLETON_STANDINGS_POSITION,
+      admission,
+      ...resolvers([{
+        ...norris,
+        candidates: ['historical-norris', 'lando-norris'],
+        active_candidates: ['lando-norris']
+      }])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_rows',
+      source_graph: { source_ids: ['driver_standings'] },
+      output_grain: [],
+      work: { source_scan_units: 1, resolver_reads: 1, requested_rows: 1 }
+    });
+    expect(plan.linked_entities[0]).toMatchObject({
+      selected_id: 'lando-norris',
+      resolution_relationship_ids: ['driver_identity_standings_resolution', 'driver_participation_resolution']
+    });
+    expect(plan.branches[0].predicates).toMatchObject([
+      { concept: { concept_id: 'driver_id' }, operator: 'eq', value: 'lando-norris' },
+      { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+    ]);
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 1,
+      input: { keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }] }
+    });
+  });
+
+  it.each([MULTI_STANDINGS_POSITION, MULTI_STANDINGS_SUMMARY])(
+    'binds multiple resolved drivers to non-ranking recorded standings rows: %s', async question => {
+    const lando = span(question, 'Lando Norris');
+    const oscar = span(question, 'Oscar Piastri');
+    const admission = admitted(question, [
+      { type: 'driver', span: lando }, { type: 'driver', span: oscar }
+    ]);
+    const plan = await planSemanticAnswer({
+      question,
+      admission,
+      ...resolvers([
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_rows',
+      source_graph: { source_ids: ['driver_standings'] },
+      output_grain: ['driver_id'],
+      work: { source_scan_units: 1, resolver_reads: 1, requested_rows: 100 }
+    });
+    expect(plan.branches[0]).toMatchObject({
+      fixed_grain: ['season'], residual_grain: ['driver_id'],
+      predicates: [
+        {
+          concept: { concept_id: 'driver_id' }, operator: 'in',
+          values: ['lando-norris', 'oscar-piastri']
+        },
+        { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+      ]
+    });
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 100,
+      input: { keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }] }
+    });
   });
 
   it('selects only the reviewed many-to-one metadata edge and verifies the round', async () => {
@@ -82,6 +157,37 @@ describe('deterministic semantic planner', () => {
     ]);
     expect(plan.branches.every(branch => branch.predicates.some(predicate =>
       predicate.concept.concept_id === 'round' && predicate.operator === 'eq' && predicate.value === 8))).toBe(true);
+  });
+
+  it.each([
+    [EVENT_DATE_NAME, []],
+    [NAMED_EVENT_DATE_NAME, [{ type: 'event', span: span(NAMED_EVENT_DATE_NAME, 'Monaco') }]]
+  ])('plans one canonical event date-and-name row: %s', async (question, entities) => {
+    const admission = admitted(question, entities);
+    const plan = await planSemanticAnswer({
+      question,
+      admission,
+      ...resolvers([], { type: 'resolved', season: 2025, round: 1 })
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_rows',
+      source_graph: { source_ids: ['event_metadata'], row_relationship_ids: [] },
+      output_grain: [],
+      work: { source_scan_units: 1, requested_rows: 1 }
+    });
+    expect(plan.planned_f1ql.root.input.input.outputs.map(output => output.as))
+      .toEqual(['date', 'event_name']);
+    expect(plan.branches[0]).toMatchObject({
+      fixed_grain: ['round', 'season'], residual_grain: [],
+      predicates: [
+        { concept: { concept_id: 'round' }, operator: 'eq', value: 1 },
+        { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+      ]
+    });
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 1,
+      input: { keys: [{ output_id: 'date', direction: 'asc', nulls: 'last' }] }
+    });
   });
 
   it('aggregates each source before composing one bounded scalar row', async () => {
@@ -157,6 +263,34 @@ describe('deterministic semantic planner', () => {
     expect(plan.linked_entities[0]).toMatchObject({
       selected_id: 'lando-norris',
       resolution_relationship_ids: ['driver_identity_race_resolution', 'driver_participation_resolution']
+    });
+    expect(plan.branches[0].predicates).toMatchObject([
+      { concept: { concept_id: 'driver_id' }, operator: 'eq', value: 'lando-norris' },
+      { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+    ]);
+  });
+
+  it('binds one resolved driver without changing the scalar qualifying-count topology', async () => {
+    const norris = span(FILTERED_QUALIFYING_SCALAR_COUNT, 'Norris');
+    const admission = admitted(FILTERED_QUALIFYING_SCALAR_COUNT, [{ type: 'driver', span: norris }]);
+    const plan = await planSemanticAnswer({
+      question: FILTERED_QUALIFYING_SCALAR_COUNT,
+      admission,
+      ...resolvers([{
+        ...norris,
+        candidates: ['historical-norris', 'lando-norris'],
+        active_candidates: ['lando-norris']
+      }])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['qualifying_classification'] },
+      output_grain: [],
+      work: { source_scan_units: 30, resolver_reads: 1, requested_rows: 1 }
+    });
+    expect(plan.linked_entities[0]).toMatchObject({
+      selected_id: 'lando-norris',
+      resolution_relationship_ids: ['driver_identity_qualifying_resolution', 'driver_participation_resolution']
     });
     expect(plan.branches[0].predicates).toMatchObject([
       { concept: { concept_id: 'driver_id' }, operator: 'eq', value: 'lando-norris' },

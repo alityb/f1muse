@@ -238,7 +238,7 @@ export function enumerateSemanticQueries(
   const entities = canonicalEntities(inventory);
   const sourceMatches = collectSourceMatches(question.normalized_question, catalog);
   const conceptMatches = collectConceptMatches(question.normalized_question, catalog, sourceMatches);
-  const operations = collectOperationEvidence(question.normalized_question);
+  const operations = collectOperationEvidence(question.normalized_question, conceptMatches);
   if (new Set(operations.temporal.map(item => item.value)).size > 1) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
@@ -349,6 +349,17 @@ export function enumerateSemanticQueries(
   const filteredClassificationSelection = sourceIds.length === 1 &&
     (sourceIds[0] === 'event_classification' || sourceIds[0] === 'qualifying_classification') &&
     entities.some(entity => entity.type === 'driver');
+  const filteredStandingsPositionSelection = sourceIds.length === 1 &&
+    sourceIds[0] === 'driver_standings' && entities.length >= 1 && entities.length <= 4 &&
+    entities.every(entity => entity.type === 'driver') &&
+    !operations.count && !operations.rank && effectiveConceptMatches.some(match =>
+      match.source_id === 'driver_standings' && match.concept_id === 'championship_position') &&
+    effectiveConceptMatches.every(match => match.source_id !== 'driver_standings' ||
+      match.concept_id === 'driver_id' || match.concept_id === 'championship_position' ||
+      match.concept_id === 'points');
+  if (filteredStandingsPositionSelection && operations.limit) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   const classificationPositionId = sourceIds[0] === 'event_classification'
     ? 'finishing_position'
     : 'qualifying_position';
@@ -357,7 +368,8 @@ export function enumerateSemanticQueries(
     match.concept_id === 'driver_id' ||
     match.concept_id === classificationPositionId
   );
-  if (filteredClassificationSelection && hasOnlySelectionConcepts && (operations.limit || (
+  if (filteredClassificationSelection && hasOnlySelectionConcepts && (operations.limit ||
+      (operations.count && operations.rank) || (
     !entities.some(entity => entity.type === 'event') && question.rounds.length === 0 &&
     !operations.count && !operations.rank
   ))) {
@@ -373,7 +385,8 @@ export function enumerateSemanticQueries(
     ? catalog.sources.find(source => source.id === 'event_metadata' && source.usage === 'answer_fact')
     : undefined;
   const eventScalarSelection = eventMetadataSelection && effectiveConceptMatches.length > 0 &&
-    eventScalarConceptIds.size === 1 &&
+    (eventScalarConceptIds.size === 1 || (eventScalarConceptIds.size === 2 &&
+      eventScalarConceptIds.has('date') && eventScalarConceptIds.has('event_name'))) &&
     effectiveConceptMatches.every(match => match.source_id === 'event_metadata' &&
       match.concept_id !== undefined && eventScalarConceptIds.has(match.concept_id));
   const eventSelectorCount = question.rounds.length + entities.filter(entity => entity.type === 'event').length;
@@ -741,14 +754,15 @@ function buildOutputChoices(
     if (alternatives) {
       return operations.count ? { outputs: [], defaulted: false } : { outputs: alternatives, defaulted: true };
     }
-    const countable = explicit.filter(output => source.measures.find(measure => measure.id === output.concept.concept_id)?.allowed_aggregations.includes('count'));
+    const normalizedExplicit = canonicalEventMetadataOutputs(source, canonicalStandingsSummaryOutputs(source, explicit, operations), operations);
+    const countable = normalizedExplicit.filter(output => source.measures.find(measure => measure.id === output.concept.concept_id)?.allowed_aggregations.includes('count'));
     if (operations.count) {
-      const unsupportedMeasures = explicit.filter(output => source.measures.some(measure =>
+      const unsupportedMeasures = normalizedExplicit.filter(output => source.measures.some(measure =>
         measure.id === output.concept.concept_id && !measure.allowed_aggregations.includes('count')));
       if (countable.length !== 1 || unsupportedMeasures.length > 0) {
         return { outputs: [], defaulted: false };
       }
-      const dimensions = explicit.filter(output => source.dimensions.some(dimension => dimension.id === output.concept.concept_id));
+      const dimensions = normalizedExplicit.filter(output => source.dimensions.some(dimension => dimension.id === output.concept.concept_id));
       return {
         outputs: [[...dimensions, {
           kind: 'aggregate' as const,
@@ -759,7 +773,7 @@ function buildOutputChoices(
         defaulted: false
       };
     }
-    return { outputs: [explicit], defaulted: false };
+    return { outputs: [normalizedExplicit], defaulted: false };
   }
   const sourceEvidence = sourceMatches.find(match => match.source_id === source.id)?.span;
   if (!sourceEvidence) {
@@ -779,6 +793,34 @@ function buildOutputChoices(
     }))),
     defaulted: true
   };
+}
+
+function canonicalStandingsSummaryOutputs(
+  source: SemanticCatalogSource,
+  outputs: readonly SemanticQuery['outputs'][number][],
+  operations: OperationEvidence
+): readonly SemanticQuery['outputs'][number][] {
+  const order = ['driver_id', 'championship_position', 'points'];
+  if (source.id !== 'driver_standings' || operations.count || operations.rank ||
+      outputs.length !== order.length || !order.every(conceptId =>
+        outputs.some(output => output.concept.concept_id === conceptId))) {
+    return outputs;
+  }
+  return order.map(conceptId => outputs.find(output => output.concept.concept_id === conceptId)!);
+}
+
+function canonicalEventMetadataOutputs(
+  source: SemanticCatalogSource,
+  outputs: readonly SemanticQuery['outputs'][number][],
+  operations: OperationEvidence
+): readonly SemanticQuery['outputs'][number][] {
+  const order = ['date', 'event_name'];
+  if (source.id !== 'event_metadata' || operations.count || operations.rank ||
+      outputs.length !== order.length || !order.every(conceptId =>
+        outputs.some(output => output.concept.concept_id === conceptId))) {
+    return outputs;
+  }
+  return order.map(conceptId => outputs.find(output => output.concept.concept_id === conceptId)!);
 }
 
 function reviewedProjectionOutputs(
@@ -1337,10 +1379,12 @@ function collectConceptMatches(question: string, catalog: SemanticCatalog, sourc
     : []).sort(compareMatches);
 }
 
-function collectOperationEvidence(question: string): OperationEvidence {
+function collectOperationEvidence(question: string, conceptMatches: readonly LexicalMatch[]): OperationEvidence {
   const countSpans = regexSpans(question, /\b(?:count(?:\s+of)?|number\s+of)\b/giu);
   const count = countSpans[0];
-  const rank = firstRegexSpan(question, /\b(?:rank|top\s+\d{1,3})\b/iu);
+  const rank = regexSpans(question, /\b(?:rank|top\s+\d{1,3})\b/giu).find(span =>
+    !conceptMatches.some(match => match.source_id === 'driver_standings' &&
+      match.concept_id === 'championship_position' && match.span.start <= span.start && match.span.end >= span.end));
   const limitMatch = [...question.matchAll(/\btop\s+(\d{1,3})\b/giu)][0];
   const temporal = [
     ...regexSpans(question, /\bfinal\b/giu).map(span => ({ value: 'final' as const, span })),
@@ -1688,12 +1732,6 @@ function findLiteralSpans(question: string, phrase: string): SemanticLiteralSpan
     spans.push({ text: questionPoints.slice(start, start + phrasePoints.length).join(''), start, end: start + phrasePoints.length });
   }
   return spans;
-}
-
-function firstRegexSpan(question: string, pattern: RegExp): SemanticLiteralSpan | undefined {
-  const match = pattern.exec(question);
-  pattern.lastIndex = 0;
-  return match ? regexMatchSpan(question, match) : undefined;
 }
 
 function regexSpans(question: string, pattern: RegExp): SemanticLiteralSpan[] {

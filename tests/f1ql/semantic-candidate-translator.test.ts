@@ -124,11 +124,25 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_EFFECTIVE_SYSTEM_PROMPT)
       .toContain('Never rank official championship position by points');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('emit exactly driver_id, championship_position, and points outputs in that order');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('using eq for one driver or in for two to four drivers');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('this rule overrides the earlier driver_id-and-points rule; never emit the points-only shape for that request');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Do not extend this summary rule to unfiltered, five-or-more-driver, caller-limited, ranked, latest-recorded, or interim requests');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('requests that name race date, circuit identifier, or event name from final YYYY event metadata at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('A circuit identifier is a raw identifier, not a circuit, venue, or Grand Prix name');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('an event name is recorded source text, not a circuit or venue name');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('emit exactly date then event_name in that order');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('this exact pair is the only supported combined event-metadata projection');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('date plus circuit_id, event_name plus circuit_id, all three fields, multiple events');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

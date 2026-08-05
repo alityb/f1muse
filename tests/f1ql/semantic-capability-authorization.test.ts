@@ -72,7 +72,55 @@ const POSITIVE_PROFILE_CASES = {
       candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
       active_candidates: ['charles-leclerc']
     }]
+  }), ({ year, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver and championship position for Charles Leclerc from final ${year} driver standings.`,
+    entity_names: ['Charles Leclerc'],
+    driver_mentions: [{
+      name: 'Charles Leclerc',
+      candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
+      active_candidates: ['charles-leclerc']
+    }]
+  }), ({ year, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List driver, championship position, and championship points for Charles Leclerc from final ${year} driver standings.`,
+    entity_names: ['Charles Leclerc'],
+    driver_mentions: [{
+      name: 'Charles Leclerc',
+      candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
+      active_candidates: ['charles-leclerc']
+    }]
   }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `List driver and championship position for ${drivers.map(([name]) => name).join(', ')} from final ${year} driver standings.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `List driver, championship position, and championship points for ${drivers.map(([name]) => name).join(', ')} from final ${year} driver standings.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
+  }, ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
     const drivers = [
       ['Charles Leclerc', 'charles-leclerc'],
       ['George Russell', 'george-russell'],
@@ -112,6 +160,9 @@ const POSITIVE_PROFILE_CASES = {
     entity_names: []
   }), ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List event name from round ${round} of final ${year} event metadata.`,
+    entity_names: []
+  }), ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `List race date and event name from round ${round} of final ${year} event metadata.`,
     entity_names: []
   }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position for Charles Leclerc from round ${round} of final ${year} race classification.`,
@@ -207,6 +258,14 @@ const POSITIVE_PROFILE_CASES = {
   }, ({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show count of qualifying position in final ${year} qualifying classification.`,
     entity_names: []
+  }), ({ year, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show count of qualifying position for Lando Norris in final ${year} qualifying classification.`,
+    entity_names: ['Lando Norris'],
+    driver_mentions: [{
+      name: 'Lando Norris',
+      candidates: candidateInventory('lando-norris', candidate_count, selected_index),
+      active_candidates: ['lando-norris']
+    }]
   })],
   'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -236,8 +295,13 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(profile.complete_interactions.map(interaction => interaction.entity_count)).toEqual([
       { min: 0, max: 0 },
       { min: 1, max: 1 },
+      { min: 1, max: 1 },
+      { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
+      { min: 2, max: 4 },
+      { min: 2, max: 4 },
+      { min: 0, max: 0 },
       { min: 0, max: 0 },
       { min: 0, max: 0 },
       { min: 0, max: 0 },
@@ -249,7 +313,8 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
-      { min: 0, max: 0 }
+      { min: 0, max: 0 },
+      { min: 1, max: 1 }
     ]);
     expect(profile.source_sets).toEqual([
       ['driver_standings'], ['event_classification'], ['event_metadata'], ['qualifying_classification']
@@ -287,6 +352,18 @@ describe('semantic complete-interaction capability authorization', () => {
         group_bindings: [],
         output_bindings: ['concept:event_metadata.event_name->event_name'],
         sort_bindings: ['event_name:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: ['event_metadata.round:eq', 'event_metadata.season:eq'],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_metadata.date->date',
+          'concept:event_metadata.event_name->event_name'
+        ],
+        sort_bindings: ['date:asc:last'],
         requested_rows: 1
       }
     ]);
@@ -378,7 +455,8 @@ describe('semantic complete-interaction capability authorization', () => {
   it.each([
     'List race date from round 1 of latest recorded 2026 event metadata.',
     'List circuit identifier from round 1 of latest recorded 2026 event metadata.',
-    'List event name from round 1 of latest recorded 2026 event metadata.'
+    'List event name from round 1 of latest recorded 2026 event metadata.',
+    'List race date and event name from round 1 of latest recorded 2026 event metadata.'
   ])('rejects latest-recorded 2026 event metadata before capability authorization: %s', question => {
     expect(enumerateSemanticQueries(question)).toMatchObject({
       type: 'abstention', reason: 'unsupported_scope'
@@ -404,6 +482,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['List race date from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List circuit identifier from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List event name from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
+    ['List race date and event name from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['Show count of finishing position in final 2025 race classification.', 'semantic-single-source-v1', []],
     ['Show count of finishing position for Norris in final 2025 race classification.', 'semantic-single-source-v1', ['Norris']],
     ['Show count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
@@ -564,16 +643,49 @@ describe('semantic complete-interaction capability authorization', () => {
     });
   });
 
-  it('rejects latest-recorded, multi-driver race, and driver-filtered qualifying-position counts', async () => {
+  it('binds only one resolved driver to the filtered qualifying-position scalar count', async () => {
+    const question = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+    const proof = await semanticProof(question, ['Norris'], [{
+      name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris']
+    }]);
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_ids: ['qualifying_classification'],
+      relationship_ids: [],
+      operator_signature: 'limit(sort(project(aggregate(filter(source)))))',
+      predicate_bindings: [
+        'qualifying_classification.driver_id:eq',
+        'qualifying_classification.season:eq'
+      ],
+      aggregate_bindings: [
+        'qualifying_classification.qualifying_position:count->count_qualifying_position'
+      ],
+      group_bindings: [],
+      output_bindings: ['aggregate:count_qualifying_position->count_qualifying_position'],
+      sort_bindings: ['count_qualifying_position:asc:last'],
+      entity_count: 1,
+      entity_values: ['lando-norris'],
+      event_count: 0,
+      season_count: 1,
+      season_values: [2025],
+      rows: 1
+    });
+  });
+
+  it('rejects latest-recorded and multi-driver classification-position counts', async () => {
     const latestProof = await semanticProof(
       'Show count of finishing position in latest recorded 2026 race classification.', []
     );
-    const filteredQualifyingProof = await semanticProof(
-      'Show count of qualifying position for Norris in final 2025 qualifying classification.',
-      ['Norris'],
-      [{ name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
-    );
-    const multiDriverProof = await semanticProof(
+    const multiDriverRaceProof = await semanticProof(
       'Show count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
       ['Lando Norris', 'Oscar Piastri'],
       [
@@ -581,8 +693,16 @@ describe('semantic complete-interaction capability authorization', () => {
         { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
       ]
     );
+    const multiDriverQualifyingProof = await semanticProof(
+      'Show count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+      ['Lando Norris', 'Oscar Piastri'],
+      [
+        { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ]
+    );
     const attestation = release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] });
-    for (const proof of [latestProof, filteredQualifyingProof, multiDriverProof]) {
+    for (const proof of [latestProof, multiDriverRaceProof, multiDriverQualifyingProof]) {
       expect(() => authorizeSemanticPlanCapability({
         proof,
         profile_id: 'semantic-single-source-v1',
@@ -598,8 +718,9 @@ describe('semantic complete-interaction capability authorization', () => {
   it.each([
     'List race date from final 2025 event metadata at Monaco.',
     'List circuit identifier from final 2025 event metadata at Monaco.',
-    'List event name from final 2025 event metadata at Monaco.'
-  ])('authorizes a uniquely resolved named-event scalar interaction: %s', async question => {
+    'List event name from final 2025 event metadata at Monaco.',
+    'List race date and event name from final 2025 event metadata at Monaco.'
+  ])('authorizes a uniquely resolved named-event metadata interaction: %s', async question => {
     const proof = await semanticProof(
       question, [], undefined, ['Monaco']
     );
@@ -697,6 +818,180 @@ describe('semantic complete-interaction capability authorization', () => {
         predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq']
       });
     }
+  });
+
+  it('binds only one resolved driver to the final standings-position selection', async () => {
+    const question = 'List driver and championship position for Norris from final 2025 driver standings.';
+    const proof = await semanticProof(question, ['Norris'], [{
+      name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris']
+    }]);
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_rows',
+      source_ids: ['driver_standings'],
+      relationship_ids: [],
+      operator_signature: 'limit(sort(project(filter(source))))',
+      predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq'],
+      aggregate_bindings: [],
+      group_bindings: [],
+      output_bindings: [
+        'concept:driver_standings.driver_id->driver_id',
+        'concept:driver_standings.championship_position->championship_position'
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      entity_count: 1,
+      entity_values: ['lando-norris'],
+      event_count: 0,
+      season_count: 1,
+      season_values: [2025],
+      rows: 1
+    });
+  });
+
+  it.each([2, 3, 4] as const)('authorizes non-ranking standings-position selection through driver cardinality %i', async cardinality => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, cardinality);
+    const question = `List driver and championship position for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_rows',
+      predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+      output_bindings: [
+        'concept:driver_standings.driver_id->driver_id',
+        'concept:driver_standings.championship_position->championship_position'
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      entity_count: cardinality,
+      rows: 100
+    });
+  });
+
+  it('authorizes the singleton standings-position and points projection', async () => {
+    const question = 'List driver, championship position, and championship points for Norris from final 2025 driver standings.';
+    const proof = await semanticProof(
+      question,
+      ['Norris'],
+      [{ name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      predicate_bindings: ['driver_standings.driver_id:eq', 'driver_standings.season:eq'],
+      output_bindings: [
+        'concept:driver_standings.driver_id->driver_id',
+        'concept:driver_standings.championship_position->championship_position',
+        'concept:driver_standings.points->points'
+      ],
+      entity_count: 1,
+      rows: 1
+    });
+  });
+
+  it.each([2, 3, 4] as const)('authorizes standings-position and points selection through driver cardinality %i', async cardinality => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, cardinality);
+    const question = `List driver, championship position, and championship points for ${drivers.map(([name]) => name).join(', ')} from final 2025 driver standings.`;
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      predicate_bindings: ['driver_standings.driver_id:in', 'driver_standings.season:eq'],
+      output_bindings: [
+        'concept:driver_standings.driver_id->driver_id',
+        'concept:driver_standings.championship_position->championship_position',
+        'concept:driver_standings.points->points'
+      ],
+      entity_count: cardinality,
+      rows: 100
+    });
+  });
+
+  it('authorizes reordered standings summary language through canonical output bindings', async () => {
+    const question = 'List championship points, driver, and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+    const drivers = [
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ];
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    expect(authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    }).interaction.output_bindings).toEqual([
+      'concept:driver_standings.driver_id->driver_id',
+      'concept:driver_standings.championship_position->championship_position',
+      'concept:driver_standings.points->points'
+    ]);
+  });
+
+  it('rejects an unfiltered standings-position and points projection', async () => {
+    const question = 'List driver, championship position, and championship points from final 2025 driver standings.';
+    const mentions: readonly SemanticDriverMention[] = [];
+    const proof = await semanticProof(question, mentions.map(mention => mention.name), mentions);
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
   it.each([2, 3, 4] as const)('authorizes exact resolved driver sets through cardinality %i', async cardinality => {

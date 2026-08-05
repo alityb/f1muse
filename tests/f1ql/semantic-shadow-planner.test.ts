@@ -39,7 +39,13 @@ const COMPOSE = 'Show count of finishing position from race classification and c
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
+const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
+const SINGLETON_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Norris from final 2025 driver standings.';
+const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
+const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const EVENT_DATE = 'The 2025 Monaco race date.';
+const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
 
 describe('pure non-executing semantic shadow orchestrator', () => {
   it.each([
@@ -48,6 +54,22 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     [RACE_SCALAR_COUNT, [], { type: 'missing' } as const, 'single_source_aggregate', 'event_classification', 'filter_aggregate_project_sort_limit'],
     [FILTERED_RACE_SCALAR_COUNT, [driverMention(FILTERED_RACE_SCALAR_COUNT, 'Norris', ['lando-norris'], ['lando-norris'])],
       { type: 'missing' } as const, 'single_source_aggregate', 'event_classification', 'filter_aggregate_project_sort_limit'],
+    [FILTERED_QUALIFYING_SCALAR_COUNT, [driverMention(FILTERED_QUALIFYING_SCALAR_COUNT, 'Norris', ['lando-norris'], ['lando-norris'])],
+      { type: 'missing' } as const, 'single_source_aggregate', 'qualifying_classification', 'filter_aggregate_project_sort_limit'],
+    [SINGLETON_STANDINGS_POSITION, [driverMention(SINGLETON_STANDINGS_POSITION, 'Norris', ['lando-norris'], ['lando-norris'])],
+      { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
+    [SINGLETON_STANDINGS_SUMMARY, [driverMention(SINGLETON_STANDINGS_SUMMARY, 'Norris', ['lando-norris'], ['lando-norris'])],
+      { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
+    [MULTI_STANDINGS_POSITION, [
+      driverMention(MULTI_STANDINGS_POSITION, 'Lando Norris', ['lando-norris'], ['lando-norris']),
+      driverMention(MULTI_STANDINGS_POSITION, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri'])
+    ], { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
+    [MULTI_STANDINGS_SUMMARY, [
+      driverMention(MULTI_STANDINGS_SUMMARY, 'Lando Norris', ['lando-norris'], ['lando-norris']),
+      driverMention(MULTI_STANDINGS_SUMMARY, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri'])
+    ], { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
+    [EVENT_DATE_NAME, [], { type: 'resolved', season: 2025, round: 1 } as const,
+      'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
     [RACE_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const, 'row_dimension_join', 'event_classification__event_metadata', 'filter_join_project_sort_limit'],
     [COMPOSE, [driverMention(COMPOSE, 'Norris', ['recognizable-secret-driver'], ['recognizable-secret-driver'])], { type: 'missing' } as const,
       'scalar_aggregate_compose', 'event_classification__qualifying_classification', 'filter_aggregate_compose_project_sort_limit']
