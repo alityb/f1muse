@@ -1,36 +1,36 @@
 {
   "version": 1,
   "corpus_version": 1,
-  "corpus_hash": "f613c0ca19f678accb91d73c7880f5258cbd3c1160d6bfc5f4676771ca345192",
+  "corpus_hash": "6780b20747d3ae20f5c6df494c82ee7b0fddfc6db00d26a1878d25b50e655ca3",
   "coverage": {
-    "cases_total": 29,
+    "cases_total": 30,
     "action_counts": {
-      "answer": 17,
+      "answer": 18,
       "clarify": 5,
       "abstain": 7
     },
     "split_counts": {
-      "development": 14,
+      "development": 15,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7
     },
     "topology_counts": {
       "single_source_rows": 11,
-      "single_source_aggregate": 2,
+      "single_source_aggregate": 3,
       "row_dimension_join": 2,
       "scalar_aggregate_compose": 2
     },
     "source_set_counts": {
       "driver_standings": 4,
-      "event_classification": 3,
+      "event_classification": 4,
       "event_metadata": 3,
       "qualifying_classification": 3,
       "event_classification_event_metadata": 2,
       "event_classification_qualifying_classification": 2
     },
     "plan_family_counts": {
-      "single_source": 13,
+      "single_source": 14,
       "safe_dimension_join": 2,
       "aggregate_locality": 2,
       "other": 0
@@ -53,23 +53,23 @@
       "unsupported_scope": 1
     },
     "coverage_tag_counts": {
-      "promoted_topology": 14,
+      "promoted_topology": 15,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7,
-      "plan_family_single_source": 13,
+      "plan_family_single_source": 14,
       "plan_family_safe_dimension_join": 2,
       "plan_family_aggregate_locality": 2,
       "provider_admission": 1
     },
     "risk_tag_counts": {
       "clean": 1,
-      "aggregation": 2,
+      "aggregation": 3,
       "aggregate_locality": 2,
       "join_cardinality": 2,
       "resolver_event": 9,
-      "resolver_identity": 8,
-      "template_free": 12,
+      "resolver_identity": 9,
+      "template_free": 13,
       "metric_ambiguity": 1,
       "output_shape_ambiguity": 1,
       "scope_ambiguity": 1,
@@ -1822,6 +1822,121 @@
         "work_hash": "fdaf5b142e574388ddeee76c9da4daab5743977e6f321fb5918f1be137c8dabf",
         "participation_hash": "858cf128134a59fc1e2a7e0178b375c8efdc8f3b2ab346b1685cd5de8a123ccb",
         "compiled_hash": "b593e234f6c6363355833ced5722e7dd8a5cd8e13fa698f3e98c7f09fde75df4"
+      },
+      "plan_family": "single_source"
+    },
+    {
+      "id": "family-filtered-race-scalar-aggregate",
+      "split": "development",
+      "action": "answer",
+      "reason": "semantic_plan_proven",
+      "question_sha256": "54ca873c2df56d606313143b98ddd0695be30992c41e911af2a4965dd19f6612",
+      "coverage_tags": [
+        "promoted_topology",
+        "plan_family_single_source"
+      ],
+      "risk_tags": [
+        "aggregation",
+        "resolver_identity",
+        "template_free"
+      ],
+      "entity_inventory": [
+        {
+          "type": "driver",
+          "span": {
+            "text": "Norris",
+            "start": 37,
+            "end": 43
+          }
+        }
+      ],
+      "evidence": {
+        "type": "candidate_set",
+        "candidate_count": 1,
+        "evidence_hash": "9f2304bbbec5854b7d973f005dda79b9c63a3497a42f5e9dbc118782bc2704a6",
+        "candidate_set_hash": "79d934ee47a9cdcca5bbe4101ce12e05e92c5b20c5f774672c7d494218b95191"
+      },
+      "admission": {
+        "type": "admitted",
+        "reason": null,
+        "query_hash": "a174a0a488cea051d5e96d6b0a781aff6b164b408b1662527da9136d46443a84"
+      },
+      "resolution": {
+        "resolution_hash": "507cd6e0de288feeb454e741165dea2988d81d5460b937650ee5b2cca89a3400",
+        "source_ids": [
+          "event_classification"
+        ],
+        "entities": [
+          {
+            "entity_index": 0,
+            "type": "driver",
+            "selected_id": "lando-norris",
+            "candidate_ids": [
+              "historical-norris",
+              "lando-norris"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_race_resolution",
+              "driver_participation_resolution"
+            ]
+          }
+        ],
+        "resolved_round": null,
+        "resolver_reads": 1,
+        "resolver_candidates": 2
+      },
+      "plan": {
+        "topology": "single_source_aggregate",
+        "source_ids": [
+          "event_classification"
+        ],
+        "resolution_relationship_ids": [
+          "driver_identity_race_resolution",
+          "driver_participation_resolution"
+        ],
+        "row_relationship_ids": [],
+        "branches": [
+          {
+            "source_id": "event_classification",
+            "fixed_grain": [
+              "driver_id",
+              "season"
+            ],
+            "residual_grain": [],
+            "aggregate": {
+              "group_by": [],
+              "measures": [
+                "count_finishing_position"
+              ]
+            }
+          }
+        ],
+        "output_grain": [],
+        "integrity_checks": [
+          "position_bounds",
+          "source_presence",
+          "unique_grain"
+        ],
+        "work": {
+          "source_scan_units": 30,
+          "resolver_reads": 1,
+          "resolver_candidates": 2,
+          "sources": 1,
+          "row_joins": 0,
+          "compositions": 0,
+          "operator_depth": 5,
+          "requested_rows": 1
+        },
+        "answer_plan_hash": "2404815c662c9834104987620b5fad47a8de114255244a8bc7c2aa9af377ab31",
+        "planned_f1ql_hash": "4f5bc6cfc68467c08a9889e678ed8f15540b66de1c5f95a8cd9ebc829c83626d",
+        "core_hash": "878e11a104303bbaa991f9be1df2a0611f5ff39705396ddded7bede2c8601e41"
+      },
+      "proof": {
+        "proof_hash": "eb1fb91bdec703d9db817398662c77d48992803d925146d099ce575732bf0916",
+        "topology_hash": "45a6cc404840034909b80926385095aca96ecd2f16443ad14b30c97dbc7b0523",
+        "work_hash": "c036b16324b32d784c0876e8a92eaf32b93c38da2ef97825241ccd63fb47659d",
+        "participation_hash": "5b14858e26e245bb13c42c398338d98c57443744121a053ca4a46dc8847abe5f",
+        "compiled_hash": "07b5c2d43ed83414c96817e59207478e92220cf8f29f21a9af58e83c9f72f937"
       },
       "plan_family": "single_source"
     },

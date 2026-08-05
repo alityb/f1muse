@@ -156,6 +156,14 @@ const POSITIVE_PROFILE_CASES = {
   }, ({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show count of finishing position in final ${year} race classification.`,
     entity_names: []
+  }), ({ year, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show count of finishing position for Lando Norris in final ${year} race classification.`,
+    entity_names: ['Lando Norris'],
+    driver_mentions: [{
+      name: 'Lando Norris',
+      candidates: candidateInventory('lando-norris', candidate_count, selected_index),
+      active_candidates: ['lando-norris']
+    }]
   }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and qualifying position for Charles Leclerc from round ${round} of final ${year} qualifying classification.`,
     entity_names: ['Charles Leclerc'],
@@ -238,6 +246,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 2, max: 4 },
       { min: 0, max: 0 },
       { min: 1, max: 1 },
+      { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
       { min: 0, max: 0 }
@@ -319,7 +328,7 @@ describe('semantic complete-interaction capability authorization', () => {
       expect(generatedInteractions.map(completeInteractionKey).sort())
         .toEqual(profile.complete_interactions.map(completeInteractionKey).sort());
     }
-  }, 90_000);
+  }, 120_000);
 
   it('rejects latest-recorded 2026 data from a historical-final capability profile', async () => {
     const proof = await semanticProof(
@@ -396,6 +405,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['List circuit identifier from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['List event name from round 1 of final 2025 event metadata.', 'semantic-single-source-v1', []],
     ['Show count of finishing position in final 2025 race classification.', 'semantic-single-source-v1', []],
+    ['Show count of finishing position for Norris in final 2025 race classification.', 'semantic-single-source-v1', ['Norris']],
     ['Show count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
@@ -516,16 +526,63 @@ describe('semantic complete-interaction capability authorization', () => {
     });
   });
 
-  it('rejects driver-filtered and latest-recorded race-position count interactions', async () => {
+  it('binds only one resolved driver to the filtered race-position scalar count', async () => {
     const filteredQuestion = 'Show count of finishing position for Norris in final 2025 race classification.';
     const filteredProof = await semanticProof(filteredQuestion, ['Norris'], [{
       name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris']
     }]);
+    const authorization = authorizeSemanticPlanCapability({
+      proof: filteredProof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_ids: ['event_classification'],
+      relationship_ids: [],
+      operator_signature: 'limit(sort(project(aggregate(filter(source)))))',
+      predicate_bindings: [
+        'event_classification.driver_id:eq',
+        'event_classification.season:eq'
+      ],
+      aggregate_bindings: [
+        'event_classification.finishing_position:count->count_finishing_position'
+      ],
+      group_bindings: [],
+      output_bindings: ['aggregate:count_finishing_position->count_finishing_position'],
+      sort_bindings: ['count_finishing_position:asc:last'],
+      entity_count: 1,
+      entity_values: ['lando-norris'],
+      event_count: 0,
+      season_count: 1,
+      season_values: [2025],
+      rows: 1
+    });
+  });
+
+  it('rejects latest-recorded, multi-driver race, and driver-filtered qualifying-position counts', async () => {
     const latestProof = await semanticProof(
       'Show count of finishing position in latest recorded 2026 race classification.', []
     );
+    const filteredQualifyingProof = await semanticProof(
+      'Show count of qualifying position for Norris in final 2025 qualifying classification.',
+      ['Norris'],
+      [{ name: 'Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] }]
+    );
+    const multiDriverProof = await semanticProof(
+      'Show count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+      ['Lando Norris', 'Oscar Piastri'],
+      [
+        { name: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { name: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ]
+    );
     const attestation = release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] });
-    for (const proof of [filteredProof, latestProof]) {
+    for (const proof of [latestProof, filteredQualifyingProof, multiDriverProof]) {
       expect(() => authorizeSemanticPlanCapability({
         proof,
         profile_id: 'semantic-single-source-v1',

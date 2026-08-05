@@ -48,6 +48,7 @@ const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from roun
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
 const EVENT_CIRCUIT = 'List circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_NAME_DATE = 'List event name and race date from round 1 of final 2025 event metadata.';
@@ -404,7 +405,7 @@ describe('generic proven semantic result formatting', () => {
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     const formatted = formatSemanticPlanResult(execution);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       answer: {
         headline: 'Final 2025 driver standings result.',
         facts: [
@@ -687,7 +688,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
         answer: { headline: 'Final 2025 race classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -697,7 +698,7 @@ describe('generic proven semantic result formatting', () => {
       expect(formatted.metadata.sources.map(source => source.id)).toEqual(['event_classification']);
       expect(formatted.metadata.sources[0].coverage.certified)
         .toBe('No event-complete historical or steward-decision ledger claim.');
-      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v15');
+      expect(SEMANTIC_RESULT_FORMAT_VERSION).toBe('semantic-result-format-v16');
     }
     expect(() => formatSemanticPlanResultAsAnswerEnvelope(execution)).toThrow('no reviewed answer-envelope');
 
@@ -735,7 +736,7 @@ describe('generic proven semantic result formatting', () => {
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     const formatted = formatSemanticPlanResult(execution);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       rows: [
         { driver_id: 'lando-norris', finishing_position: 2 },
         { driver_id: 'max-verstappen', finishing_position: 2 },
@@ -797,7 +798,7 @@ describe('generic proven semantic result formatting', () => {
     });
     if (cardinality === 4) {
       expect(formatted).toMatchObject({
-        format_version: 'semantic-result-format-v15',
+        format_version: 'semantic-result-format-v16',
         answer: { headline: 'Final 2025 qualifying classification result for round 1.' },
         metadata: {
           coverage: { status: 'sufficient', rows_returned: 4, row_limit: 100 },
@@ -843,7 +844,7 @@ describe('generic proven semantic result formatting', () => {
     ];
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, rows);
     expect(formatSemanticPlanResult(execution)).toMatchObject({
-        format_version: 'semantic-result-format-v15',
+        format_version: 'semantic-result-format-v16',
       rows: rows.map(({ [PLANNED_INTEGRITY_FIELD]: _, ...row }) => row),
       metadata: {
         coverage: { status: 'sufficient', rows_returned: 3, row_limit: 100 },
@@ -920,7 +921,7 @@ describe('generic proven semantic result formatting', () => {
     const row = { count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true };
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row]);
     expect(formatSemanticPlanResult(execution)).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       rows: [{ count_qualifying_position: 2 }],
       answer: { facts: [{ subject: 'result 1', values: { count_qualifying_position: '2' } }] },
       metadata: {
@@ -967,7 +968,7 @@ describe('generic proven semantic result formatting', () => {
     const row = { count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true };
     const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row]);
     expect(formatSemanticPlanResult(execution)).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       rows: [{ count_finishing_position: 2 }],
       answer: { facts: [{ subject: 'result 1', values: { count_finishing_position: '2' } }] },
       metadata: {
@@ -1000,6 +1001,47 @@ describe('generic proven semantic result formatting', () => {
       expect(() => formatSemanticPlanResult(mutated)).toThrow(SemanticResultFormatError);
     }
     const overflow = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row, row]);
+    expect(() => formatSemanticPlanResult(overflow)).toThrow('collection evidence was incomplete');
+  });
+
+  it('formats the scalar race-position count only for one canonical resolved driver', async () => {
+    const norris = span(FILTERED_RACE_SCALAR_COUNT, 'Norris');
+    const prepared = await prepare(
+      FILTERED_RACE_SCALAR_COUNT,
+      [{ type: 'driver', span: norris }],
+      [{ ...norris, candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris'] }]
+    );
+    expect(prepared.plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['event_classification'] },
+      output_grain: [],
+      work: { requested_rows: 1 }
+    });
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      count_finishing_position: 2,
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]);
+    expect(formatSemanticPlanResult(execution)).toMatchObject({
+      format_version: 'semantic-result-format-v16',
+      rows: [{ count_finishing_position: 2 }],
+      metadata: {
+        scope: [
+          {
+            source_id: 'event_classification', concept_id: 'driver_id',
+            operator: 'eq', values: ['lando-norris']
+          },
+          {
+            source_id: 'event_classification', concept_id: 'season',
+            operator: 'eq', values: [2025]
+          }
+        ],
+        coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 }
+      }
+    });
+    const overflow = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [
+      { count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { count_finishing_position: 3, [PLANNED_INTEGRITY_FIELD]: true }
+    ]);
     expect(() => formatSemanticPlanResult(overflow)).toThrow('collection evidence was incomplete');
   });
 
@@ -1119,7 +1161,7 @@ describe('generic proven semantic result formatting', () => {
       date: new Date(2025, 0, 1), [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       rows: [{ date: '2025-01-01' }],
       metadata: {
         coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
@@ -1148,7 +1190,7 @@ describe('generic proven semantic result formatting', () => {
       circuit_id: ' Circuit_ID_01 ', [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       answer: { facts: [{ subject: ' Circuit_ID_01 ', values: {} }] },
       rows: [{ circuit_id: ' Circuit_ID_01 ' }],
       metadata: {
@@ -1181,7 +1223,7 @@ describe('generic proven semantic result formatting', () => {
       event_name: ' Formula 1 Australian Grand Prix ', [PLANNED_INTEGRITY_FIELD]: true
     }]);
     expect(formatted).toMatchObject({
-      format_version: 'semantic-result-format-v15',
+      format_version: 'semantic-result-format-v16',
       answer: { facts: [{ subject: 'result 1', values: { event_name: ' Formula 1 Australian Grand Prix ' } }] },
       rows: [{ event_name: ' Formula 1 Australian Grand Prix ' }],
       metadata: {

@@ -28,6 +28,7 @@ const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying pos
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Norris in final 2025 race classification.';
 
 describe('semantic query candidates and independent evidence', () => {
   it('enumerates one catalog-bound explicit standings query and freezes all evidence', () => {
@@ -293,6 +294,25 @@ describe('semantic query candidates and independent evidence', () => {
     ]));
   });
 
+  it('enumerates the same scalar race count for exactly one named driver', () => {
+    const norris = { type: 'driver' as const, span: span(FILTERED_RACE_SCALAR_COUNT_QUESTION, 'Norris') };
+    const aggregate = candidateEvidence(FILTERED_RACE_SCALAR_COUNT_QUESTION, [norris]).candidates[0];
+    expect(aggregate).toMatchObject({
+      outputs: [{
+        kind: 'aggregate', function: 'count',
+        concept: { source_id: 'event_classification', concept_id: 'finishing_position' }
+      }],
+      entities: [norris],
+      filters: [{
+        kind: 'entity', operator: 'eq', entity_indices: [0],
+        concept: { source_id: 'event_classification', concept_id: 'driver_id' }
+      }],
+      group_by: [],
+      comparison: { relation: 'count' },
+      order_by: []
+    });
+  });
+
   it('fails closed on every unpromoted explicit source combination', () => {
     expect(enumerateSemanticQueries('List championship points and finishing position from final 2025 driver standings and race classification.')).toMatchObject({
       type: 'abstention', reason: 'unsupported_source_combination'
@@ -447,7 +467,7 @@ describe('semantic query candidates and independent evidence', () => {
     'Show top 1 count of finishing position in final 2025 race classification.',
     'Rank drivers by count of finishing position in final 2025 race classification.',
     'Show count of finishing position by driver in final 2025 race classification.'
-  ])('refuses filtered, limited, grouped, or ranked race-position counts before planning: %s', question => {
+  ])('refuses position/status-filtered, limited, grouped, or ranked race-position counts before planning: %s', question => {
     expect(enumerateSemanticQueries(question)).toMatchObject({ type: 'abstention' });
   });
 

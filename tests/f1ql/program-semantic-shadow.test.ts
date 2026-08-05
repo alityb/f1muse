@@ -20,6 +20,7 @@ import { enumerateSemanticQueries } from '../../src/f1ql/semantic-query';
 const QUESTION = 'List driver and championship points from final 2025 driver standings.';
 const SCALAR_COUNT_QUESTION = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Lando Norris in final 2025 race classification.';
 const IID_POINTS_ALL_QUESTION = 'What were the final standings points in 2025?';
 const FILTERED_POINTS_QUESTION = 'What were Charles Leclerc final standings points in 2024?';
 const PAIR_POINTS_QUESTION = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
@@ -289,6 +290,38 @@ describe('WP8 stage-zero semantic shadow route', () => {
       } }
     });
     expect(providerCalls).toBe(1);
+    expect(fake.calls).toEqual([
+      { sql: 'BEGIN READ ONLY', parameters: undefined },
+      { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
+      { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
+      { sql: 'ROLLBACK', parameters: undefined }
+    ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it('proves one resolved driver race count without result execution', async () => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [{
+          driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant'
+        }] }
+      : { rows: [] });
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async proposal => exactProposal(proposal) },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question: FILTERED_RACE_SCALAR_COUNT_QUESTION }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+    expect(response).toMatchObject({
+      status: 200,
+      body: { observation: {
+        outcome: 'answer', reason: 'plan_proven', topology_code: 'single_source_aggregate',
+        result_query_calls: 0
+      } }
+    });
     expect(fake.calls).toEqual([
       { sql: 'BEGIN READ ONLY', parameters: undefined },
       { sql: "SELECT set_config('statement_timeout', $1, true)", parameters: ['5000ms'] },
@@ -1277,6 +1310,11 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
         type: 'driver' as const,
         span: { text: 'Charles Leclerc', start: 10, end: 25 }
       }]
+    : request.question === FILTERED_RACE_SCALAR_COUNT_QUESTION
+      ? [{
+          type: 'driver' as const,
+          span: questionSpan(request.question, 'Lando Norris')
+        }]
     : request.question === PAIR_POINTS_QUESTION
       ? [
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 32, end: 44 } },

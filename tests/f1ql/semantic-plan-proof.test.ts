@@ -27,6 +27,7 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 
 describe('independent semantic whole-plan proof', () => {
   it('uses one frozen resolver transcript for planning and independent proof', async () => {
@@ -66,6 +67,20 @@ describe('independent semantic whole-plan proof', () => {
     expect(prepared.proof.topology_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.participation_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.compiled_hash).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it('reproduces the filtered race scalar aggregate with one participation requirement', async () => {
+    const norris = span(FILTERED_RACE_SCALAR_COUNT, 'Norris');
+    const prepared = await prepare(
+      FILTERED_RACE_SCALAR_COUNT,
+      [{ type: 'driver', span: norris }],
+      [{ ...norris, candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris'] }]
+    );
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({
+      type: 'required',
+      requirements: [{ season: 2025, driver_ids: ['lando-norris'] }]
+    });
   });
 
   it.each([

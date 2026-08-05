@@ -38,6 +38,7 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const EVENT_DATE = 'The 2025 Monaco race date.';
 
 describe('pure non-executing semantic shadow orchestrator', () => {
@@ -45,6 +46,8 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     [STANDINGS, [], { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
     [SCALAR_COUNT, [], { type: 'missing' } as const, 'single_source_aggregate', 'qualifying_classification', 'filter_aggregate_project_sort_limit'],
     [RACE_SCALAR_COUNT, [], { type: 'missing' } as const, 'single_source_aggregate', 'event_classification', 'filter_aggregate_project_sort_limit'],
+    [FILTERED_RACE_SCALAR_COUNT, [driverMention(FILTERED_RACE_SCALAR_COUNT, 'Norris', ['lando-norris'], ['lando-norris'])],
+      { type: 'missing' } as const, 'single_source_aggregate', 'event_classification', 'filter_aggregate_project_sort_limit'],
     [RACE_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const, 'row_dimension_join', 'event_classification__event_metadata', 'filter_join_project_sort_limit'],
     [COMPOSE, [driverMention(COMPOSE, 'Norris', ['recognizable-secret-driver'], ['recognizable-secret-driver'])], { type: 'missing' } as const,
       'scalar_aggregate_compose', 'event_classification__qualifying_classification', 'filter_aggregate_compose_project_sort_limit']

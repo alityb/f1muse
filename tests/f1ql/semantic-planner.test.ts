@@ -19,6 +19,7 @@ const NAMED_RACE_METADATA = 'List driver and finishing position and event name f
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
+const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 
 describe('deterministic semantic planner', () => {
   it('materializes a frozen deterministic single-source row plan from a live admission', async () => {
@@ -132,6 +133,34 @@ describe('deterministic semantic planner', () => {
     });
     expect(plan.planned_f1ql.root.input.keys).toEqual([
       { output_id: 'count_finishing_position', direction: 'asc', nulls: 'last' }
+    ]);
+  });
+
+  it('binds one resolved driver without changing the scalar race-count topology', async () => {
+    const norris = span(FILTERED_RACE_SCALAR_COUNT, 'Norris');
+    const admission = admitted(FILTERED_RACE_SCALAR_COUNT, [{ type: 'driver', span: norris }]);
+    const plan = await planSemanticAnswer({
+      question: FILTERED_RACE_SCALAR_COUNT,
+      admission,
+      ...resolvers([{
+        ...norris,
+        candidates: ['historical-norris', 'lando-norris'],
+        active_candidates: ['lando-norris']
+      }])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['event_classification'] },
+      output_grain: [],
+      work: { source_scan_units: 30, resolver_reads: 1, requested_rows: 1 }
+    });
+    expect(plan.linked_entities[0]).toMatchObject({
+      selected_id: 'lando-norris',
+      resolution_relationship_ids: ['driver_identity_race_resolution', 'driver_participation_resolution']
+    });
+    expect(plan.branches[0].predicates).toMatchObject([
+      { concept: { concept_id: 'driver_id' }, operator: 'eq', value: 'lando-norris' },
+      { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
     ]);
   });
 

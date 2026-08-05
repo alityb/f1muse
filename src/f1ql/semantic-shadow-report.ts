@@ -4,7 +4,7 @@ import {
 } from './semantic-shadow-retained-observation';
 
 export const SEMANTIC_SHADOW_REPORT_VERSION = 'semantic-shadow-report-v1' as const;
-export const SEMANTIC_SHADOW_REPORT_REQUIRED_QUESTION_GROUPS = 29;
+export const SEMANTIC_SHADOW_REPORT_REQUIRED_QUESTION_GROUPS = 30;
 export const SEMANTIC_SHADOW_REPORT_REQUIRED_REPETITIONS = 3;
 const RETAINED_VERSION = 'semantic-shadow-retained-v2';
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;

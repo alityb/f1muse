@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v15' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v16' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -931,14 +931,22 @@ function isClassificationPositionScalarCountContract(
   if (sourceId === 'event_classification') {positionId = 'finishing_position';}
   else if (sourceId === 'qualifying_classification') {positionId = 'qualifying_position';}
   const countId = positionId === undefined ? undefined : `count_${positionId}`;
-  const seasonPredicate = branch?.predicates[0];
+  const seasonPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'season');
+  const driverPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
+  let mode: 'singleton' | 'unfiltered' | 'unsupported' = 'unsupported';
+  if (driverPredicate === undefined) {mode = 'unfiltered';}
+  else if (driverPredicate.operator === 'eq') {mode = 'singleton';}
   const aggregate = project.input.op === 'aggregate' ? project.input : undefined;
   const measure = aggregate?.measures[0];
   const output = project.outputs[0];
   const key = ordering[0];
-  return rowLimit === 1 && sources.length === 1 && sourceId !== undefined && positionId !== undefined &&
+  return mode !== 'unsupported' && rowLimit === 1 && sources.length === 1 &&
+    sourceId !== undefined && positionId !== undefined &&
+    (mode === 'unfiltered' || sourceId === 'event_classification') &&
     countId !== undefined && branches.length === 1 && branch.input.source_id === sourceId &&
-    branch.predicates.length === 1 && aggregate !== undefined && aggregate.group_by.length === 0 &&
+    branch.predicates.length === (mode === 'singleton' ? 2 : 1) &&
+    (mode === 'unfiltered' || reviewedEventDriverPredicate('singleton', driverPredicate, sourceId)) &&
+    aggregate !== undefined && aggregate.group_by.length === 0 &&
     aggregate.measures.length === 1 && measure?.source_id === sourceId &&
     measure.concept_id === positionId && measure.function === 'count' &&
     measure.as === countId && project.outputs.length === 1 &&
