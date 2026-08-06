@@ -202,6 +202,15 @@ const cases = [
     ]
   },
   {
+    id: 'family-unfiltered-qualifying-driver-count',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'lando-norris', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'oscar-piastri', count_qualifying_position: 0, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
     id: 'family-qualifying-count-ranking',
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,

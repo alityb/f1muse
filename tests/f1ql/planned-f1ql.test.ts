@@ -147,9 +147,19 @@ function selectedClassificationPositionCountPlan(
 }
 
 function unfilteredRacePositionCountPlan() {
-  const plan: any = structuredClone(selectedClassificationPositionCountPlan('event_classification'));
+  return unfilteredClassificationPositionCountPlan('event_classification');
+}
+
+function unfilteredQualifyingPositionCountPlan() {
+  return unfilteredClassificationPositionCountPlan('qualifying_classification');
+}
+
+function unfilteredClassificationPositionCountPlan(
+  sourceId: 'event_classification' | 'qualifying_classification'
+) {
+  const plan: any = structuredClone(selectedClassificationPositionCountPlan(sourceId));
   plan.root.input.input.input.input.predicates = [
-    predicate('event_classification', 'season', 2025)
+    predicate(sourceId, 'season', 2025)
   ];
   return plan;
 }
@@ -2864,6 +2874,141 @@ describe('internal planned F1QL and Core pipeline', () => {
         }));
         expect(duplicateRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
         await client.query('ROLLBACK TO SAVEPOINT duplicate_source_key');
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+  });
+
+  it('matches PostgreSQL for exactly 100 unfiltered qualifying groups and every source-integrity boundary', async () => {
+    const core = lowerPlannedF1QL(unfilteredQualifyingPositionCountPlan());
+    const compiled = compilePlannedF1QL(core);
+    const client = await pool.connect();
+    const referenceRows = [
+      ...Array.from({ length: 100 }, (_unused, index) => ({
+        season: 2025,
+        round: (index % 4) + 1,
+        driver_id: `benchmark-driver-${String(index + 1).padStart(3, '0')}`,
+        qualifying_position: index === 49 ? null : Math.floor(index / 4) + 1
+      })),
+      ...Array.from({ length: 10 }, (_unused, index) => ({
+        season: 2025,
+        round: 5,
+        driver_id: `benchmark-driver-${String(index + 91).padStart(3, '0')}`,
+        qualifying_position: ((index + 10) % 30) + 1
+      })),
+      { season: 2025, round: 6, driver_id: 'benchmark-driver-100', qualifying_position: 1 }
+    ];
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+        await client.query(`INSERT INTO driver (id, name, full_name, abbreviation)
+          SELECT 'benchmark_driver_' || LPAD(value::text, 3, '0'),
+                 'Benchmark Driver ' || value,
+                 'Benchmark Driver ' || value,
+                 'B' || LPAD(value::text, 3, '0')
+          FROM generate_series(1, 100) AS value
+          ON CONFLICT (id) DO NOTHING`);
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          SELECT 2025, ((value - 1) % 4) + 1,
+                 'benchmark_driver_' || LPAD(value::text, 3, '0'), 'planned-team',
+                 CASE WHEN value = 50 THEN NULL ELSE ((value - 1) / 4) + 1 END,
+                 'RACE_QUALIFYING'
+          FROM generate_series(1, 100) AS value`);
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          SELECT 2025, 5, 'benchmark_driver_' || LPAD(value::text, 3, '0'),
+                 'planned-team', ((value + 9) % 30) + 1, 'RACE_QUALIFYING'
+          FROM generate_series(91, 100) AS value`);
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          VALUES (2025, 6, 'benchmark_driver_100', 'planned-team', 1, 'RACE_QUALIFYING')`);
+        const rows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(rows).toEqual(interpretPlannedF1QL(core, { qualifying_classification: referenceRows }));
+        expect(rows).toHaveLength(100);
+        expect(rows[0]).toEqual({
+          driver_id: 'benchmark-driver-001', count_qualifying_position: 1,
+          [PLANNED_INTEGRITY_FIELD]: true
+        });
+        expect(rows[49]).toEqual({
+          driver_id: 'benchmark-driver-050', count_qualifying_position: 0,
+          [PLANNED_INTEGRITY_FIELD]: true
+        });
+        expect(rows[99]).toEqual({
+          driver_id: 'benchmark-driver-100', count_qualifying_position: 3,
+          [PLANNED_INTEGRITY_FIELD]: true
+        });
+
+        await client.query('SAVEPOINT empty_source');
+        await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+        expect((await client.query(compiled.sql, compiled.params)).rows).toEqual(
+          interpretPlannedF1QL(core, { qualifying_classification: [] })
+        );
+        await client.query('ROLLBACK TO SAVEPOINT empty_source');
+
+        for (const boundary of [
+          {
+            savepoint: 'invalid_round',
+            sql: `INSERT INTO qualifying_results
+              (season, round, driver_id, team_id, qualifying_position, session_type)
+              VALUES (2025, 31, 'benchmark_driver_001', 'planned-team', 1, 'RACE_QUALIFYING')`,
+            row: { season: 2025, round: 31, driver_id: 'benchmark-driver-001', qualifying_position: 1 }
+          },
+          {
+            savepoint: 'invalid_position',
+            sql: `INSERT INTO qualifying_results
+              (season, round, driver_id, team_id, qualifying_position, session_type)
+              VALUES (2025, 7, 'benchmark_driver_001', 'planned-team', 31, 'RACE_QUALIFYING')`,
+            row: { season: 2025, round: 7, driver_id: 'benchmark-driver-001', qualifying_position: 31 }
+          }
+        ]) {
+          await client.query(`SAVEPOINT ${boundary.savepoint}`);
+          await client.query(boundary.sql);
+          const invalidReference = [...referenceRows, boundary.row];
+          const invalidRows = (await client.query(compiled.sql, compiled.params)).rows;
+          expect(invalidRows).toEqual(interpretPlannedF1QL(core, {
+            qualifying_classification: invalidReference
+          }));
+          expect(invalidRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+          await client.query(`ROLLBACK TO SAVEPOINT ${boundary.savepoint}`);
+        }
+
+        await client.query('SAVEPOINT invalid_driver');
+        await client.query(`INSERT INTO driver (id, name, full_name, abbreviation)
+          VALUES ('Benchmark_Bad', 'Benchmark Bad', 'Benchmark Bad', 'BAD')`);
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          VALUES (2025, 1, 'Benchmark_Bad', 'planned-team', 1, 'RACE_QUALIFYING')`);
+        const invalidDriverReference = [
+          ...referenceRows,
+          { season: 2025, round: 1, driver_id: 'Benchmark-Bad', qualifying_position: 1 }
+        ];
+        const invalidDriverRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(invalidDriverRows).toEqual(interpretPlannedF1QL(core, {
+          qualifying_classification: invalidDriverReference
+        }));
+        expect(invalidDriverRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+        await client.query('ROLLBACK TO SAVEPOINT invalid_driver');
+
+        await client.query('SAVEPOINT duplicate_grain');
+        await client.query('ALTER TABLE qualifying_results DROP CONSTRAINT qualifying_results_pkey');
+        await client.query(`INSERT INTO qualifying_results
+          (season, round, driver_id, team_id, qualifying_position, session_type)
+          VALUES (2025, 1, 'benchmark_driver_001', 'planned-team', 2, 'RACE_QUALIFYING')`);
+        const duplicateReference = [
+          ...referenceRows,
+          { season: 2025, round: 1, driver_id: 'benchmark-driver-001', qualifying_position: 2 }
+        ];
+        const duplicateRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(duplicateRows).toEqual(interpretPlannedF1QL(core, {
+          qualifying_classification: duplicateReference
+        }));
+        expect(duplicateRows.every(row => row[PLANNED_INTEGRITY_FIELD] === false)).toBe(true);
+        await client.query('ROLLBACK TO SAVEPOINT duplicate_grain');
       } finally {
         await client.query('ROLLBACK');
       }

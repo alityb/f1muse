@@ -64,7 +64,7 @@ const workloadSchema = z.object({
     'maximum_rows_standings', 'single_source_grouped_aggregate_rank',
     'single_source_race_grouped_aggregate_rank', 'maximum_rows_safe_join',
     'selected_race_grouped_aggregate', 'selected_qualifying_grouped_aggregate',
-    'unfiltered_race_grouped_aggregate',
+    'unfiltered_race_grouped_aggregate', 'unfiltered_qualifying_grouped_aggregate',
     'maximum_work_and_resolver_compose'
   ]),
   family: familySchema,
@@ -105,7 +105,7 @@ const definitionsSchema = z.object({
     maximum_rows: z.literal(PLANNED_F1QL_MAX_ROWS),
     maximum_resolver_candidates_per_mention: z.literal(SEMANTIC_RESOLVER_MAX_CANDIDATES)
   }).strict(),
-  workloads: z.array(workloadSchema).length(8)
+  workloads: z.array(workloadSchema).length(9)
 }).strict().superRefine((definitions, context) => {
   const workloads = definitions.workloads;
   if (new Set(workloads.map(item => item.id)).size !== workloads.length ||
@@ -334,6 +334,18 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         family: 'single_source',
         boundary: 'maximum_rows',
         question: 'Show count of finishing position per driver in final 2025 race classification.',
+        entities: [],
+        resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
+        expected: {
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: PLANNED_F1QL_MAX_ROWS,
+          resolver_candidates: 0, reference_rows: PLANNED_F1QL_MAX_ROWS, hashes: hashes()
+        }
+      },
+      {
+        id: 'unfiltered_qualifying_grouped_aggregate',
+        family: 'single_source',
+        boundary: 'maximum_rows',
+        question: 'Show count of qualifying position per driver in final 2025 qualifying classification.',
         entities: [],
         resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
         expected: {
@@ -603,6 +615,9 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
   if (id === 'selected_race_grouped_aggregate') {return selectedRaceCountReferenceDatabase();}
   if (id === 'selected_qualifying_grouped_aggregate') {return selectedQualifyingCountReferenceDatabase();}
   if (id === 'unfiltered_race_grouped_aggregate') {return unfilteredRaceCountReferenceDatabase();}
+  if (id === 'unfiltered_qualifying_grouped_aggregate') {
+    return unfilteredQualifyingCountReferenceDatabase();
+  }
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -688,6 +703,29 @@ function unfilteredRaceCountReferenceDatabase(): PlannedReferenceDatabase {
         `benchmark-driver-${String(driverIndex + 1).padStart(3, '0')}`,
         driverIndex === PLANNED_F1QL_MAX_ROWS - 1 ? null : ((driverIndex + roundIndex) % 30) + 1
       ));
+    }).flat()
+  };
+}
+
+function unfilteredQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
+  const row = (round: number, driverId: string, position: number | null) => ({
+    season: 2025,
+    round,
+    driver_id: driverId,
+    team_id: 'benchmark-team',
+    qualifying_position: position,
+    best_time_ms: position === null ? null : 80_000 + round,
+    best_session: position === null ? null : 'Q3',
+    eliminated_in_round: null,
+    classification_status: position === null ? 'unclassified' : 'classified'
+  });
+  return {
+    qualifying_classification: Array.from({ length: PLANNED_F1QL_MAX_ROWS }, (_unused, driverIndex) => {
+      const driverId = `benchmark-driver-${String(driverIndex + 1).padStart(3, '0')}`;
+      if (driverIndex === 49) {return [row(1, driverId, null)];}
+      const count = driverIndex === PLANNED_F1QL_MAX_ROWS - 1 ? 2 : (driverIndex % 3) + 1;
+      return Array.from({ length: count }, (_row, roundIndex) =>
+        row(roundIndex + 1, driverId, ((driverIndex + roundIndex) % 30) + 1));
     }).flat()
   };
 }

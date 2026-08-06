@@ -169,6 +169,11 @@ const SELECTED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS = [
   { source_id: 'qualifying_classification', position_id: 'qualifying_position', session: 'qualifying' }
 ] as const satisfies readonly SelectedClassificationPositionCountSpecification[];
 
+const UNFILTERED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS = [
+  { source_id: 'event_classification', position_id: 'finishing_position', session: 'race' },
+  { source_id: 'qualifying_classification', position_id: 'qualifying_position', session: 'qualifying' }
+] as const satisfies readonly SelectedClassificationPositionCountSpecification[];
+
 const activeSemanticEvidence = new WeakSet<object>();
 const activeSemanticAdmissions = new WeakSet<object>();
 
@@ -317,14 +322,14 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
-  const unfilteredRacePositionCount = finalUnfilteredRacePositionCount(
+  const unfilteredClassificationPositionCount = finalUnfilteredClassificationPositionCount(
     question,
     sourceMatches,
     conceptMatches,
     operations,
     entities
   );
-  const classificationPositionCount = selectedClassificationPositionCount ?? unfilteredRacePositionCount;
+  const classificationPositionCount = selectedClassificationPositionCount ?? unfilteredClassificationPositionCount;
   const classificationPositionRanking = racePositionRanking ?? qualifyingPositionRanking;
   const standingsProjection = standingsPointsProjection ?? standingsPositionRanking;
   if (!standingsPointsProjection && containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
@@ -516,7 +521,7 @@ export function enumerateSemanticQueries(
   )) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
-  if (operations.count && driverCount <= 1 && !operations.rank && !isPromotedUnfilteredRacePositionCount(
+  if (operations.count && driverCount <= 1 && !operations.rank && !isPromotedUnfilteredClassificationPositionCount(
     question, entities, sourceMatches, conceptMatches, operations, sorted
   ) && sorted.some(candidate =>
     candidate.outputs.some(output => output.kind === 'concept' && output.concept.concept_id === 'driver_id') &&
@@ -562,7 +567,7 @@ export function enumerateSemanticQueries(
   }));
 }
 
-function isPromotedUnfilteredRacePositionCount(
+function isPromotedUnfilteredClassificationPositionCount(
   question: AnswerQuestionContract,
   entities: readonly SemanticEntityInventoryItem[],
   sourceMatches: readonly LexicalMatch[],
@@ -570,8 +575,22 @@ function isPromotedUnfilteredRacePositionCount(
   operations: OperationEvidence,
   candidates: readonly SemanticQuery[]
 ): boolean {
-  const sourceId = 'event_classification';
-  const positionId = 'finishing_position';
+  return UNFILTERED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS.some(specification =>
+    matchesPromotedUnfilteredClassificationPositionCount(
+      specification, question, entities, sourceMatches, conceptMatches, operations, candidates
+    ));
+}
+
+function matchesPromotedUnfilteredClassificationPositionCount(
+  specification: SelectedClassificationPositionCountSpecification,
+  question: AnswerQuestionContract,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  candidates: readonly SemanticQuery[]
+): boolean {
+  const { source_id: sourceId, position_id: positionId, session } = specification;
   const candidate = candidates[0];
   return [
     question.years.length === 1,
@@ -582,7 +601,7 @@ function isPromotedUnfilteredRacePositionCount(
     operations.temporal[0].value === 'final',
     !operations.rank,
     !operations.limit,
-    exactPerDriverGroupingLanguage(question.normalized_question),
+    exactPerDriverGroupingLanguage(question.normalized_question, specification),
     !hasUnboundScopeKey(question),
     candidates.length === 1,
     independentSourceOccurrenceCount(sourceMatches, sourceId) === 1,
@@ -597,7 +616,7 @@ function isPromotedUnfilteredRacePositionCount(
     ]),
     candidate?.scopes.filter(scope => scope.kind === 'season').length === 1,
     candidate?.scopes.some(scope => scope.kind === 'session' &&
-      scope.source_id === sourceId && scope.value === 'race'),
+       scope.source_id === sourceId && scope.value === session),
     candidate?.scopes.some(scope => scope.kind === 'temporal' && scope.value === 'final'),
     !candidate?.scopes.some(scope => scope.kind === 'round' || scope.kind === 'event'),
     candidate?.entities.length === 0,
@@ -1231,16 +1250,32 @@ function finalSelectedClassificationPositionCount(
   return undefined;
 }
 
-// eslint-disable-next-line complexity
-function finalUnfilteredRacePositionCount(
+function finalUnfilteredClassificationPositionCount(
   question: AnswerQuestionContract,
   sourceMatches: readonly LexicalMatch[],
   conceptMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): readonly LexicalMatch[] | undefined {
-  const sourceId = 'event_classification';
-  const positionId = 'finishing_position';
+  for (const specification of UNFILTERED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS) {
+    const projection = finalUnfilteredClassificationPositionCountForSource(
+      specification, question, sourceMatches, conceptMatches, operations, entities
+    );
+    if (projection) {return projection;}
+  }
+  return undefined;
+}
+
+// eslint-disable-next-line complexity
+function finalUnfilteredClassificationPositionCountForSource(
+  specification: SelectedClassificationPositionCountSpecification,
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): readonly LexicalMatch[] | undefined {
+  const { source_id: sourceId, position_id: positionId } = specification;
   const concepts = canonicalConceptMatches(conceptMatches.filter(match => match.source_id === sourceId));
   const hasBroaderConcept = conceptMatches.some(match =>
     match.source_id !== sourceId && !concepts.some(concept =>
@@ -1248,7 +1283,7 @@ function finalUnfilteredRacePositionCount(
   if (question.years.length !== 1 || question.rounds.length !== 0 || entities.length !== 0 ||
       operations.count_spans.length !== 1 || operations.temporal.length !== 1 ||
       operations.temporal[0].value !== 'final' || operations.rank || operations.limit ||
-      !exactPerDriverGroupingLanguage(question.normalized_question) ||
+       !exactPerDriverGroupingLanguage(question.normalized_question, specification) ||
       independentSourceOccurrenceCount(sourceMatches, sourceId) !== 1 ||
       new Set(sourceMatches.map(match => match.source_id)).size !== 1 ||
       sourceMatches.some(match => match.source_id !== sourceId) || hasBroaderConcept || concepts.length !== 2 ||
@@ -1261,8 +1296,15 @@ function finalUnfilteredRacePositionCount(
   return driver && position ? [driver, position] : undefined;
 }
 
-function exactPerDriverGroupingLanguage(question: string): boolean {
-  return /^show\s+(?:the\s+)?count\s+of\s+finishing\s+position\s+per[\s-]+driver\s+in\s+final\s+\d{4}\s+race\s+classification[.!?]?$/iu
+function exactPerDriverGroupingLanguage(
+  question: string,
+  specification: SelectedClassificationPositionCountSpecification
+): boolean {
+  if (specification.source_id === 'event_classification') {
+    return /^show\s+(?:the\s+)?count\s+of\s+finishing\s+position\s+per(?:\s+|-)driver\s+in\s+final\s+\d{4}\s+race\s+classification[.!?]?$/iu
+      .test(question);
+  }
+  return /^show\s+(?:the\s+)?count\s+of\s+qualifying\s+position\s+per(?:\s+|-)driver\s+in\s+final\s+\d{4}\s+qualifying\s+classification[.!?]?$/iu
     .test(question);
 }
 

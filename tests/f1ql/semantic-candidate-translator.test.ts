@@ -176,6 +176,12 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Require non-null, unique recorded positions across the event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('exact zero-entity request to show count of finishing position per driver in one final YYYY race classification season');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('exact zero-entity request to show count of qualifying position per driver in one final YYYY qualifying classification season');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('emit exactly qualifying_classification.driver_id followed by COUNT(qualifying_classification.qualifying_position)');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('never derive rank from best time, grid position, status, sprint qualifying, or driver identity');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('qualifying classification emits exactly driver_id followed by COUNT(qualifying_position)');

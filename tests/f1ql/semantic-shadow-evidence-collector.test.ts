@@ -35,10 +35,10 @@ describe('WP8 semantic shadow evidence collector', () => {
     }
   });
 
-  it('binds all 49 reviewed questions and outcomes to the committed compositional snapshot', () => {
+  it('binds all 50 reviewed questions and outcomes to the committed compositional snapshot', () => {
     const reviewed = assertCompleteReviewedCompositionalCorpus(compositionalRegressionCorpusInput, snapshot());
-    expect(reviewed.corpus.cases).toHaveLength(49);
-    expect(reviewed.snapshot.cases).toHaveLength(49);
+    expect(reviewed.corpus.cases).toHaveLength(50);
+    expect(reviewed.snapshot.cases).toHaveLength(50);
 
     const partial = structuredClone(compositionalRegressionCorpusInput) as any;
     partial.cases.pop();
