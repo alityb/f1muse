@@ -45,6 +45,7 @@ const NAMED_EVENT_DATE_QUESTION = 'List race date from final 2025 event metadata
 const EVENT_CIRCUIT_QUESTION = 'List circuit identifier from round 1 of final 2025 event metadata.';
 const NAMED_EVENT_CIRCUIT_QUESTION = 'List circuit identifier from final 2025 event metadata at Monaco.';
 const EVENT_DATE_CIRCUIT_QUESTION = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_DATE_CIRCUIT_QUESTION = 'List race date and circuit identifier from final 2025 event metadata at Australian Grand Prix.';
 const EVENT_NAME_QUESTION = 'List Grand Prix name from round 1 of final 2025 event metadata.';
 const NAMED_EVENT_NAME_QUESTION = 'List event name from final 2025 event metadata at Monaco.';
 const EVENT_DATE_NAME_QUESTION = 'List race date and event name from round 1 of final 2025 event metadata.';
@@ -54,7 +55,15 @@ const SEASON_WIDE_EVENT_NAME_QUESTION = 'List event name from final 2025 event m
 const LIMITED_EVENT_NAME_QUESTION = 'List top 1 event name from round 1 of final 2025 event metadata.';
 const LATEST_EVENT_NAME_QUESTION = 'List event name from round 1 of latest recorded 2026 event metadata.';
 const EVENT_NAME_CIRCUIT_QUESTION = 'List event name and circuit identifier from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_NAME_CIRCUIT_QUESTION = 'List event name and circuit identifier from final 2024 event metadata at Monaco Grand Prix.';
 const EVENT_ALL_METADATA_QUESTION = 'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
+const NAMED_EVENT_ALL_METADATA_QUESTION = 'List race date, event name, and circuit identifier from final 2025 event metadata at Japanese Grand Prix.';
+const EXTRA_EVENT_METADATA_FIELD_QUESTION = 'List race date, event name, and circuit identifier with season and round from round 1 of final 2025 event metadata.';
+const LIMITED_EVENT_DATE_CIRCUIT_QUESTION = 'List top 1 race date and circuit identifier from round 1 of final 2025 event metadata.';
+const SEASON_WIDE_EVENT_NAME_CIRCUIT_QUESTION = 'List event name and circuit identifier from final 2025 event metadata.';
+const MULTI_EVENT_ALL_METADATA_QUESTION = 'List race date, event name, and circuit identifier from final 2025 event metadata at Monaco or Silverstone.';
+const INTERIM_EVENT_DATE_CIRCUIT_QUESTION = 'List race date and circuit identifier from round 1 of interim 2025 event metadata.';
+const QUALIFYING_ALL_METADATA_QUESTION = 'List qualifying date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
 const SEASON_WIDE_EVENT_DATE_NAME_QUESTION = 'List race date and event name from final 2025 event metadata.';
 const LIMITED_EVENT_DATE_NAME_QUESTION = 'List top 1 race date and event name from round 1 of final 2025 event metadata.';
 const LATEST_EVENT_DATE_NAME_QUESTION = 'List race date and event name from round 1 of latest recorded 2026 event metadata.';
@@ -703,7 +712,13 @@ describe('WP8 stage-zero semantic shadow route', () => {
     [EVENT_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
     [NAMED_EVENT_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
     [EVENT_DATE_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
-    [NAMED_EVENT_DATE_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
+    [NAMED_EVENT_DATE_NAME_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
+    [EVENT_DATE_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
+    [NAMED_EVENT_DATE_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]],
+    [EVENT_NAME_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
+    [NAMED_EVENT_NAME_CIRCUIT_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2024, 501]],
+    [EVENT_ALL_METADATA_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, [2025, 1, 2]],
+    [NAMED_EVENT_ALL_METADATA_QUESTION, SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name, [2025, 501]]
   ] as const)('proves one-event metadata without result execution: %s', async (
     question, resolverSql, resolverParameters
   ) => {
@@ -712,7 +727,12 @@ describe('WP8 stage-zero semantic shadow route', () => {
         return { rows: [{ season: 2025, round: 1 }] };
       }
       if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name) {
-        return { rows: [{ season: 2025, round: 8, identity: 'Monaco' }] };
+        return { rows: [
+          { season: 2024, round: 8, identity: 'Monaco Grand Prix' },
+          { season: 2025, round: 1, identity: 'Australian Grand Prix' },
+          { season: 2025, round: 3, identity: 'Japanese Grand Prix' },
+          { season: 2025, round: 8, identity: 'Monaco' }
+        ] };
       }
       return { rows: [] };
     });
@@ -741,16 +761,16 @@ describe('WP8 stage-zero semantic shadow route', () => {
   });
 
   it.each([
-    EVENT_DATE_CIRCUIT_QUESTION,
-    EVENT_NAME_CIRCUIT_QUESTION,
-    EVENT_ALL_METADATA_QUESTION,
     LATEST_EVENT_CIRCUIT_QUESTION,
     SEASON_WIDE_EVENT_NAME_QUESTION,
     LIMITED_EVENT_NAME_QUESTION,
     LATEST_EVENT_NAME_QUESTION,
     SEASON_WIDE_EVENT_DATE_NAME_QUESTION,
     LIMITED_EVENT_DATE_NAME_QUESTION,
-    LATEST_EVENT_DATE_NAME_QUESTION
+    LATEST_EVENT_DATE_NAME_QUESTION,
+    EXTRA_EVENT_METADATA_FIELD_QUESTION,
+    LIMITED_EVENT_DATE_CIRCUIT_QUESTION,
+    SEASON_WIDE_EVENT_NAME_CIRCUIT_QUESTION
   ])('rejects broader event metadata before provider or result execution: %s', async question => {
     const fake = fakePool();
     let providerCalls = 0;
@@ -779,7 +799,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
   it.each([
     MULTI_EVENT_DATE_NAME_QUESTION,
     INTERIM_EVENT_DATE_NAME_QUESTION,
-    QUALIFYING_DATE_NAME_QUESTION
+    QUALIFYING_DATE_NAME_QUESTION,
+    MULTI_EVENT_ALL_METADATA_QUESTION,
+    INTERIM_EVENT_DATE_CIRCUIT_QUESTION,
+    QUALIFYING_ALL_METADATA_QUESTION
   ])('rejects unsupported event date-and-name scope without provider or result execution: %s', async question => {
     const fake = fakePool();
     let providerCalls = 0;
@@ -1428,8 +1451,17 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'event' as const, span: questionSpan(request.question, 'Monaco') }
         ]
     : request.question === NAMED_EVENT_DATE_QUESTION || request.question === NAMED_EVENT_CIRCUIT_QUESTION ||
-        request.question === NAMED_EVENT_NAME_QUESTION || request.question === NAMED_EVENT_DATE_NAME_QUESTION
-      ? [{ type: 'event' as const, span: questionSpan(request.question, 'Monaco') }]
+        request.question === NAMED_EVENT_NAME_QUESTION || request.question === NAMED_EVENT_DATE_NAME_QUESTION ||
+        request.question === NAMED_EVENT_DATE_CIRCUIT_QUESTION ||
+        request.question === NAMED_EVENT_NAME_CIRCUIT_QUESTION ||
+        request.question === NAMED_EVENT_ALL_METADATA_QUESTION
+      ? [{
+          type: 'event' as const,
+          span: questionSpan(request.question,
+            request.question === NAMED_EVENT_DATE_CIRCUIT_QUESTION ? 'Australian Grand Prix' :
+            request.question === NAMED_EVENT_NAME_CIRCUIT_QUESTION ? 'Monaco Grand Prix' :
+            request.question === NAMED_EVENT_ALL_METADATA_QUESTION ? 'Japanese Grand Prix' : 'Monaco')
+        }]
     : request.question === OUTPUT_ALTERNATIVE_POINTS_QUESTION
       ? ['Max Verstappen', 'Lando Norris'].map(text => ({
           type: 'driver' as const,

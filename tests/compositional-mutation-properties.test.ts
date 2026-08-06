@@ -77,6 +77,30 @@ describe('Phase 11 offline plan mutations', () => {
     expect(new Set(NAMED_ANSWER_PLAN_MUTATIONS.map(mutation => mutation.name)).size)
       .toBe(NAMED_ANSWER_PLAN_MUTATIONS.length);
   });
+
+  it('rejects output, ordering, scope, and row-bound mutations of the complete event metadata projection', async () => {
+    const prepared = await prepareReviewedCompositionalAnswerCase(
+      compositionalRegressionCorpusInput, 'family-event-date-name-circuit'
+    );
+    const mutations = [
+      (plan: any) => plan.planned_f1ql.root.input.input.outputs.reverse(),
+      (plan: any) => {plan.planned_f1ql.root.input.keys[0].output_id = 'circuit_id';},
+      (plan: any) => {plan.planned_f1ql.root.input.input.input.predicates[0].value = 2;},
+      (plan: any) => {plan.planned_f1ql.root.count = 2;}
+    ];
+    for (const mutate of mutations) {
+      const mutated = structuredClone(prepared.plan);
+      mutate(mutated);
+      expect(() => proveSemanticAnswerPlan({
+        question: prepared.question,
+        entity_inventory: prepared.entity_inventory,
+        evidence: prepared.evidence,
+        admission: prepared.admission,
+        resolution: prepared.resolution,
+        plan: mutated
+      })).toThrowError(expect.objectContaining({ reason: 'plan_mismatch' }));
+    }
+  });
 });
 
 describe('Phase 11 offline result mutation accounting', () => {

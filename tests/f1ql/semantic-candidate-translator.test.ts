@@ -37,6 +37,9 @@ const STANDINGS = 'List driver and championship points from final 2025 driver st
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const QUALIFYING_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -50,7 +53,10 @@ describe('semantic candidate translator foundation', () => {
       { question: STANDINGS, entities: [] },
       { question: RACE_METADATA, entities: [] },
       { question: RACE_QUALIFYING, entities: [{ type: 'driver', span: span(RACE_QUALIFYING, 'Norris') }] },
-      { question: QUALIFYING_RANK, entities: [] }
+      { question: QUALIFYING_RANK, entities: [] },
+      { question: EVENT_DATE_CIRCUIT, entities: [] },
+      { question: EVENT_NAME_CIRCUIT, entities: [] },
+      { question: EVENT_ALL_METADATA, entities: [] }
     ];
     for (const testCase of cases) {
       const evidence = candidateEvidence(testCase.question, testCase.entities);
@@ -132,17 +138,17 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Do not extend this summary rule to unfiltered, five-or-more-driver, caller-limited, ranked, latest-recorded, or interim requests');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('requests that name race date, circuit identifier, or event name from final YYYY event metadata at exactly one round or named event');
+      .toContain('any nonempty subset of race date, event name, and circuit identifier from final YYYY event metadata at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('A circuit identifier is a raw identifier, not a circuit, venue, or Grand Prix name');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('an event name is recorded source text, not a circuit or venue name');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('emit exactly date then event_name in that order');
+      .toContain('exactly the requested outputs in canonical date, event_name, circuit_id order');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('this exact pair is the only supported combined event-metadata projection');
+      .toContain('all seven nonempty subsets of those three fields');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('date plus circuit_id, event_name plus circuit_id, all three fields, multiple events');
+      .toContain('multiple events, season-wide requests, user-supplied limits');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

@@ -294,22 +294,28 @@ function eventDatePlan() {
 }
 
 function eventDateNamePlan(round = 1) {
+  return eventMetadataProjectionPlan(['date', 'event_name'], round);
+}
+
+function eventMetadataProjectionPlan(
+  conceptIds: readonly ('circuit_id' | 'date' | 'event_name')[],
+  round = 1
+) {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
     root: {
       op: 'limit', count: 1,
       input: {
-        op: 'sort', keys: [{ output_id: 'date', direction: 'asc', nulls: 'last' }],
+        op: 'sort', keys: [{ output_id: conceptIds[0], direction: 'asc', nulls: 'last' }],
         input: {
           op: 'project',
           input: {
             op: 'filter', input: { op: 'source', source_id: 'event_metadata' },
             predicates: [predicate('event_metadata', 'round', round), predicate('event_metadata', 'season', 2025)]
           },
-          outputs: [
-            { kind: 'concept', concept: ref('event_metadata', 'date'), as: 'date' },
-            { kind: 'concept', concept: ref('event_metadata', 'event_name'), as: 'event_name' }
-          ]
+          outputs: conceptIds.map(conceptId => ({
+            kind: 'concept', concept: ref('event_metadata', conceptId), as: conceptId
+          }))
         }
       }
     }
@@ -1570,6 +1576,65 @@ describe('internal planned F1QL and Core pipeline', () => {
           date: '2025-01-01', event_name: 'Formula 1 Planned Grand Prix',
           [PLANNED_INTEGRITY_FIELD]: false
         }]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+  });
+
+  it.each([
+    [['date', 'circuit_id']],
+    [['event_name', 'circuit_id']],
+    [['date', 'event_name', 'circuit_id']]
+  ] as const)('matches PostgreSQL for a real historical Australian Grand Prix projection: %j', async (conceptIds) => {
+    const core = lowerPlannedF1QL(eventMetadataProjectionPlan(conceptIds));
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_metadata: [{
+        season: 2025,
+        round: 1,
+        event_id: 'planned-gp',
+        event_name: 'Formula 1 Australian Grand Prix',
+        circuit_id: 'albert-park',
+        date: '2025-03-16'
+      }]
+    };
+    const expected = Object.fromEntries([
+      ...conceptIds.map(conceptId => [conceptId, reference.event_metadata![0][conceptId]]),
+      [PLANNED_INTEGRITY_FIELD, true]
+    ]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query(`UPDATE grand_prix
+          SET full_name = 'Formula 1 Australian Grand Prix'
+          WHERE id = 'planned_gp'`);
+        await client.query(`UPDATE race
+          SET circuit_id = 'albert-park', date = '2025-03-16'
+          WHERE year = 2025 AND round = 1`);
+        await client.query("SET LOCAL datestyle = 'SQL, DMY'");
+        const rows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(rows).toEqual(interpretPlannedF1QL(core, reference));
+        expect(rows).toEqual([expected]);
+
+        await client.query(`INSERT INTO race
+          (id, year, round, grand_prix_id, circuit_id, official_name, date)
+          VALUES (9804, 2025, 1, 'planned_gp', 'melbourne', 'DUPLICATE AUSTRALIAN EVENT', '2025-03-17')`);
+        const duplicateReference: PlannedReferenceDatabase = {
+          event_metadata: [
+            ...reference.event_metadata!,
+            {
+              season: 2025, round: 1, event_id: 'planned-gp',
+              event_name: 'Formula 1 Australian Grand Prix', circuit_id: 'melbourne', date: '2025-03-17'
+            }
+          ]
+        };
+        const corruptRows = (await client.query(compiled.sql, compiled.params)).rows;
+        expect(corruptRows).toEqual(interpretPlannedF1QL(core, duplicateReference));
+        expect(corruptRows[0]).toMatchObject({ [PLANNED_INTEGRITY_FIELD]: false });
       } finally {
         await client.query('ROLLBACK');
       }

@@ -46,6 +46,9 @@ const MULTI_STANDINGS_POSITION = 'List driver and championship position for Land
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const EVENT_DATE = 'The 2025 Monaco race date.';
 const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
+const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
 
 describe('pure non-executing semantic shadow orchestrator', () => {
   it.each([
@@ -69,6 +72,12 @@ describe('pure non-executing semantic shadow orchestrator', () => {
       driverMention(MULTI_STANDINGS_SUMMARY, 'Oscar Piastri', ['oscar-piastri'], ['oscar-piastri'])
     ], { type: 'missing' } as const, 'single_source_rows', 'driver_standings', 'filter_project_sort_limit'],
     [EVENT_DATE_NAME, [], { type: 'resolved', season: 2025, round: 1 } as const,
+      'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
+    [EVENT_DATE_CIRCUIT, [], { type: 'resolved', season: 2025, round: 1 } as const,
+      'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
+    [EVENT_NAME_CIRCUIT, [], { type: 'resolved', season: 2025, round: 1 } as const,
+      'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
+    [EVENT_ALL_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const,
       'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
     [RACE_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const, 'row_dimension_join', 'event_classification__event_metadata', 'filter_join_project_sort_limit'],
     [COMPOSE, [driverMention(COMPOSE, 'Norris', ['recognizable-secret-driver'], ['recognizable-secret-driver'])], { type: 'missing' } as const,

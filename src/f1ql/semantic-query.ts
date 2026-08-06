@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { AnswerQuestionContract, AnswerQuestionMention, createAnswerQuestionContract } from './answer-question';
+import {
+  AnswerQuestionContract,
+  AnswerQuestionMention,
+  createAnswerQuestionContract,
+  parseRoundReference
+} from './answer-question';
 import {
   computeSemanticCatalogHash,
   SEMANTIC_CATALOG,
@@ -384,13 +389,13 @@ export function enumerateSemanticQueries(
   const eventMetadataSource = eventMetadataSelection
     ? catalog.sources.find(source => source.id === 'event_metadata' && source.usage === 'answer_fact')
     : undefined;
+  const requestsEventScopeOutput = eventMetadataSelection && hasUnboundEventScopeKey(question);
   const eventScalarSelection = eventMetadataSelection && effectiveConceptMatches.length > 0 &&
-    (eventScalarConceptIds.size === 1 || (eventScalarConceptIds.size === 2 &&
-      eventScalarConceptIds.has('date') && eventScalarConceptIds.has('event_name'))) &&
+    eventScalarConceptIds.size >= 1 && eventScalarConceptIds.size <= 3 &&
     effectiveConceptMatches.every(match => match.source_id === 'event_metadata' &&
       match.concept_id !== undefined && eventScalarConceptIds.has(match.concept_id));
   const eventSelectorCount = question.rounds.length + entities.filter(entity => entity.type === 'event').length;
-  if (eventMetadataSelection && (!eventScalarSelection || operations.count || operations.rank || operations.limit ||
+  if (eventMetadataSelection && (requestsEventScopeOutput || !eventScalarSelection || operations.count || operations.rank || operations.limit ||
       question.years.length !== 1 || operations.temporal.some(temporal => temporal.value !== 'final') ||
       eventMetadataSource?.scope.final_season_through === null || question.years.some(year =>
         eventMetadataSource === undefined || year.value > eventMetadataSource.scope.final_season_through!
@@ -695,7 +700,7 @@ function validateSemanticQuery(query: SemanticQuery, question: AnswerQuestionCon
   if ((rounds.length > 0 || events.length > 0) && sessions.some(session => session.value === 'season')) {
     throw new Error('semantic season scope cannot include an event selector');
   }
-  if (!literalHasEvidence(season, seasons[0].evidence) || rounds.some(round => !literalHasEvidence(round.value, round.evidence))) {
+  if (!literalHasEvidence(season, seasons[0].evidence) || rounds.some(round => !roundHasEvidence(round.value, round.evidence))) {
     throw new Error('semantic scope value is not grounded by its evidence');
   }
   if (!temporalHasEvidence(temporal, temporals[0].evidence, season, question.normalized_question)) {
@@ -814,13 +819,15 @@ function canonicalEventMetadataOutputs(
   outputs: readonly SemanticQuery['outputs'][number][],
   operations: OperationEvidence
 ): readonly SemanticQuery['outputs'][number][] {
-  const order = ['date', 'event_name'];
+  const order = ['date', 'event_name', 'circuit_id'];
   if (source.id !== 'event_metadata' || operations.count || operations.rank ||
-      outputs.length !== order.length || !order.every(conceptId =>
-        outputs.some(output => output.concept.concept_id === conceptId))) {
+      outputs.some(output => !order.includes(output.concept.concept_id))) {
     return outputs;
   }
-  return order.map(conceptId => outputs.find(output => output.concept.concept_id === conceptId)!);
+  return order.flatMap(conceptId => {
+    const output = outputs.find(candidate => candidate.concept.concept_id === conceptId);
+    return output ? [output] : [];
+  });
 }
 
 function reviewedProjectionOutputs(
@@ -1404,6 +1411,22 @@ function collectOperationEvidence(question: string, conceptMatches: readonly Lex
   };
 }
 
+function hasUnboundEventScopeKey(question: AnswerQuestionContract): boolean {
+  const points = Array.from(question.normalized_question);
+  const directlyAdjacent = (leftEnd: number, rightStart: number, allowHash = false) =>
+    (allowHash ? /^\s*#?\s*$/u : /^\s*$/u).test(points.slice(leftEnd, rightStart).join(''));
+  return regexSpans(question.normalized_question, /\b(?:round|season)\b/giu).some(scopeKey => {
+    if (scopeKey.text.toLocaleLowerCase('en-US') === 'round') {
+      return !question.rounds.some(round =>
+        (scopeKey.end <= round.start && directlyAdjacent(scopeKey.end, round.start, true)) ||
+        (round.end <= scopeKey.start && directlyAdjacent(round.end, scopeKey.start)));
+    }
+    return !question.years.some(year =>
+      (scopeKey.end <= year.start && directlyAdjacent(scopeKey.end, year.start)) ||
+      (year.end <= scopeKey.start && directlyAdjacent(year.end, scopeKey.start)));
+  });
+}
+
 function temporalChoices(
   year: AnswerQuestionMention<number>,
   operations: OperationEvidence,
@@ -1692,6 +1715,10 @@ function literalHasEvidence(value: string | number | boolean, evidence: readonly
     return evidence.some(span => span.text.toLocaleLowerCase('en-US') === String(value));
   }
   return evidence.some(span => span.text.normalize('NFKC').toLocaleLowerCase('en-US') === value.normalize('NFKC').toLocaleLowerCase('en-US'));
+}
+
+function roundHasEvidence(value: number, evidence: readonly SemanticLiteralSpan[]): boolean {
+  return literalHasEvidence(value, evidence) || evidence.some(span => parseRoundReference(span.text) === value);
 }
 
 function temporalHasEvidence(

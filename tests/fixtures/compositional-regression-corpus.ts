@@ -22,6 +22,9 @@ const EVENT_DATE = 'List race date from round 1 of final 2025 event metadata.';
 const EVENT_CIRCUIT = 'List circuit identifier from final 2025 event metadata at Monaco.';
 const EVENT_NAME = 'List event name from round 1 of final 2025 event metadata.';
 const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
+const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from final 2025 event metadata at Australian Grand Prix.';
+const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from final 2024 event metadata at Monaco Grand Prix.';
+const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from final 2025 event metadata at Japanese Grand Prix.';
 
 const noResolvers = {
   driver_mentions: [],
@@ -31,11 +34,11 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 36,
-    action_counts: { answer: 24, clarify: 5, abstain: 7 },
-    split_counts: { development: 21, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 39,
+    action_counts: { answer: 27, clarify: 5, abstain: 7 },
+    split_counts: { development: 24, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
-      single_source_rows: 16,
+      single_source_rows: 19,
       single_source_aggregate: 4,
       row_dimension_join: 2,
       scalar_aggregate_compose: 2
@@ -44,12 +47,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       driver_standings: 8,
       event_classification: 4,
       qualifying_classification: 4,
-      event_metadata: 4,
+      event_metadata: 7,
       event_classification_event_metadata: 2,
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 20,
+      single_source: 23,
       safe_dimension_join: 2,
       aggregate_locality: 2,
       other: 0
@@ -72,11 +75,11 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 21,
+      promoted_topology: 24,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 20,
+      plan_family_single_source: 23,
       plan_family_safe_dimension_join: 2,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
@@ -86,9 +89,9 @@ export const compositionalRegressionCorpusInput: unknown = {
       aggregation: 4,
       aggregate_locality: 2,
       join_cardinality: 2,
-      resolver_event: 10,
+      resolver_event: 13,
       resolver_identity: 14,
-      template_free: 19,
+      template_free: 22,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -375,6 +378,39 @@ export const compositionalRegressionCorpusInput: unknown = {
       coverage_tags: ['promoted_topology', 'plan_family_single_source'],
       risk_tags: ['template_free', 'resolver_event'], entities: [], provider_mode: 'enumerated',
       resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2025, round: 1 } },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['event_metadata'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-event-date-circuit', split: 'development', question: EVENT_DATE_CIRCUIT,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_event'],
+      entities: [{ type: 'event', text: 'Australian Grand Prix' }], provider_mode: 'enumerated',
+      resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2025, round: 1 } },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['event_metadata'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-event-name-circuit', split: 'development', question: EVENT_NAME_CIRCUIT,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_event'],
+      entities: [{ type: 'event', text: 'Monaco Grand Prix' }], provider_mode: 'enumerated',
+      resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2024, round: 8 } },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
+        source_ids: ['event_metadata'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-event-date-name-circuit', split: 'development', question: EVENT_ALL_METADATA,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['template_free', 'resolver_event'],
+      entities: [{ type: 'event', text: 'Japanese Grand Prix' }], provider_mode: 'enumerated',
+      resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2025, round: 3 } },
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_rows',
         source_ids: ['event_metadata'], plan_family: 'single_source'

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 23 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 24 as const;
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -182,6 +182,52 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         output_bindings: [
           'concept:event_metadata.date->date',
           'concept:event_metadata.event_name->event_name'
+        ],
+        sort_bindings: ['date:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_metadata.round:eq',
+          'event_metadata.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_metadata.date->date',
+          'concept:event_metadata.circuit_id->circuit_id'
+        ],
+        sort_bindings: ['date:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_metadata.round:eq',
+          'event_metadata.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_metadata.event_name->event_name',
+          'concept:event_metadata.circuit_id->circuit_id'
+        ],
+        sort_bindings: ['event_name:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_metadata.round:eq',
+          'event_metadata.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_metadata.date->date',
+          'concept:event_metadata.event_name->event_name',
+          'concept:event_metadata.circuit_id->circuit_id'
         ],
         sort_bindings: ['date:asc:last'],
         requested_rows: 1

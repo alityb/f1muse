@@ -33,6 +33,9 @@ const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for 
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
+const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from round 1 of final 2025 event metadata.';
+const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
 
 describe('independent semantic whole-plan proof', () => {
   it('uses one frozen resolver transcript for planning and independent proof', async () => {
@@ -66,6 +69,9 @@ describe('independent semantic whole-plan proof', () => {
     ['single-source scalar aggregate', SCALAR_COUNT, []],
     ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
     ['single-source event date and name', EVENT_DATE_NAME, []],
+    ['single-source event date and circuit', EVENT_DATE_CIRCUIT, []],
+    ['single-source event name and circuit', EVENT_NAME_CIRCUIT, []],
+    ['single-source complete event metadata', EVENT_ALL_METADATA, []],
     ['safe metadata join', RACE_METADATA, []]
   ])('reproduces %s without planner decision imports', async (_name, question, entities) => {
     const prepared = await prepare(question, entities, [], { type: 'resolved', season: 2025, round: 1 });
@@ -73,7 +79,7 @@ describe('independent semantic whole-plan proof', () => {
     expect(prepared.proof.topology_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.participation_hash).toMatch(/^[a-f0-9]{64}$/u);
     expect(prepared.proof.compiled_hash).toMatch(/^[a-f0-9]{64}$/u);
-    if (question === EVENT_DATE_NAME) {
+    if ([EVENT_DATE_NAME, EVENT_DATE_CIRCUIT, EVENT_NAME_CIRCUIT, EVENT_ALL_METADATA].includes(question)) {
       expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
     }
   });

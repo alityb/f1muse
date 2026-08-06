@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v22' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v23' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -993,9 +993,9 @@ function isEventScalarSelectionContract(
   const conceptIds = project.outputs.map(output => output.kind === 'concept'
     ? output.concept.concept_id
     : '');
-  const supportedProjection = (conceptIds.length === 1 &&
-    ['circuit_id', 'date', 'event_name'].includes(conceptIds[0])) ||
-    sameStrings(conceptIds, ['date', 'event_name']);
+  const canonicalConceptIds = ['date', 'event_name', 'circuit_id'];
+  const supportedProjection = conceptIds.length >= 1 &&
+    sameStrings(conceptIds, canonicalConceptIds.filter(conceptId => conceptIds.includes(conceptId)));
   const firstConceptId = conceptIds[0];
   return rowLimit === 1 && sources.length === 1 && source?.id === 'event_metadata' &&
     branches.length === 1 && branch.input.source_id === 'event_metadata' && branch.predicates.length === 2 &&

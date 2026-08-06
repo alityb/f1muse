@@ -194,6 +194,27 @@ const cases = [
       date: '2025-03-16', event_name: 'Australian Grand Prix',
       [PLANNED_INTEGRITY_FIELD]: true
     }]
+  },
+  {
+    id: 'family-event-date-circuit',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ date: '2025-03-16', circuit_id: 'albert-park', [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-event-name-circuit',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{ event_name: 'Monaco Grand Prix', circuit_id: 'monaco', [PLANNED_INTEGRITY_FIELD]: true }]
+  },
+  {
+    id: 'family-event-date-name-circuit',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [{
+      date: '2025-04-06', event_name: 'Japanese Grand Prix', circuit_id: 'suzuka',
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]
   }
 ] as const;
 

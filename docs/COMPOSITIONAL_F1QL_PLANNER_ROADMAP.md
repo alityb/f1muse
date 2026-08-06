@@ -704,16 +704,16 @@ position. The matching qualifying-classification slice is complete over the
 same season, event, and driver bounds, returning only driver identity and
 nullable qualifying position. A one-event metadata slice is complete for one
 final historical season from 1950 through 2025 and exactly one explicit round
-or uniquely resolved named event, returning either one nullable canonical race
-date, one nullable raw circuit identifier, one nullable raw event name, or the
-exact canonical pair of race date followed by event name. Both pair fields retain
-their source nulls, one row is required, and ordering remains `date ASC NULLS LAST`.
+or uniquely resolved named event, returning any nonempty subset of nullable
+canonical race date, nullable raw event name, and nullable raw circuit
+identifier. Outputs use canonical `date`, `event_name`, `circuit_id` order with
+omitted fields removed; one row is required and ordering uses the first projected
+field ascending with nulls last.
 Circuit identifiers preserve exact nonblank source bytes and are not circuit,
 venue, or Grand Prix names. Event names likewise preserve exact nonblank source
-text and are not circuit or venue names. Date plus circuit identifier, event name
-plus circuit identifier, all three metadata fields, caller limits, multi-event,
-latest-recorded, interim, season-wide, and non-race-session variants remain
-refused. A
+text and are not circuit or venue names. Caller limits, multi-event,
+latest-recorded, interim, season-wide, additional metadata fields, and
+non-race-session variants remain refused. A
 selected-driver standings-ranking slice is complete for one final historical
 season from 1950 through 2025 and exactly two to four drivers, returning only
 driver identity and recorded non-null championship position. It orders official
@@ -788,8 +788,8 @@ latest-recorded scope, and caller limits remain refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, event-metadata
-combinations other than the exact race-date-and-event-name pair, broader event
-metadata, non-race session dates, classification status,
+fields outside the complete three-field projection lattice, broader event metadata,
+non-race session dates, classification status,
 qualifying timing, grid position, sprint qualifying, other grouping or aggregation,
 unfiltered ranking, and comparison remain outside these slices and must be promoted
 through separate complete-interaction and response-coverage contracts. No

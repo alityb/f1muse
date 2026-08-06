@@ -26,6 +26,9 @@ const MULTI_STANDINGS_POSITION = 'List driver and championship position for Land
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 2025 event metadata.';
 const NAMED_EVENT_DATE_NAME = 'List event name and race date from final 2025 event metadata at Monaco.';
+const EVENT_DATE_CIRCUIT = 'List circuit identifier and race date from round 1 of final 2025 event metadata.';
+const EVENT_NAME_CIRCUIT = 'List circuit identifier and event name from round 1 of final 2025 event metadata.';
+const EVENT_ALL_METADATA = 'List circuit identifier, event name, and race date from round 1 of final 2025 event metadata.';
 
 describe('deterministic semantic planner', () => {
   it('materializes a frozen deterministic single-source row plan from a live admission', async () => {
@@ -160,9 +163,12 @@ describe('deterministic semantic planner', () => {
   });
 
   it.each([
-    [EVENT_DATE_NAME, []],
-    [NAMED_EVENT_DATE_NAME, [{ type: 'event', span: span(NAMED_EVENT_DATE_NAME, 'Monaco') }]]
-  ])('plans one canonical event date-and-name row: %s', async (question, entities) => {
+    [EVENT_DATE_NAME, [], ['date', 'event_name']],
+    [NAMED_EVENT_DATE_NAME, [{ type: 'event', span: span(NAMED_EVENT_DATE_NAME, 'Monaco') }], ['date', 'event_name']],
+    [EVENT_DATE_CIRCUIT, [], ['date', 'circuit_id']],
+    [EVENT_NAME_CIRCUIT, [], ['event_name', 'circuit_id']],
+    [EVENT_ALL_METADATA, [], ['date', 'event_name', 'circuit_id']]
+  ])('plans one canonical event metadata row: %s', async (question, entities, outputIds) => {
     const admission = admitted(question, entities);
     const plan = await planSemanticAnswer({
       question,
@@ -176,7 +182,7 @@ describe('deterministic semantic planner', () => {
       work: { source_scan_units: 1, requested_rows: 1 }
     });
     expect(plan.planned_f1ql.root.input.input.outputs.map(output => output.as))
-      .toEqual(['date', 'event_name']);
+      .toEqual(outputIds);
     expect(plan.branches[0]).toMatchObject({
       fixed_grain: ['round', 'season'], residual_grain: [],
       predicates: [
@@ -186,7 +192,7 @@ describe('deterministic semantic planner', () => {
     });
     expect(plan.planned_f1ql.root).toMatchObject({
       count: 1,
-      input: { keys: [{ output_id: 'date', direction: 'asc', nulls: 'last' }] }
+      input: { keys: [{ output_id: outputIds[0], direction: 'asc', nulls: 'last' }] }
     });
   });
 
