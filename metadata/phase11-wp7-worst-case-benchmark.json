@@ -44,7 +44,7 @@
           "core_sha256": "931311473276cc559bac93085ac1b746fda4ed0b1fd0921af9adfbe08291137b",
           "compiled_sha256": "454c77414965bf83657cfd40737c33b91919fdc1df5428c4af6881fc306763ed",
           "reference_output_sha256": "2c16e147aef8dcae8e6fe1a1fdc22a7cf1831022ffca8da633328f50df63e7c3",
-          "formatter_output_sha256": "1ae92e2cff617bf79778bd4d28239a7d80f8a76c34b5aab5cbc1fb79671eecd8"
+          "formatter_output_sha256": "c087d18cfe148a36d14a7f8d37347f511eba7a90e29c3868338e5cc1bb0deb6a"
         }
       }
     },
@@ -75,7 +75,7 @@
           "core_sha256": "3a8a7f58314ec83fb0d4480f39464a6623c86f4759a85f0cb67d8776208b278e",
           "compiled_sha256": "7b89bc4acc46b0eb341551c8a51e3b09fd14c088f41f750f90c01bfee18394d6",
           "reference_output_sha256": "5fe360bfe15b1538122211af96e863f202843957e7e8c2d8307a3eca082abc11",
-          "formatter_output_sha256": "dc52a463b89c003a8fbe767d2df6d3980b79f70d26ebbbfed5e93c9d62df4028"
+          "formatter_output_sha256": "056eec121c92b10e1a9fdfc8269edb9599b546a667e551183aadb4d1667d3f06"
         }
       }
     },
@@ -104,7 +104,7 @@
           "core_sha256": "56752e1c3d659524a46d1703f6730d712ae6fdbed0c6c8949e5ce782b529d4d3",
           "compiled_sha256": "97bd162455da7c08eefd6515bd1261773a34fa656909ace4c8ef1d1969002807",
           "reference_output_sha256": "79f95a3bb9e3d8ad48fe276f9dae386e3aea7b02c0d35d8cd24c194b9067155a",
-          "formatter_output_sha256": "18d5a2908e46a9a6c93aa0b68b324e9c9603c76ab8d817e84879cd30314129df"
+          "formatter_output_sha256": "372bec30a3b90e572afe07286a919513019ac437bda9132dcf4dce1f94d42fa4"
         }
       }
     },
@@ -133,7 +133,98 @@
           "core_sha256": "5d5486d49f81e70cc8d95dc21318915f9e803aca11603ff84f90afba5ee22116",
           "compiled_sha256": "103510baa303eae710827da3e4f233e83ed60a33216b055b18809c7fc9ca0993",
           "reference_output_sha256": "47a3c834544637431a5b249c0abbeb773b6e3605939964af81fc9c6a04f2d20d",
-          "formatter_output_sha256": "7ddf130788e4ae50f6a7e15c893c7e379af2b3d42b22047396780234127776b7"
+          "formatter_output_sha256": "e47db7da9425281a0bc8f1c8285b70bf561d309faf0664a24f158c18143ae184"
+        }
+      }
+    },
+    {
+      "id": "selected_race_grouped_aggregate",
+      "family": "single_source",
+      "boundary": "family_coverage",
+      "question": "Show driver and count of finishing position for Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.",
+      "entities": [
+        {
+          "type": "driver",
+          "text": "Lando Norris",
+          "occurrence": 0
+        },
+        {
+          "type": "driver",
+          "text": "Oscar Piastri",
+          "occurrence": 0
+        },
+        {
+          "type": "driver",
+          "text": "George Russell",
+          "occurrence": 0
+        },
+        {
+          "type": "driver",
+          "text": "Charles Leclerc",
+          "occurrence": 0
+        }
+      ],
+      "resolver": {
+        "driver_mentions": [
+          {
+            "text": "Lando Norris",
+            "occurrence": 0,
+            "candidates": [
+              "lando-norris"
+            ],
+            "active_candidates": [
+              "lando-norris"
+            ]
+          },
+          {
+            "text": "Oscar Piastri",
+            "occurrence": 0,
+            "candidates": [
+              "oscar-piastri"
+            ],
+            "active_candidates": [
+              "oscar-piastri"
+            ]
+          },
+          {
+            "text": "George Russell",
+            "occurrence": 0,
+            "candidates": [
+              "george-russell"
+            ],
+            "active_candidates": [
+              "george-russell"
+            ]
+          },
+          {
+            "text": "Charles Leclerc",
+            "occurrence": 0,
+            "candidates": [
+              "charles-leclerc"
+            ],
+            "active_candidates": [
+              "charles-leclerc"
+            ]
+          }
+        ],
+        "event_resolution": {
+          "type": "missing"
+        }
+      },
+      "expected": {
+        "topology": "single_source_aggregate",
+        "work_units": 30,
+        "requested_rows": 100,
+        "resolver_candidates": 4,
+        "reference_rows": 4,
+        "hashes": {
+          "question_sha256": "d4d82a5a07f4190608db357f33f543299b022ac92416e570e1cf3c492db3b398",
+          "answer_plan_sha256": "b84f48bc9edb612346fcdec224e1bf8745f94236eff61c62b55e5e47f5be43db",
+          "proof_sha256": "49eaa8a42279ac5c12d60084df97de4eef582b973947e38e81752c1068e1ba79",
+          "core_sha256": "c3c2cd0f5840aa72a8557dbf51d8f2d29162624c0130d8cb070557244c90fa3f",
+          "compiled_sha256": "638b6b26b6e7c6f11b8c2ec1f8908fa13a7ba6278ccac8e7a42d1e6164b4b80c",
+          "reference_output_sha256": "e355af204945ff0a5dd92094d7300ed33bc99b82297d7e17b487b4b3b88ce9a8",
+          "formatter_output_sha256": "ec8048404a9cba9efd78fcc1b7ad760aee7bee62a9cdc64db1d2e9ca0beb5d4b"
         }
       }
     },
@@ -278,7 +369,7 @@
           "core_sha256": "d66833ab24cdfd93792e7a8162a41aa2df8ab3fa54b7db5a505cb79e3e291361",
           "compiled_sha256": "11049430da6c05c0e5e6a10815e3eeb29cfcce8e2b5168c565266791854a6032",
           "reference_output_sha256": "31253eded9f1922b4d78334d5a8c62ad429c23170304a172bc6458e84626d7d2",
-          "formatter_output_sha256": "c07a26f83de1c5d66bc1e52968b068722ecb095cd9c23dd7bea63add0139b0d0"
+          "formatter_output_sha256": "ebd0903e5210fb1db1bf001f3529d8a5103e0304d59a9caac62c5511daba0836"
         }
       }
     }

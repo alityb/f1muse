@@ -803,13 +803,27 @@ all-null source is factual zero, while absent source rows are integrity failure.
 The race count does not mean starts, events, wins, classified finishes, or
 complete schedule/entrant coverage. The qualifying count does not mean
 appearances, events, poles, top-ten results, or complete schedule/entrant
-coverage. A filtered classification count additionally requires selected-driver season
-participation and selected source presence. Source-wide event-driver grain and
+coverage. A filtered scalar classification count additionally requires selected-driver
+season participation and selected source presence. Source-wide event-driver grain and
 position bounds remain mandatory even outside the selected driver, but equal
-positions are valid because no sporting rank is inferred. Multi-driver classification
-filters, event, status, or position filters,
+positions are valid because no sporting rank is inferred. Pooled multi-driver scalar
+counts, event, status, or position filters,
 all other grouped or ranked counts, alternate aggregates, broader output,
 latest-recorded scope, and caller limits remain refused.
+One selected-driver grouped race count is implemented locally for exactly two
+through four explicit driver mentions that resolve to distinct canonical drivers
+and one final historical season.
+It filters `event_classification` with `driver_id:in`, groups by `driver_id`, and
+returns exactly `driver_id` followed by `COUNT(finishing_position)`, ordered by
+C-collated driver identity ascending with nulls last under the private 100-row
+collection bound. Counts include non-null recorded finishing positions only. An
+integrity-clean selected driver with only null positions returns zero, while missing
+selected evidence, source-wide duplicate event-driver grain, positions outside 1
+through 30, truncated output, or duplicate, missing, malformed, or extra result
+identities fail closed. Zero-driver, singleton, five-plus-driver, selected qualifying,
+pooled scalar, ranked, caller-limited, event/round-scoped, alternate-filtered,
+alternate-grouped, alternate-aggregate, broader-output, latest-recorded, and interim
+forms remain refused before provider invocation.
 Two exact grouped classification-position count rankings are implemented
 locally for one final historical season from 1950 through 2025. Each accepts
 zero entities and exactly the caller-grounded `top 10` limit. The race form

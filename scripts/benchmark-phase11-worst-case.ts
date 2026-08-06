@@ -63,7 +63,7 @@ const workloadSchema = z.object({
   id: z.enum([
     'maximum_rows_standings', 'single_source_grouped_aggregate_rank',
     'single_source_race_grouped_aggregate_rank', 'maximum_rows_safe_join',
-    'maximum_work_and_resolver_compose'
+    'selected_race_grouped_aggregate', 'maximum_work_and_resolver_compose'
   ]),
   family: familySchema,
   boundary: z.enum(['maximum_rows', 'promoted_topology', 'family_coverage', 'maximum_work_and_resolver_candidates']),
@@ -103,7 +103,7 @@ const definitionsSchema = z.object({
     maximum_rows: z.literal(PLANNED_F1QL_MAX_ROWS),
     maximum_resolver_candidates_per_mention: z.literal(SEMANTIC_RESOLVER_MAX_CANDIDATES)
   }).strict(),
-  workloads: z.array(workloadSchema).length(5)
+  workloads: z.array(workloadSchema).length(6)
 }).strict().superRefine((definitions, context) => {
   const workloads = definitions.workloads;
   if (new Set(workloads.map(item => item.id)).size !== workloads.length ||
@@ -275,6 +275,31 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         expected: {
           topology: 'single_source_aggregate', work_units: 30, requested_rows: 10,
           resolver_candidates: 0, reference_rows: 10, hashes: hashes()
+        }
+      },
+      {
+        id: 'selected_race_grouped_aggregate',
+        family: 'single_source',
+        boundary: 'family_coverage',
+        question: 'Show driver and count of finishing position for Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.',
+        entities: [
+          { type: 'driver', text: 'Lando Norris', occurrence: 0 },
+          { type: 'driver', text: 'Oscar Piastri', occurrence: 0 },
+          { type: 'driver', text: 'George Russell', occurrence: 0 },
+          { type: 'driver', text: 'Charles Leclerc', occurrence: 0 }
+        ],
+        resolver: {
+          driver_mentions: [
+            { text: 'Lando Norris', occurrence: 0, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+            { text: 'Oscar Piastri', occurrence: 0, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] },
+            { text: 'George Russell', occurrence: 0, candidates: ['george-russell'], active_candidates: ['george-russell'] },
+            { text: 'Charles Leclerc', occurrence: 0, candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] }
+          ],
+          event_resolution: { type: 'missing' }
+        },
+        expected: {
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: 100,
+          resolver_candidates: 4, reference_rows: 4, hashes: hashes()
         }
       },
       {
@@ -536,6 +561,7 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
   if (id === 'maximum_rows_safe_join') {return safeJoinReferenceDatabase();}
   if (id === 'single_source_grouped_aggregate_rank') {return groupedQualifyingCountReferenceDatabase();}
   if (id === 'single_source_race_grouped_aggregate_rank') {return groupedRaceCountReferenceDatabase();}
+  if (id === 'selected_race_grouped_aggregate') {return selectedRaceCountReferenceDatabase();}
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -575,6 +601,20 @@ function groupedRaceCountReferenceDatabase(): PlannedReferenceDatabase {
           `benchmark-driver-${String(driverIndex + 1).padStart(3, '0')}`,
           roundIndex + 1
         )))
+  };
+}
+
+function selectedRaceCountReferenceDatabase(): PlannedReferenceDatabase {
+  return {
+    event_classification: [
+      raceRow(1, 'lando-norris', 1),
+      raceRow(2, 'lando-norris', 2),
+      raceRow(3, 'lando-norris', 3),
+      raceRow(1, 'oscar-piastri', 4),
+      raceRow(2, 'oscar-piastri', 5),
+      raceRow(1, 'george-russell', 6),
+      raceRow(1, 'charles-leclerc', null)
+    ]
   };
 }
 

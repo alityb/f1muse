@@ -24,6 +24,24 @@ const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position fo
 const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Lando Norris in final 2025 qualifying classification.';
 const QUALIFYING_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
+const SELECTED_RACE_COUNT_QUESTION = 'Show driver and count of finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri in final 2025 race classification.';
+const UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS = [
+  'Show driver and count of finishing position in final 2025 race classification.',
+  'Show driver and count of finishing position for Lando Norris in final 2025 race classification.',
+  'Show driver and count of finishing position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.',
+  'Show count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in round 1 of final 2025 race classification.',
+  'Show driver and count of finishing position with classified status for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Rank driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show top 2 driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show driver and count of finishing position per driver for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show driver and count of finishing position and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification and race classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in latest recorded 2026 race classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification and return all.'
+] as const;
 const UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS = [
   'Show top 9 drivers by count of qualifying position in final 2025 qualifying classification.',
   'Rank drivers by count of qualifying position in final 2025 qualifying classification.',
@@ -469,12 +487,13 @@ describe('WP8 stage-zero semantic shadow route', () => {
     ['qualifying count', FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
     ['standings position', SINGLETON_STANDINGS_POSITION_QUESTION, 'single_source_rows'],
     ['standings position and points', SINGLETON_STANDINGS_SUMMARY_QUESTION, 'single_source_rows'],
-    ['multi-driver standings position', MULTI_STANDINGS_POSITION_QUESTION, 'single_source_rows']
+    ['multi-driver standings position', MULTI_STANDINGS_POSITION_QUESTION, 'single_source_rows'],
+    ['per-driver race counts', SELECTED_RACE_COUNT_QUESTION, 'single_source_aggregate']
   ])('proves selected-driver %s without result execution', async (_source, question, topology) => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
-          ...(question === MULTI_STANDINGS_POSITION_QUESTION
+          ...([MULTI_STANDINGS_POSITION_QUESTION, SELECTED_RACE_COUNT_QUESTION].includes(question)
             ? [
                 { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
                 { driver_id: 'george-russell', identity: 'George Russell', participation_source: 'entrant' },
@@ -483,10 +502,11 @@ describe('WP8 stage-zero semantic shadow route', () => {
             : [])
         ] }
       : { rows: [] });
+    let providerCalls = 0;
     let executionAttempts = 0;
     const response = await request(fake.pool, {
       environment: () => ENABLED_ENVIRONMENT,
-      proposer: { propose: async proposal => exactProposal(proposal) },
+      proposer: { propose: async proposal => {providerCalls += 1; return exactProposal(proposal);} },
       providerIdentity: PROVIDER_IDENTITY,
       logger: () => undefined
     }, { question }, undefined, () => {
@@ -506,6 +526,37 @@ describe('WP8 stage-zero semantic shadow route', () => {
       { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
       { sql: 'ROLLBACK', parameters: undefined }
     ]);
+    expect(providerCalls).toBe(1);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each(UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS)(
+    'refuses adjacent selected race-count language before provider or result execution: %s', async question => {
+    const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
+      ? { rows: [
+          { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' },
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'oscar-piastri', identity: 'Oscar Piastri', participation_source: 'entrant' },
+          { driver_id: 'george-russell', identity: 'George Russell', participation_source: 'entrant' },
+          { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' }
+        ] }
+      : { rows: [] });
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+    expect(response).toMatchObject({
+      status: 200,
+      body: { observation: { outcome: 'abstain', result_query_calls: 0 } }
+    });
+    expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
 
@@ -1585,6 +1636,11 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 32, end: 44 } },
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 49, end: 62 } }
         ]
+    : request.question === SELECTED_RACE_COUNT_QUESTION
+      ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
+          type: 'driver' as const,
+          span: questionSpan(request.question, text)
+        }))
     : request.question === REVERSED_PAIR_POINTS_QUESTION
       ? [
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 32, end: 45 } },

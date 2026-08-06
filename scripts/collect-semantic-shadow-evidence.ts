@@ -48,7 +48,7 @@ const IDENTITY_MIGRATIONS = [
   'migrations/20260729_f1ql_answer_identity_views.sql',
   'migrations/20260730_normalize_f1ql_answer_identity_driver_ids.sql'
 ] as const;
-const REQUIRED_CASE_COUNT = 46;
+const REQUIRED_CASE_COUNT = 47;
 const REQUIRED_REPETITIONS = 3;
 const MAX_MIN_REQUEST_INTERVAL_MS = 60_000;
 

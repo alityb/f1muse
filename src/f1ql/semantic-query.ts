@@ -299,12 +299,21 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
+  const selectedRacePositionCount = finalSelectedRacePositionCount(
+    question,
+    sourceMatches,
+    conceptMatches,
+    operations,
+    entities
+  );
   const classificationPositionRanking = racePositionRanking ?? qualifyingPositionRanking;
   const standingsProjection = standingsPointsProjection ?? standingsPositionRanking;
   if (!standingsPointsProjection && containsUnknownLanguage(question, sourceMatches, conceptMatches, operations, entities)) {
     return verifiedEvidence(abstention(question, catalogHash, 'unknown_language'));
   }
-  const effectiveConceptMatches = standingsProjection ? [standingsProjection] : classificationPositionRanking ?? conceptMatches;
+  const effectiveConceptMatches = standingsProjection
+    ? [standingsProjection]
+    : classificationPositionRanking ?? selectedRacePositionCount ?? conceptMatches;
   const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
@@ -456,7 +465,8 @@ export function enumerateSemanticQueries(
       operations,
       question.normalized_question,
       standingsProjection,
-      classificationPositionRanking
+      classificationPositionRanking,
+      selectedRacePositionCount
     );
     usedDefaultOutputs ||= outputChoices.defaulted;
     if (outputChoices.outputs.length === 0) {
@@ -481,6 +491,17 @@ export function enumerateSemanticQueries(
 
   const unique = new Map(candidates.map(candidate => [computeSemanticQueryHash(candidate), candidate]));
   const sorted = [...unique.values()].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
+  const driverCount = entities.filter(entity => entity.type === 'driver').length;
+  if (operations.count && driverCount >= 2 && !isPromotedSelectedRacePositionCount(
+    question, entities, sourceMatches, conceptMatches, operations, sorted
+  )) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
+  if (operations.count && driverCount <= 1 && !operations.rank && sorted.some(candidate =>
+    candidate.outputs.some(output => output.kind === 'concept' && output.concept.concept_id === 'driver_id') &&
+    candidate.outputs.some(output => output.kind === 'aggregate'))) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   if (operations.count && operations.rank && !isPromotedClassificationPositionCountRanking(
     question,
     entities,
@@ -538,6 +559,65 @@ function isPromotedClassificationPositionCountRanking(
   ] as const).some(specification => matchesPromotedClassificationPositionCountRanking(
     specification, question, entities, sourceMatches, conceptMatches, operations, candidates
   ));
+}
+
+function isPromotedSelectedRacePositionCount(
+  question: AnswerQuestionContract,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  candidates: readonly SemanticQuery[]
+): boolean {
+  const drivers = entities.filter(entity => entity.type === 'driver');
+  const questionShapeMatches = [
+    question.years.length === 1,
+    question.rounds.length === 0,
+    drivers.length >= 2 && drivers.length <= 4,
+    entities.length === drivers.length,
+    operations.count_spans.length === 1,
+    operations.temporal.length === 1,
+    operations.temporal[0].value === 'final',
+    !operations.rank,
+    !operations.limit,
+    !hasUnboundScopeKey(question),
+    !/\b(?:all|each|every|per|rank|top)\b|\bgroup(?:ed|ing)?\b|\breturn\s+all\b/iu
+      .test(question.normalized_question),
+    candidates.length === 1,
+    independentSourceOccurrenceCount(sourceMatches, 'event_classification') === 1,
+    new Set(sourceMatches.map(match => match.source_id)).size === 1,
+    sourceMatches.every(match => match.source_id === 'event_classification'),
+    independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'driver_id') === 1,
+    independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'finishing_position') === 1
+  ].every(Boolean);
+  if (!questionShapeMatches) {return false;}
+  const candidate = candidates[0];
+  return [
+    stableSerialize(candidate.outputs.map(output => output.kind === 'aggregate'
+      ? `${output.concept.source_id}.${output.concept.concept_id}:${output.function}`
+      : `${output.concept.source_id}.${output.concept.concept_id}`)) === stableSerialize([
+      'event_classification.driver_id',
+      'event_classification.finishing_position:count'
+    ]),
+    candidate.scopes.filter(scope => scope.kind === 'season').length === 1,
+    candidate.scopes.some(scope => scope.kind === 'session' &&
+      scope.source_id === 'event_classification' && scope.value === 'race'),
+    candidate.scopes.some(scope => scope.kind === 'temporal' && scope.value === 'final'),
+    !candidate.scopes.some(scope => scope.kind === 'round' || scope.kind === 'event'),
+    candidate.entities.length === drivers.length,
+    candidate.filters.length === 1,
+    candidate.filters[0]?.kind === 'entity' && candidate.filters[0].operator === 'in' &&
+      candidate.filters[0].concept.source_id === 'event_classification' &&
+      candidate.filters[0].concept.concept_id === 'driver_id' &&
+      stableSerialize(candidate.filters[0].entity_indices) ===
+        stableSerialize(Array.from({ length: drivers.length }, (_unused, index) => index)),
+    stableSerialize(candidate.group_by.map(group =>
+      `${group.concept.source_id}.${group.concept.concept_id}`)) ===
+      stableSerialize(['event_classification.driver_id']),
+    candidate.comparison?.relation === 'count',
+    candidate.order_by.length === 0,
+    candidate.limit === undefined
+  ].every(Boolean);
 }
 
 function matchesPromotedClassificationPositionCountRanking(
@@ -606,6 +686,11 @@ function independentConceptOccurrenceCount(
     other.span.start <= match.span.start && other.span.end >= match.span.end &&
     (other.span.start < match.span.start || other.span.end > match.span.end)));
   return new Set(longest.map(match => `${match.span.start}:${match.span.end}`)).size;
+}
+
+function independentSourceOccurrenceCount(matches: readonly LexicalMatch[], sourceId: string): number {
+  return new Set(matches.filter(match => match.source_id === sourceId)
+    .map(match => `${match.span.start}:${match.span.end}`)).size;
 }
 
 export function admitSemanticQueryCandidates(
@@ -844,9 +929,9 @@ function buildOutputChoices(
   operations: OperationEvidence,
   question: string,
   standingsProjection?: LexicalMatch,
-  classificationPositionRanking?: readonly LexicalMatch[]
+  classificationPositionRanking?: readonly LexicalMatch[], selectedRacePositionCount?: readonly LexicalMatch[]
 ): { readonly outputs: readonly (readonly SemanticQuery['outputs'][number][])[]; readonly defaulted: boolean } {
-  const reviewedProjection = reviewedProjectionOutputs(source, standingsProjection, classificationPositionRanking);
+  const reviewedProjection = reviewedProjectionOutputs(source, operations, standingsProjection, classificationPositionRanking, selectedRacePositionCount);
   if (reviewedProjection) {return { outputs: [reviewedProjection], defaulted: false };}
   const explicit = matches.map(match => {
     const concept = { source_id: match.source_id, concept_id: match.concept_id! };
@@ -930,8 +1015,10 @@ function canonicalEventMetadataOutputs(
 
 function reviewedProjectionOutputs(
   source: SemanticCatalogSource,
+  operations: OperationEvidence,
   standingsProjection?: LexicalMatch,
-  classificationPositionRanking?: readonly LexicalMatch[]
+  classificationPositionRanking?: readonly LexicalMatch[],
+  selectedRacePositionCount?: readonly LexicalMatch[]
 ): readonly SemanticQuery['outputs'][number][] | undefined {
   if (source.id === 'driver_standings' && standingsProjection) {
     return standingsProjectionOutputs(standingsProjection);
@@ -940,7 +1027,30 @@ function reviewedProjectionOutputs(
       classificationPositionRanking) {
     return classificationRankingOutputs(classificationPositionRanking);
   }
+  if (source.id === 'event_classification' && selectedRacePositionCount && operations.count) {
+    return selectedRacePositionCountOutputs(selectedRacePositionCount, operations.count);
+  }
   return undefined;
+}
+
+function selectedRacePositionCountOutputs(
+  projection: readonly LexicalMatch[],
+  count: SemanticLiteralSpan
+): readonly SemanticQuery['outputs'][number][] {
+  const driver = projection.find(match => match.concept_id === 'driver_id')!;
+  const position = projection.find(match => match.concept_id === 'finishing_position')!;
+  return [
+    {
+      kind: 'concept',
+      concept: { source_id: 'event_classification', concept_id: 'driver_id' },
+      evidence: [driver.span]
+    },
+    {
+      kind: 'aggregate', function: 'count',
+      concept: { source_id: 'event_classification', concept_id: 'finishing_position' },
+      evidence: [count, position.span]
+    }
+  ];
 }
 
 function standingsProjectionOutputs(
@@ -1014,6 +1124,37 @@ function finalQualifyingPositionRanking(
   return finalClassificationPositionRanking(
     question, sourceMatches, conceptMatches, operations, entities, 'qualifying_classification', 'qualifying_position'
   );
+}
+
+// eslint-disable-next-line complexity
+function finalSelectedRacePositionCount(
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): readonly LexicalMatch[] | undefined {
+  const concepts = canonicalConceptMatches(conceptMatches.filter(match =>
+    match.source_id === 'event_classification'));
+  const drivers = entities.filter(entity => entity.type === 'driver');
+  const hasBroaderConcept = conceptMatches.some(match =>
+    match.source_id !== 'event_classification' && !concepts.some(concept =>
+      concept.span.start <= match.span.start && concept.span.end >= match.span.end));
+  if (question.years.length !== 1 || question.rounds.length !== 0 || drivers.length < 2 ||
+      drivers.length > 4 || drivers.length !== entities.length || operations.count_spans.length !== 1 ||
+      operations.temporal.length !== 1 || operations.temporal[0].value !== 'final' ||
+      operations.rank || operations.limit ||
+      independentSourceOccurrenceCount(sourceMatches, 'event_classification') !== 1 ||
+      new Set(sourceMatches.map(match => match.source_id)).size !== 1 ||
+      sourceMatches.some(match => match.source_id !== 'event_classification') ||
+      hasBroaderConcept || concepts.length !== 2 ||
+      independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'driver_id') !== 1 ||
+      independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'finishing_position') !== 1) {
+    return undefined;
+  }
+  const driver = concepts.find(match => match.concept_id === 'driver_id');
+  const position = concepts.find(match => match.concept_id === 'finishing_position');
+  return driver && position ? [driver, position] : undefined;
 }
 
 // eslint-disable-next-line complexity

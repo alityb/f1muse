@@ -33,6 +33,7 @@ const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris 
 const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
 const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_COUNT_RANK = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
+const SELECTED_RACE_COUNT = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -87,6 +88,38 @@ describe('independent semantic whole-plan proof', () => {
     expect(prepared.proof.compiled_hash).toMatch(/^[a-f0-9]{64}$/u);
     if ([EVENT_DATE_NAME, EVENT_DATE_CIRCUIT, EVENT_NAME_CIRCUIT, EVENT_ALL_METADATA].includes(question)) {
       expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
+    }
+  });
+
+  it('independently reproduces selected race counts and rejects direct structure mutations', async () => {
+    const lando = span(SELECTED_RACE_COUNT, 'Lando Norris');
+    const oscar = span(SELECTED_RACE_COUNT, 'Oscar Piastri');
+    const entities = [{ type: 'driver' as const, span: lando }, { type: 'driver' as const, span: oscar }];
+    const prepared = await prepare(SELECTED_RACE_COUNT, entities, [
+      { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+      { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+    ]);
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({
+      type: 'required', requirements: [{ season: 2025, driver_ids: ['lando-norris', 'oscar-piastri'] }]
+    });
+    for (const mutate of [
+      (plan: any) => { plan.branches[0].aggregate.group_by = []; },
+      (plan: any) => { plan.planned_f1ql.root.input.input.outputs.reverse(); },
+      (plan: any) => { plan.planned_f1ql.root.input.keys[0].output_id = 'count_finishing_position'; },
+      (plan: any) => { plan.planned_f1ql.root.input.input.input.input.predicates[0].operator = 'eq'; },
+      (plan: any) => { plan.planned_f1ql.root.count = 10; }
+    ]) {
+      const mutated: any = structuredClone(prepared.plan);
+      mutate(mutated);
+      expect(() => proveSemanticAnswerPlan({
+        question: SELECTED_RACE_COUNT,
+        entity_inventory: entities,
+        evidence: prepared.evidence,
+        admission: prepared.admission,
+        resolution: prepared.resolution,
+        plan: mutated
+      })).toThrow('plan_mismatch');
     }
   });
 
