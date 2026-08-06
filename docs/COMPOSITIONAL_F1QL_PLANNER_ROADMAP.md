@@ -810,20 +810,32 @@ positions are valid because no sporting rank is inferred. Pooled multi-driver sc
 counts, event, status, or position filters,
 all other grouped or ranked counts, alternate aggregates, broader output,
 latest-recorded scope, and caller limits remain refused.
-One selected-driver grouped race count is implemented locally for exactly two
-through four explicit driver mentions that resolve to distinct canonical drivers
-and one final historical season.
-It filters `event_classification` with `driver_id:in`, groups by `driver_id`, and
-returns exactly `driver_id` followed by `COUNT(finishing_position)`, ordered by
-C-collated driver identity ascending with nulls last under the private 100-row
-collection bound. Counts include non-null recorded finishing positions only. An
-integrity-clean selected driver with only null positions returns zero, while missing
-selected evidence, source-wide duplicate event-driver grain, positions outside 1
-through 30, truncated output, or duplicate, missing, malformed, or extra result
-identities fail closed. Zero-driver, singleton, five-plus-driver, selected qualifying,
-pooled scalar, ranked, caller-limited, event/round-scoped, alternate-filtered,
-alternate-grouped, alternate-aggregate, broader-output, latest-recorded, and interim
-forms remain refused before provider invocation.
+Selected-driver grouped classification-position counts are implemented locally for
+exactly two through four explicit driver mentions that resolve after provider
+admission to distinct canonical drivers and one final historical season. Race and
+qualifying remain two distinct complete interactions. The race interaction filters
+`event_classification` with `driver_id:in`, groups by `driver_id`, and returns exactly
+`driver_id` followed by `COUNT(finishing_position)`. Its exact qualifying analogue
+filters only `qualifying_classification`, groups by `driver_id`, and returns exactly
+`driver_id` followed by `COUNT(qualifying_position)`. Both order by C-collated driver
+identity ascending with nulls last under the private 100-row collection bound; caller
+order and count order have no semantic effect. Counts include non-null retained
+recorded positions only. An integrity-clean selected driver with only null positions
+returns factual zero, while missing selected evidence, source-wide duplicate
+`(season, round, driver_id)` grain, positions outside 1 through 30, truncated output,
+or duplicate, missing, malformed, or extra result identities fail closed. Source
+clauses are counted by unique lexical span so catalog aliases sharing one span do not
+create a false repeated-clause refusal, while repeated source text at distinct spans
+is refused. Zero-driver, singleton, five-plus-driver, pooled scalar, source-position
+cross-wired, ranked, top-N, caller-limited, compared, event/round-scoped,
+status/position/team/grid/timing/sprint-filtered or broader-concept,
+alternate-grouped, alternate-aggregate, broader-output, repeated-source or
+repeated-measure, return-all/universe, latest-recorded, and interim forms remain
+refused before provider invocation. Profile 31 evidence accounting is complete locally
+with 48 corpus cases (36 answer, 5 clarify, 7 abstain), 27 single-source plans,
+eight single-source aggregates, 144 WP8 attempts, retained indices `0..47`, and
+seven benchmark workloads including separate selected-race and selected-qualifying
+populations. External provider evidence and production routing remain pending.
 Two exact grouped classification-position count rankings are implemented
 locally for one final historical season from 1950 through 2025. Each accepts
 zero entities and exactly the caller-grounded `top 10` limit. The race form

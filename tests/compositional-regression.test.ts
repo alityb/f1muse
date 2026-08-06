@@ -31,15 +31,15 @@ describe('Phase 11 compositional regression corpus', () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.cases)).toBe(true);
     expect(first.coverage).toMatchObject({
-      cases_total: 47,
-      action_counts: { answer: 35, clarify: 5, abstain: 7 },
+      cases_total: 48,
+      action_counts: { answer: 36, clarify: 5, abstain: 7 },
       topology_counts: {
         single_source_rows: 19,
-        single_source_aggregate: 7,
+        single_source_aggregate: 8,
         row_dimension_join: 6,
         scalar_aggregate_compose: 3
       },
-      plan_family_counts: { single_source: 26, safe_dimension_join: 6, aggregate_locality: 3, other: 0 },
+      plan_family_counts: { single_source: 27, safe_dimension_join: 6, aggregate_locality: 3, other: 0 },
       ambiguity_reason_counts: { temporal_ambiguous: 0 }
     });
     expect(first.cases.filter(item => item.split === 'public_holdout').map(item => item.plan_family)).toEqual([
@@ -89,7 +89,7 @@ describe('Phase 11 compositional regression corpus', () => {
   it('preserves the existing 110-case exact-template evaluation as a separate suite', async () => {
     const compositional = await runCompositionalRegressionCorpus(compositionalRegressionCorpusInput);
     expect(answerEvaluationManifest).toHaveLength(110);
-    expect(compositional.cases).toHaveLength(47);
+    expect(compositional.cases).toHaveLength(48);
     const legacyIds = new Set(answerEvaluationManifest.map(item => item.id));
     expect(compositional.cases.every(item => !legacyIds.has(item.id))).toBe(true);
     expect(JSON.stringify(compositional)).not.toContain('template_id');

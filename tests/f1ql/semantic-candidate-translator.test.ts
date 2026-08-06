@@ -178,11 +178,11 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('never derive rank from best time, grid position, status, sprint qualifying, or driver identity');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('name driver and count of finishing position from final YYYY race classification for exactly two to four specific drivers');
+      .toContain('qualifying classification emits exactly driver_id followed by COUNT(qualifying_position)');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('takes precedence over both the pooled scalar race count and the zero-driver top-10 count-ranking rule');
+      .toContain('Each selected per-driver rule takes precedence over its pooled scalar count and zero-driver top-10 count-ranking rule');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('Selected per-driver qualifying-position counts remain unauthorized');
+      .toContain('Qualifying count is not appearances, events, poles, top-ten results, grid positions, timing, sprint sessions, or complete participation');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('either exact zero-driver request to show top 10 drivers by count of recorded position');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

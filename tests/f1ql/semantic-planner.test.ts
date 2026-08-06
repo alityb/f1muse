@@ -26,6 +26,7 @@ const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for 
 const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_COUNT_RANK = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.';
+const SELECTED_QUALIFYING_COUNT = 'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -404,6 +405,55 @@ describe('deterministic semantic planner', () => {
       count: 100,
       input: { keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }] }
     });
+  });
+
+  it('groups selected qualifying counts while ordering only by canonical driver identity', async () => {
+    const lando = span(SELECTED_QUALIFYING_COUNT, 'Lando Norris');
+    const oscar = span(SELECTED_QUALIFYING_COUNT, 'Oscar Piastri');
+    const admission = admitted(SELECTED_QUALIFYING_COUNT, [
+      { type: 'driver', span: lando }, { type: 'driver', span: oscar }
+    ]);
+    const plan = await planSemanticAnswer({
+      question: SELECTED_QUALIFYING_COUNT,
+      admission,
+      ...resolvers([
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['qualifying_classification'], row_relationship_ids: [] },
+      output_grain: ['driver_id'],
+      work: { source_scan_units: 30, requested_rows: 100 },
+      branches: [{
+        fixed_grain: ['season'], residual_grain: ['driver_id'],
+        predicates: [
+          { concept: { concept_id: 'driver_id' }, operator: 'in', values: ['lando-norris', 'oscar-piastri'] },
+          { concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }
+        ],
+        aggregate: { group_by: ['driver_id'], measures: ['count_qualifying_position'] }
+      }]
+    });
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 100,
+      input: { keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }] }
+    });
+
+    const aliasQuestion = 'Show driver and count of qualifying position for Norris and Lando in final 2025 qualifying classification.';
+    const norris = span(aliasQuestion, 'Norris');
+    const aliasLando = span(aliasQuestion, 'Lando');
+    const aliasAdmission = admitted(aliasQuestion, [
+      { type: 'driver', span: norris }, { type: 'driver', span: aliasLando }
+    ]);
+    await expect(planSemanticAnswer({
+      question: aliasQuestion,
+      admission: aliasAdmission,
+      ...resolvers([
+        { ...norris, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...aliasLando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] }
+      ])
+    })).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
   });
 
   it('uses the same bounded scalar topology for race finishing-position counts', async () => {

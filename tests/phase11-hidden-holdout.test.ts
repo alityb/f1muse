@@ -228,6 +228,46 @@ describe('Phase 11 guarded hidden holdout', () => {
     );
   });
 
+  it('recognizes selected qualifying grouped counts before enforcing hidden structure independence', async () => {
+    const payload: any = validPayload();
+    const question = 'Show driver and count of qualifying position for Charles Leclerc and George Russell in final 2024 qualifying classification.';
+    payload.cases[0] = {
+      ...payload.cases[0],
+      id: 'hidden-selected-qualifying-count-2024',
+      question,
+      question_sha256: createAnswerQuestionContract(question).sha256,
+      entities: [
+        { type: 'driver', text: 'Charles Leclerc' },
+        { type: 'driver', text: 'George Russell' }
+      ],
+      resolver: {
+        driver_mentions: [
+          { text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] },
+          { text: 'George Russell', candidates: ['george-russell'], active_candidates: ['george-russell'] }
+        ],
+        event_resolution: { type: 'missing' }
+      },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
+        source_ids: ['qualifying_classification'], plan_family: 'single_source'
+      },
+      structure: {
+        template_free: true,
+        held_out_dimensions: ['season', 'wording', 'composition'],
+        topology: 'single_source_aggregate',
+        source_ids: ['qualifying_classification'],
+        operations: ['source', 'filter', 'aggregate', 'project', 'sort', 'limit'],
+        output_concept_ids: [
+          'qualifying_classification.driver_id',
+          'qualifying_classification.qualifying_position'
+        ]
+      }
+    };
+    await expect(evaluateHiddenHoldout(decodeCanonicalPayload(payload))).rejects.toEqual(
+      expect.objectContaining({ code: 'public_plan_structure_overlap' })
+    );
+  });
+
   it('recognizes the race-source scalar aggregate before enforcing hidden structure independence', async () => {
     const payload: any = validPayload();
     const question = 'Show count of finishing position in final 2024 race classification.';

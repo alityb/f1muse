@@ -63,7 +63,8 @@ const workloadSchema = z.object({
   id: z.enum([
     'maximum_rows_standings', 'single_source_grouped_aggregate_rank',
     'single_source_race_grouped_aggregate_rank', 'maximum_rows_safe_join',
-    'selected_race_grouped_aggregate', 'maximum_work_and_resolver_compose'
+    'selected_race_grouped_aggregate', 'selected_qualifying_grouped_aggregate',
+    'maximum_work_and_resolver_compose'
   ]),
   family: familySchema,
   boundary: z.enum(['maximum_rows', 'promoted_topology', 'family_coverage', 'maximum_work_and_resolver_candidates']),
@@ -103,7 +104,7 @@ const definitionsSchema = z.object({
     maximum_rows: z.literal(PLANNED_F1QL_MAX_ROWS),
     maximum_resolver_candidates_per_mention: z.literal(SEMANTIC_RESOLVER_MAX_CANDIDATES)
   }).strict(),
-  workloads: z.array(workloadSchema).length(6)
+  workloads: z.array(workloadSchema).length(7)
 }).strict().superRefine((definitions, context) => {
   const workloads = definitions.workloads;
   if (new Set(workloads.map(item => item.id)).size !== workloads.length ||
@@ -282,6 +283,31 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         family: 'single_source',
         boundary: 'family_coverage',
         question: 'Show driver and count of finishing position for Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.',
+        entities: [
+          { type: 'driver', text: 'Lando Norris', occurrence: 0 },
+          { type: 'driver', text: 'Oscar Piastri', occurrence: 0 },
+          { type: 'driver', text: 'George Russell', occurrence: 0 },
+          { type: 'driver', text: 'Charles Leclerc', occurrence: 0 }
+        ],
+        resolver: {
+          driver_mentions: [
+            { text: 'Lando Norris', occurrence: 0, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+            { text: 'Oscar Piastri', occurrence: 0, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] },
+            { text: 'George Russell', occurrence: 0, candidates: ['george-russell'], active_candidates: ['george-russell'] },
+            { text: 'Charles Leclerc', occurrence: 0, candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] }
+          ],
+          event_resolution: { type: 'missing' }
+        },
+        expected: {
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: 100,
+          resolver_candidates: 4, reference_rows: 4, hashes: hashes()
+        }
+      },
+      {
+        id: 'selected_qualifying_grouped_aggregate',
+        family: 'single_source',
+        boundary: 'family_coverage',
+        question: 'Show driver and count of qualifying position for Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 qualifying classification.',
         entities: [
           { type: 'driver', text: 'Lando Norris', occurrence: 0 },
           { type: 'driver', text: 'Oscar Piastri', occurrence: 0 },
@@ -562,6 +588,7 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
   if (id === 'single_source_grouped_aggregate_rank') {return groupedQualifyingCountReferenceDatabase();}
   if (id === 'single_source_race_grouped_aggregate_rank') {return groupedRaceCountReferenceDatabase();}
   if (id === 'selected_race_grouped_aggregate') {return selectedRaceCountReferenceDatabase();}
+  if (id === 'selected_qualifying_grouped_aggregate') {return selectedQualifyingCountReferenceDatabase();}
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -614,6 +641,26 @@ function selectedRaceCountReferenceDatabase(): PlannedReferenceDatabase {
       raceRow(2, 'oscar-piastri', 5),
       raceRow(1, 'george-russell', 6),
       raceRow(1, 'charles-leclerc', null)
+    ]
+  };
+}
+
+function selectedQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
+  const row = (round: number, driverId: string, position: number | null) => ({
+    season: 2025, round, driver_id: driverId, team_id: 'benchmark-team',
+    qualifying_position: position, best_time_ms: position === null ? null : 80_000 + round,
+    best_session: position === null ? null : 'Q3', eliminated_in_round: null,
+    classification_status: position === null ? 'unclassified' : 'classified'
+  });
+  return {
+    qualifying_classification: [
+      row(1, 'lando-norris', 1),
+      row(2, 'lando-norris', 2),
+      row(3, 'lando-norris', 3),
+      row(1, 'oscar-piastri', 4),
+      row(2, 'oscar-piastri', 5),
+      row(1, 'george-russell', 6),
+      row(1, 'charles-leclerc', null)
     ]
   };
 }

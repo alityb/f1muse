@@ -1,23 +1,23 @@
 {
   "version": 1,
   "corpus_version": 1,
-  "corpus_hash": "84bdf47961bcb734119e5a7339e43dbfb51ca44c0f4abf0bef5b5d1f8de6ee96",
+  "corpus_hash": "22fc21331000d3495a9deb3a1aecdb79dcb1d13b948e8b7a4ef2ce4d2b843f7e",
   "coverage": {
-    "cases_total": 47,
+    "cases_total": 48,
     "action_counts": {
-      "answer": 35,
+      "answer": 36,
       "clarify": 5,
       "abstain": 7
     },
     "split_counts": {
-      "development": 32,
+      "development": 33,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7
     },
     "topology_counts": {
       "single_source_rows": 19,
-      "single_source_aggregate": 7,
+      "single_source_aggregate": 8,
       "row_dimension_join": 6,
       "scalar_aggregate_compose": 3
     },
@@ -25,13 +25,13 @@
       "driver_standings": 8,
       "event_classification": 6,
       "event_metadata": 7,
-      "qualifying_classification": 5,
+      "qualifying_classification": 6,
       "event_classification_event_metadata": 4,
       "event_classification_qualifying_classification": 3,
       "event_metadata_qualifying_classification": 2
     },
     "plan_family_counts": {
-      "single_source": 26,
+      "single_source": 27,
       "safe_dimension_join": 6,
       "aggregate_locality": 3,
       "other": 0
@@ -54,23 +54,23 @@
       "unsupported_scope": 1
     },
     "coverage_tag_counts": {
-      "promoted_topology": 32,
+      "promoted_topology": 33,
       "public_holdout": 3,
       "ambiguity": 5,
       "abstention": 7,
-      "plan_family_single_source": 26,
+      "plan_family_single_source": 27,
       "plan_family_safe_dimension_join": 6,
       "plan_family_aggregate_locality": 3,
       "provider_admission": 1
     },
     "risk_tag_counts": {
       "clean": 1,
-      "aggregation": 7,
+      "aggregation": 8,
       "aggregate_locality": 3,
       "join_cardinality": 6,
       "resolver_event": 17,
-      "resolver_identity": 19,
-      "template_free": 29,
+      "resolver_identity": 20,
+      "template_free": 30,
       "metric_ambiguity": 1,
       "output_shape_ambiguity": 1,
       "scope_ambiguity": 1,
@@ -4023,6 +4023,145 @@
         "work_hash": "d5908308086749dd12b3e836c3ea6fdf5e0afdaab9666f2a6fc296567ef5520d",
         "participation_hash": "01268412d46e0734adff3cfae22e2528526f9926211fc2e56520e3408f3227f6",
         "compiled_hash": "c15b7e87631983a1ca6f750f4a651398bf4d68173d1975e1fee92ac97c869cc1"
+      },
+      "plan_family": "single_source"
+    },
+    {
+      "id": "family-selected-qualifying-count",
+      "split": "development",
+      "action": "answer",
+      "reason": "semantic_plan_proven",
+      "question_sha256": "22edfea6e041aaf4ee80c17a5ad8054169560d7643db3da434fc643e060ec11c",
+      "coverage_tags": [
+        "promoted_topology",
+        "plan_family_single_source"
+      ],
+      "risk_tags": [
+        "aggregation",
+        "resolver_identity",
+        "template_free"
+      ],
+      "entity_inventory": [
+        {
+          "type": "driver",
+          "span": {
+            "text": "Lando Norris",
+            "start": 49,
+            "end": 61
+          }
+        },
+        {
+          "type": "driver",
+          "span": {
+            "text": "Oscar Piastri",
+            "start": 66,
+            "end": 79
+          }
+        }
+      ],
+      "evidence": {
+        "type": "candidate_set",
+        "candidate_count": 1,
+        "evidence_hash": "5668b73f86fd3b0659571480794c74e9cdc5e45337ef309d5d451418c2d6fa6c",
+        "candidate_set_hash": "8fb7005f4be3f88ad7f7b78f497c9bffebda1db211b4a10a0ac0528a34507354"
+      },
+      "admission": {
+        "type": "admitted",
+        "reason": null,
+        "query_hash": "aad527210d6e8dc247fd538f9208fd7c0d45cdea051d7e80eca6699a72637bea"
+      },
+      "resolution": {
+        "resolution_hash": "760159c8238b3e1a804ee73fcbe7e620be1420b8528a2061cbcc8a06dcb4dcaf",
+        "source_ids": [
+          "qualifying_classification"
+        ],
+        "entities": [
+          {
+            "entity_index": 0,
+            "type": "driver",
+            "selected_id": "lando-norris",
+            "candidate_ids": [
+              "lando-norris"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          },
+          {
+            "entity_index": 1,
+            "type": "driver",
+            "selected_id": "oscar-piastri",
+            "candidate_ids": [
+              "oscar-piastri"
+            ],
+            "resolution_relationship_ids": [
+              "driver_identity_qualifying_resolution",
+              "driver_participation_resolution"
+            ]
+          }
+        ],
+        "resolved_round": null,
+        "resolver_reads": 1,
+        "resolver_candidates": 2
+      },
+      "plan": {
+        "topology": "single_source_aggregate",
+        "source_ids": [
+          "qualifying_classification"
+        ],
+        "resolution_relationship_ids": [
+          "driver_identity_qualifying_resolution",
+          "driver_participation_resolution"
+        ],
+        "row_relationship_ids": [],
+        "branches": [
+          {
+            "source_id": "qualifying_classification",
+            "fixed_grain": [
+              "season"
+            ],
+            "residual_grain": [
+              "driver_id"
+            ],
+            "aggregate": {
+              "group_by": [
+                "driver_id"
+              ],
+              "measures": [
+                "count_qualifying_position"
+              ]
+            }
+          }
+        ],
+        "output_grain": [
+          "driver_id"
+        ],
+        "integrity_checks": [
+          "position_bounds",
+          "source_presence",
+          "unique_grain"
+        ],
+        "work": {
+          "source_scan_units": 30,
+          "resolver_reads": 1,
+          "resolver_candidates": 2,
+          "sources": 1,
+          "row_joins": 0,
+          "compositions": 0,
+          "operator_depth": 5,
+          "requested_rows": 100
+        },
+        "answer_plan_hash": "31484d9e59ea271b65cfdaf133cd86db7594129ac365481d701096c94fbd499d",
+        "planned_f1ql_hash": "e2943cac2faea8bef620c44963123d7df3ccae0d3782a4dc4691aa673ce614b6",
+        "core_hash": "88549235d3358fe55f6911ba711dced3caf24ca156e6db15fdbe860b302b5798"
+      },
+      "proof": {
+        "proof_hash": "abfa4fcb24fc5f5e0ff30b2194391d935d936bddad91fdeb8ff19923d9ed6fa7",
+        "topology_hash": "c9959dd42ac228fe65252ca7344d8a429f7118b79dd95aadefb660401fe4822f",
+        "work_hash": "d5908308086749dd12b3e836c3ea6fdf5e0afdaab9666f2a6fc296567ef5520d",
+        "participation_hash": "01268412d46e0734adff3cfae22e2528526f9926211fc2e56520e3408f3227f6",
+        "compiled_hash": "dbca12845a9f55770a2f92149ae5c4b57b868fde85a5b9a7c8d638ae44d585d6"
       },
       "plan_family": "single_source"
     },

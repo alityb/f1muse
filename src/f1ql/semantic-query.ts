@@ -158,6 +158,17 @@ interface OperationEvidence {
   readonly temporal: readonly { readonly value: 'final' | 'latest_recorded'; readonly span: SemanticLiteralSpan }[];
 }
 
+interface SelectedClassificationPositionCountSpecification {
+  readonly source_id: 'event_classification' | 'qualifying_classification';
+  readonly position_id: 'finishing_position' | 'qualifying_position';
+  readonly session: 'race' | 'qualifying';
+}
+
+const SELECTED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS = [
+  { source_id: 'event_classification', position_id: 'finishing_position', session: 'race' },
+  { source_id: 'qualifying_classification', position_id: 'qualifying_position', session: 'qualifying' }
+] as const satisfies readonly SelectedClassificationPositionCountSpecification[];
+
 const activeSemanticEvidence = new WeakSet<object>();
 const activeSemanticAdmissions = new WeakSet<object>();
 
@@ -299,7 +310,7 @@ export function enumerateSemanticQueries(
     operations,
     entities
   );
-  const selectedRacePositionCount = finalSelectedRacePositionCount(
+  const selectedClassificationPositionCount = finalSelectedClassificationPositionCount(
     question,
     sourceMatches,
     conceptMatches,
@@ -313,7 +324,7 @@ export function enumerateSemanticQueries(
   }
   const effectiveConceptMatches = standingsProjection
     ? [standingsProjection]
-    : classificationPositionRanking ?? selectedRacePositionCount ?? conceptMatches;
+    : classificationPositionRanking ?? selectedClassificationPositionCount ?? conceptMatches;
   const sourceIds = candidateSourceIds(sourceMatches, effectiveConceptMatches);
   if (sourceIds.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_concept'));
@@ -466,7 +477,7 @@ export function enumerateSemanticQueries(
       question.normalized_question,
       standingsProjection,
       classificationPositionRanking,
-      selectedRacePositionCount
+      selectedClassificationPositionCount
     );
     usedDefaultOutputs ||= outputChoices.defaulted;
     if (outputChoices.outputs.length === 0) {
@@ -492,7 +503,7 @@ export function enumerateSemanticQueries(
   const unique = new Map(candidates.map(candidate => [computeSemanticQueryHash(candidate), candidate]));
   const sorted = [...unique.values()].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
   const driverCount = entities.filter(entity => entity.type === 'driver').length;
-  if (operations.count && driverCount >= 2 && !isPromotedSelectedRacePositionCount(
+  if (operations.count && driverCount >= 2 && !isPromotedSelectedClassificationPositionCount(
     question, entities, sourceMatches, conceptMatches, operations, sorted
   )) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
@@ -561,7 +572,7 @@ function isPromotedClassificationPositionCountRanking(
   ));
 }
 
-function isPromotedSelectedRacePositionCount(
+function isPromotedSelectedClassificationPositionCount(
   question: AnswerQuestionContract,
   entities: readonly SemanticEntityInventoryItem[],
   sourceMatches: readonly LexicalMatch[],
@@ -569,6 +580,22 @@ function isPromotedSelectedRacePositionCount(
   operations: OperationEvidence,
   candidates: readonly SemanticQuery[]
 ): boolean {
+  return SELECTED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS.some(specification =>
+    matchesPromotedSelectedClassificationPositionCount(
+      specification, question, entities, sourceMatches, conceptMatches, operations, candidates
+    ));
+}
+
+function matchesPromotedSelectedClassificationPositionCount(
+  specification: SelectedClassificationPositionCountSpecification,
+  question: AnswerQuestionContract,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  candidates: readonly SemanticQuery[]
+): boolean {
+  const { source_id: sourceId, position_id: positionId, session } = specification;
   const drivers = entities.filter(entity => entity.type === 'driver');
   const questionShapeMatches = [
     question.years.length === 1,
@@ -584,11 +611,11 @@ function isPromotedSelectedRacePositionCount(
     !/\b(?:all|each|every|per|rank|top)\b|\bgroup(?:ed|ing)?\b|\breturn\s+all\b/iu
       .test(question.normalized_question),
     candidates.length === 1,
-    independentSourceOccurrenceCount(sourceMatches, 'event_classification') === 1,
+    independentSourceOccurrenceCount(sourceMatches, sourceId) === 1,
     new Set(sourceMatches.map(match => match.source_id)).size === 1,
-    sourceMatches.every(match => match.source_id === 'event_classification'),
-    independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'driver_id') === 1,
-    independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'finishing_position') === 1
+    sourceMatches.every(match => match.source_id === sourceId),
+    independentConceptOccurrenceCount(conceptMatches, sourceId, 'driver_id') === 1,
+    independentConceptOccurrenceCount(conceptMatches, sourceId, positionId) === 1
   ].every(Boolean);
   if (!questionShapeMatches) {return false;}
   const candidate = candidates[0];
@@ -596,24 +623,24 @@ function isPromotedSelectedRacePositionCount(
     stableSerialize(candidate.outputs.map(output => output.kind === 'aggregate'
       ? `${output.concept.source_id}.${output.concept.concept_id}:${output.function}`
       : `${output.concept.source_id}.${output.concept.concept_id}`)) === stableSerialize([
-      'event_classification.driver_id',
-      'event_classification.finishing_position:count'
+      `${sourceId}.driver_id`,
+      `${sourceId}.${positionId}:count`
     ]),
     candidate.scopes.filter(scope => scope.kind === 'season').length === 1,
     candidate.scopes.some(scope => scope.kind === 'session' &&
-      scope.source_id === 'event_classification' && scope.value === 'race'),
+      scope.source_id === sourceId && scope.value === session),
     candidate.scopes.some(scope => scope.kind === 'temporal' && scope.value === 'final'),
     !candidate.scopes.some(scope => scope.kind === 'round' || scope.kind === 'event'),
     candidate.entities.length === drivers.length,
     candidate.filters.length === 1,
     candidate.filters[0]?.kind === 'entity' && candidate.filters[0].operator === 'in' &&
-      candidate.filters[0].concept.source_id === 'event_classification' &&
+      candidate.filters[0].concept.source_id === sourceId &&
       candidate.filters[0].concept.concept_id === 'driver_id' &&
       stableSerialize(candidate.filters[0].entity_indices) ===
         stableSerialize(Array.from({ length: drivers.length }, (_unused, index) => index)),
     stableSerialize(candidate.group_by.map(group =>
       `${group.concept.source_id}.${group.concept.concept_id}`)) ===
-      stableSerialize(['event_classification.driver_id']),
+      stableSerialize([`${sourceId}.driver_id`]),
     candidate.comparison?.relation === 'count',
     candidate.order_by.length === 0,
     candidate.limit === undefined
@@ -927,11 +954,11 @@ function buildOutputChoices(
   matches: readonly LexicalMatch[],
   sourceMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
-  question: string,
-  standingsProjection?: LexicalMatch,
-  classificationPositionRanking?: readonly LexicalMatch[], selectedRacePositionCount?: readonly LexicalMatch[]
+  question: string, standingsProjection?: LexicalMatch, classificationPositionRanking?: readonly LexicalMatch[], selectedClassificationPositionCount?: readonly LexicalMatch[]
 ): { readonly outputs: readonly (readonly SemanticQuery['outputs'][number][])[]; readonly defaulted: boolean } {
-  const reviewedProjection = reviewedProjectionOutputs(source, operations, standingsProjection, classificationPositionRanking, selectedRacePositionCount);
+  const reviewedProjection = reviewedProjectionOutputs(
+    source, operations, standingsProjection, classificationPositionRanking, selectedClassificationPositionCount
+  );
   if (reviewedProjection) {return { outputs: [reviewedProjection], defaulted: false };}
   const explicit = matches.map(match => {
     const concept = { source_id: match.source_id, concept_id: match.concept_id! };
@@ -1018,7 +1045,7 @@ function reviewedProjectionOutputs(
   operations: OperationEvidence,
   standingsProjection?: LexicalMatch,
   classificationPositionRanking?: readonly LexicalMatch[],
-  selectedRacePositionCount?: readonly LexicalMatch[]
+  selectedClassificationPositionCount?: readonly LexicalMatch[]
 ): readonly SemanticQuery['outputs'][number][] | undefined {
   if (source.id === 'driver_standings' && standingsProjection) {
     return standingsProjectionOutputs(standingsProjection);
@@ -1027,27 +1054,29 @@ function reviewedProjectionOutputs(
       classificationPositionRanking) {
     return classificationRankingOutputs(classificationPositionRanking);
   }
-  if (source.id === 'event_classification' && selectedRacePositionCount && operations.count) {
-    return selectedRacePositionCountOutputs(selectedRacePositionCount, operations.count);
+  if ((source.id === 'event_classification' || source.id === 'qualifying_classification') &&
+      selectedClassificationPositionCount && operations.count) {
+    return selectedClassificationPositionCountOutputs(selectedClassificationPositionCount, operations.count);
   }
   return undefined;
 }
 
-function selectedRacePositionCountOutputs(
+function selectedClassificationPositionCountOutputs(
   projection: readonly LexicalMatch[],
   count: SemanticLiteralSpan
 ): readonly SemanticQuery['outputs'][number][] {
   const driver = projection.find(match => match.concept_id === 'driver_id')!;
-  const position = projection.find(match => match.concept_id === 'finishing_position')!;
+  const position = projection.find(match =>
+    match.concept_id === 'finishing_position' || match.concept_id === 'qualifying_position')!;
   return [
     {
       kind: 'concept',
-      concept: { source_id: 'event_classification', concept_id: 'driver_id' },
+      concept: { source_id: driver.source_id, concept_id: 'driver_id' },
       evidence: [driver.span]
     },
     {
       kind: 'aggregate', function: 'count',
-      concept: { source_id: 'event_classification', concept_id: 'finishing_position' },
+      concept: { source_id: position.source_id, concept_id: position.concept_id! },
       evidence: [count, position.span]
     }
   ];
@@ -1127,33 +1156,52 @@ function finalQualifyingPositionRanking(
 }
 
 // eslint-disable-next-line complexity
-function finalSelectedRacePositionCount(
+function finalSelectedClassificationPositionCount(
   question: AnswerQuestionContract,
   sourceMatches: readonly LexicalMatch[],
   conceptMatches: readonly LexicalMatch[],
   operations: OperationEvidence,
   entities: readonly SemanticEntityInventoryItem[]
 ): readonly LexicalMatch[] | undefined {
+  for (const specification of SELECTED_CLASSIFICATION_POSITION_COUNT_SPECIFICATIONS) {
+    const projection = finalSelectedClassificationPositionCountForSource(
+      specification, question, sourceMatches, conceptMatches, operations, entities
+    );
+    if (projection) {return projection;}
+  }
+  return undefined;
+}
+
+// eslint-disable-next-line complexity
+function finalSelectedClassificationPositionCountForSource(
+  specification: SelectedClassificationPositionCountSpecification,
+  question: AnswerQuestionContract,
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  entities: readonly SemanticEntityInventoryItem[]
+): readonly LexicalMatch[] | undefined {
+  const { source_id: sourceId, position_id: positionId } = specification;
   const concepts = canonicalConceptMatches(conceptMatches.filter(match =>
-    match.source_id === 'event_classification'));
+    match.source_id === sourceId));
   const drivers = entities.filter(entity => entity.type === 'driver');
   const hasBroaderConcept = conceptMatches.some(match =>
-    match.source_id !== 'event_classification' && !concepts.some(concept =>
+    match.source_id !== sourceId && !concepts.some(concept =>
       concept.span.start <= match.span.start && concept.span.end >= match.span.end));
   if (question.years.length !== 1 || question.rounds.length !== 0 || drivers.length < 2 ||
       drivers.length > 4 || drivers.length !== entities.length || operations.count_spans.length !== 1 ||
       operations.temporal.length !== 1 || operations.temporal[0].value !== 'final' ||
       operations.rank || operations.limit ||
-      independentSourceOccurrenceCount(sourceMatches, 'event_classification') !== 1 ||
-      new Set(sourceMatches.map(match => match.source_id)).size !== 1 ||
-      sourceMatches.some(match => match.source_id !== 'event_classification') ||
-      hasBroaderConcept || concepts.length !== 2 ||
-      independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'driver_id') !== 1 ||
-      independentConceptOccurrenceCount(conceptMatches, 'event_classification', 'finishing_position') !== 1) {
+       independentSourceOccurrenceCount(sourceMatches, sourceId) !== 1 ||
+       new Set(sourceMatches.map(match => match.source_id)).size !== 1 ||
+       sourceMatches.some(match => match.source_id !== sourceId) ||
+       hasBroaderConcept || concepts.length !== 2 ||
+       independentConceptOccurrenceCount(conceptMatches, sourceId, 'driver_id') !== 1 ||
+       independentConceptOccurrenceCount(conceptMatches, sourceId, positionId) !== 1) {
     return undefined;
   }
   const driver = concepts.find(match => match.concept_id === 'driver_id');
-  const position = concepts.find(match => match.concept_id === 'finishing_position');
+  const position = concepts.find(match => match.concept_id === positionId);
   return driver && position ? [driver, position] : undefined;
 }
 

@@ -369,7 +369,23 @@ const POSITIVE_PROFILE_CASES = {
   }), ({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show top 10 drivers by count of qualifying position in final ${year} qualifying classification.`,
     entity_names: []
-  })],
+  }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+    const drivers = [
+      ['Charles Leclerc', 'charles-leclerc'],
+      ['George Russell', 'george-russell'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri']
+    ].slice(0, 2 + (round % 3));
+    return {
+      question: `Show driver and count of qualifying position for ${drivers.map(([name]) => name).join(', ')} in final ${year} qualifying classification.`,
+      entity_names: drivers.map(([name]) => name),
+      driver_mentions: drivers.map(([name, id]) => ({
+        name,
+        candidates: candidateInventory(id, candidate_count, selected_index),
+        active_candidates: [id]
+      }))
+    };
+  }],
   'semantic-safe-dimension-join-v1': [
     ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
       question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
@@ -433,7 +449,8 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 2, max: 4 },
       { min: 0, max: 0 },
       { min: 1, max: 1 },
-      { min: 0, max: 0 }
+      { min: 0, max: 0 },
+      { min: 2, max: 4 }
     ]);
     expect(profile.source_sets).toEqual([
       ['driver_standings'], ['event_classification'], ['event_metadata'], ['qualifying_classification']
@@ -869,6 +886,46 @@ describe('semantic complete-interaction capability authorization', () => {
       output_bindings: [
         'concept:event_classification.driver_id->driver_id',
         'aggregate:count_finishing_position->count_finishing_position'
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      entity_count: cardinality,
+      rows: 100
+    });
+  });
+
+  it.each([2, 3, 4] as const)('binds exact selected qualifying-position counts through driver cardinality %i', async cardinality => {
+    const drivers = [
+      ['Max Verstappen', 'max-verstappen'],
+      ['Lando Norris', 'lando-norris'],
+      ['Oscar Piastri', 'oscar-piastri'],
+      ['George Russell', 'george-russell']
+    ].slice(0, cardinality);
+    const question = `Show driver and count of qualifying position for ${drivers.map(([name]) => name).join(', ')} in final 2025 qualifying classification.`;
+    const proof = await semanticProof(
+      question,
+      drivers.map(([name]) => name),
+      drivers.map(([name, id]) => ({ name, candidates: [id], active_candidates: [id] }))
+    );
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_ids: ['qualifying_classification'],
+      predicate_bindings: ['qualifying_classification.driver_id:in', 'qualifying_classification.season:eq'],
+      aggregate_bindings: [
+        'qualifying_classification.qualifying_position:count->count_qualifying_position'
+      ],
+      group_bindings: ['qualifying_classification.driver_id'],
+      output_bindings: [
+        'concept:qualifying_classification.driver_id->driver_id',
+        'aggregate:count_qualifying_position->count_qualifying_position'
       ],
       sort_bindings: ['driver_id:asc:last'],
       entity_count: cardinality,

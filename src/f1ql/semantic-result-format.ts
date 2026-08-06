@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v28' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v29' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -191,11 +191,11 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   const classificationCountRankingContract = isClassificationPositionCountRankingContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   );
-  const selectedRacePositionCountContract = isSelectedRacePositionCountContract(
+  const selectedClassificationPositionCountContract = isSelectedClassificationPositionCountContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   );
-  if (selectedRacePositionCountContract && execution.has_more_rows) {
-    throw new SemanticResultFormatError('Selected race count result collection evidence was incomplete');
+  if (selectedClassificationPositionCountContract && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Selected classification count result collection evidence was incomplete');
   }
   const rows: Record<string, unknown>[] = [];
   for (let index = 0; index < rowCount; index += 1) {
@@ -215,8 +215,8 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (classificationCountRankingContract && rows.length === 0) {
     throw new SemanticResultFormatError('Classification count ranking source evidence was incomplete');
   }
-  if (selectedRacePositionCountContract && rows.length !== requestedDriverRowCount(branches)) {
-    throw new SemanticResultFormatError('Selected race count result collection evidence was incomplete');
+  if (selectedClassificationPositionCountContract && rows.length !== requestedDriverRowCount(branches)) {
+    throw new SemanticResultFormatError('Selected classification count result collection evidence was incomplete');
   }
   if (selectedClassificationMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
     throw new SemanticResultFormatError('Selected classification metadata result collection evidence was incomplete');
@@ -1235,9 +1235,9 @@ function isClassificationPositionCountRankingContract(
     ordering[1].direction === 'asc' && ordering[1].nulls === 'last';
 }
 
-// Bind selected race counts to identity ordering and exact selected membership, never count ranking.
+// Bind selected classification counts to identity ordering and exact selected membership, never count ranking.
 // eslint-disable-next-line complexity
-function isSelectedRacePositionCountContract(
+function isSelectedClassificationPositionCountContract(
   rowLimit: number,
   ordering: readonly PlannedCoreSortKey[],
   project: PlannedCoreProjectNode,
@@ -1247,32 +1247,36 @@ function isSelectedRacePositionCountContract(
 ): boolean {
   const branch = branches[0];
   const source = sources[0];
+  const sourceId = source?.id;
+  let positionId: 'finishing_position' | 'qualifying_position' | undefined;
+  if (sourceId === 'event_classification') {positionId = 'finishing_position';}
+  else if (sourceId === 'qualifying_classification') {positionId = 'qualifying_position';}
+  const countId = positionId === undefined ? undefined : `count_${positionId}`;
   const aggregate = project.input.op === 'aggregate' ? project.input : undefined;
   const measure = aggregate?.measures[0];
   const seasonPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'season');
   const driverPredicate = branch?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
   const key = ordering[0];
-  return rowLimit === MAX_F1QL_RESPONSE_ROWS && sources.length === 1 &&
-    source?.id === 'event_classification' && branches.length === 1 &&
-    branch.input.source_id === 'event_classification' && branch.predicates.length === 2 &&
-    reviewedEventDriverPredicate('multi', driverPredicate, 'event_classification') &&
-    validHistoricalSeasonPredicate(seasonPredicate, 'event_classification', source) &&
+  return rowLimit === MAX_F1QL_RESPONSE_ROWS && sources.length === 1 && sourceId !== undefined &&
+    positionId !== undefined && countId !== undefined && branches.length === 1 &&
+    branch.input.source_id === sourceId && branch.predicates.length === 2 &&
+    reviewedEventDriverPredicate('multi', driverPredicate, sourceId) &&
+    validHistoricalSeasonPredicate(seasonPredicate, sourceId, source) &&
     aggregate !== undefined && aggregate.group_by.length === 1 &&
-    aggregate.group_by[0].source_id === 'event_classification' &&
+    aggregate.group_by[0].source_id === sourceId &&
     aggregate.group_by[0].concept_id === 'driver_id' && aggregate.measures.length === 1 &&
-    measure?.source_id === 'event_classification' && measure.concept_id === 'finishing_position' &&
-    measure.function === 'count' && measure.as === 'count_finishing_position' &&
+    measure?.source_id === sourceId && measure.concept_id === positionId &&
+    measure.function === 'count' && measure.as === countId &&
     project.outputs.length === 2 && project.outputs[0].kind === 'concept' &&
-    project.outputs[0].concept.source_id === 'event_classification' &&
+    project.outputs[0].concept.source_id === sourceId &&
     project.outputs[0].concept.concept_id === 'driver_id' && project.outputs[0].as === 'driver_id' &&
     project.outputs[1].kind === 'aggregate' &&
-    project.outputs[1].measure_as === 'count_finishing_position' &&
-    project.outputs[1].as === 'count_finishing_position' &&
+    project.outputs[1].measure_as === countId && project.outputs[1].as === countId &&
     sameStrings(project.output_grain, ['driver_id']) && columns.length === 2 &&
-    columns[0].source_id === 'event_classification' && columns[0].concept_id === 'driver_id' &&
+    columns[0].source_id === sourceId && columns[0].concept_id === 'driver_id' &&
     columns[0].id === 'driver_id' && columns[0].kind === 'dimension' && columns[0].aggregation === null &&
-    columns[1].source_id === 'event_classification' && columns[1].concept_id === 'finishing_position' &&
-    columns[1].id === 'count_finishing_position' && columns[1].kind === 'aggregate' &&
+    columns[1].source_id === sourceId && columns[1].concept_id === positionId &&
+    columns[1].id === countId && columns[1].kind === 'aggregate' &&
     columns[1].aggregation === 'count' && columns[1].physical_type === 'integer' &&
     columns[1].nullable === false && ordering.length === 1 && key.output_id === 'driver_id' &&
     key.direction === 'asc' && key.nulls === 'last' && key.physical_type === 'text' &&

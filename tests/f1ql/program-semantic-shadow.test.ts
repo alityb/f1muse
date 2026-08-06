@@ -25,12 +25,12 @@ const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying posi
 const QUALIFYING_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT_QUESTION = 'Show driver and count of finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri in final 2025 race classification.';
+const SELECTED_QUALIFYING_COUNT_QUESTION = 'Show driver and count of qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri in final 2025 qualifying classification.';
 const UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS = [
   'Show driver and count of finishing position in final 2025 race classification.',
   'Show driver and count of finishing position for Lando Norris in final 2025 race classification.',
   'Show driver and count of finishing position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.',
   'Show count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
-  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
   'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
   'Show driver and count of finishing position for Lando Norris and Oscar Piastri in round 1 of final 2025 race classification.',
   'Show driver and count of finishing position with classified status for Lando Norris and Oscar Piastri in final 2025 race classification.',
@@ -41,6 +41,35 @@ const UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS = [
   'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification and race classification.',
   'Show driver and count of finishing position for Lando Norris and Oscar Piastri in latest recorded 2026 race classification.',
   'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification and return all.'
+] as const;
+const UNSUPPORTED_SELECTED_QUALIFYING_COUNT_QUESTIONS = [
+  'Show driver and count of qualifying position in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 qualifying classification.',
+  'Show count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in round 1 of final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri at Monaco in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position with classified status for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position 1 for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver, team, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver, grid position, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver, best time, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position in sprint qualifying for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Rank driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show top 2 driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Compare driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and maximum qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position per driver for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position grouped by driver for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver, qualifying position, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification and qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in latest recorded 2026 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in interim 2025 qualifying classification.',
+  'Show all driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+  'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification and return all.'
 ] as const;
 const UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS = [
   'Show top 9 drivers by count of qualifying position in final 2025 qualifying classification.',
@@ -488,12 +517,14 @@ describe('WP8 stage-zero semantic shadow route', () => {
     ['standings position', SINGLETON_STANDINGS_POSITION_QUESTION, 'single_source_rows'],
     ['standings position and points', SINGLETON_STANDINGS_SUMMARY_QUESTION, 'single_source_rows'],
     ['multi-driver standings position', MULTI_STANDINGS_POSITION_QUESTION, 'single_source_rows'],
-    ['per-driver race counts', SELECTED_RACE_COUNT_QUESTION, 'single_source_aggregate']
+    ['per-driver race counts', SELECTED_RACE_COUNT_QUESTION, 'single_source_aggregate'],
+    ['per-driver qualifying counts', SELECTED_QUALIFYING_COUNT_QUESTION, 'single_source_aggregate']
   ])('proves selected-driver %s without result execution', async (_source, question, topology) => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
-          ...([MULTI_STANDINGS_POSITION_QUESTION, SELECTED_RACE_COUNT_QUESTION].includes(question)
+          ...([MULTI_STANDINGS_POSITION_QUESTION, SELECTED_RACE_COUNT_QUESTION,
+            SELECTED_QUALIFYING_COUNT_QUESTION].includes(question)
             ? [
                 { driver_id: 'charles-leclerc', identity: 'Charles Leclerc', participation_source: 'entrant' },
                 { driver_id: 'george-russell', identity: 'George Russell', participation_source: 'entrant' },
@@ -530,8 +561,11 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it.each(UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS)(
-    'refuses adjacent selected race-count language before provider or result execution: %s', async question => {
+  it.each([
+    ...UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS,
+    ...UNSUPPORTED_SELECTED_QUALIFYING_COUNT_QUESTIONS
+  ])(
+    'refuses adjacent selected classification-count language before provider or result execution: %s', async question => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped
       ? { rows: [
           { driver_id: 'max-verstappen', identity: 'Max Verstappen', participation_source: 'entrant' },
@@ -1636,7 +1670,8 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
           { type: 'driver' as const, span: { text: 'Lando Norris', start: 32, end: 44 } },
           { type: 'driver' as const, span: { text: 'Oscar Piastri', start: 49, end: 62 } }
         ]
-    : request.question === SELECTED_RACE_COUNT_QUESTION
+    : request.question === SELECTED_RACE_COUNT_QUESTION ||
+        request.question === SELECTED_QUALIFYING_COUNT_QUESTION
       ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
           type: 'driver' as const,
           span: questionSpan(request.question, text)

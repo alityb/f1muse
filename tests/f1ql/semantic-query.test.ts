@@ -27,6 +27,7 @@ const RACE_QUESTION = 'List driver and finishing position for round 1 of the fin
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_COUNT_RANK_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT_QUESTION = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.';
+const SELECTED_QUALIFYING_COUNT_QUESTION = 'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const UNFILTERED_RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
@@ -257,6 +258,33 @@ describe('semantic query candidates and independent evidence', () => {
     expect(candidate.limit).toBeUndefined();
   });
 
+  it.each([2, 3, 4] as const)('enumerates exact selected per-driver qualifying counts for %i drivers', cardinality => {
+    const names = ['Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc'].slice(0, cardinality);
+    const question = cardinality === 2
+      ? SELECTED_QUALIFYING_COUNT_QUESTION
+      : `Show driver and count of qualifying position for ${names.join(', ')} in final 2025 qualifying classification.`;
+    const candidate = candidateEvidence(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    }))).candidates[0];
+    expect(candidate).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'qualifying_classification', concept_id: 'driver_id' } },
+        {
+          kind: 'aggregate', function: 'count',
+          concept: { source_id: 'qualifying_classification', concept_id: 'qualifying_position' }
+        }
+      ],
+      filters: [{
+        kind: 'entity', operator: 'in',
+        entity_indices: Array.from({ length: cardinality }, (_unused, index) => index)
+      }],
+      group_by: [{ concept: { source_id: 'qualifying_classification', concept_id: 'driver_id' } }],
+      comparison: { relation: 'count' },
+      order_by: []
+    });
+    expect(candidate.limit).toBeUndefined();
+  });
+
   it('canonicalizes selected race-count outputs independently of caller field order', () => {
     const question = 'Show count of finishing position and driver for Lando Norris and Oscar Piastri in final 2025 race classification.';
     const candidate = candidateEvidence(question, ['Lando Norris', 'Oscar Piastri'].map(text => ({
@@ -265,12 +293,25 @@ describe('semantic query candidates and independent evidence', () => {
     expect(candidate.outputs.map(output => output.kind === 'aggregate'
       ? `count_${output.concept.concept_id}` : output.concept.concept_id))
       .toEqual(['driver_id', 'count_finishing_position']);
+
+    const qualifyingQuestion = 'Show count of qualifying position and driver for Lando Norris and Oscar Piastri in final 2025 qualifying classification.';
+    const qualifyingCandidate = candidateEvidence(qualifyingQuestion, ['Lando Norris', 'Oscar Piastri'].map(text => ({
+      type: 'driver', span: span(qualifyingQuestion, text)
+    }))).candidates[0];
+    expect(qualifyingCandidate.outputs.map(output => output.kind === 'aggregate'
+      ? `count_${output.concept.concept_id}` : output.concept.concept_id))
+      .toEqual(['driver_id', 'count_qualifying_position']);
   });
 
   it('treats duplicate catalog aliases at one source span as one source occurrence', () => {
     const question = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race result.';
     expect(candidateEvidence(question, ['Lando Norris', 'Oscar Piastri'].map(text => ({
       type: 'driver', span: span(question, text)
+    }))).candidates).toHaveLength(1);
+
+    const qualifyingQuestion = 'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying result.';
+    expect(candidateEvidence(qualifyingQuestion, ['Lando Norris', 'Oscar Piastri'].map(text => ({
+      type: 'driver', span: span(qualifyingQuestion, text)
     }))).candidates).toHaveLength(1);
   });
 
@@ -279,7 +320,6 @@ describe('semantic query candidates and independent evidence', () => {
     'Show driver and count of finishing position for Lando Norris in final 2025 race classification.',
     'Show driver and count of finishing position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 race classification.',
     'Show count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
-    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
     'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
     'Show driver and count of finishing position for Lando Norris and Oscar Piastri in round 1 of final 2025 race classification.',
     'Show driver and count of finishing position for Lando Norris and Oscar Piastri at Monaco in final 2025 race classification.',
@@ -300,6 +340,44 @@ describe('semantic query candidates and independent evidence', () => {
     'Show all driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.',
     'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification and return all.'
   ])('refuses adjacent selected race-count language before provider admission: %s', question => {
+    const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc']
+      .filter(name => question.includes(name));
+    const events = question.includes('Monaco') ? [{ type: 'event' as const, span: span(question, 'Monaco') }] : [];
+    expect(enumerateSemanticQueries(question, [
+      ...names.map(text => ({ type: 'driver' as const, span: span(question, text) })),
+      ...events
+    ])).toMatchObject({ type: 'abstention' });
+  });
+
+  it.each([
+    'Show driver and count of qualifying position in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, Charles Leclerc in final 2025 qualifying classification.',
+    'Show count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 race classification.',
+    'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in round 1 of final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri at Monaco in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position with classified status for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position 1 for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver, team, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver, grid position, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver, best time, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position in sprint qualifying for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Rank driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show top 2 driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Compare driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and maximum qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position per driver for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position grouped by team for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver, qualifying position, and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification and qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in latest recorded 2026 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in interim 2025 qualifying classification.',
+    'Show all driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.',
+    'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification and return all.'
+  ])('refuses adjacent selected qualifying-count language before provider admission: %s', question => {
     const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc']
       .filter(name => question.includes(name));
     const events = question.includes('Monaco') ? [{ type: 'event' as const, span: span(question, 'Monaco') }] : [];
