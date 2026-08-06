@@ -150,6 +150,12 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('multiple events, season-wide requests, user-supplied limits');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('driver and recorded finishing position plus any nonempty subset of race date, event name, and circuit identifier');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('filter event_classification.driver_id with eq for one driver or in for two to four drivers');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Do not extend this rule to zero or five-or-more selected drivers');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Preserve null positions last and equal positions; driver identity only stabilizes their presentation order');

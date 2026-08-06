@@ -713,7 +713,22 @@ Circuit identifiers preserve exact nonblank source bytes and are not circuit,
 venue, or Grand Prix names. Event names likewise preserve exact nonblank source
 text and are not circuit or venue names. Caller limits, multi-event,
 latest-recorded, interim, season-wide, additional metadata fields, and
-non-race-session variants remain refused. A
+non-race-session variants remain refused. The first selected-driver safe-dimension
+join is implemented locally over race classification and event metadata through
+the catalog-declared many-to-one race-event relationship. It accepts one final
+historical season, one explicit round or uniquely resolved named event, and one
+to four drivers. Every shape returns `driver_id` and nullable raw
+`finishing_position` plus any nonempty subset of `date`, `event_name`, and
+`circuit_id` in canonical metadata order. Singleton plans use an equality filter,
+empty residual grain, and one requested row; multi-driver plans use an inclusion
+filter, residual driver grain, the private 100-row collection bound, and exact
+selected membership. All plans order by driver identity and require complete
+event-key relationships, source-wide grain integrity, selected source presence,
+and non-null requested metadata. Caller-limited, ranked, aggregate, no-metadata,
+broader-output, season-wide, latest-recorded, interim, and five-plus-driver forms
+remain refused. The existing unfiltered safe join remains a separate exact
+interaction limited to driver identity, finishing position, event name, and
+circuit identifier. A
 selected-driver standings-ranking slice is complete for one final historical
 season from 1950 through 2025 and exactly two to four drivers, returning only
 driver identity and recorded non-null championship position. It orders official

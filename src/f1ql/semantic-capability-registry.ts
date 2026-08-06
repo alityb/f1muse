@@ -2,7 +2,62 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 24 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 25 as const;
+
+const EVENT_METADATA_PROJECTION_SUBSETS = [
+  ['date'],
+  ['circuit_id'],
+  ['event_name'],
+  ['date', 'event_name'],
+  ['date', 'circuit_id'],
+  ['event_name', 'circuit_id'],
+  ['date', 'event_name', 'circuit_id']
+] as const;
+
+function selectedRaceMetadataInteractions() {
+  const baseOutputs = [
+    'concept:event_classification.driver_id->driver_id',
+    'concept:event_classification.finishing_position->finishing_position'
+  ];
+  return EVENT_METADATA_PROJECTION_SUBSETS.flatMap(conceptIds => [
+    {
+      entity_count: { min: 1, max: 1 },
+      predicate_bindings: [
+        'event_classification.driver_id:eq',
+        'event_classification.round:eq',
+        'event_classification.season:eq',
+        'event_metadata.round:eq',
+        'event_metadata.season:eq'
+      ],
+      aggregate_bindings: [],
+      group_bindings: [],
+      output_bindings: [
+        ...baseOutputs,
+        ...conceptIds.map(conceptId => `concept:event_metadata.${conceptId}->${conceptId}`)
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      requested_rows: 1
+    },
+    {
+      entity_count: { min: 2, max: 4 },
+      predicate_bindings: [
+        'event_classification.driver_id:in',
+        'event_classification.round:eq',
+        'event_classification.season:eq',
+        'event_metadata.round:eq',
+        'event_metadata.season:eq'
+      ],
+      aggregate_bindings: [],
+      group_bindings: [],
+      output_bindings: [
+        ...baseOutputs,
+        ...conceptIds.map(conceptId => `concept:event_metadata.${conceptId}->${conceptId}`)
+      ],
+      sort_bindings: ['driver_id:asc:last'],
+      requested_rows: 100
+    }
+  ]);
+}
 
 export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
   {
@@ -414,22 +469,26 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     output_kinds: ['concept'],
     sort_directions: ['asc', 'desc'],
     null_orders: ['first', 'last'],
-    complete_interactions: [{
-      predicate_bindings: [
-        'event_classification.round:eq', 'event_classification.season:eq',
-        'event_metadata.round:eq', 'event_metadata.season:eq'
-      ],
-      aggregate_bindings: [],
-      group_bindings: [],
-      output_bindings: [
-        'concept:event_classification.driver_id->driver_id',
-        'concept:event_classification.finishing_position->finishing_position',
-        'concept:event_metadata.event_name->event_name',
-        'concept:event_metadata.circuit_id->circuit_id'
-      ],
-      sort_bindings: ['driver_id:asc:last'],
-      requested_rows: 100
-    }],
+    complete_interactions: [
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_classification.round:eq', 'event_classification.season:eq',
+          'event_metadata.round:eq', 'event_metadata.season:eq'
+        ],
+        aggregate_bindings: [],
+        group_bindings: [],
+        output_bindings: [
+          'concept:event_classification.driver_id->driver_id',
+          'concept:event_classification.finishing_position->finishing_position',
+          'concept:event_metadata.event_name->event_name',
+          'concept:event_metadata.circuit_id->circuit_id'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
+      },
+      ...selectedRaceMetadataInteractions()
+    ],
     ...catalogConceptAllowlist(['event_classification', 'event_metadata']),
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],

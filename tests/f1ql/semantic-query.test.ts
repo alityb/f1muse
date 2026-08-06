@@ -415,6 +415,61 @@ describe('semantic query candidates and independent evidence', () => {
     ]);
   });
 
+  it.each([
+    ['race date', ['date']],
+    ['circuit identifier', ['circuit_id']],
+    ['event name', ['event_name']],
+    ['race date and event name', ['date', 'event_name']],
+    ['race date and circuit identifier', ['date', 'circuit_id']],
+    ['event name and circuit identifier', ['event_name', 'circuit_id']],
+    ['race date, event name, and circuit identifier', ['date', 'event_name', 'circuit_id']]
+  ] as const)('enumerates selected-driver race metadata projection: %s', (projection, metadataOutputs) => {
+    const question = `List driver, finishing position, and ${projection} for Lando Norris and Oscar Piastri from round 1 of final 2025 race classification and event metadata.`;
+    const drivers = ['Lando Norris', 'Oscar Piastri'];
+    const candidate = candidateEvidence(question, drivers.map(text => ({
+      type: 'driver', span: span(question, text)
+    }))).candidates[0];
+    expect(candidate.outputs.map(output => output.concept.concept_id)).toEqual([
+      'driver_id', 'finishing_position', ...metadataOutputs
+    ]);
+    expect(candidate.filters).toEqual([expect.objectContaining({
+      kind: 'entity', operator: 'in', entity_indices: [0, 1],
+      concept: { source_id: 'event_classification', concept_id: 'driver_id' }
+    })]);
+    expect(candidate.limit).toBeUndefined();
+    expect(candidate.order_by).toEqual([]);
+  });
+
+  it.each([
+    'List driver, finishing position, circuit identifier, race date, and event name for Lando Norris from round 1 of final 2025 race classification and event metadata.',
+    'List finishing position, driver, event name, circuit identifier, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.'
+  ])('canonicalizes reordered selected-driver join outputs: %s', question => {
+    const candidate = candidateEvidence(question, [{
+      type: 'driver', span: span(question, 'Lando Norris')
+    }]).candidates[0];
+    expect(candidate.outputs.map(output => output.concept.concept_id)).toEqual([
+      'driver_id', 'finishing_position', 'date', 'event_name', 'circuit_id'
+    ]);
+  });
+
+  it.each([
+    'List top 1 driver, finishing position, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.',
+    'List driver, finishing position, race points, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.',
+    'List driver and finishing position for Lando Norris from round 1 of final 2025 race classification and event metadata.',
+    'List driver, finishing position, and race date for Lando Norris from round 1 of latest recorded 2026 race classification and event metadata.',
+    'List driver, finishing position, and race date for Lando Norris from round 1 of interim 2025 race classification and event metadata.',
+    'List driver, finishing position, and race date for Lando Norris from final 2025 race classification and event metadata.',
+    'Rank Lando Norris by finishing position and show race date from round 1 of final 2025 race classification and event metadata.',
+    'Show count of finishing position and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.',
+    'List driver, finishing position, and race date for Max Verstappen, Lando Norris, Oscar Piastri, George Russell, and Charles Leclerc from round 1 of final 2025 race classification and event metadata.'
+  ])('rejects an unsupported selected-driver race metadata expansion: %s', question => {
+    const names = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri', 'George Russell', 'Charles Leclerc']
+      .filter(name => question.includes(name));
+    expect(enumerateSemanticQueries(question, names.map(text => ({
+      type: 'driver', span: span(question, text)
+    })))).toMatchObject({ type: 'abstention' });
+  });
+
   it('enumerates an ungrouped season-wide count of recorded race finishing positions', () => {
     const aggregate = candidateEvidence(RACE_SCALAR_COUNT_QUESTION).candidates[0];
     expect(aggregate).toMatchObject({

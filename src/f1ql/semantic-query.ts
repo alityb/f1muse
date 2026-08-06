@@ -1236,7 +1236,7 @@ function enumeratePromotedComposition(
   }
   if (scalarCompose && (!operations.count || operations.rank)) {return [];}
 
-  const outputs: SemanticQuery['outputs'] = scalarCompose
+  let outputs: SemanticQuery['outputs'] = scalarCompose
     ? compositionAggregateOutputs(matches, operations, catalog)
     : matches.map(match => ({
         kind: 'concept' as const,
@@ -1246,6 +1246,35 @@ function enumeratePromotedComposition(
   if (outputs.length === 0 || sourceIds.some(sourceId => !outputs.some(output => output.concept.source_id === sourceId)) ||
       (scalarCompose && (outputs.length !== sourceIds.length || outputs.some(output => output.kind !== 'aggregate')))) {
     return [];
+  }
+  const preservesCompositionAmbiguity = hasEntityTypeAmbiguity(entities) ||
+    hasOutputAlternative(question.normalized_question, conceptMatches);
+  const selectedRaceMetadataJoin = rowJoin && !preservesCompositionAmbiguity &&
+    entities.some(entity => entity.type === 'driver');
+  if (selectedRaceMetadataJoin) {
+    const canonicalOutputKeys = [
+      'event_classification.driver_id',
+      'event_classification.finishing_position',
+      'event_metadata.date',
+      'event_metadata.event_name',
+      'event_metadata.circuit_id'
+    ];
+    const requestedOutputKeys = outputs.map(output =>
+      `${output.concept.source_id}.${output.concept.concept_id}`);
+    if (requestedOutputKeys.some(key => !canonicalOutputKeys.includes(key))) {return [];}
+    outputs = canonicalOutputKeys.flatMap(key => {
+      const output = outputs.find(candidate => `${candidate.concept.source_id}.${candidate.concept.concept_id}` === key);
+      return output ? [output] : [];
+    });
+    const classificationOutputs = outputs.filter(output => output.concept.source_id === 'event_classification');
+    const metadataOutputs = outputs.filter(output => output.concept.source_id === 'event_metadata');
+    if (operations.limit || temporal[0].value !== 'final' ||
+        stableSerialize(classificationOutputs.map(output => output.concept.concept_id)) !==
+          stableSerialize(['driver_id', 'finishing_position']) ||
+        metadataOutputs.length < 1 || metadataOutputs.some(output =>
+          !['date', 'event_name', 'circuit_id'].includes(output.concept.concept_id))) {
+      return [];
+    }
   }
   const scopes: SemanticQuery['scopes'] = [
     { kind: 'season', value: year.value, evidence: [copyMention(year)] },

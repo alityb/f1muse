@@ -127,7 +127,7 @@ const coreJoinSchema = z.object({
   op: z.literal('join'), relationship_id: idSchema, left: coreFilterSchema, right: coreFilterSchema,
   type: z.enum(['inner', 'left']), cardinality: z.enum(['many_to_many', 'many_to_one', 'one_to_many', 'one_to_one']),
   left_keys: z.array(coreConceptSchema).min(1).max(5), right_keys: z.array(coreConceptSchema).min(1).max(5),
-  output_grain: z.array(coreConceptSchema).min(1).max(5), integrity: coreIntegritySchema
+  output_grain: z.array(coreConceptSchema).max(5), integrity: coreIntegritySchema
 }).strict();
 const coreAggregateMeasureSchema = z.object({
   source_id: sourceIdSchema, concept_id: idSchema, physical_field: idSchema,

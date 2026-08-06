@@ -60,6 +60,47 @@ interface PositiveProfileCase {
 
 type PositiveProfileFactory = (input: PositiveProfileInput) => PositiveProfileCase;
 
+const RACE_METADATA_PROJECTIONS = [
+  'race date',
+  'circuit identifier',
+  'event name',
+  'race date and event name',
+  'race date and circuit identifier',
+  'event name and circuit identifier',
+  'race date, event name, and circuit identifier'
+] as const;
+
+const selectedRaceMetadataFactories: readonly PositiveProfileFactory[] = RACE_METADATA_PROJECTIONS.flatMap(
+  projection => [
+    ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+      question: `List driver, finishing position, and ${projection} for Charles Leclerc from round ${round} of final ${year} race classification and event metadata.`,
+      entity_names: ['Charles Leclerc'],
+      driver_mentions: [{
+        name: 'Charles Leclerc',
+        candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
+        active_candidates: ['charles-leclerc']
+      }]
+    }),
+    ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+      const drivers = [
+        ['Charles Leclerc', 'charles-leclerc'],
+        ['George Russell', 'george-russell'],
+        ['Lando Norris', 'lando-norris'],
+        ['Oscar Piastri', 'oscar-piastri']
+      ].slice(0, 2 + (round % 3));
+      return {
+        question: `List driver, finishing position, and ${projection} for ${drivers.map(([name]) => name).join(', ')} from round ${round} of final ${year} race classification and event metadata.`,
+        entity_names: drivers.map(([name]) => name),
+        driver_mentions: drivers.map(([name, id]) => ({
+          name,
+          candidates: candidateInventory(id, candidate_count, selected_index),
+          active_candidates: [id]
+        }))
+      };
+    }
+  ]
+);
+
 const POSITIVE_PROFILE_CASES = {
   'semantic-single-source-v1': [({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and championship points from final ${year} driver standings.`,
@@ -276,10 +317,13 @@ const POSITIVE_PROFILE_CASES = {
       active_candidates: ['lando-norris']
     }]
   })],
-  'semantic-safe-dimension-join-v1': [({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
-    question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
-    entity_names: []
-  })],
+  'semantic-safe-dimension-join-v1': [
+    ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
+      question: `List driver and finishing position, event name, and circuit identifier for round ${round} of final ${year} race classification and event metadata.`,
+      entity_names: []
+    }),
+    ...selectedRaceMetadataFactories
+  ],
   'semantic-aggregate-locality-v1': [(input: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final ${input.year}.`,
     entity_names: ['Norris'],

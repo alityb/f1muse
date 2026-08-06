@@ -25,6 +25,8 @@ const EVENT_DATE_NAME = 'List race date and event name from round 1 of final 202
 const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from final 2025 event metadata at Australian Grand Prix.';
 const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from final 2024 event metadata at Monaco Grand Prix.';
 const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from final 2025 event metadata at Japanese Grand Prix.';
+const SELECTED_RACE_DATE = 'List driver, finishing position, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
+const SELECTED_RACE_ALL_METADATA = 'List driver, finishing position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, and Oscar Piastri from final 2025 race classification and event metadata at Japanese Grand Prix.';
 
 const noResolvers = {
   driver_mentions: [],
@@ -34,13 +36,13 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 39,
-    action_counts: { answer: 27, clarify: 5, abstain: 7 },
-    split_counts: { development: 24, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 41,
+    action_counts: { answer: 29, clarify: 5, abstain: 7 },
+    split_counts: { development: 26, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
       single_source_rows: 19,
       single_source_aggregate: 4,
-      row_dimension_join: 2,
+      row_dimension_join: 4,
       scalar_aggregate_compose: 2
     },
     source_set_counts: {
@@ -48,12 +50,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       event_classification: 4,
       qualifying_classification: 4,
       event_metadata: 7,
-      event_classification_event_metadata: 2,
+      event_classification_event_metadata: 4,
       event_classification_qualifying_classification: 2
     },
     plan_family_counts: {
       single_source: 23,
-      safe_dimension_join: 2,
+      safe_dimension_join: 4,
       aggregate_locality: 2,
       other: 0
     },
@@ -75,12 +77,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 24,
+      promoted_topology: 26,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
       plan_family_single_source: 23,
-      plan_family_safe_dimension_join: 2,
+      plan_family_safe_dimension_join: 4,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
     },
@@ -88,10 +90,10 @@ export const compositionalRegressionCorpusInput: unknown = {
       clean: 1,
       aggregation: 4,
       aggregate_locality: 2,
-      join_cardinality: 2,
-      resolver_event: 13,
-      resolver_identity: 14,
-      template_free: 22,
+      join_cardinality: 4,
+      resolver_event: 15,
+      resolver_identity: 16,
+      template_free: 24,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -421,6 +423,48 @@ export const compositionalRegressionCorpusInput: unknown = {
       coverage_tags: ['promoted_topology', 'plan_family_safe_dimension_join'],
       risk_tags: ['join_cardinality', 'resolver_event'], entities: [], provider_mode: 'enumerated',
       resolver: { driver_mentions: [], event_resolution: { type: 'resolved', season: 2025, round: 1 } },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
+        source_ids: ['event_classification', 'event_metadata'], plan_family: 'safe_dimension_join'
+      }
+    },
+    {
+      id: 'family-selected-race-date-join', split: 'development', question: SELECTED_RACE_DATE,
+      coverage_tags: ['promoted_topology', 'plan_family_safe_dimension_join'],
+      risk_tags: ['template_free', 'join_cardinality', 'resolver_event', 'resolver_identity'],
+      entities: [{ type: 'driver', text: 'Lando Norris' }], provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [{
+          text: 'Lando Norris', candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris']
+        }],
+        event_resolution: { type: 'resolved', season: 2025, round: 1 }
+      },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
+        source_ids: ['event_classification', 'event_metadata'], plan_family: 'safe_dimension_join'
+      }
+    },
+    {
+      id: 'family-selected-race-metadata-join', split: 'development', question: SELECTED_RACE_ALL_METADATA,
+      coverage_tags: ['promoted_topology', 'plan_family_safe_dimension_join'],
+      risk_tags: ['template_free', 'join_cardinality', 'resolver_event', 'resolver_identity'],
+      entities: [
+        { type: 'driver', text: 'Charles Leclerc' },
+        { type: 'driver', text: 'George Russell' },
+        { type: 'driver', text: 'Lando Norris' },
+        { type: 'driver', text: 'Oscar Piastri' },
+        { type: 'event', text: 'Japanese Grand Prix' }
+      ],
+      provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [
+          { text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] },
+          { text: 'George Russell', candidates: ['george-russell'], active_candidates: ['george-russell'] },
+          { text: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+          { text: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+        ],
+        event_resolution: { type: 'resolved', season: 2025, round: 3 }
+      },
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
         source_ids: ['event_classification', 'event_metadata'], plan_family: 'safe_dimension_join'

@@ -33,6 +33,9 @@ const FOUR_DRIVER_POINTS_QUESTION = 'List driver and championship points for Cha
 const FOUR_DRIVER_STANDINGS_SUMMARY_QUESTION = 'List driver, championship position, and championship points for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
 const FOUR_DRIVER_STANDINGS_RANK_QUESTION = 'Rank Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by championship position in final 2025 driver standings.';
 const FOUR_DRIVER_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
+const FOUR_DRIVER_RACE_METADATA_QUESTION = 'List driver, finishing position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification and event metadata.';
+const LIMITED_SELECTED_RACE_METADATA_QUESTION = 'List top 1 driver, finishing position, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
+const BROADER_SELECTED_RACE_METADATA_QUESTION = 'List driver, finishing position, race points, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
 const FOUR_DRIVER_NAMED_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 race classification at Monaco.';
 const FOUR_DRIVER_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
 const FOUR_DRIVER_NAMED_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from final 2025 race classification at Monaco.';
@@ -524,6 +527,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
 
   it.each([
     FOUR_DRIVER_RACE_QUESTION,
+    FOUR_DRIVER_RACE_METADATA_QUESTION,
     FOUR_DRIVER_RACE_RANK_QUESTION
   ])('proves a four-driver race family through bounded identity and event reads without result execution: %s', async question => {
     const fake = fakePool(async sql => {
@@ -568,6 +572,34 @@ describe('WP8 stage-zero semantic shadow route', () => {
       { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_round, parameters: [2025, 1, 2] },
       { sql: 'ROLLBACK', parameters: undefined }
     ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each([
+    LIMITED_SELECTED_RACE_METADATA_QUESTION,
+    BROADER_SELECTED_RACE_METADATA_QUESTION
+  ])('rejects a broader selected race metadata join before provider or result execution: %s', async question => {
+    const fake = fakePool();
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: { outcome: 'abstain', result_query_calls: 0 }
+      }
+    });
+    expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
 
@@ -1421,7 +1453,8 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
     : request.question === FOUR_DRIVER_POINTS_QUESTION || request.question === FOUR_DRIVER_STANDINGS_SUMMARY_QUESTION ||
         request.question === MULTI_STANDINGS_POSITION_QUESTION ||
         request.question === FOUR_DRIVER_STANDINGS_RANK_QUESTION ||
-        request.question === FOUR_DRIVER_RACE_QUESTION || request.question === FOUR_DRIVER_RACE_RANK_QUESTION ||
+        request.question === FOUR_DRIVER_RACE_QUESTION || request.question === FOUR_DRIVER_RACE_METADATA_QUESTION ||
+        request.question === FOUR_DRIVER_RACE_RANK_QUESTION ||
         request.question === FOUR_DRIVER_QUALIFYING_QUESTION || request.question === FOUR_DRIVER_QUALIFYING_RANK_QUESTION
       ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({
           type: 'driver' as const,

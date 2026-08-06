@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v23' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v24' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -176,6 +176,12 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (classificationCollectionContract && execution.has_more_rows) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
   }
+  const selectedRaceMetadataContract = isSelectedRaceMetadataContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  );
+  if (selectedRaceMetadataContract && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Selected race metadata result collection evidence was incomplete');
+  }
   const classificationScalarCountContract = isClassificationPositionScalarCountContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   );
@@ -196,6 +202,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   validateOrdering(rows, core.root.input.keys);
   if (classificationCollectionContract && rows.length === 0) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
+  }
+  if (selectedRaceMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
+    throw new SemanticResultFormatError('Selected race metadata result collection evidence was incomplete');
   }
   if (isEventScalarSelectionContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
@@ -976,6 +985,85 @@ function isClassificationSelectionContract(
     key.semantic_type === 'driver_id';
 }
 
+// Keep selected classification membership and joined metadata completeness in one exact contract.
+// eslint-disable-next-line complexity
+function isSelectedRaceMetadataContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const classification = branches.find(branch => branch.input.source_id === 'event_classification');
+  const metadata = branches.find(branch => branch.input.source_id === 'event_metadata');
+  const driverPredicate = classification?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
+  let mode: 'multi' | 'singleton' | 'unsupported' = 'unsupported';
+  if (driverPredicate?.operator === 'eq') {mode = 'singleton';}
+  else if (driverPredicate?.operator === 'in') {mode = 'multi';}
+  const expectedGrain = mode === 'singleton' ? [] : ['driver_id'];
+  const conceptIds = project.outputs.map(output => output.kind === 'concept'
+    ? `${output.concept.source_id}.${output.concept.concept_id}`
+    : '');
+  const metadataConceptIds = conceptIds.slice(2).map(conceptId => conceptId.replace('event_metadata.', ''));
+  const canonicalMetadataConceptIds = ['date', 'event_name', 'circuit_id'];
+  const supportedMetadataProjection = metadataConceptIds.length >= 1 &&
+    sameStrings(metadataConceptIds, canonicalMetadataConceptIds.filter(conceptId => metadataConceptIds.includes(conceptId)));
+  if (mode === 'unsupported' || !classification || !metadata || sources.length !== 2 ||
+      sources[0]?.id !== 'event_classification' || sources[1]?.id !== 'event_metadata' ||
+      project.input.op !== 'join' || project.input.relationship_id !== 'race_event_metadata' ||
+      project.input.left !== classification || project.input.right !== metadata || branches.length !== 2 ||
+      classification.predicates.length !== 3 || metadata.predicates.length !== 2 ||
+      !sameStrings(project.output_grain, expectedGrain) ||
+      rowLimit !== (mode === 'singleton' ? 1 : MAX_F1QL_RESPONSE_ROWS) || ordering.length !== 1 ||
+      conceptIds[0] !== 'event_classification.driver_id' ||
+      conceptIds[1] !== 'event_classification.finishing_position' || !supportedMetadataProjection ||
+      project.outputs.some((output, index) => output.kind !== 'concept' || output.as !== conceptIds[index].split('.')[1]) ||
+      columns.length !== conceptIds.length || columns.some((column, index) =>
+        `${column.source_id}.${column.concept_id}` !== conceptIds[index] ||
+        column.id !== conceptIds[index].split('.')[1] || column.aggregation !== null) ||
+      columns[0].kind !== 'dimension' || columns[1].kind !== 'measure' ||
+      columns.slice(2).some(column => column.kind !== 'dimension')) {
+    return false;
+  }
+  const classificationSeason = classification.predicates.find(predicate => predicate.concept.concept_id === 'season');
+  const classificationRound = classification.predicates.find(predicate => predicate.concept.concept_id === 'round');
+  const metadataSeason = metadata.predicates.find(predicate => predicate.concept.concept_id === 'season');
+  const metadataRound = metadata.predicates.find(predicate => predicate.concept.concept_id === 'round');
+  const key = ordering[0];
+  const source = sources[0];
+  return reviewedEventDriverPredicate(mode, driverPredicate, 'event_classification') &&
+    validHistoricalSeasonPredicate(classificationSeason, 'event_classification', source) &&
+    validHistoricalSeasonPredicate(metadataSeason, 'event_metadata', sources[1]) &&
+    validRoundPredicate(classificationRound, 'event_classification') &&
+    validRoundPredicate(metadataRound, 'event_metadata') &&
+    eqPredicateValue(classificationSeason) === eqPredicateValue(metadataSeason) &&
+    eqPredicateValue(classificationRound) === eqPredicateValue(metadataRound) &&
+    key.output_id === 'driver_id' && key.direction === 'asc' && key.nulls === 'last' &&
+    key.physical_type === 'text' && key.semantic_type === 'driver_id';
+}
+
+function validHistoricalSeasonPredicate(
+  predicate: PlannedCorePredicate | undefined,
+  sourceId: string,
+  source: SemanticCatalogSource
+): boolean {
+  return Boolean(predicate && predicate.concept.source_id === sourceId && predicate.operator === 'eq' &&
+    typeof predicate.value === 'number' && Number.isSafeInteger(predicate.value) && source.scope.season_min !== null &&
+    predicate.value >= source.scope.season_min && source.scope.final_season_through !== null &&
+    predicate.value <= source.scope.final_season_through);
+}
+
+function validRoundPredicate(predicate: PlannedCorePredicate | undefined, sourceId: string): boolean {
+  return Boolean(predicate && predicate.concept.source_id === sourceId && predicate.operator === 'eq' &&
+    typeof predicate.value === 'number' && Number.isSafeInteger(predicate.value) &&
+    predicate.value >= 1 && predicate.value <= 30);
+}
+
+function eqPredicateValue(predicate: PlannedCorePredicate | undefined): unknown {
+  return predicate?.operator === 'eq' ? predicate.value : undefined;
+}
+
 // eslint-disable-next-line complexity
 function isEventScalarSelectionContract(
   rowLimit: number,
@@ -1127,9 +1215,9 @@ function finalStandingsCompatibilityScope(
 }
 
 function requestedDriverRowCount(branches: ReturnType<typeof inputBranches>): number | undefined {
-  const predicate = branches.length === 1
-    ? branches[0].predicates.find(candidate => candidate.concept.concept_id === 'driver_id')
-    : undefined;
+  const predicates = branches.flatMap(branch => branch.predicates.filter(candidate =>
+    candidate.concept.concept_id === 'driver_id'));
+  const predicate = predicates.length === 1 ? predicates[0] : undefined;
   if (predicate?.operator === 'eq') {return 1;}
   return predicate?.operator === 'in' ? predicate.values.length : undefined;
 }
