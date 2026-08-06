@@ -40,11 +40,11 @@
         "hashes": {
           "question_sha256": "9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c",
           "answer_plan_sha256": "3dffe24fec5ff2655bcc082f09ba059da59e2049a37eba09e1c7f80a9a96370b",
-          "proof_sha256": "7df0b931846aa871299dbeaa6c1c009ba7e9a7ab223af5d23525b7c8357978d5",
+          "proof_sha256": "e16804b0937993c68df7a9f341c35065238bb9ca6d309061480547bb98633590",
           "core_sha256": "931311473276cc559bac93085ac1b746fda4ed0b1fd0921af9adfbe08291137b",
-          "compiled_sha256": "454c77414965bf83657cfd40737c33b91919fdc1df5428c4af6881fc306763ed",
+          "compiled_sha256": "0386fbcc7f346195b45d2cd0641d38ce9f438566a06f6b046a9090ebe96b1a61",
           "reference_output_sha256": "2c16e147aef8dcae8e6fe1a1fdc22a7cf1831022ffca8da633328f50df63e7c3",
-          "formatter_output_sha256": "44b16ee04b0867d35aaf514f0ea4dbff5d947b35591b6afaab125d8374a29bda"
+          "formatter_output_sha256": "4b2a2f759eb9497aee03e7a8244de28c0a7301fcb396c260a84b5b84523625dd"
         }
       }
     },
@@ -71,11 +71,11 @@
         "hashes": {
           "question_sha256": "40a2aa4ae9a50e75d710c8850d7e39eecf675cd180583d8372c218b1b52b219d",
           "answer_plan_sha256": "910656a67958e19f20325d960e615c61e5143c36d29f254331b0cdbfdce7c499",
-          "proof_sha256": "843970bcbc2bafeaacc372a2fa220e1c4849f54dcf8f506e38629096a1026457",
+          "proof_sha256": "4515fdeabf5d046f494b5552875ef258ff5852a78ba44f024e1ee4bfe84a2451",
           "core_sha256": "3a8a7f58314ec83fb0d4480f39464a6623c86f4759a85f0cb67d8776208b278e",
-          "compiled_sha256": "7b89bc4acc46b0eb341551c8a51e3b09fd14c088f41f750f90c01bfee18394d6",
+          "compiled_sha256": "58e4ebe1cb3111e622aae57604b4974e9e95889528b283cd9385e28b3b70da57",
           "reference_output_sha256": "5fe360bfe15b1538122211af96e863f202843957e7e8c2d8307a3eca082abc11",
-          "formatter_output_sha256": "bc2f2aa5abd3c9d85b40c9adbdb18e9bd4e98910b77b0c3166dd5c64c2917bdf"
+          "formatter_output_sha256": "93b988a1dac821119a7c9da98c758c1f2910cefa243cd3128907e9d3afad7d88"
         }
       }
     },
@@ -100,11 +100,11 @@
         "hashes": {
           "question_sha256": "02de68e18b176335c538fe35864a7129a4eb4465c901a33ebb005b86ebf4cb68",
           "answer_plan_sha256": "21f0e5e0ded8cacbe9e51dd19927c5144eacaa6624b7a67c8747a2ed330c756a",
-          "proof_sha256": "2697cd6223c0da3f398554f9deac2894ae85ea7efd001c5843b7bcf6f9d85ba7",
+          "proof_sha256": "096cc8c5afadff2c31089a214d3c548c43c0412ebb25886e794beebfa031b1da",
           "core_sha256": "56752e1c3d659524a46d1703f6730d712ae6fdbed0c6c8949e5ce782b529d4d3",
-          "compiled_sha256": "97bd162455da7c08eefd6515bd1261773a34fa656909ace4c8ef1d1969002807",
+          "compiled_sha256": "f3af8f439aa75e1690201a205cd9cb049885432f76ae4a92a00df53c2c1ecee7",
           "reference_output_sha256": "79f95a3bb9e3d8ad48fe276f9dae386e3aea7b02c0d35d8cd24c194b9067155a",
-          "formatter_output_sha256": "00f523cfd8522f1ebcc44453562fad2ce318a42578792c19b1492fd773fda815"
+          "formatter_output_sha256": "470e67e73b64126a04fce395e1c6f131bd7d36a56632108a0dd30cc2ec430b26"
         }
       }
     },
@@ -129,11 +129,11 @@
         "hashes": {
           "question_sha256": "a1ba47d3f83920f4a8c5a1bcb6e61df93d33916fe2e92dbd868609c1d13eead2",
           "answer_plan_sha256": "2baa4fe654538f9a5d6a766a5ffe42eccedd842f5faded886030f8bc40cfa880",
-          "proof_sha256": "eac128ddf1045cb62ef7f8efe285db4366ba927fdc1fe5984b4e3ac266f064bb",
+          "proof_sha256": "e32267b9f06da414e0e80da4cd347802f25dbaa541500b20aa9c0d7339339bdd",
           "core_sha256": "5d5486d49f81e70cc8d95dc21318915f9e803aca11603ff84f90afba5ee22116",
-          "compiled_sha256": "103510baa303eae710827da3e4f233e83ed60a33216b055b18809c7fc9ca0993",
+          "compiled_sha256": "9af9adaaed24dbd7edc0c78aeea66e7f1c4317b380fa65753513039c3469cc12",
           "reference_output_sha256": "47a3c834544637431a5b249c0abbeb773b6e3605939964af81fc9c6a04f2d20d",
-          "formatter_output_sha256": "8c1917f0d01188b77bd10a0aabe9048dc213e5b71ec4afa9daf9846172bb1d2e"
+          "formatter_output_sha256": "6f6fdf5e6d67513c4df0a02cf48c4e8603e5c71e8b540e1d3784a6050c2f8149"
         }
       }
     },
@@ -220,11 +220,11 @@
         "hashes": {
           "question_sha256": "d4d82a5a07f4190608db357f33f543299b022ac92416e570e1cf3c492db3b398",
           "answer_plan_sha256": "b84f48bc9edb612346fcdec224e1bf8745f94236eff61c62b55e5e47f5be43db",
-          "proof_sha256": "49eaa8a42279ac5c12d60084df97de4eef582b973947e38e81752c1068e1ba79",
+          "proof_sha256": "defc5199bc6905c047cc31931aef048706c787d647d4d5f7bc01ea063234974f",
           "core_sha256": "c3c2cd0f5840aa72a8557dbf51d8f2d29162624c0130d8cb070557244c90fa3f",
-          "compiled_sha256": "638b6b26b6e7c6f11b8c2ec1f8908fa13a7ba6278ccac8e7a42d1e6164b4b80c",
+          "compiled_sha256": "8173a52da01df2e57f2b6e106f3dae8fdbd4069a6687c507d65771526c6b7edb",
           "reference_output_sha256": "e355af204945ff0a5dd92094d7300ed33bc99b82297d7e17b487b4b3b88ce9a8",
-          "formatter_output_sha256": "adb98da4b4a2866574949c505c7c25c21ea6759f00c89ce20b233081aea5b377"
+          "formatter_output_sha256": "5f1f0151d21e6e3319ef81c9a175d57ed631484b5bd4567b44c3add9a9f84ac1"
         }
       }
     },
@@ -311,11 +311,40 @@
         "hashes": {
           "question_sha256": "f3c6619fe7401c9c22421dfe7662db1678fe1529b1b0c82cfe9e32887aec2bfb",
           "answer_plan_sha256": "2f69d920c01c97f9abd78d9cc9946f1989a190872188287cab256c46a93f05a6",
-          "proof_sha256": "0df215915b535c85424a36cba3664195231606a508053496d5bbc73c2997a6f5",
+          "proof_sha256": "e3c068880d06bbdee5239a01c4e7a33c66e6a7c2ddf2387a1c3d2dd02e60fe0d",
           "core_sha256": "39411af450d6a8e3ce485215fec6acfca4d133880e6a66ab1da37db5b5a6fae5",
-          "compiled_sha256": "b4a63819deaab014ce5f759c9ccb42d06fa77a33fe10fc3c257636f7c583f297",
+          "compiled_sha256": "b828ad41cfd8f523bf00c43b8bf58f9fec2026d6097784ea19209e8ea7d27910",
           "reference_output_sha256": "002955cf128f3ca2fd3e2deaa481eba5dbef9260f8352d5ef5997e1979bffe18",
-          "formatter_output_sha256": "21a6c002d61a1d0e8035d1a477bf3de4c2f3b8a5cb28493c5ae2106a008e5210"
+          "formatter_output_sha256": "1cff68858e9e4ec9273e4136b5ac111bf4a691009707a2ec86df70949fa6ef35"
+        }
+      }
+    },
+    {
+      "id": "unfiltered_race_grouped_aggregate",
+      "family": "single_source",
+      "boundary": "maximum_rows",
+      "question": "Show count of finishing position per driver in final 2025 race classification.",
+      "entities": [],
+      "resolver": {
+        "driver_mentions": [],
+        "event_resolution": {
+          "type": "missing"
+        }
+      },
+      "expected": {
+        "topology": "single_source_aggregate",
+        "work_units": 30,
+        "requested_rows": 100,
+        "resolver_candidates": 0,
+        "reference_rows": 100,
+        "hashes": {
+          "question_sha256": "ef95b4242fc4aa7cab2a03a5cf1cd859947371934225c71c74a7fd7bdda3fdb8",
+          "answer_plan_sha256": "b651318898fd45008a6fc6720a9b7284e14b82673164e65dfa9e7a466bc686dd",
+          "proof_sha256": "75145155c50dbc22c6bfcfb65ca0b5cc53075e6a4344657c211cd19d1cc8406b",
+          "core_sha256": "3ec45446745e515bc20d18be555d5256ea8bd4d3b30854c9afed9a944381b49b",
+          "compiled_sha256": "e4384c6042a126b98ef5d668677368f5a963f0dbed65066b7246179cd58e0b2a",
+          "reference_output_sha256": "de591aa8abf951d190f2253fc2cc587266a11be4ac1217c7c15dfba4a6b7984f",
+          "formatter_output_sha256": "92df0383a928cac6b8390fa368c33f163b6add4e221585128dc17bb440df0c04"
         }
       }
     },
@@ -456,11 +485,11 @@
         "hashes": {
           "question_sha256": "5e584fe2c59118ed9503dce5e820c0f6c06ed2cf31fc94583ee929a33100071c",
           "answer_plan_sha256": "af8ac2f875c99f99814ad420d457eca6d0871ecc91b2026b3c4585f1fdf2ed82",
-          "proof_sha256": "09231d7cb3d3ff77159df3fbfb298681904b5cd508bc6a2d244d6ee03c30ef23",
+          "proof_sha256": "64237985445256ed03ad1785ad69d2a7c68c6c7281d950c2d0325a0b7cc0ed74",
           "core_sha256": "d66833ab24cdfd93792e7a8162a41aa2df8ab3fa54b7db5a505cb79e3e291361",
-          "compiled_sha256": "11049430da6c05c0e5e6a10815e3eeb29cfcce8e2b5168c565266791854a6032",
+          "compiled_sha256": "2c44639c3ba60bd3fa32a07649bb241f4a63c35ed6418262493c31f5097a06b6",
           "reference_output_sha256": "31253eded9f1922b4d78334d5a8c62ad429c23170304a172bc6458e84626d7d2",
-          "formatter_output_sha256": "c37550f473a8ba320051c1bc4de25ab12fc85ea67295a232e36a569f5cf314f5"
+          "formatter_output_sha256": "a07f6eef7dc500c4b83bdff533f04d57ae99f9516707f9c9262a08f187ef600d"
         }
       }
     }

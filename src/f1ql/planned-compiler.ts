@@ -8,11 +8,11 @@ import {
   PlannedCoreRowBranch,
   PlannedCoreSourceId
 } from './core';
-import { SEMANTIC_CATALOG } from './semantic-catalog';
+import { SEMANTIC_CATALOG, SemanticCatalogSource } from './semantic-catalog';
 import { validatePlannedCoreProgram } from './planned-f1ql';
 
 export const PLANNED_INTEGRITY_FIELD = '__f1ql_integrity_ok';
-export const PLANNED_F1QL_COMPILER_VERSION = 'planned-compiler-v1' as const;
+export const PLANNED_F1QL_COMPILER_VERSION = 'planned-compiler-v2' as const;
 export const SEMANTIC_RESULT_COLLECTION_VERSION = 'semantic-limit-plus-one-v1' as const;
 
 interface SqlContext {
@@ -197,6 +197,7 @@ function compileSourceIntegrity(branch: Extract<PlannedCoreRowBranch, { op: 'fil
   }
   if (branch.integrity.includes('unique_grain') || branch.integrity.includes('unique_event_key')) {
     checks.push(`NOT EXISTS (SELECT 1 FROM planned_scope GROUP BY ${source.grain.key.map(key => quoteId(`${source.id}__${key}`)).join(', ')} HAVING count(*) > 1)`);
+    checks.push(`NOT EXISTS (SELECT 1 FROM planned_scope WHERE ${compileInvalidSourceGrain(source).join(' OR ')})`);
   }
   const position = source.measures.find(item => item.semantic_type === 'position');
   const bounds = source.integrity.position_bounds.find(item => item.measure_id === position?.id);
@@ -214,6 +215,25 @@ function compileSourceIntegrity(branch: Extract<PlannedCoreRowBranch, { op: 'fil
     checks.push(`NOT EXISTS (SELECT 1 FROM planned_integrity_relevant WHERE ${positionColumn} IS NOT NULL GROUP BY ${partition.map(id => quoteId(`${source.id}__${id}`)).join(', ')} HAVING count(*) > 1)`);
   }
   return checks.length > 0 ? checks.map(check => `(${check})`).join(' AND ') : 'true';
+}
+
+function compileInvalidSourceGrain(source: SemanticCatalogSource): string[] {
+  return source.grain.key.map(key => {
+    const concept = [...source.dimensions, ...source.measures].find(item => item.id === key)!;
+    const column = quoteId(`${source.id}__${key}`);
+    if (concept.semantic_type === 'round') {
+      return `${column} IS NULL OR ${column} < 1 OR ${column} > 30`;
+    }
+    if (concept.semantic_type === 'season') {
+      const lower = source.scope.season_min === null ? '' : ` OR ${column} < ${source.scope.season_min}`;
+      const upper = source.scope.season_max === null ? '' : ` OR ${column} > ${source.scope.season_max}`;
+      return `${column} IS NULL${lower}${upper}`;
+    }
+    if (['circuit_id', 'driver_id', 'event_id', 'team_id'].includes(concept.semantic_type)) {
+      return `${column} IS NULL OR char_length(${column}) > 100 OR ${column} !~ '^[a-z0-9]+(-[a-z0-9]+)*$'`;
+    }
+    return `${column} IS NULL`;
+  });
 }
 
 function expectedEntityCount(predicate: PlannedCorePredicate): number | null {

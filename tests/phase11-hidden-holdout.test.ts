@@ -228,6 +228,35 @@ describe('Phase 11 guarded hidden holdout', () => {
     );
   });
 
+  it('recognizes unfiltered race grouped counts before enforcing hidden structure independence', async () => {
+    const payload: any = validPayload();
+    const question = 'Show count of finishing position per driver in final 2024 race classification.';
+    payload.cases[0] = {
+      ...payload.cases[0],
+      id: 'hidden-unfiltered-race-driver-count-2024',
+      question,
+      question_sha256: createAnswerQuestionContract(question).sha256,
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
+        source_ids: ['event_classification'], plan_family: 'single_source'
+      },
+      structure: {
+        template_free: true,
+        held_out_dimensions: ['season', 'wording', 'composition'],
+        topology: 'single_source_aggregate',
+        source_ids: ['event_classification'],
+        operations: ['source', 'filter', 'aggregate', 'project', 'sort', 'limit'],
+        output_concept_ids: [
+          'event_classification.driver_id',
+          'event_classification.finishing_position'
+        ]
+      }
+    };
+    await expect(evaluateHiddenHoldout(decodeCanonicalPayload(payload))).rejects.toEqual(
+      expect.objectContaining({ code: 'public_plan_structure_overlap' })
+    );
+  });
+
   it('recognizes selected qualifying grouped counts before enforcing hidden structure independence', async () => {
     const payload: any = validPayload();
     const question = 'Show driver and count of qualifying position for Charles Leclerc and George Russell in final 2024 qualifying classification.';

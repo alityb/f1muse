@@ -291,6 +291,9 @@ const POSITIVE_PROFILE_CASES = {
   }), ({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show top 10 drivers by count of finishing position in final ${year} race classification.`,
     entity_names: []
+  }), ({ year }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show count of finishing position per driver in final ${year} race classification.`,
+    entity_names: []
   }), ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
     const drivers = [
       ['Charles Leclerc', 'charles-leclerc'],
@@ -440,6 +443,7 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 1, max: 1 },
       { min: 2, max: 4 },
       { min: 2, max: 4 },
+      { min: 0, max: 0 },
       { min: 0, max: 0 },
       { min: 0, max: 0 },
       { min: 2, max: 4 },
@@ -890,6 +894,37 @@ describe('semantic complete-interaction capability authorization', () => {
       sort_bindings: ['driver_id:asc:last'],
       entity_count: cardinality,
       rows: 100
+    });
+  });
+
+  it('binds only the exact unfiltered per-driver race finishing-position count interaction', async () => {
+    const question = 'Show count of finishing position per driver in final 2025 race classification.';
+    const proof = await semanticProof(question, []);
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate', source_ids: ['event_classification'],
+      predicate_bindings: ['event_classification.season:eq'],
+      aggregate_bindings: [
+        'event_classification.finishing_position:count->count_finishing_position'
+      ],
+      group_bindings: ['event_classification.driver_id'],
+      output_bindings: [
+        'concept:event_classification.driver_id->driver_id',
+        'aggregate:count_finishing_position->count_finishing_position'
+      ],
+      sort_bindings: ['driver_id:asc:last'], entity_count: 0, event_count: 0,
+      season_count: 1, season_values: [2025], group_count: 1, output_count: 2, rows: 100
+    });
+    expect(authorization.result_collection).toMatchObject({
+      returned_row_limit: 100, completeness_probe_rows: 1, observed_row_limit: 101
     });
   });
 

@@ -28,6 +28,7 @@ const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying pos
 const RACE_COUNT_RANK_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT_QUESTION = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.';
 const SELECTED_QUALIFYING_COUNT_QUESTION = 'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.';
+const UNFILTERED_RACE_DRIVER_COUNT_QUESTION = 'Show count of finishing position per driver in final 2025 race classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const UNFILTERED_RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
@@ -256,6 +257,57 @@ describe('semantic query candidates and independent evidence', () => {
       order_by: []
     });
     expect(candidate.limit).toBeUndefined();
+  });
+
+  it('enumerates only the exact unfiltered per-driver race count shape', () => {
+    const candidate = candidateEvidence(UNFILTERED_RACE_DRIVER_COUNT_QUESTION).candidates[0];
+    expect(candidate).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'event_classification', concept_id: 'driver_id' } },
+        {
+          kind: 'aggregate', function: 'count',
+          concept: { source_id: 'event_classification', concept_id: 'finishing_position' }
+        }
+      ],
+      entities: [], filters: [],
+      group_by: [{ concept: { source_id: 'event_classification', concept_id: 'driver_id' } }],
+      comparison: { relation: 'count' }, order_by: []
+    });
+    expect(candidate.limit).toBeUndefined();
+  });
+
+  it.each([
+    'Show driver and count of finishing position in final 2025 race classification.',
+    'Show count of finishing position per driver for Lando Norris in final 2025 race classification.',
+    'Show count of finishing position per driver for Lando Norris and Oscar Piastri in final 2025 race classification.',
+    'Show count of finishing position per driver in final 2025 qualifying classification.',
+    'Show count of qualifying position per driver in final 2025 race classification.',
+    'Show count of finishing position per driver in round 1 of final 2025 race classification.',
+    'Show count of finishing position per driver with classified status in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position per driver in final 2025 race classification.',
+    'Show count of finishing position per driver with limit 10 in final 2025 race classification.',
+    'Show maximum finishing position per driver in final 2025 race classification.',
+    'Show driver and count of finishing position per driver in final 2025 race classification.',
+    'Show count of finishing position per team in final 2025 race classification.',
+    'Show count of finishing position per driver per team in final 2025 race classification.',
+    'Show count of finishing position grouped by driver in final 2025 race classification.',
+    'Show count of finishing position and finishing position per driver in final 2025 race classification.',
+    'Show count of finishing position per driver and count of finishing position in final 2025 race classification.',
+    'Show count of finishing position per driver in final 2025 race classification and race classification.',
+    'Show count of finishing position per driver in latest recorded 2026 race classification.',
+    'Show count of finishing position per driver in interim 2025 race classification.',
+    'Show count of finishing position per driver in final 2025 race classification and return all.',
+    'Show count of finishing position per driver in the whole universe of final 2025 race classification.',
+    'Show count of finishing position per driver in final 2025 race classification with.',
+    'Show count of finishing position per driver in final 2025 race classification and.',
+    'Show count of finishing position per driver in final 2025 race classification return.',
+    'Show count of finishing position per driver in final 2025 race classification for.',
+    'Show count of finishing position per driver in final 2025 race classification recorded.'
+  ])('refuses adjacent unfiltered per-driver race count language: %s', question => {
+    const entities = ['Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name)).map(text => ({
+      type: 'driver' as const, span: span(question, text)
+    }));
+    expect(enumerateSemanticQueries(question, entities)).toMatchObject({ type: 'abstention' });
   });
 
   it.each([2, 3, 4] as const)('enumerates exact selected per-driver qualifying counts for %i drivers', cardinality => {

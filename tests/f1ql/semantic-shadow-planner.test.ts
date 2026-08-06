@@ -118,7 +118,7 @@ describe('pure non-executing semantic shadow orchestrator', () => {
       requested_rows: expect.any(Number)
     });
     expect(observation.versions).toMatchObject({
-      planned_compiler: 'planned-compiler-v1',
+      planned_compiler: 'planned-compiler-v2',
       fact_space: 'source-views-v3'
     });
     expect(isDeepFrozen(observation)).toBe(true);

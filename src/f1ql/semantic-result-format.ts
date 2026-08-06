@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v29' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v30' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -197,9 +197,18 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (selectedClassificationPositionCountContract && execution.has_more_rows) {
     throw new SemanticResultFormatError('Selected classification count result collection evidence was incomplete');
   }
+  const unfilteredRacePositionCountContract = isUnfilteredRacePositionCountContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  );
+  if (unfilteredRacePositionCountContract && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Unfiltered race count result collection evidence was incomplete');
+  }
   const rows: Record<string, unknown>[] = [];
   for (let index = 0; index < rowCount; index += 1) {
     rows.push(validateRow(rowsInput[index], index, columns, project.outputs));
+  }
+  if (unfilteredRacePositionCountContract && rows.some(row => !isCanonicalDriverId(row.driver_id))) {
+    throw new SemanticResultFormatError('Unfiltered race count result contained a noncanonical driver identifier');
   }
 
   if (project.output_grain.length === 0 && rows.length !== 1) {
@@ -217,6 +226,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   }
   if (selectedClassificationPositionCountContract && rows.length !== requestedDriverRowCount(branches)) {
     throw new SemanticResultFormatError('Selected classification count result collection evidence was incomplete');
+  }
+  if (unfilteredRacePositionCountContract && rows.length === 0) {
+    throw new SemanticResultFormatError('Unfiltered race count source evidence was incomplete');
   }
   if (selectedClassificationMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
     throw new SemanticResultFormatError('Selected classification metadata result collection evidence was incomplete');
@@ -1281,6 +1293,46 @@ function isSelectedClassificationPositionCountContract(
     columns[1].nullable === false && ordering.length === 1 && key.output_id === 'driver_id' &&
     key.direction === 'asc' && key.nulls === 'last' && key.physical_type === 'text' &&
     key.semantic_type === 'driver_id';
+}
+
+// Bind the exact unfiltered race count table without inferring a selected membership universe.
+// eslint-disable-next-line complexity
+function isUnfilteredRacePositionCountContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const sourceId = 'event_classification';
+  const positionId = 'finishing_position';
+  const countId = 'count_finishing_position';
+  const branch = branches[0];
+  const source = sources[0];
+  const aggregate = project.input.op === 'aggregate' ? project.input : undefined;
+  const measure = aggregate?.measures[0];
+  const seasonPredicate = branch?.predicates[0];
+  const key = ordering[0];
+  return rowLimit === MAX_F1QL_RESPONSE_ROWS && sources.length === 1 && source?.id === sourceId &&
+    branches.length === 1 && branch.input.source_id === sourceId && branch.predicates.length === 1 &&
+    validHistoricalSeasonPredicate(seasonPredicate, sourceId, source) &&
+    aggregate !== undefined && aggregate.group_by.length === 1 &&
+    aggregate.group_by[0].source_id === sourceId && aggregate.group_by[0].concept_id === 'driver_id' &&
+    aggregate.measures.length === 1 && measure?.source_id === sourceId &&
+    measure.concept_id === positionId && measure.function === 'count' && measure.as === countId &&
+    project.outputs.length === 2 && project.outputs[0].kind === 'concept' &&
+    project.outputs[0].concept.source_id === sourceId &&
+    project.outputs[0].concept.concept_id === 'driver_id' && project.outputs[0].as === 'driver_id' &&
+    project.outputs[1].kind === 'aggregate' && project.outputs[1].measure_as === countId &&
+    project.outputs[1].as === countId && sameStrings(project.output_grain, ['driver_id']) &&
+    columns.length === 2 && columns[0].source_id === sourceId && columns[0].concept_id === 'driver_id' &&
+    columns[0].id === 'driver_id' && columns[0].kind === 'dimension' && columns[0].aggregation === null &&
+    columns[1].source_id === sourceId && columns[1].concept_id === positionId &&
+    columns[1].id === countId && columns[1].kind === 'aggregate' && columns[1].aggregation === 'count' &&
+    columns[1].physical_type === 'integer' && columns[1].nullable === false && ordering.length === 1 &&
+    key.output_id === 'driver_id' && key.direction === 'asc' && key.nulls === 'last' &&
+    key.physical_type === 'text' && key.semantic_type === 'driver_id';
 }
 
 function reviewedEventDriverPredicate(

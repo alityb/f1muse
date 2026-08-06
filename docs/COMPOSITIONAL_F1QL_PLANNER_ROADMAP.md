@@ -836,6 +836,34 @@ with 48 corpus cases (36 answer, 5 clarify, 7 abstain), 27 single-source plans,
 eight single-source aggregates, 144 WP8 attempts, retained indices `0..47`, and
 seven benchmark workloads including separate selected-race and selected-qualifying
 populations. External provider evidence and production routing remain pending.
+One exact unfiltered race per-driver finishing-position count interaction is also in
+progress locally under profile 32. Narrow deterministic language such as `Show count
+of finishing position per driver in final 2025 race classification.` admits zero
+entities, one final historical season from 1950 through 2025, only
+`event_classification`, one `season:eq` predicate, `driver_id` grouping, and exactly
+`driver_id` followed by `COUNT(finishing_position)`. The provider candidate has no
+order or limit; the planner derives C-collated `driver_id ASC NULLS LAST` and the
+private 100-row collection bound. Result admission requires source integrity, one
+through 100 complete unique driver groups in identity order, nonnegative safe-integer
+counts, and `has_more_rows=false`. Empty source and a 101st group fail closed. An
+integrity-clean retained driver represented only by null positions returns zero, and
+source integrity also rejects noncanonical driver keys and rounds outside 1 through
+30 in both SQL and the independent reference interpreter. No selected-membership
+check is inferred. Missing `per driver`, selected and
+singleton forms, the adjacent qualifying grouped count, return-all/universe claims,
+ranks/top-N/limits, event/round scope, filters, alternate grouping, aggregation,
+output or order, repeated clauses, latest-recorded/interim, and source-position
+cross-wiring remain refused. Current generated accounting is 49 corpus cases (37
+answer, 5 clarify, 7 abstain), 28 single-source plans, nine single-source aggregates,
+147 WP8 attempts, retained indices `0..48`, and eight nonempty benchmark workloads,
+including exactly 100 discriminating unfiltered race driver groups. Local automated
+evidence distinguishes identity ordering from count ranking and covers empty source,
+invalid round, noncanonical driver identity, and duplicate grain. The source-grain
+hardening is provenance-bound as `planned-compiler-v2`, with regenerated proofs and
+benchmark hashes. Follow-up independent findings are corrected, and final local
+verification passes all 2,257 wrapped F1QL tests in 93 files, 14 wrapped API tests,
+31 WP7 tests, typecheck, lint, repeatable emitters, and diff integrity. No external
+provider or production work is claimed.
 Two exact grouped classification-position count rankings are implemented
 locally for one final historical season from 1950 through 2025. Each accepts
 zero entities and exactly the caller-grounded `top 10` limit. The race form

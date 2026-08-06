@@ -26,6 +26,32 @@ const QUALIFYING_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of quali
 const RACE_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT_QUESTION = 'Show driver and count of finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri in final 2025 race classification.';
 const SELECTED_QUALIFYING_COUNT_QUESTION = 'Show driver and count of qualifying position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri in final 2025 qualifying classification.';
+const UNFILTERED_RACE_DRIVER_COUNT_QUESTION = 'Show count of finishing position per driver in final 2025 race classification.';
+const UNSUPPORTED_UNFILTERED_RACE_DRIVER_COUNT_QUESTIONS = [
+  'Show driver and count of finishing position in final 2025 race classification.',
+  'Show count of finishing position per driver for Lando Norris in final 2025 race classification.',
+  'Show count of finishing position per driver for Lando Norris and Oscar Piastri in final 2025 race classification.',
+  'Show count of finishing position per driver in final 2025 qualifying classification.',
+  'Show count of qualifying position per driver in final 2025 race classification.',
+  'Show count of finishing position per driver in round 1 of final 2025 race classification.',
+  'Show count of finishing position per driver at Monaco in final 2025 race classification.',
+  'Show count of finishing position per driver with classified status in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position per driver in final 2025 race classification.',
+  'Show count of finishing position per driver with limit 10 in final 2025 race classification.',
+  'Show maximum finishing position per driver in final 2025 race classification.',
+  'Show count of finishing position per driver ordered by count descending in final 2025 race classification.',
+  'Show driver and count of finishing position per driver in final 2025 race classification.',
+  'Show count of finishing position per driver per team in final 2025 race classification.',
+  'Show count of finishing position grouped by driver in final 2025 race classification.',
+  'Show count of finishing position and finishing position per driver in final 2025 race classification.',
+  'Show count of finishing position per driver and count of finishing position in final 2025 race classification.',
+  'Show count of finishing position per driver in final 2025 race classification and race classification.',
+  'Show count of finishing position per driver in latest recorded 2026 race classification.',
+  'Show count of finishing position per driver in interim 2025 race classification.',
+  'Show count of finishing position per driver in final 2025 race classification and return all.',
+  'Show count of finishing position per driver in the whole universe of final 2025 race classification.',
+  'Show count of finishing position per driver in final 2025 race classification with.'
+] as const;
 const UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS = [
   'Show driver and count of finishing position in final 2025 race classification.',
   'Show driver and count of finishing position for Lando Norris in final 2025 race classification.',
@@ -454,6 +480,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
     ['race', RACE_SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
     ['qualifying count ranking', QUALIFYING_COUNT_RANKING_QUESTION, 'single_source_aggregate'],
     ['race count ranking', RACE_COUNT_RANKING_QUESTION, 'single_source_aggregate'],
+    ['race per-driver count', UNFILTERED_RACE_DRIVER_COUNT_QUESTION, 'single_source_aggregate'],
     ['dual classification', UNFILTERED_DUAL_COUNT_QUESTION, 'scalar_aggregate_compose']
   ])('proves an unfiltered %s plan without result execution', async (_source, question, topology) => {
     const fake = fakePool();
@@ -563,7 +590,8 @@ describe('WP8 stage-zero semantic shadow route', () => {
 
   it.each([
     ...UNSUPPORTED_SELECTED_RACE_COUNT_QUESTIONS,
-    ...UNSUPPORTED_SELECTED_QUALIFYING_COUNT_QUESTIONS
+    ...UNSUPPORTED_SELECTED_QUALIFYING_COUNT_QUESTIONS,
+    ...UNSUPPORTED_UNFILTERED_RACE_DRIVER_COUNT_QUESTIONS
   ])(
     'refuses adjacent selected classification-count language before provider or result execution: %s', async question => {
     const fake = fakePool(async sql => sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped

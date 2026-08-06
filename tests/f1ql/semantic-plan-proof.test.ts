@@ -35,6 +35,7 @@ const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying positi
 const RACE_COUNT_RANK = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SELECTED_RACE_COUNT = 'Show driver and count of finishing position for Lando Norris and Oscar Piastri in final 2025 race classification.';
 const SELECTED_QUALIFYING_COUNT = 'Show driver and count of qualifying position for Lando Norris and Oscar Piastri in final 2025 qualifying classification.';
+const UNFILTERED_RACE_DRIVER_COUNT = 'Show count of finishing position per driver in final 2025 race classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -76,6 +77,7 @@ describe('independent semantic whole-plan proof', () => {
     ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
     ['single-source grouped qualifying count rank', QUALIFYING_COUNT_RANK, []],
     ['single-source grouped race count rank', RACE_COUNT_RANK, []],
+    ['single-source unfiltered grouped race count', UNFILTERED_RACE_DRIVER_COUNT, []],
     ['single-source event date and name', EVENT_DATE_NAME, []],
     ['single-source event date and circuit', EVENT_DATE_CIRCUIT, []],
     ['single-source event name and circuit', EVENT_NAME_CIRCUIT, []],
@@ -120,6 +122,29 @@ describe('independent semantic whole-plan proof', () => {
         admission: prepared.admission,
         resolution: prepared.resolution,
         plan: mutated
+      })).toThrow('plan_mismatch');
+    }
+  });
+
+  it('independently rejects unfiltered race-count structure mutations', async () => {
+    const prepared = await prepare(UNFILTERED_RACE_DRIVER_COUNT, [], []);
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
+    for (const mutate of [
+      (plan: any) => { plan.branches[0].aggregate.group_by = []; },
+      (plan: any) => { plan.planned_f1ql.root.input.input.outputs.reverse(); },
+      (plan: any) => { plan.planned_f1ql.root.input.keys[0].output_id = 'count_finishing_position'; },
+      (plan: any) => { plan.planned_f1ql.root.input.input.input.input.predicates.push({
+        concept: { source_id: 'event_classification', concept_id: 'round' }, operator: 'eq', value: 1
+      }); },
+      (plan: any) => { plan.planned_f1ql.root.count = 10; }
+    ]) {
+      const mutated: any = structuredClone(prepared.plan);
+      mutate(mutated);
+      expect(() => proveSemanticAnswerPlan({
+        question: UNFILTERED_RACE_DRIVER_COUNT,
+        entity_inventory: [], evidence: prepared.evidence, admission: prepared.admission,
+        resolution: prepared.resolution, plan: mutated
       })).toThrow('plan_mismatch');
     }
   });

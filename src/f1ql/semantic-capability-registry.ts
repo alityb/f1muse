@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 31 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 32 as const;
 
 const EVENT_METADATA_PROJECTION_SUBSETS = [
   ['date'],
@@ -370,6 +370,20 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
           'driver_id:asc:last'
         ],
         requested_rows: 10
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: ['event_classification.season:eq'],
+        aggregate_bindings: [
+          'event_classification.finishing_position:count->count_finishing_position'
+        ],
+        group_bindings: ['event_classification.driver_id'],
+        output_bindings: [
+          'concept:event_classification.driver_id->driver_id',
+          'aggregate:count_finishing_position->count_finishing_position'
+        ],
+        sort_bindings: ['driver_id:asc:last'],
+        requested_rows: 100
       },
       {
         entity_count: { min: 2, max: 4 },

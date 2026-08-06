@@ -174,6 +174,11 @@ function evaluateBranchResult(branch: PlannedCoreRowBranch, database: PlannedRef
   });
   const sourcePresent = !branch.integrity.includes('source_presence') || (scoped.length > 0 && entityPresence);
   const uniqueGrain = !branch.integrity.some(check => check === 'unique_grain' || check === 'unique_event_key') || [...grainCounts.values()].every(count => count === 1);
+  const validGrain = !branch.integrity.some(check => check === 'unique_grain' || check === 'unique_event_key') ||
+    scoped.every(row => source.grain.key.every(key => {
+      const concept = [...source.dimensions, ...source.measures].find(item => item.id === key)!;
+      return validSourceGrainValue(row[key], concept.semantic_type, source.scope);
+    }));
   const positionsBounded = !position || !bounds || !branch.integrity.includes('position_bounds') || scoped.every(row => {
     const value = row[position.id];
     return value === null || value === undefined || (typeof value === 'number' && value >= bounds.min && (bounds.max === null || value <= bounds.max));
@@ -184,7 +189,7 @@ function evaluateBranchResult(branch: PlannedCoreRowBranch, database: PlannedRef
     integrityRelevant.every(row => row[position.id] !== null && row[position.id] !== undefined);
   const uniquePosition = !position || !branch.integrity.includes('unique_relevant_position') ||
     [...positionCounts.values()].every(count => count === 1);
-  const integrity = sourcePresent && uniqueGrain && positionsBounded && nonNullPosition && uniquePosition;
+  const integrity = sourcePresent && uniqueGrain && validGrain && positionsBounded && nonNullPosition && uniquePosition;
   const rows = relevant.map(row => {
     const output: EvaluatedRow = {};
     for (const concept of [...source.dimensions, ...source.measures]) {
@@ -194,6 +199,37 @@ function evaluateBranchResult(branch: PlannedCoreRowBranch, database: PlannedRef
     return output;
   });
   return { rows, integrity };
+}
+
+function validSourceGrainValue(
+  value: unknown,
+  semanticType: string,
+  scope: { readonly season_min: number | null; readonly season_max: number | null }
+): boolean {
+  if (value === null || value === undefined) {return false;}
+  if (semanticType === 'round') {return validRound(value);}
+  if (semanticType === 'season') {return validSeason(value, scope);}
+  if (['circuit_id', 'driver_id', 'event_id', 'team_id'].includes(semanticType)) {
+    return validCanonicalIdentifier(value);
+  }
+  return true;
+}
+
+function validRound(value: unknown): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= 30;
+}
+
+function validSeason(
+  value: unknown,
+  scope: { readonly season_min: number | null; readonly season_max: number | null }
+): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) &&
+    (scope.season_min === null || value >= scope.season_min) &&
+    (scope.season_max === null || value <= scope.season_max);
+}
+
+function validCanonicalIdentifier(value: unknown): boolean {
+  return typeof value === 'string' && value.length <= 100 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value);
 }
 
 function matchesPredicate(value: unknown, predicate: PlannedCorePredicate): boolean {
