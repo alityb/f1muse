@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v24' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v25' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -176,11 +176,11 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (classificationCollectionContract && execution.has_more_rows) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
   }
-  const selectedRaceMetadataContract = isSelectedRaceMetadataContract(
+  const selectedClassificationMetadataContract = isSelectedClassificationMetadataContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
   );
-  if (selectedRaceMetadataContract && execution.has_more_rows) {
-    throw new SemanticResultFormatError('Selected race metadata result collection evidence was incomplete');
+  if (selectedClassificationMetadataContract && execution.has_more_rows) {
+    throw new SemanticResultFormatError('Selected classification metadata result collection evidence was incomplete');
   }
   const classificationScalarCountContract = isClassificationPositionScalarCountContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
@@ -203,8 +203,8 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (classificationCollectionContract && rows.length === 0) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
   }
-  if (selectedRaceMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
-    throw new SemanticResultFormatError('Selected race metadata result collection evidence was incomplete');
+  if (selectedClassificationMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
+    throw new SemanticResultFormatError('Selected classification metadata result collection evidence was incomplete');
   }
   if (isEventScalarSelectionContract(
     core.root.count, core.root.input.keys, project, branches, sources, columns
@@ -987,7 +987,7 @@ function isClassificationSelectionContract(
 
 // Keep selected classification membership and joined metadata completeness in one exact contract.
 // eslint-disable-next-line complexity
-function isSelectedRaceMetadataContract(
+function isSelectedClassificationMetadataContract(
   rowLimit: number,
   ordering: readonly PlannedCoreSortKey[],
   project: PlannedCoreProjectNode,
@@ -995,8 +995,12 @@ function isSelectedRaceMetadataContract(
   sources: readonly SemanticCatalogSource[],
   columns: readonly SemanticResultColumn[]
 ): boolean {
-  const classification = branches.find(branch => branch.input.source_id === 'event_classification');
+  const classification = branches.find(branch =>
+    branch.input.source_id === 'event_classification' || branch.input.source_id === 'qualifying_classification');
   const metadata = branches.find(branch => branch.input.source_id === 'event_metadata');
+  const classificationSourceId = classification?.input.source_id, contract = classificationMetadataContract(classificationSourceId);
+  const positionConceptId = contract?.position_concept_id;
+  const relationshipId = contract?.relationship_id;
   const driverPredicate = classification?.predicates.find(predicate => predicate.concept.concept_id === 'driver_id');
   let mode: 'multi' | 'singleton' | 'unsupported' = 'unsupported';
   if (driverPredicate?.operator === 'eq') {mode = 'singleton';}
@@ -1009,15 +1013,16 @@ function isSelectedRaceMetadataContract(
   const canonicalMetadataConceptIds = ['date', 'event_name', 'circuit_id'];
   const supportedMetadataProjection = metadataConceptIds.length >= 1 &&
     sameStrings(metadataConceptIds, canonicalMetadataConceptIds.filter(conceptId => metadataConceptIds.includes(conceptId)));
-  if (mode === 'unsupported' || !classification || !metadata || sources.length !== 2 ||
-      sources[0]?.id !== 'event_classification' || sources[1]?.id !== 'event_metadata' ||
-      project.input.op !== 'join' || project.input.relationship_id !== 'race_event_metadata' ||
+  if (mode === 'unsupported' || !classification || !metadata || !classificationSourceId || !positionConceptId ||
+      !relationshipId || sources.length !== 2 ||
+      sources[0]?.id !== classificationSourceId || sources[1]?.id !== 'event_metadata' ||
+      project.input.op !== 'join' || project.input.relationship_id !== relationshipId ||
       project.input.left !== classification || project.input.right !== metadata || branches.length !== 2 ||
       classification.predicates.length !== 3 || metadata.predicates.length !== 2 ||
       !sameStrings(project.output_grain, expectedGrain) ||
       rowLimit !== (mode === 'singleton' ? 1 : MAX_F1QL_RESPONSE_ROWS) || ordering.length !== 1 ||
-      conceptIds[0] !== 'event_classification.driver_id' ||
-      conceptIds[1] !== 'event_classification.finishing_position' || !supportedMetadataProjection ||
+      conceptIds[0] !== `${classificationSourceId}.driver_id` ||
+      conceptIds[1] !== `${classificationSourceId}.${positionConceptId}` || !supportedMetadataProjection ||
       project.outputs.some((output, index) => output.kind !== 'concept' || output.as !== conceptIds[index].split('.')[1]) ||
       columns.length !== conceptIds.length || columns.some((column, index) =>
         `${column.source_id}.${column.concept_id}` !== conceptIds[index] ||
@@ -1032,15 +1037,27 @@ function isSelectedRaceMetadataContract(
   const metadataRound = metadata.predicates.find(predicate => predicate.concept.concept_id === 'round');
   const key = ordering[0];
   const source = sources[0];
-  return reviewedEventDriverPredicate(mode, driverPredicate, 'event_classification') &&
-    validHistoricalSeasonPredicate(classificationSeason, 'event_classification', source) &&
+  return reviewedEventDriverPredicate(mode, driverPredicate, classificationSourceId) &&
+    validHistoricalSeasonPredicate(classificationSeason, classificationSourceId, source) &&
     validHistoricalSeasonPredicate(metadataSeason, 'event_metadata', sources[1]) &&
-    validRoundPredicate(classificationRound, 'event_classification') &&
+    validRoundPredicate(classificationRound, classificationSourceId) &&
     validRoundPredicate(metadataRound, 'event_metadata') &&
     eqPredicateValue(classificationSeason) === eqPredicateValue(metadataSeason) &&
     eqPredicateValue(classificationRound) === eqPredicateValue(metadataRound) &&
     key.output_id === 'driver_id' && key.direction === 'asc' && key.nulls === 'last' &&
     key.physical_type === 'text' && key.semantic_type === 'driver_id';
+}
+
+function classificationMetadataContract(sourceId: string | undefined): {
+  readonly position_concept_id: 'finishing_position' | 'qualifying_position';
+  readonly relationship_id: 'qualifying_event_metadata' | 'race_event_metadata';
+} | undefined {
+  if (sourceId === 'event_classification') {
+    return { position_concept_id: 'finishing_position', relationship_id: 'race_event_metadata' };
+  }
+  return sourceId === 'qualifying_classification'
+    ? { position_concept_id: 'qualifying_position', relationship_id: 'qualifying_event_metadata' }
+    : undefined;
 }
 
 function validHistoricalSeasonPredicate(

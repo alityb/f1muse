@@ -24,6 +24,7 @@ import {
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
+const QUALIFYING_METADATA = 'List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
@@ -82,6 +83,25 @@ describe('independent semantic whole-plan proof', () => {
     if ([EVENT_DATE_NAME, EVENT_DATE_CIRCUIT, EVENT_NAME_CIRCUIT, EVENT_ALL_METADATA].includes(question)) {
       expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
     }
+  });
+
+  it('independently reproduces reverse-canonical qualifying metadata branch orientation', async () => {
+    const norris = span(QUALIFYING_METADATA, 'Norris');
+    const prepared = await prepare(
+      QUALIFYING_METADATA,
+      [{ type: 'driver', span: norris }],
+      [{ ...norris, candidates: ['lando-norris'], active_candidates: ['lando-norris'] }],
+      { type: 'resolved', season: 2025, round: 1 }
+    );
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(prepared.plan).toMatchObject({
+      source_graph: {
+        source_ids: ['event_metadata', 'qualifying_classification'],
+        row_relationship_ids: ['qualifying_event_metadata']
+      },
+      output_grain: [],
+      work: { requested_rows: 1 }
+    });
   });
 
   it('reproduces one selected final standings-position row with one participation requirement', async () => {

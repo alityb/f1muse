@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 25 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 26 as const;
 
 const EVENT_METADATA_PROJECTION_SUBSETS = [
   ['date'],
@@ -14,21 +14,24 @@ const EVENT_METADATA_PROJECTION_SUBSETS = [
   ['date', 'event_name', 'circuit_id']
 ] as const;
 
-function selectedRaceMetadataInteractions() {
+function selectedClassificationMetadataInteractions(
+  classificationSourceId: 'event_classification' | 'qualifying_classification',
+  positionConceptId: 'finishing_position' | 'qualifying_position'
+) {
   const baseOutputs = [
-    'concept:event_classification.driver_id->driver_id',
-    'concept:event_classification.finishing_position->finishing_position'
+    `concept:${classificationSourceId}.driver_id->driver_id`,
+    `concept:${classificationSourceId}.${positionConceptId}->${positionConceptId}`
   ];
   return EVENT_METADATA_PROJECTION_SUBSETS.flatMap(conceptIds => [
     {
       entity_count: { min: 1, max: 1 },
       predicate_bindings: [
-        'event_classification.driver_id:eq',
-        'event_classification.round:eq',
-        'event_classification.season:eq',
+        `${classificationSourceId}.driver_id:eq`,
+        `${classificationSourceId}.round:eq`,
+        `${classificationSourceId}.season:eq`,
         'event_metadata.round:eq',
         'event_metadata.season:eq'
-      ],
+      ].sort(),
       aggregate_bindings: [],
       group_bindings: [],
       output_bindings: [
@@ -41,12 +44,12 @@ function selectedRaceMetadataInteractions() {
     {
       entity_count: { min: 2, max: 4 },
       predicate_bindings: [
-        'event_classification.driver_id:in',
-        'event_classification.round:eq',
-        'event_classification.season:eq',
+        `${classificationSourceId}.driver_id:in`,
+        `${classificationSourceId}.round:eq`,
+        `${classificationSourceId}.season:eq`,
         'event_metadata.round:eq',
         'event_metadata.season:eq'
-      ],
+      ].sort(),
       aggregate_bindings: [],
       group_bindings: [],
       output_bindings: [
@@ -487,9 +490,33 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
         sort_bindings: ['driver_id:asc:last'],
         requested_rows: 100
       },
-      ...selectedRaceMetadataInteractions()
+      ...selectedClassificationMetadataInteractions('event_classification', 'finishing_position')
     ],
     ...catalogConceptAllowlist(['event_classification', 'event_metadata']),
+    principal_classes: ['internal', 'internal_canary'],
+    canary_stages: [100],
+    scope: 'historical_final',
+    result_collection: { version: SEMANTIC_RESULT_COLLECTION_VERSION, completeness_probe_rows: 1 },
+    limits: { sources: 2, joins: 1, depth: 6, outputs: 8, groups: 0, entities: 4, events: 1, seasons: 1, rows: 100, work_units: 60 }
+  },
+  {
+    id: 'semantic-safe-qualifying-dimension-join-v1',
+    version: SEMANTIC_CAPABILITY_PROFILE_VERSION,
+    catalog_hash: SEMANTIC_CATALOG_HASH,
+    topology: ['row_dimension_join'],
+    source_sets: [['event_metadata', 'qualifying_classification']],
+    relationship_ids: ['qualifying_event_metadata'],
+    operator_signatures: ['limit(sort(project(join(filter(source),filter(source)))))'],
+    operators: ['filter', 'join', 'limit', 'project', 'sort', 'source'],
+    filter_operators: ['eq', 'in'],
+    aggregate_functions: [],
+    output_kinds: ['concept'],
+    sort_directions: ['asc', 'desc'],
+    null_orders: ['first', 'last'],
+    complete_interactions: selectedClassificationMetadataInteractions(
+      'qualifying_classification', 'qualifying_position'
+    ),
+    ...catalogConceptAllowlist(['event_metadata', 'qualifying_classification']),
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],
     scope: 'historical_final',

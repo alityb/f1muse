@@ -35,6 +35,7 @@ const FILTERED_POINTS = 'What were Charles Leclerc final standings points in 202
 const PAIR_POINTS = 'Final 2025 standings points for Lando Norris and Oscar Piastri.';
 const REVERSED_PAIR_POINTS = 'Final 2025 standings points for Oscar Piastri and Lando Norris.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
+const QUALIFYING_METADATA = 'List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
@@ -80,6 +81,9 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     [EVENT_ALL_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const,
       'single_source_rows', 'event_metadata', 'filter_project_sort_limit'],
     [RACE_METADATA, [], { type: 'resolved', season: 2025, round: 1 } as const, 'row_dimension_join', 'event_classification__event_metadata', 'filter_join_project_sort_limit'],
+    [QUALIFYING_METADATA, [driverMention(QUALIFYING_METADATA, 'Norris', ['lando-norris'], ['lando-norris'])],
+      { type: 'resolved', season: 2025, round: 1 } as const, 'row_dimension_join',
+      'event_metadata__qualifying_classification', 'filter_join_project_sort_limit'],
     [COMPOSE, [driverMention(COMPOSE, 'Norris', ['recognizable-secret-driver'], ['recognizable-secret-driver'])], { type: 'missing' } as const,
       'scalar_aggregate_compose', 'event_classification__qualifying_classification', 'filter_aggregate_compose_project_sort_limit']
   ])('proves but never executes every promoted topology: %s', async (

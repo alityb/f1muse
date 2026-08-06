@@ -22,7 +22,8 @@ const topologySchema = z.enum([
 ]);
 const sourceSetSchema = z.enum([
   'driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification',
-  'event_classification__event_metadata', 'event_classification__qualifying_classification'
+  'event_classification__event_metadata', 'event_classification__qualifying_classification',
+  'event_metadata__qualifying_classification'
 ]);
 const operatorSetSchema = z.enum([
   'filter_project_sort_limit', 'filter_aggregate_project_sort_limit',

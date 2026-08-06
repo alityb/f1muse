@@ -90,7 +90,8 @@ const coverageSchema = z.object({
     event_metadata: countSchema,
     qualifying_classification: countSchema,
     event_classification_event_metadata: countSchema,
-    event_classification_qualifying_classification: countSchema
+    event_classification_qualifying_classification: countSchema,
+    event_metadata_qualifying_classification: countSchema
   }).strict(),
   plan_family_counts: z.object({
     single_source: countSchema,
@@ -641,7 +642,8 @@ function computeCoverage(results: readonly z.infer<typeof resultCaseSchema>[]): 
       event_metadata: sourceSets.event_metadata ?? 0,
       qualifying_classification: sourceSets.qualifying_classification ?? 0,
       event_classification_event_metadata: sourceSets.event_classification_event_metadata ?? 0,
-      event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0
+      event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0,
+      event_metadata_qualifying_classification: sourceSets.event_metadata_qualifying_classification ?? 0
     },
     plan_family_counts: {
       single_source: planFamilies.single_source ?? 0,
@@ -687,7 +689,10 @@ function planFamilyMatches(
     );
   }
   if (planFamily === 'safe_dimension_join') {
-    return topology === 'row_dimension_join' && sameStrings(sourceIds, ['event_classification', 'event_metadata']);
+    return topology === 'row_dimension_join' && (
+      sameStrings(sourceIds, ['event_classification', 'event_metadata']) ||
+      sameStrings(sourceIds, ['event_metadata', 'qualifying_classification'])
+    );
   }
   return topology === 'scalar_aggregate_compose' &&
     sameStrings(sourceIds, ['event_classification', 'qualifying_classification']);

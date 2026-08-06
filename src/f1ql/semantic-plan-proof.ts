@@ -300,6 +300,7 @@ function independentlyMaterialize(query: SemanticQuery, resolution: VerifiedSema
   let projectInput: PlannedF1QLProgram['root']['input']['input']['input'];
   let projectOutputs: PlannedF1QLProgram['root']['input']['input']['outputs'];
   let rowRelationships: string[] = [];
+  let rowFromSourceId: AnswerFactSourceId | undefined;
   if (sourceIds.length === 1) {
     if (aggregateOutputs.length > 0) {
       topology = 'single_source_aggregate';
@@ -312,16 +313,21 @@ function independentlyMaterialize(query: SemanticQuery, resolution: VerifiedSema
       projectInput = rowBranch(sourceIds[0], branches[0].predicates);
       projectOutputs = query.outputs.map(output => ({ kind: 'concept' as const, concept: output.concept, as: output.concept.concept_id }));
     }
-  } else if (sameStrings(sourceIds, ['event_classification', 'event_metadata']) && aggregateOutputs.length === 0) {
+  } else if (sourceIds.length === 2 && aggregateOutputs.length === 0) {
     const relationships = SEMANTIC_CATALOG.relationships.filter(relationship => relationship.join_stage === 'row' &&
-      relationship.governance !== 'experimental' && relationship.from_source === sourceIds[0] &&
-      relationship.to_source === sourceIds[1] && ['many_to_one', 'one_to_one'].includes(relationship.cardinality));
+      ['qualifying_event_metadata', 'race_event_metadata'].includes(relationship.id) &&
+      relationship.governance !== 'experimental' && sourceIds.includes(relationship.from_source as AnswerFactSourceId) &&
+      sourceIds.includes(relationship.to_source as AnswerFactSourceId) &&
+      ['many_to_one', 'one_to_one'].includes(relationship.cardinality));
     if (relationships.length !== 1) {throw new SemanticPlanProofError('unsupported_topology');}
+    const fromIndex = sourceIds.indexOf(relationships[0].from_source as AnswerFactSourceId);
+    const toIndex = sourceIds.indexOf(relationships[0].to_source as AnswerFactSourceId);
+    rowFromSourceId = sourceIds[fromIndex];
     topology = 'row_dimension_join';
     projectInput = {
       op: 'join', relationship_id: relationships[0].id,
-      left: rowBranch(sourceIds[0], branches[0].predicates),
-      right: rowBranch(sourceIds[1], branches[1].predicates)
+      left: rowBranch(sourceIds[fromIndex], branches[fromIndex].predicates),
+      right: rowBranch(sourceIds[toIndex], branches[toIndex].predicates)
     };
     projectOutputs = query.outputs.map(output => ({ kind: 'concept' as const, concept: output.concept, as: output.concept.concept_id }));
     rowRelationships = [relationships[0].id];
@@ -343,7 +349,9 @@ function independentlyMaterialize(query: SemanticQuery, resolution: VerifiedSema
     throw new SemanticPlanProofError('unsupported_topology');
   }
   const outputIds = projectOutputs.map(output => output.as);
-  let residualGrain = branches[0].residual_grain;
+  let residualGrain = topology === 'row_dimension_join' && rowFromSourceId
+    ? branches.find(branch => branch.source_id === rowFromSourceId)!.residual_grain
+    : branches[0].residual_grain;
   if (topology === 'scalar_aggregate_compose') {
     residualGrain = [];
   } else if (topology === 'single_source_aggregate') {

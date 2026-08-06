@@ -121,6 +121,7 @@ function semanticExecutionTestRelease(runtime: typeof SEMANTIC_EXECUTION_OFFLINE
     deployment_capability_profile_ids: [
       'semantic-aggregate-locality-v1',
       'semantic-safe-dimension-join-v1',
+      'semantic-safe-qualifying-dimension-join-v1',
       'semantic-single-source-v1'
     ],
     migrated_template_ids: [],

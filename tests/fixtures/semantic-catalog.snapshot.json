@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "catalog_hash": "484808cf26447e1ab374988324307df02f82b74e6512ce3e62e26376f59785cf",
+  "catalog_hash": "19312969ef88cd85533fbe92d17835c6525ad10c4d6ebe1b34b49fa4c4b3e3f8",
   "family_ids": [
     "event_metadata",
     "identity_participation",
@@ -25,6 +25,7 @@
     "event_identity_metadata_resolution",
     "event_identity_qualifying_resolution",
     "event_identity_race_resolution",
+    "qualifying_event_metadata",
     "qualifying_shared_event",
     "race_event_metadata",
     "race_shared_event"
@@ -1854,6 +1855,36 @@
         ],
         "integrity_checks": [
           "Resolve exactly one season-round key before applying race fact filters."
+        ]
+      },
+      {
+        "id": "qualifying_event_metadata",
+        "from_source": "qualifying_classification",
+        "to_source": "event_metadata",
+        "from_keys": [
+          "season",
+          "round"
+        ],
+        "to_keys": [
+          "season",
+          "round"
+        ],
+        "cardinality": "many_to_one",
+        "direction": "from_to",
+        "optionality": "left",
+        "join_stage": "row",
+        "filter_propagation": "same_event",
+        "governance": "verified",
+        "required_branch_filters": [],
+        "required_scope_predicates": [],
+        "required_checks": [
+          "non_null_requested_to_concepts",
+          "source_presence",
+          "unique_to_key"
+        ],
+        "integrity_checks": [
+          "Preserve qualifying classification source grain.",
+          "Require exactly one metadata row and non-null requested race metadata."
         ]
       },
       {

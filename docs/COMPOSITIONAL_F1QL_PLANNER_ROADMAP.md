@@ -728,7 +728,17 @@ and non-null requested metadata. Caller-limited, ranked, aggregate, no-metadata,
 broader-output, season-wide, latest-recorded, interim, and five-plus-driver forms
 remain refused. The existing unfiltered safe join remains a separate exact
 interaction limited to driver identity, finishing position, event name, and
-circuit identifier. A
+circuit identifier. The matching selected-driver qualifying safe join is also
+implemented locally through a separate exact profile and the catalog-declared
+`qualifying_event_metadata` relationship. It uses the same final-season,
+one-event, one-to-four-driver, metadata-subset, canonical-order, row-bound,
+driver-ordering, exact-membership, relationship-completeness, and source-integrity
+contract while returning nullable raw `qualifying_position` instead of finishing
+position. Joined `date` remains the event metadata race date, never a qualifying-
+session date. Qualifying timing, grid position, sprint qualifying, status,
+ranking, aggregation, caller-limited, no-metadata, broader-output, season-wide,
+latest-recorded, interim, zero-driver, and five-plus-driver variants remain
+refused. A
 selected-driver standings-ranking slice is complete for one final historical
 season from 1950 through 2025 and exactly two to four drivers, returning only
 driver identity and recorded non-null championship position. It orders official

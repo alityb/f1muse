@@ -145,6 +145,50 @@ function selectedRaceMetadataPlan(driverIds: string | readonly string[]) {
   };
 }
 
+function selectedQualifyingMetadataPlan(driverIds: string | readonly string[]) {
+  const selected = typeof driverIds === 'string' ? [driverIds] : [...driverIds];
+  const multi = selected.length > 1;
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: multi ? 100 : 1,
+      input: {
+        op: 'sort', keys: [{ output_id: 'driver_id', direction: 'asc', nulls: 'last' }],
+        input: {
+          op: 'project',
+          input: {
+            op: 'join', relationship_id: 'qualifying_event_metadata',
+            left: {
+              op: 'filter', input: { op: 'source', source_id: 'qualifying_classification' },
+              predicates: [
+                multi
+                  ? { concept: ref('qualifying_classification', 'driver_id'), operator: 'in', values: selected }
+                  : predicate('qualifying_classification', 'driver_id', selected[0]),
+                predicate('qualifying_classification', 'round', 1),
+                predicate('qualifying_classification', 'season', 2025)
+              ]
+            },
+            right: {
+              op: 'filter', input: { op: 'source', source_id: 'event_metadata' },
+              predicates: [
+                predicate('event_metadata', 'round', 1),
+                predicate('event_metadata', 'season', 2025)
+              ]
+            }
+          },
+          outputs: [
+            { kind: 'concept', concept: ref('qualifying_classification', 'driver_id'), as: 'driver_id' },
+            { kind: 'concept', concept: ref('qualifying_classification', 'qualifying_position'), as: 'qualifying_position' },
+            { kind: 'concept', concept: ref('event_metadata', 'date'), as: 'date' },
+            { kind: 'concept', concept: ref('event_metadata', 'event_name'), as: 'event_name' },
+            { kind: 'concept', concept: ref('event_metadata', 'circuit_id'), as: 'circuit_id' }
+          ]
+        }
+      }
+    }
+  };
+}
+
 function standingsRankPlan() {
   return {
     kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
@@ -692,6 +736,20 @@ describe('internal planned F1QL and Core pipeline', () => {
       singleton.root.input.input.input.left.input.grain.find((concept: any) => concept.concept_id === 'driver_id')
     ];
     expect(() => validatePlannedCoreProgram(singleton)).toThrow();
+  });
+
+  it('orients the promoted qualifying metadata edge from the classification source', () => {
+    const multi: any = lowerPlannedF1QL(selectedQualifyingMetadataPlan(['alpha-driver', 'beta-driver']));
+    expect(multi.root.input.input.input).toMatchObject({
+      relationship_id: 'qualifying_event_metadata',
+      left: { input: { source_id: 'qualifying_classification' } },
+      right: { input: { source_id: 'event_metadata' } },
+      output_grain: [expect.objectContaining({ source_id: 'qualifying_classification', concept_id: 'driver_id' })]
+    });
+    const forged: any = structuredClone(multi);
+    forged.root.input.input.input.left = structuredClone(multi.root.input.input.input.right);
+    forged.root.input.input.input.right = structuredClone(multi.root.input.input.input.left);
+    expect(() => validatePlannedCoreProgram(forged)).toThrow();
   });
 
   it.each([
@@ -2499,6 +2557,22 @@ describe('internal planned F1QL and Core pipeline', () => {
       const selectedCompiled = compilePlannedF1QL(selectedCore);
       const selectedRows = (await pool.query(selectedCompiled.sql, selectedCompiled.params)).rows;
       expect(selectedRows).toEqual(interpretPlannedF1QL(selectedCore, reference));
+      expect(selectedRows).toHaveLength(typeof selected === 'string' ? 1 : 2);
+      expect(selectedRows.every(row => row.date === '2025-01-01' && row[PLANNED_INTEGRITY_FIELD] === true)).toBe(true);
+    }
+
+    for (const selected of ['alpha-driver', ['alpha-driver', 'beta-driver']] as const) {
+      const selectedCore = lowerPlannedF1QL(selectedQualifyingMetadataPlan(selected));
+      const selectedCompiled = compilePlannedF1QL(selectedCore);
+      const qualifyingReference: PlannedReferenceDatabase = {
+        qualifying_classification: [
+          { season: 2025, round: 1, driver_id: 'alpha-driver', team_id: 'planned-team', qualifying_position: 1, classification_status: 'classified' },
+          { season: 2025, round: 1, driver_id: 'beta-driver', team_id: 'planned-team', qualifying_position: 2, classification_status: 'classified' }
+        ],
+        event_metadata: reference.event_metadata
+      };
+      const selectedRows = (await pool.query(selectedCompiled.sql, selectedCompiled.params)).rows;
+      expect(selectedRows).toEqual(interpretPlannedF1QL(selectedCore, qualifyingReference));
       expect(selectedRows).toHaveLength(typeof selected === 'string' ? 1 : 2);
       expect(selectedRows.every(row => row.date === '2025-01-01' && row[PLANNED_INTEGRITY_FIELD] === true)).toBe(true);
     }

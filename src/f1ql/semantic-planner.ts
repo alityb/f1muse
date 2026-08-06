@@ -232,6 +232,7 @@ function materializePlannedProgram(
   let projectInput: PlannedF1QLProgram['root']['input']['input']['input'];
   let projectOutputs: PlannedF1QLProgram['root']['input']['input']['outputs'];
   let rowRelationships: string[] = [];
+  let rowFromSourceId: AnswerFactSourceId | undefined;
 
   if (sourceIds.length === 1) {
     const branch = branches[0];
@@ -247,17 +248,22 @@ function materializePlannedProgram(
       projectInput = rowBranch(sourceIds[0], branch.predicates);
       projectOutputs = query.outputs.map(output => ({ kind: 'concept' as const, concept: output.concept, as: output.concept.concept_id }));
     }
-  } else if (sameStrings(sourceIds, ['event_classification', 'event_metadata']) && aggregateOutputs.length === 0) {
+  } else if (sourceIds.length === 2 && aggregateOutputs.length === 0) {
     topology = 'row_dimension_join';
     const relationships = SEMANTIC_CATALOG.relationships.filter(relationship => relationship.join_stage === 'row' &&
-      relationship.from_source === sourceIds[0] && relationship.to_source === sourceIds[1] && relationship.governance !== 'experimental');
+      ['qualifying_event_metadata', 'race_event_metadata'].includes(relationship.id) &&
+      relationship.governance !== 'experimental' && sourceIds.includes(relationship.from_source as AnswerFactSourceId) &&
+      sourceIds.includes(relationship.to_source as AnswerFactSourceId));
     if (relationships.length === 0) {throw new AnswerPlannerError('source_graph_disconnected');}
     if (relationships.length !== 1) {throw new AnswerPlannerError('join_path_ambiguous');}
     if (!['many_to_one', 'one_to_one'].includes(relationships[0].cardinality)) {throw new AnswerPlannerError('unsafe_join_cardinality');}
+    const fromIndex = sourceIds.indexOf(relationships[0].from_source as AnswerFactSourceId);
+    const toIndex = sourceIds.indexOf(relationships[0].to_source as AnswerFactSourceId);
+    rowFromSourceId = sourceIds[fromIndex];
     projectInput = {
       op: 'join', relationship_id: relationships[0].id,
-      left: rowBranch(sourceIds[0], branches[0].predicates),
-      right: rowBranch(sourceIds[1], branches[1].predicates)
+      left: rowBranch(sourceIds[fromIndex], branches[fromIndex].predicates),
+      right: rowBranch(sourceIds[toIndex], branches[toIndex].predicates)
     };
     projectOutputs = query.outputs.map(output => ({ kind: 'concept' as const, concept: output.concept, as: output.concept.concept_id }));
     rowRelationships = [relationships[0].id];
@@ -290,6 +296,8 @@ function materializePlannedProgram(
     residualGrain = [];
   } else if (topology === 'single_source_aggregate') {
     residualGrain = query.group_by.map(group => group.concept.concept_id);
+  } else if (topology === 'row_dimension_join' && rowFromSourceId) {
+    residualGrain = branches.find(branch => branch.source_id === rowFromSourceId)!.residual_grain;
   } else {
     residualGrain = branches[0].residual_grain;
   }

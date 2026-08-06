@@ -35,6 +35,7 @@ import {
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
+const QUALIFYING_METADATA = 'List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.';
 const RACE_QUALIFYING = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const QUALIFYING_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
@@ -52,6 +53,7 @@ describe('semantic candidate translator foundation', () => {
     const cases = [
       { question: STANDINGS, entities: [] },
       { question: RACE_METADATA, entities: [] },
+      { question: QUALIFYING_METADATA, entities: [{ type: 'driver', span: span(QUALIFYING_METADATA, 'Norris') }] },
       { question: RACE_QUALIFYING, entities: [{ type: 'driver', span: span(RACE_QUALIFYING, 'Norris') }] },
       { question: QUALIFYING_RANK, entities: [] },
       { question: EVENT_DATE_CIRCUIT, entities: [] },
@@ -155,6 +157,12 @@ describe('semantic candidate translator foundation', () => {
       .toContain('filter event_classification.driver_id with eq for one driver or in for two to four drivers');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Do not extend this rule to zero or five-or-more selected drivers');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('driver and recorded qualifying position plus any nonempty subset of race date, event name, and circuit identifier');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('filter qualifying_classification.driver_id with eq for one driver or in for two to four drivers');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Metadata date always means the race date, never a qualifying-session date');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

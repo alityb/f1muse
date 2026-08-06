@@ -416,7 +416,7 @@ function validateJoin(join: PlannedJoin): void {
   validateBranch(join.left);
   validateBranch(join.right);
   const relationship = SEMANTIC_CATALOG.relationships.find(item => item.id === join.relationship_id);
-  if (!relationship || relationship.id !== 'race_event_metadata' || relationship.join_stage !== 'row' ||
+  if (!relationship || !['qualifying_event_metadata', 'race_event_metadata'].includes(relationship.id) || relationship.join_stage !== 'row' ||
       relationship.from_source !== branchSource(join.left) || relationship.to_source !== branchSource(join.right)) {
     throw new Error(`planned relationship ${join.relationship_id} is not a promoted row join`);
   }
@@ -601,7 +601,7 @@ function validateCoreInput(input: PlannedCoreProjectNode['input'], rankedSources
     validateCoreBranch(left, rankedSources.has(left.input.source_id));
     validateCoreBranch(right, rankedSources.has(right.input.source_id));
     const relationship = SEMANTIC_CATALOG.relationships.find(item => item.id === input.relationship_id);
-    if (!relationship || relationship.id !== 'race_event_metadata' || input.type !== relationship.optionality ||
+    if (!relationship || !['qualifying_event_metadata', 'race_event_metadata'].includes(relationship.id) || input.type !== relationship.optionality ||
         input.cardinality !== relationship.cardinality ||
         left.input.source_id !== relationship.from_source || right.input.source_id !== relationship.to_source ||
         stableSerialize(input.left_keys) !== stableSerialize(relationship.from_keys.map(conceptId => lowerConcept({ source_id: relationship.from_source as PlannedCoreSourceId, concept_id: conceptId }))) ||

@@ -608,7 +608,8 @@ function sourceSetCode(plan: AnswerPlan): NonNullable<SemanticShadowObservation[
   const code = plan.source_graph.source_ids.join('__');
   const allowed: readonly NonNullable<SemanticShadowObservation['source_set_code']>[] = [
     'driver_standings', 'event_classification', 'event_metadata', 'qualifying_classification',
-    'event_classification__event_metadata', 'event_classification__qualifying_classification'
+    'event_classification__event_metadata', 'event_classification__qualifying_classification',
+    'event_metadata__qualifying_classification'
   ];
   if (!allowed.includes(code as NonNullable<SemanticShadowObservation['source_set_code']>)) {
     throw new Error('semantic shadow source set is unsupported');

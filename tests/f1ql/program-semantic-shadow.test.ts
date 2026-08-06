@@ -34,8 +34,11 @@ const FOUR_DRIVER_STANDINGS_SUMMARY_QUESTION = 'List driver, championship positi
 const FOUR_DRIVER_STANDINGS_RANK_QUESTION = 'Rank Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by championship position in final 2025 driver standings.';
 const FOUR_DRIVER_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification.';
 const FOUR_DRIVER_RACE_METADATA_QUESTION = 'List driver, finishing position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 race classification and event metadata.';
+const FOUR_DRIVER_QUALIFYING_METADATA_QUESTION = 'List driver, qualifying position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from round 1 of final 2025 qualifying classification and event metadata.';
 const LIMITED_SELECTED_RACE_METADATA_QUESTION = 'List top 1 driver, finishing position, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
 const BROADER_SELECTED_RACE_METADATA_QUESTION = 'List driver, finishing position, race points, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
+const LIMITED_SELECTED_QUALIFYING_METADATA_QUESTION = 'List top 1 driver, qualifying position, and race date for Lando Norris from round 1 of final 2025 qualifying classification and event metadata.';
+const QUALIFYING_DATE_METADATA_QUESTION = 'List driver, qualifying position, and qualifying date for Lando Norris from round 1 of final 2025 qualifying classification and event metadata.';
 const FOUR_DRIVER_NAMED_RACE_QUESTION = 'List driver and finishing position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 race classification at Monaco.';
 const FOUR_DRIVER_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from round 1 of final 2025 race classification.';
 const FOUR_DRIVER_NAMED_RACE_RANK_QUESTION = 'Rank drivers Charles Leclerc, George Russell, Lando Norris, Oscar Piastri by finishing position from final 2025 race classification at Monaco.';
@@ -528,6 +531,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
   it.each([
     FOUR_DRIVER_RACE_QUESTION,
     FOUR_DRIVER_RACE_METADATA_QUESTION,
+    FOUR_DRIVER_QUALIFYING_METADATA_QUESTION,
     FOUR_DRIVER_RACE_RANK_QUESTION
   ])('proves a four-driver race family through bounded identity and event reads without result execution: %s', async question => {
     const fake = fakePool(async sql => {
@@ -577,8 +581,10 @@ describe('WP8 stage-zero semantic shadow route', () => {
 
   it.each([
     LIMITED_SELECTED_RACE_METADATA_QUESTION,
-    BROADER_SELECTED_RACE_METADATA_QUESTION
-  ])('rejects a broader selected race metadata join before provider or result execution: %s', async question => {
+    BROADER_SELECTED_RACE_METADATA_QUESTION,
+    LIMITED_SELECTED_QUALIFYING_METADATA_QUESTION,
+    QUALIFYING_DATE_METADATA_QUESTION
+  ])('rejects an unsupported selected metadata join before provider or result execution: %s', async question => {
     const fake = fakePool();
     let providerCalls = 0;
     let executionAttempts = 0;
@@ -1454,6 +1460,7 @@ function exactProposal(request: SemanticShadowProposalRequest): unknown {
         request.question === MULTI_STANDINGS_POSITION_QUESTION ||
         request.question === FOUR_DRIVER_STANDINGS_RANK_QUESTION ||
         request.question === FOUR_DRIVER_RACE_QUESTION || request.question === FOUR_DRIVER_RACE_METADATA_QUESTION ||
+        request.question === FOUR_DRIVER_QUALIFYING_METADATA_QUESTION ||
         request.question === FOUR_DRIVER_RACE_RANK_QUESTION ||
         request.question === FOUR_DRIVER_QUALIFYING_QUESTION || request.question === FOUR_DRIVER_QUALIFYING_RANK_QUESTION
       ? ['Charles Leclerc', 'George Russell', 'Lando Norris', 'Oscar Piastri'].map(text => ({

@@ -457,7 +457,8 @@ function expectedCoverage(cases: readonly HiddenCase[]) {
       event_metadata: sourceSets.event_metadata ?? 0,
       qualifying_classification: sourceSets.qualifying_classification ?? 0,
       event_classification_event_metadata: sourceSets.event_classification_event_metadata ?? 0,
-      event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0
+      event_classification_qualifying_classification: sourceSets.event_classification_qualifying_classification ?? 0,
+      event_metadata_qualifying_classification: sourceSets.event_metadata_qualifying_classification ?? 0
     },
     plan_family_counts: { ...Object.fromEntries(planFamilySchema.options.map(value => [value, families[value] ?? 0])), other: 0 },
     ambiguity_reason_counts: zeros([

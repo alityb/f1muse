@@ -1228,7 +1228,9 @@ function enumeratePromotedComposition(
   const matches = canonicalMatches.filter(match => !canonicalMatches.some(other =>
     other.span.start <= match.span.start && other.span.end >= match.span.end &&
     (other.span.start < match.span.start || other.span.end > match.span.end)));
-  const rowJoin = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'event_metadata']);
+  const raceMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'event_metadata']);
+  const qualifyingMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_metadata', 'qualifying_classification']);
+  const rowJoin = raceMetadataJoin || qualifyingMetadataJoin;
   const scalarCompose = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'qualifying_classification']);
   if (!rowJoin && !scalarCompose) {return [];}
   if (rowJoin && (operations.count || operations.rank || (question.rounds.length === 0 && !entities.some(entity => entity.type === 'event')))) {
@@ -1249,12 +1251,15 @@ function enumeratePromotedComposition(
   }
   const preservesCompositionAmbiguity = hasEntityTypeAmbiguity(entities) ||
     hasOutputAlternative(question.normalized_question, conceptMatches);
-  const selectedRaceMetadataJoin = rowJoin && !preservesCompositionAmbiguity &&
+  const selectedClassificationMetadataJoin = rowJoin && !preservesCompositionAmbiguity &&
     entities.some(entity => entity.type === 'driver');
-  if (selectedRaceMetadataJoin) {
+  if (qualifyingMetadataJoin && !selectedClassificationMetadataJoin) {return [];}
+  if (selectedClassificationMetadataJoin) {
+    const classificationSourceId = raceMetadataJoin ? 'event_classification' : 'qualifying_classification';
+    const positionConceptId = raceMetadataJoin ? 'finishing_position' : 'qualifying_position';
     const canonicalOutputKeys = [
-      'event_classification.driver_id',
-      'event_classification.finishing_position',
+      `${classificationSourceId}.driver_id`,
+      `${classificationSourceId}.${positionConceptId}`,
       'event_metadata.date',
       'event_metadata.event_name',
       'event_metadata.circuit_id'
@@ -1266,11 +1271,12 @@ function enumeratePromotedComposition(
       const output = outputs.find(candidate => `${candidate.concept.source_id}.${candidate.concept.concept_id}` === key);
       return output ? [output] : [];
     });
-    const classificationOutputs = outputs.filter(output => output.concept.source_id === 'event_classification');
+    const classificationOutputs = outputs.filter(output => output.concept.source_id === classificationSourceId);
     const metadataOutputs = outputs.filter(output => output.concept.source_id === 'event_metadata');
     if (operations.limit || temporal[0].value !== 'final' ||
+        (qualifyingMetadataJoin && /\bqualifying(?:[\s-]+session)?[\s-]+date\b/iu.test(question.normalized_question)) ||
         stableSerialize(classificationOutputs.map(output => output.concept.concept_id)) !==
-          stableSerialize(['driver_id', 'finishing_position']) ||
+          stableSerialize(['driver_id', positionConceptId]) ||
         metadataOutputs.length < 1 || metadataOutputs.some(output =>
           !['date', 'event_name', 'circuit_id'].includes(output.concept.concept_id))) {
       return [];

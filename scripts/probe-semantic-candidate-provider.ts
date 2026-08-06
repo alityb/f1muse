@@ -17,18 +17,18 @@ import reviewedSnapshotInput from '../tests/fixtures/compositional-regression.sn
 import { compositionalRegressionCorpusInput } from '../tests/fixtures/compositional-regression-corpus';
 
 const PROBE_CASE_INDEX = 0;
-const PROBE_CORPUS_SHA256 = 'f8b6be69b39a53e3849cdcf4583fe165e8fad823e338debf372c7073c8473d8e';
-const PROBE_CORPUS_INPUT_SHA256 = '8f0d889d3859889cfc6ab308d1b08d5d2cd08484efb65ac93e0f239415055feb';
-const PROBE_SNAPSHOT_INPUT_SHA256 = '9ba2d9aaeb0b551ababaf0cd3c7622928fae9e2eb7d6ae65b0998329add5f95a';
+const PROBE_CORPUS_SHA256 = '0d55a41bbb138b53b971434338c164d8a800d3aab50c3f004b6e4a25c0611695';
+const PROBE_CORPUS_INPUT_SHA256 = '1dea5b2a617dae2807f42d177ee204f67bace47d26fd96d91c5ae88a0730dc40';
+const PROBE_SNAPSHOT_INPUT_SHA256 = '393ced0c2fc3e77cc7ba1773319b3e930579fde0dd6fa1ebcb453b404de0af69';
 const PROBE_CASE_ID = 'promoted-single-source-rows';
 const PROBE_QUESTION_SHA256 = '9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c';
-const PROBE_CANDIDATE_SET_SHA256 = '4f423f15bbed9f528702913eab5c804fbee8112f8978e0e2d339ea9d16d1e604';
+const PROBE_CANDIDATE_SET_SHA256 = 'f50a8c65dad09ef2ef11ff6279e919a51651f8935e9463e56ec9f1b265b14b58';
 const PROBE_PROVIDER_IDENTITY = Object.freeze({
   provider: 'openai-compatible',
   endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
   model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
   catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
-  prompt_sha256: '0cbc43e54e430fd6c498f50d61736189883ecfe6238d252a102a2fce72af631e',
+  prompt_sha256: 'f31760842197e0ffdae80784c68da9a1b46bca4be93cbc47ab93a74c5907b9ed',
   schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
   request_config_sha256: 'a3c3f1e5ac7359e9b0792949181721f074081f117de79cbd109185ed3d363277'
 } as const);
@@ -279,9 +279,9 @@ function matchesPinnedFixtureInputs(corpusInput: unknown, snapshotInput: unknown
   if (!isRecord(corpusInput) || !isRecord(snapshotInput)) {return false;}
   return sha256(stableSerialize(corpusInput)) === PROBE_CORPUS_INPUT_SHA256 &&
     sha256(stableSerialize(snapshotInput)) === PROBE_SNAPSHOT_INPUT_SHA256 &&
-    Array.isArray(corpusInput.cases) && corpusInput.cases.length === 41 &&
+    Array.isArray(corpusInput.cases) && corpusInput.cases.length === 43 &&
     snapshotInput.corpus_hash === PROBE_CORPUS_SHA256 &&
-    Array.isArray(snapshotInput.cases) && snapshotInput.cases.length === 41;
+    Array.isArray(snapshotInput.cases) && snapshotInput.cases.length === 43;
 }
 
 function matchesPinnedCorpusCase(

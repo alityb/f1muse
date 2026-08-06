@@ -183,6 +183,7 @@ describe('semantic catalog', () => {
     ['missing resolution deduplication', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['single_resolved_key']; }],
     ['missing single-resolution guarantee', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'driver_identity_race_resolution').required_checks = ['deduplicate_keys']; }],
     ['missing requested-target check', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_event_metadata').required_checks = ['source_presence', 'unique_to_key']; }],
+    ['missing qualifying requested-target check', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'qualifying_event_metadata').required_checks = ['source_presence', 'unique_to_key']; }],
     ['missing shared-branch uniqueness', (catalog: any) => { catalog.relationships.find((item: any) => item.id === 'race_shared_event').required_checks = ['non_null_measure', 'source_presence']; }],
     ['noncanonical concept lexicon', (catalog: any) => { catalog.sources[3].measures[0].language.synonyms.reverse(); }],
     ['missing concept lexicon contract', (catalog: any) => { delete catalog.sources[3].measures[0].language; }],
@@ -380,6 +381,7 @@ describe('semantic catalog', () => {
       ['event_identity_metadata_resolution', `SELECT count(*)::integer AS count FROM f1ql.answer_event_identity i JOIN f1ql.event_metadata m USING (season, round) WHERE i.identity = 'Catalog Grand Prix'`, 1],
       ['event_identity_qualifying_resolution', `SELECT count(*)::integer AS count FROM f1ql.answer_event_identity i JOIN f1ql.qualifying_classification q USING (season, round) WHERE i.identity = 'Catalog Grand Prix'`, 2],
       ['event_identity_race_resolution', `SELECT count(*)::integer AS count FROM f1ql.answer_event_identity i JOIN f1ql.event_classification r USING (season, round) WHERE i.identity = 'Catalog Grand Prix'`, 2],
+      ['qualifying_event_metadata', `SELECT count(*)::integer AS count FROM f1ql.qualifying_classification q JOIN f1ql.event_metadata m USING (season, round) WHERE q.season = 2025 AND q.round = 1`, 2],
       ['qualifying_shared_event', `SELECT count(*)::integer AS count FROM f1ql.qualifying_classification a JOIN f1ql.qualifying_classification b USING (season, round) WHERE a.driver_id = 'catalog-driver-a' AND b.driver_id = 'catalog-driver-b'`, 1],
       ['race_event_metadata', `SELECT count(*)::integer AS count FROM f1ql.event_classification r JOIN f1ql.event_metadata m USING (season, round) WHERE r.season = 2025 AND r.round = 1`, 2],
       ['race_shared_event', `SELECT count(*)::integer AS count FROM f1ql.event_classification a JOIN f1ql.event_classification b USING (season, round) WHERE a.driver_id = 'catalog-driver-a' AND b.driver_id = 'catalog-driver-b'`, 1]

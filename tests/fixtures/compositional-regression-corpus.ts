@@ -27,6 +27,8 @@ const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from final 20
 const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from final 2025 event metadata at Japanese Grand Prix.';
 const SELECTED_RACE_DATE = 'List driver, finishing position, and race date for Lando Norris from round 1 of final 2025 race classification and event metadata.';
 const SELECTED_RACE_ALL_METADATA = 'List driver, finishing position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, and Oscar Piastri from final 2025 race classification and event metadata at Japanese Grand Prix.';
+const SELECTED_QUALIFYING_DATE_NAME = 'List driver, qualifying position, race date, and event name for Charles Leclerc from final 2024 qualifying classification and event metadata at Monaco Grand Prix.';
+const SELECTED_QUALIFYING_ALL_METADATA = 'List driver, qualifying position, race date, event name, and circuit identifier for Charles Leclerc, George Russell, Lando Norris, and Oscar Piastri from round 1 of final 2025 qualifying classification and event metadata.';
 
 const noResolvers = {
   driver_mentions: [],
@@ -36,13 +38,13 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 41,
-    action_counts: { answer: 29, clarify: 5, abstain: 7 },
-    split_counts: { development: 26, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 43,
+    action_counts: { answer: 31, clarify: 5, abstain: 7 },
+    split_counts: { development: 28, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
       single_source_rows: 19,
       single_source_aggregate: 4,
-      row_dimension_join: 4,
+      row_dimension_join: 6,
       scalar_aggregate_compose: 2
     },
     source_set_counts: {
@@ -51,11 +53,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       qualifying_classification: 4,
       event_metadata: 7,
       event_classification_event_metadata: 4,
-      event_classification_qualifying_classification: 2
+      event_classification_qualifying_classification: 2,
+      event_metadata_qualifying_classification: 2
     },
     plan_family_counts: {
       single_source: 23,
-      safe_dimension_join: 4,
+      safe_dimension_join: 6,
       aggregate_locality: 2,
       other: 0
     },
@@ -77,12 +80,12 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 26,
+      promoted_topology: 28,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
       plan_family_single_source: 23,
-      plan_family_safe_dimension_join: 4,
+      plan_family_safe_dimension_join: 6,
       plan_family_aggregate_locality: 2,
       provider_admission: 1
     },
@@ -90,10 +93,10 @@ export const compositionalRegressionCorpusInput: unknown = {
       clean: 1,
       aggregation: 4,
       aggregate_locality: 2,
-      join_cardinality: 4,
-      resolver_event: 15,
-      resolver_identity: 16,
-      template_free: 24,
+      join_cardinality: 6,
+      resolver_event: 17,
+      resolver_identity: 18,
+      template_free: 26,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -468,6 +471,51 @@ export const compositionalRegressionCorpusInput: unknown = {
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
         source_ids: ['event_classification', 'event_metadata'], plan_family: 'safe_dimension_join'
+      }
+    },
+    {
+      id: 'family-selected-qualifying-date-name-join', split: 'development', question: SELECTED_QUALIFYING_DATE_NAME,
+      coverage_tags: ['promoted_topology', 'plan_family_safe_dimension_join'],
+      risk_tags: ['template_free', 'join_cardinality', 'resolver_event', 'resolver_identity'],
+      entities: [
+        { type: 'driver', text: 'Charles Leclerc' },
+        { type: 'event', text: 'Monaco Grand Prix' }
+      ],
+      provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [{
+          text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc']
+        }],
+        event_resolution: { type: 'resolved', season: 2024, round: 8 }
+      },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
+        source_ids: ['event_metadata', 'qualifying_classification'], plan_family: 'safe_dimension_join'
+      }
+    },
+    {
+      id: 'family-selected-qualifying-metadata-join', split: 'development', question: SELECTED_QUALIFYING_ALL_METADATA,
+      coverage_tags: ['promoted_topology', 'plan_family_safe_dimension_join'],
+      risk_tags: ['template_free', 'join_cardinality', 'resolver_event', 'resolver_identity'],
+      entities: [
+        { type: 'driver', text: 'Charles Leclerc' },
+        { type: 'driver', text: 'George Russell' },
+        { type: 'driver', text: 'Lando Norris' },
+        { type: 'driver', text: 'Oscar Piastri' }
+      ],
+      provider_mode: 'enumerated',
+      resolver: {
+        driver_mentions: [
+          { text: 'Charles Leclerc', candidates: ['charles-leclerc'], active_candidates: ['charles-leclerc'] },
+          { text: 'George Russell', candidates: ['george-russell'], active_candidates: ['george-russell'] },
+          { text: 'Lando Norris', candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+          { text: 'Oscar Piastri', candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+        ],
+        event_resolution: { type: 'resolved', season: 2025, round: 1 }
+      },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'row_dimension_join',
+        source_ids: ['event_metadata', 'qualifying_classification'], plan_family: 'safe_dimension_join'
       }
     },
     {

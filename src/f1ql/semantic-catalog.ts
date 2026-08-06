@@ -860,6 +860,23 @@ const rawCatalog = {
       integrity_checks: ['Resolve exactly one season-round key before applying race fact filters.']
     },
     {
+      id: 'qualifying_event_metadata',
+      from_source: 'qualifying_classification',
+      to_source: 'event_metadata',
+      from_keys: ['season', 'round'],
+      to_keys: ['season', 'round'],
+      cardinality: 'many_to_one',
+      direction: 'from_to',
+      optionality: 'left',
+      join_stage: 'row',
+      filter_propagation: 'same_event',
+      governance: 'verified',
+      required_branch_filters: [],
+      required_scope_predicates: [],
+      required_checks: ['non_null_requested_to_concepts', 'source_presence', 'unique_to_key'],
+      integrity_checks: ['Preserve qualifying classification source grain.', 'Require exactly one metadata row and non-null requested race metadata.']
+    },
+    {
       id: 'qualifying_shared_event',
       from_source: 'qualifying_classification',
       to_source: 'qualifying_classification',

@@ -101,6 +101,37 @@ const selectedRaceMetadataFactories: readonly PositiveProfileFactory[] = RACE_ME
   ]
 );
 
+const selectedQualifyingMetadataFactories: readonly PositiveProfileFactory[] = RACE_METADATA_PROJECTIONS.flatMap(
+  projection => [
+    ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => ({
+      question: `List driver, qualifying position, and ${projection} for Charles Leclerc from round ${round} of final ${year} qualifying classification and event metadata.`,
+      entity_names: ['Charles Leclerc'],
+      driver_mentions: [{
+        name: 'Charles Leclerc',
+        candidates: candidateInventory('charles-leclerc', candidate_count, selected_index),
+        active_candidates: ['charles-leclerc']
+      }]
+    }),
+    ({ year, round, candidate_count, selected_index }: PositiveProfileInput): PositiveProfileCase => {
+      const drivers = [
+        ['Charles Leclerc', 'charles-leclerc'],
+        ['George Russell', 'george-russell'],
+        ['Lando Norris', 'lando-norris'],
+        ['Oscar Piastri', 'oscar-piastri']
+      ].slice(0, 2 + (round % 3));
+      return {
+        question: `List driver, qualifying position, and ${projection} for ${drivers.map(([name]) => name).join(', ')} from round ${round} of final ${year} qualifying classification and event metadata.`,
+        entity_names: drivers.map(([name]) => name),
+        driver_mentions: drivers.map(([name, id]) => ({
+          name,
+          candidates: candidateInventory(id, candidate_count, selected_index),
+          active_candidates: [id]
+        }))
+      };
+    }
+  ]
+);
+
 const POSITIVE_PROFILE_CASES = {
   'semantic-single-source-v1': [({ year }: PositiveProfileInput): PositiveProfileCase => ({
     question: `List driver and championship points from final ${year} driver standings.`,
@@ -324,6 +355,7 @@ const POSITIVE_PROFILE_CASES = {
     }),
     ...selectedRaceMetadataFactories
   ],
+  'semantic-safe-qualifying-dimension-join-v1': selectedQualifyingMetadataFactories,
   'semantic-aggregate-locality-v1': [(input: PositiveProfileInput): PositiveProfileCase => ({
     question: `Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final ${input.year}.`,
     entity_names: ['Norris'],
@@ -583,6 +615,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['Show count of finishing position for Norris in final 2025 race classification.', 'semantic-single-source-v1', ['Norris']],
     ['Show count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
+    ['List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.', 'semantic-safe-qualifying-dimension-join-v1', ['Norris']],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']]
   ] as const)('authorizes the entire proven interaction for %s', async (question, profileId, entityNames) => {
     const proof = await semanticProof(
@@ -635,6 +668,29 @@ describe('semantic complete-interaction capability authorization', () => {
     expect(Object.isFrozen(authorization.interaction)).toBe(true);
     expect(verifySemanticCapabilityAuthorization(authorization)).toBe(authorization);
     expect(() => verifySemanticCapabilityAuthorization({ ...authorization })).toThrow('invalid_authorization');
+  });
+
+  it.each([
+    [
+      'List driver, finishing position, and race date for Norris from round 1 of final 2025 race classification and event metadata.',
+      'semantic-safe-qualifying-dimension-join-v1'
+    ],
+    [
+      'List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.',
+      'semantic-safe-dimension-join-v1'
+    ]
+  ] as const)('keeps race and qualifying metadata authority separate for %s', async (question, profileId) => {
+    const proof = await semanticProof(question, ['Norris']);
+    const attestation = release({ deployment_capability_profile_ids: [profileId] });
+    expect(() => authorizeSemanticPlanCapability({
+      proof,
+      profile_id: profileId,
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: attestation,
+      now_ms: NOW
+    })).toThrowError(expect.objectContaining({ reason: 'profile_rejected' }));
   });
 
   it('binds only the exact ungrouped recorded qualifying-position count interaction', async () => {

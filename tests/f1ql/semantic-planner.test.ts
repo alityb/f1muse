@@ -15,6 +15,7 @@ import {
 
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
+const QUALIFYING_METADATA = 'List driver, qualifying position, race date, event name, and circuit identifier for Lando Norris and Oscar Piastri from round 1 of final 2025 qualifying classification and event metadata.';
 const NAMED_RACE_METADATA = 'List driver and finishing position and event name from final 2025 race classification and event metadata at Monaco.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
@@ -142,6 +143,36 @@ describe('deterministic semantic planner', () => {
     expect(plan.branches.map(branch => branch.fixed_grain)).toEqual([
       ['round', 'season'], ['round', 'season']
     ]);
+  });
+
+  it('orients qualifying metadata from the relationship endpoint, not canonical source order', async () => {
+    const lando = span(QUALIFYING_METADATA, 'Lando Norris');
+    const oscar = span(QUALIFYING_METADATA, 'Oscar Piastri');
+    const admission = admitted(QUALIFYING_METADATA, [
+      { type: 'driver', span: lando }, { type: 'driver', span: oscar }
+    ]);
+    const plan = await planSemanticAnswer({
+      question: QUALIFYING_METADATA,
+      admission,
+      ...resolvers([
+        { ...lando, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+        { ...oscar, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+      ], { type: 'resolved', season: 2025, round: 1 })
+    });
+    expect(plan).toMatchObject({
+      topology: 'row_dimension_join',
+      source_graph: {
+        source_ids: ['event_metadata', 'qualifying_classification'],
+        row_relationship_ids: ['qualifying_event_metadata']
+      },
+      output_grain: ['driver_id'],
+      work: { requested_rows: 100 }
+    });
+    expect(plan.planned_f1ql.root.input.input.input).toMatchObject({
+      relationship_id: 'qualifying_event_metadata',
+      left: { input: { source_id: 'qualifying_classification' } },
+      right: { input: { source_id: 'event_metadata' } }
+    });
   });
 
   it('links a named event and binds every retained resolver candidate into the plan hash', async () => {
