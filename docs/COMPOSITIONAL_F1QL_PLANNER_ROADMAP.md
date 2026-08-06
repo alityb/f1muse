@@ -810,6 +810,17 @@ positions are valid because no sporting rank is inferred. Multi-driver classific
 filters, event, status, or position filters,
 grouped and ranked counts, alternate aggregates, broader output,
 latest-recorded scope, and caller limits remain refused.
+One unfiltered aggregate-locality composition is also implemented locally for one
+final historical season. Race `COUNT(finishing_position)` and qualifying
+`COUNT(qualifying_position)` are computed independently at their governed source
+grains before one scalar composition; the result keeps source-qualified output
+identities and does not compare, subtract, rank, normalize, or infer completeness
+from the two counts. Each value counts only non-null recorded position rows. An
+integrity-clean all-null source is factual zero, while absent source rows,
+duplicate event-driver grain, or out-of-bounds positions fail integrity. Grouped,
+per-driver, pooled multi-driver, event- or round-scoped, caller-limited, reordered,
+alternate-aggregate, broader-output, latest-recorded, interim, comparison, and
+delta forms remain refused.
 Unfiltered event classification selection remains refused until the catalog can
 provide event-complete membership witnesses. Season-wide filtered
 selection, latest-recorded 2026 event metadata, user-supplied limits, event-metadata

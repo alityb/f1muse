@@ -54,6 +54,16 @@ const cases = [
     }]
   },
   {
+    id: 'family-unfiltered-aggregate-locality',
+    profile: 'semantic-aggregate-locality-v1' as const,
+    answer_compatible: false,
+    rows: [{
+      event_classification__count_finishing_position: 2,
+      qualifying_classification__count_qualifying_position: 3,
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]
+  },
+  {
     id: 'family-filtered-race-classification',
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,
@@ -399,11 +409,12 @@ describe('authorized semantic plan execution', () => {
     )).rejects.toThrow('more than 101 rows');
     expect(returnedRowAccessed).toBe(false);
 
-    const compose = prepared.get(cases[2].id)!;
+    const composeCase = cases.find(item => item.id === 'promoted-aggregate-locality')!;
+    const compose = prepared.get(composeCase.id)!;
     const composeParent = getSemanticPlanProofParent(compose.proof);
-    const scalarInput = createSemanticPlanExecutionOfflineInput(compose.proof, cases[2].profile);
+    const scalarInput = createSemanticPlanExecutionOfflineInput(compose.proof, composeCase.profile);
     await expect(executeAuthorizedSemanticPlan(
-      recordingPool(composeParent.compiled.sql, [cases[2].rows[0], cases[2].rows[0]]).pool,
+      recordingPool(composeParent.compiled.sql, [composeCase.rows[0], composeCase.rows[0]]).pool,
       scalarInput.authorization,
       compose.proof,
       scalarInput.context,
@@ -441,10 +452,11 @@ describe('authorized semantic plan execution', () => {
   });
 
   it('validates required participation and rolls back before the result query when an identity is absent', async () => {
-    const compose = prepared.get(cases[2].id)!;
+    const composeCase = cases.find(item => item.id === 'promoted-aggregate-locality')!;
+    const compose = prepared.get(composeCase.id)!;
     const parent = getSemanticPlanProofParent(compose.proof);
-    const input = createSemanticPlanExecutionOfflineInput(compose.proof, cases[2].profile);
-    const database = recordingPool(parent.compiled.sql, cases[2].rows, { participationRows: [] });
+    const input = createSemanticPlanExecutionOfflineInput(compose.proof, composeCase.profile);
+    const database = recordingPool(parent.compiled.sql, composeCase.rows, { participationRows: [] });
 
     await expect(executeAuthorizedSemanticPlan(
       database.pool,
@@ -459,10 +471,11 @@ describe('authorized semantic plan execution', () => {
   });
 
   it('rejects an event-classification request before result SQL when any selected driver is absent', async () => {
-    const race = prepared.get(cases[3].id)!;
+    const raceCase = cases.find(item => item.id === 'family-filtered-race-classification')!;
+    const race = prepared.get(raceCase.id)!;
     const parent = getSemanticPlanProofParent(race.proof);
-    const input = createSemanticPlanExecutionOfflineInput(race.proof, cases[3].profile);
-    const database = recordingPool(parent.compiled.sql, cases[3].rows, {
+    const input = createSemanticPlanExecutionOfflineInput(race.proof, raceCase.profile);
+    const database = recordingPool(parent.compiled.sql, raceCase.rows, {
       participationRows: [
         { driver_id: 'charles-leclerc' },
         { driver_id: 'george-russell' },
@@ -535,10 +548,11 @@ describe('authorized semantic plan execution', () => {
     )).rejects.toThrow('begin failed');
     expect(beginFailure.releases).toEqual([true]);
 
-    const compose = prepared.get(cases[2].id)!;
+    const composeCase = cases.find(item => item.id === 'promoted-aggregate-locality')!;
+    const compose = prepared.get(composeCase.id)!;
     const composeParent = getSemanticPlanProofParent(compose.proof);
-    const rollback = createSemanticPlanExecutionOfflineInput(compose.proof, cases[2].profile);
-    const rollbackFailure = recordingPool(composeParent.compiled.sql, cases[2].rows, {
+    const rollback = createSemanticPlanExecutionOfflineInput(compose.proof, composeCase.profile);
+    const rollbackFailure = recordingPool(composeParent.compiled.sql, composeCase.rows, {
       participationRows: [], rollbackError: new Error('rollback failed')
     });
     await expect(executeAuthorizedSemanticPlan(

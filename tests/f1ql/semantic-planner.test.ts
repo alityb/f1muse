@@ -18,6 +18,7 @@ const RACE_METADATA = 'List driver and finishing position, event name, and circu
 const QUALIFYING_METADATA = 'List driver, qualifying position, race date, event name, and circuit identifier for Lando Norris and Oscar Piastri from round 1 of final 2025 qualifying classification and event metadata.';
 const NAMED_RACE_METADATA = 'List driver and finishing position and event name from final 2025 race classification and event metadata at Monaco.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const UNFILTERED_COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
@@ -253,6 +254,51 @@ describe('deterministic semantic planner', () => {
     expect(plan.planned_f1ql.root.input.input.input.op).toBe('compose');
   });
 
+  it('aggregates each unfiltered source independently before composing one scalar row', async () => {
+    const admission = admitted(UNFILTERED_COMPOSE);
+    const plan = await planSemanticAnswer({
+      question: UNFILTERED_COMPOSE,
+      admission,
+      ...resolvers([])
+    });
+
+    expect(plan).toMatchObject({
+      topology: 'scalar_aggregate_compose',
+      source_graph: {
+        source_ids: ['event_classification', 'qualifying_classification'],
+        row_relationship_ids: []
+      },
+      linked_entities: [],
+      output_grain: [],
+      work: {
+        source_scan_units: 60, resolver_reads: 1, sources: 2, row_joins: 0,
+        compositions: 1, operator_depth: 6, requested_rows: 1
+      }
+    });
+    expect(plan.branches).toMatchObject([
+      {
+        source_id: 'event_classification', fixed_grain: ['season'], residual_grain: [],
+        predicates: [{ concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }],
+        aggregate: { group_by: [], measures: ['count_finishing_position'] }
+      },
+      {
+        source_id: 'qualifying_classification', fixed_grain: ['season'], residual_grain: [],
+        predicates: [{ concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }],
+        aggregate: { group_by: [], measures: ['count_qualifying_position'] }
+      }
+    ]);
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 1,
+      input: {
+        keys: [{
+          output_id: 'event_classification__count_finishing_position',
+          direction: 'asc', nulls: 'last'
+        }],
+        input: { input: { op: 'compose' } }
+      }
+    });
+  });
+
   it('adds deterministic ordering for a single-source scalar aggregate', async () => {
     const admission = admitted(SCALAR_COUNT);
     const plan = await planSemanticAnswer({ question: SCALAR_COUNT, admission, ...resolvers([]) });
@@ -360,7 +406,7 @@ describe('deterministic semantic planner', () => {
       ...resolvers([{ ...norrisSpan, candidates: ['other-driver'], active_candidates: ['not-a-candidate'] }])
     })).rejects.toMatchObject({ reason: 'entity_inventory_mismatch' });
 
-    const duplicateQuestion = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris and Lando in final 2025.';
+    const duplicateQuestion = 'List driver and championship position for Norris and Lando from final 2025 driver standings.';
     const norris = span(duplicateQuestion, 'Norris');
     const lando = span(duplicateQuestion, 'Lando');
     const duplicateAdmission = admitted(duplicateQuestion, [{ type: 'driver', span: norris }, { type: 'driver', span: lando }]);

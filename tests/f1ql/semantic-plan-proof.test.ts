@@ -26,6 +26,7 @@ const STANDINGS = 'List driver and championship points from final 2025 driver st
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const QUALIFYING_METADATA = 'List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const UNFILTERED_COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
@@ -102,6 +103,24 @@ describe('independent semantic whole-plan proof', () => {
       output_grain: [],
       work: { requested_rows: 1 }
     });
+  });
+
+  it('independently proves the exact zero-driver aggregate-locality plan', async () => {
+    const prepared = await prepare(UNFILTERED_COMPOSE, [], []);
+    expect(verifySemanticPlanProof(prepared.proof)).toBe(prepared.proof);
+    expect(prepared.plan).toMatchObject({
+      topology: 'scalar_aggregate_compose',
+      source_graph: {
+        source_ids: ['event_classification', 'qualifying_classification'],
+        row_relationship_ids: []
+      },
+      linked_entities: [],
+      output_grain: [],
+      work: { requested_rows: 1 }
+    });
+    expect(getSemanticPlanProofParent(prepared.proof).participation).toEqual({ type: 'not_required' });
+    expect(getSemanticPlanProofParent(prepared.proof).program.root.input.input.input)
+      .toMatchObject({ op: 'compose', inputs: [{ op: 'aggregate' }, { op: 'aggregate' }] });
   });
 
   it('reproduces one selected final standings-position row with one participation requirement', async () => {

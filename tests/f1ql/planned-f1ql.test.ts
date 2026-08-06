@@ -637,6 +637,16 @@ function scalarCompositionPlan() {
   };
 }
 
+function unfilteredScalarCompositionPlan() {
+  const plan: any = structuredClone(scalarCompositionPlan());
+  for (const input of plan.root.input.input.input.inputs) {
+    input.input.predicates = input.input.predicates.filter(
+      (item: any) => item.concept.concept_id !== 'driver_id'
+    );
+  }
+  return plan;
+}
+
 describe('internal planned F1QL and Core pipeline', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: getTestDatabaseUrl() });
@@ -1029,6 +1039,115 @@ describe('internal planned F1QL and Core pipeline', () => {
       qualifying_classification__count_qualifying_position: 0,
       [PLANNED_INTEGRITY_FIELD]: false
     }]);
+  });
+
+  it('matches PostgreSQL for the exact unfiltered dual count and source-wide integrity', async () => {
+    const core = lowerPlannedF1QL(unfilteredScalarCompositionPlan());
+    const compiled = compilePlannedF1QL(core);
+    const reference: PlannedReferenceDatabase = {
+      event_classification: [
+        { season: 2025, round: 1, driver_id: 'alpha-driver', finishing_position: 1 },
+        { season: 2025, round: 1, driver_id: 'beta-driver', finishing_position: 2 }
+      ],
+      qualifying_classification: [
+        { season: 2025, round: 1, driver_id: 'alpha-driver', qualifying_position: 1, classification_status: 'classified' },
+        { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 2, classification_status: 'classified' },
+        { season: 2025, round: 2, driver_id: 'outside-driver', qualifying_position: 11, classification_status: 'classified' }
+      ]
+    };
+    expect(compiled.sql).toContain('CROSS JOIN');
+    expect(compiled.params).toEqual([2025, 2025, 1]);
+    const rows = (await pool.query(compiled.sql, compiled.params)).rows;
+    expect(rows).toEqual(interpretPlannedF1QL(core, reference));
+    expect(rows).toEqual([{
+      event_classification__count_finishing_position: 2,
+      qualifying_classification__count_qualifying_position: 3,
+      [PLANNED_INTEGRITY_FIELD]: true
+    }]);
+
+    const client = await pool.connect();
+    try {
+      const cases = [
+        {
+          sql: 'UPDATE qualifying_results SET qualifying_position = NULL WHERE season = 2025',
+          params: [] as unknown[],
+          database: {
+            ...reference,
+            qualifying_classification: reference.qualifying_classification!.map(row => ({
+              ...row, qualifying_position: null
+            }))
+          },
+          expected: [2, 0, true]
+        },
+        {
+          sql: 'DELETE FROM qualifying_results WHERE season = 2025',
+          params: [] as unknown[],
+          database: { ...reference, qualifying_classification: [] },
+          expected: [2, 0, false]
+        },
+        {
+          sql: 'UPDATE race_data SET position_number = 1 WHERE race_id = 9801 AND type = $1 AND driver_id = $2',
+          params: ['race', 'beta_driver'],
+          database: {
+            ...reference,
+            event_classification: reference.event_classification!.map(row =>
+              row.driver_id === 'beta-driver' ? { ...row, finishing_position: 1 } : row)
+          },
+          expected: [2, 3, true]
+        },
+        {
+          sql: 'UPDATE qualifying_results SET qualifying_position = 30 WHERE season = 2025 AND round = 1 AND driver_id = $1',
+          params: ['beta_driver'],
+          database: {
+            ...reference,
+            qualifying_classification: reference.qualifying_classification!.map(row =>
+              row.driver_id === 'beta-driver' ? { ...row, qualifying_position: 30 } : row)
+          },
+          expected: [2, 3, true]
+        },
+        {
+          sql: 'UPDATE qualifying_results SET qualifying_position = 31 WHERE season = 2025 AND round = 1 AND driver_id = $1',
+          params: ['beta_driver'],
+          database: {
+            ...reference,
+            qualifying_classification: reference.qualifying_classification!.map(row =>
+              row.driver_id === 'beta-driver' ? { ...row, qualifying_position: 31 } : row)
+          },
+          expected: [2, 3, false]
+        },
+        {
+          sql: `INSERT INTO qualifying_results
+            (season, round, driver_id, team_id, qualifying_position, session_type)
+            VALUES (2025, 1, 'beta-driver', 'planned-team', 3, 'RACE_QUALIFYING')`,
+          params: [] as unknown[],
+          database: {
+            ...reference,
+            qualifying_classification: [
+              ...reference.qualifying_classification!,
+              { season: 2025, round: 1, driver_id: 'beta-driver', qualifying_position: 3, classification_status: 'classified' }
+            ]
+          },
+          expected: [2, 4, false]
+        }
+      ] as const;
+      for (const item of cases) {
+        await client.query('BEGIN');
+        try {
+          await client.query(item.sql, item.params);
+          const actual = (await client.query(compiled.sql, compiled.params)).rows;
+          expect(actual).toEqual(interpretPlannedF1QL(core, item.database));
+          expect(actual).toEqual([{
+            event_classification__count_finishing_position: item.expected[0],
+            qualifying_classification__count_qualifying_position: item.expected[1],
+            [PLANNED_INTEGRITY_FIELD]: item.expected[2]
+          }]);
+        } finally {
+          await client.query('ROLLBACK');
+        }
+      }
+    } finally {
+      client.release();
+    }
   });
 
   it('matches PostgreSQL for a catalog-bound single-source aggregate rank', async () => {

@@ -1,6 +1,7 @@
 const STANDINGS = 'List driver and championship points from final 2025 driver standings.';
 const RACE_METADATA = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const UNFILTERED_COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
@@ -38,14 +39,14 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 43,
-    action_counts: { answer: 31, clarify: 5, abstain: 7 },
-    split_counts: { development: 28, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 44,
+    action_counts: { answer: 32, clarify: 5, abstain: 7 },
+    split_counts: { development: 29, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
       single_source_rows: 19,
       single_source_aggregate: 4,
       row_dimension_join: 6,
-      scalar_aggregate_compose: 2
+      scalar_aggregate_compose: 3
     },
     source_set_counts: {
       driver_standings: 8,
@@ -53,13 +54,13 @@ export const compositionalRegressionCorpusInput: unknown = {
       qualifying_classification: 4,
       event_metadata: 7,
       event_classification_event_metadata: 4,
-      event_classification_qualifying_classification: 2,
+      event_classification_qualifying_classification: 3,
       event_metadata_qualifying_classification: 2
     },
     plan_family_counts: {
       single_source: 23,
       safe_dimension_join: 6,
-      aggregate_locality: 2,
+      aggregate_locality: 3,
       other: 0
     },
     ambiguity_reason_counts: {
@@ -80,19 +81,19 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 28,
+      promoted_topology: 29,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
       plan_family_single_source: 23,
       plan_family_safe_dimension_join: 6,
-      plan_family_aggregate_locality: 2,
+      plan_family_aggregate_locality: 3,
       provider_admission: 1
     },
     risk_tag_counts: {
       clean: 1,
       aggregation: 4,
-      aggregate_locality: 2,
+      aggregate_locality: 3,
       join_cardinality: 6,
       resolver_event: 17,
       resolver_identity: 18,
@@ -527,6 +528,16 @@ export const compositionalRegressionCorpusInput: unknown = {
         driver_mentions: [{ text: 'Norris', candidates: ['historical-norris', 'lando-norris'], active_candidates: ['lando-norris'] }],
         event_resolution: { type: 'missing' }
       },
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'scalar_aggregate_compose',
+        source_ids: ['event_classification', 'qualifying_classification'], plan_family: 'aggregate_locality'
+      }
+    },
+    {
+      id: 'family-unfiltered-aggregate-locality', split: 'development', question: UNFILTERED_COMPOSE,
+      coverage_tags: ['promoted_topology', 'plan_family_aggregate_locality'],
+      risk_tags: ['aggregate_locality'], entities: [], provider_mode: 'enumerated',
+      resolver: noResolvers,
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'scalar_aggregate_compose',
         source_ids: ['event_classification', 'qualifying_classification'], plan_family: 'aggregate_locality'

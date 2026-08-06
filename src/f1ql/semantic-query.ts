@@ -389,7 +389,7 @@ export function enumerateSemanticQueries(
   const eventMetadataSource = eventMetadataSelection
     ? catalog.sources.find(source => source.id === 'event_metadata' && source.usage === 'answer_fact')
     : undefined;
-  const requestsEventScopeOutput = eventMetadataSelection && hasUnboundEventScopeKey(question);
+  const requestsEventScopeOutput = eventMetadataSelection && hasUnboundScopeKey(question);
   const eventScalarSelection = eventMetadataSelection && effectiveConceptMatches.length > 0 &&
     eventScalarConceptIds.size >= 1 && eventScalarConceptIds.size <= 3 &&
     effectiveConceptMatches.every(match => match.source_id === 'event_metadata' &&
@@ -1213,7 +1213,16 @@ function enumeratePromotedComposition(
   if (!compositionSupportsEntities(sources as SemanticCatalogSource[], entities)) {
     return [];
   }
+  const raceMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'event_metadata']);
+  const qualifyingMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_metadata', 'qualifying_classification']);
+  const rowJoin = raceMetadataJoin || qualifyingMetadataJoin;
+  const scalarCompose = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'qualifying_classification']);
   const selectedConceptMatches = conceptMatches.filter(match => sourceIds.includes(match.source_id));
+  if (scalarCompose && !hasExactScalarCompositionMeasureOccurrences(
+    selectedConceptMatches,
+    operations.count_spans,
+    sourceMatches
+  )) {return [];}
   const hasUnselectedSpecificConcept = conceptMatches.some(match => !sourceIds.includes(match.source_id) &&
     !selectedConceptMatches.some(selected => selected.span.start <= match.span.start && selected.span.end >= match.span.end));
   if (hasUnselectedSpecificConcept) {return [];}
@@ -1228,15 +1237,22 @@ function enumeratePromotedComposition(
   const matches = canonicalMatches.filter(match => !canonicalMatches.some(other =>
     other.span.start <= match.span.start && other.span.end >= match.span.end &&
     (other.span.start < match.span.start || other.span.end > match.span.end)));
-  const raceMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'event_metadata']);
-  const qualifyingMetadataJoin = stableSerialize(sourceIds) === stableSerialize(['event_metadata', 'qualifying_classification']);
-  const rowJoin = raceMetadataJoin || qualifyingMetadataJoin;
-  const scalarCompose = stableSerialize(sourceIds) === stableSerialize(['event_classification', 'qualifying_classification']);
   if (!rowJoin && !scalarCompose) {return [];}
   if (rowJoin && (operations.count || operations.rank || (question.rounds.length === 0 && !entities.some(entity => entity.type === 'event')))) {
     return [];
   }
-  if (scalarCompose && (!operations.count || operations.rank)) {return [];}
+  const scalarDrivers = entities.filter(entity => entity.type === 'driver');
+  if (scalarCompose && (!operations.count || operations.count_spans.length !== 2 || operations.rank || operations.limit ||
+      question.rounds.length !== 0 || operations.temporal.length !== 1 || operations.temporal[0].value !== 'final' ||
+      temporal[0].value !== 'final' || entities.some(entity => entity.type !== 'driver') || scalarDrivers.length > 1 ||
+      hasUnboundScopeKey(question) || hasScalarCompositionGroupingLanguage(question.normalized_question) ||
+      !hasLocallyBoundScalarCompositionClauses(matches, operations.count_spans, sourceMatches) || stableSerialize(matches.map(match =>
+        `${match.source_id}.${match.concept_id}`)) !== stableSerialize([
+        'event_classification.finishing_position',
+        'qualifying_classification.qualifying_position'
+      ]))) {
+    return [];
+  }
 
   let outputs: SemanticQuery['outputs'] = scalarCompose
     ? compositionAggregateOutputs(matches, operations, catalog)
@@ -1366,6 +1382,70 @@ function compositionSupportsEntities(
     : sources.some(source => source.scope.sessions.some(session => session === 'race' || session === 'qualifying')));
 }
 
+function hasLocallyBoundScalarCompositionClauses(
+  matches: readonly LexicalMatch[],
+  countSpans: readonly SemanticLiteralSpan[],
+  sourceMatches: readonly LexicalMatch[]
+): boolean {
+  if (matches.length !== 2 || countSpans.length !== 2) {return false;}
+  const selectedSourceIds = new Set(matches.map(match => match.source_id));
+  const uniqueSources = new Map(sourceMatches.filter(match => selectedSourceIds.has(match.source_id)).map(match => [
+    `${match.source_id}:${match.span.start}:${match.span.end}`,
+    match
+  ]));
+  return matches.every((match, index) => {
+    const count = countSpans[index];
+    const clauseEnd = countSpans[index + 1]?.start ?? Number.POSITIVE_INFINITY;
+    const clauseConcepts = matches.filter(candidate =>
+      candidate.span.start >= count.end && candidate.span.end <= clauseEnd);
+    const clauseSources = [...uniqueSources.values()].filter(source =>
+      source.span.start >= count.end && source.span.end <= clauseEnd);
+    return clauseConcepts.length === 1 && clauseConcepts[0] === match && clauseSources.length === 1 &&
+      clauseSources[0].source_id === match.source_id && match.span.end <= clauseSources[0].span.start;
+  });
+}
+
+function hasExactScalarCompositionMeasureOccurrences(
+  matches: readonly LexicalMatch[],
+  countSpans: readonly SemanticLiteralSpan[],
+  sourceMatches: readonly LexicalMatch[]
+): boolean {
+  const expected = [
+    ['event_classification', 'finishing_position'],
+    ['qualifying_classification', 'qualifying_position']
+  ] as const;
+  if (countSpans.length !== expected.length) {return false;}
+  return expected.every(([sourceId, conceptId], index) => {
+    const count = countSpans[index];
+    const clauseEnd = countSpans[index + 1]?.start ?? Number.POSITIVE_INFINITY;
+    const clauseSources = sourceMatches.filter(match => expected.some(([expectedSourceId]) =>
+      match.source_id === expectedSourceId) && match.span.start >= count.end && match.span.end <= clauseEnd);
+    if (clauseSources.length !== 1 || clauseSources[0].source_id !== sourceId) {return false;}
+    const rawMatches = matches.filter(match => match.source_id === sourceId && match.concept_id === conceptId &&
+      match.span.start >= count.end && match.span.end <= clauseEnd);
+    const occurrences = rawMatches.filter(match => !rawMatches.some(other =>
+      other.span.start <= match.span.start && other.span.end >= match.span.end &&
+      (other.span.start < match.span.start || other.span.end > match.span.end)));
+    const independentOccurrences = new Map(occurrences.map(match => [
+      `${match.span.start}:${match.span.end}`,
+      match
+    ]));
+    return independentOccurrences.size === 1 &&
+      [...independentOccurrences.values()][0].span.end <= clauseSources[0].span.start;
+  });
+}
+
+function hasScalarCompositionGroupingLanguage(question: string): boolean {
+  const dimension = '(?:drivers?|seasons?|rounds?|events?|races?|(?:finishing|qualifying)[\\s-]+positions?|qualifying(?:[\\s-]+(?:sessions?|classifications?))?|positions?)';
+  return new RegExp(
+    `\\b(?:(?:for[\\s-]+)?(?:all|each|every)[\\s-]+(?:of[\\s-]+the[\\s-]+)?${dimension}|` +
+      `per[\\s-]+${dimension}|by[\\s-]+${dimension}|` +
+      `(?:group(?:ed|ing)?|break(?:down|downs?))[\\s-]+by(?:[\\s-]+${dimension})?)\\b`,
+    'iu'
+  )
+    .test(question);
+}
+
 function candidateSetEvidence(
   question: AnswerQuestionContract,
   catalogHash: string,
@@ -1446,7 +1526,7 @@ function collectOperationEvidence(question: string, conceptMatches: readonly Lex
   };
 }
 
-function hasUnboundEventScopeKey(question: AnswerQuestionContract): boolean {
+function hasUnboundScopeKey(question: AnswerQuestionContract): boolean {
   const points = Array.from(question.normalized_question);
   const directlyAdjacent = (leftEnd: number, rightStart: number, allowHash = false) =>
     (allowHash ? /^\s*#?\s*$/u : /^\s*$/u).test(points.slice(leftEnd, rightStart).join(''));

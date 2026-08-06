@@ -48,6 +48,7 @@ const SELECTED_QUALIFYING_METADATA = 'List driver, qualifying position, race dat
 const RACE_CLASSIFICATION = 'List driver and finishing position from round 1 of final 2025 race classification.';
 const QUALIFYING_CLASSIFICATION = 'List driver and qualifying position from round 1 of final 2025 qualifying classification.';
 const COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const UNFILTERED_COMPOSE = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying classification.';
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
@@ -1300,6 +1301,49 @@ describe('generic proven semantic result formatting', () => {
         { source_id: 'event_classification', concept_id: 'driver_id', label: 'driver', operator: 'eq', values: ['lando-norris'] },
         { source_id: 'qualifying_classification', concept_id: 'driver_id', label: 'driver', operator: 'eq', values: ['lando-norris'] }
       ]);
+  });
+
+  it('formats the exact zero-driver dual count without changing result format v25', async () => {
+    const prepared = await prepare(UNFILTERED_COMPOSE);
+    const row = {
+      event_classification__count_finishing_position: 0,
+      qualifying_classification__count_qualifying_position: 0,
+      [PLANNED_INTEGRITY_FIELD]: true
+    };
+    const execution = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [row]);
+    expect(formatSemanticPlanResult(execution)).toMatchObject({
+      format_version: 'semantic-result-format-v25',
+      rows: [{
+        event_classification__count_finishing_position: 0,
+        qualifying_classification__count_qualifying_position: 0
+      }],
+      answer: { facts: [{
+        subject: 'result 1',
+        values: {
+          event_classification__count_finishing_position: '0',
+          qualifying_classification__count_qualifying_position: '0'
+        }
+      }] },
+      metadata: {
+        coverage: { status: 'sufficient', rows_returned: 1, row_limit: 1 },
+        ordering: [{
+          output_id: 'event_classification__count_finishing_position',
+          direction: 'asc', nulls: 'last'
+        }]
+      }
+    });
+    const formatted = formatSemanticPlanResult(execution);
+    expect(formatted.metadata.scope.filter(item => item.concept_id === 'driver_id')).toEqual([]);
+    expect(formatted.metadata.scope.filter(item => item.concept_id === 'season')).toEqual([
+      { source_id: 'event_classification', concept_id: 'season', label: 'season', operator: 'eq', values: [2025] },
+      { source_id: 'qualifying_classification', concept_id: 'season', label: 'season', operator: 'eq', values: [2025] }
+    ]);
+
+    const absentSource = await executeSemanticPlanRowsOffline(prepared.proof, prepared.profile_id, [{
+      ...row,
+      [PLANNED_INTEGRITY_FIELD]: false
+    }]);
+    expect(() => formatSemanticPlanResult(absentSource)).toThrow(SemanticResultFormatError);
   });
 
   it('formats only one complete integrity-clean scalar count of recorded qualifying positions', async () => {

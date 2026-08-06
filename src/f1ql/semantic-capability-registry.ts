@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEMANTIC_RESULT_COLLECTION_VERSION } from './planned-compiler';
 import { SEMANTIC_CATALOG, SEMANTIC_CATALOG_HASH } from './semantic-catalog';
 
-export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 26 as const;
+export const SEMANTIC_CAPABILITY_PROFILE_VERSION = 27 as const;
 
 const EVENT_METADATA_PROJECTION_SUBSETS = [
   ['date'],
@@ -537,23 +537,43 @@ export const SEMANTIC_CAPABILITY_PROFILES = deepFreeze([
     output_kinds: ['composed_aggregate'],
     sort_directions: ['asc', 'desc'],
     null_orders: ['first', 'last'],
-    complete_interactions: [{
-      predicate_bindings: [
-        'event_classification.driver_id:eq', 'event_classification.season:eq',
-        'qualifying_classification.driver_id:eq', 'qualifying_classification.season:eq'
-      ],
-      aggregate_bindings: [
-        'event_classification.finishing_position:count->count_finishing_position',
-        'qualifying_classification.qualifying_position:count->count_qualifying_position'
-      ],
-      group_bindings: [],
-      output_bindings: [
-        'composed_aggregate:event_classification.count_finishing_position->event_classification__count_finishing_position',
-        'composed_aggregate:qualifying_classification.count_qualifying_position->qualifying_classification__count_qualifying_position'
-      ],
-      sort_bindings: ['event_classification__count_finishing_position:asc:last'],
-      requested_rows: 1
-    }],
+    complete_interactions: [
+      {
+        predicate_bindings: [
+          'event_classification.driver_id:eq', 'event_classification.season:eq',
+          'qualifying_classification.driver_id:eq', 'qualifying_classification.season:eq'
+        ],
+        aggregate_bindings: [
+          'event_classification.finishing_position:count->count_finishing_position',
+          'qualifying_classification.qualifying_position:count->count_qualifying_position'
+        ],
+        group_bindings: [],
+        output_bindings: [
+          'composed_aggregate:event_classification.count_finishing_position->event_classification__count_finishing_position',
+          'composed_aggregate:qualifying_classification.count_qualifying_position->qualifying_classification__count_qualifying_position'
+        ],
+        sort_bindings: ['event_classification__count_finishing_position:asc:last'],
+        requested_rows: 1
+      },
+      {
+        entity_count: { min: 0, max: 0 },
+        predicate_bindings: [
+          'event_classification.season:eq',
+          'qualifying_classification.season:eq'
+        ],
+        aggregate_bindings: [
+          'event_classification.finishing_position:count->count_finishing_position',
+          'qualifying_classification.qualifying_position:count->count_qualifying_position'
+        ],
+        group_bindings: [],
+        output_bindings: [
+          'composed_aggregate:event_classification.count_finishing_position->event_classification__count_finishing_position',
+          'composed_aggregate:qualifying_classification.count_qualifying_position->qualifying_classification__count_qualifying_position'
+        ],
+        sort_bindings: ['event_classification__count_finishing_position:asc:last'],
+        requested_rows: 1
+      }
+    ],
     ...catalogConceptAllowlist(['event_classification', 'qualifying_classification']),
     principal_classes: ['internal', 'internal_canary'],
     canary_stages: [100],

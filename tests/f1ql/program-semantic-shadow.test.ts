@@ -22,6 +22,43 @@ const SCALAR_COUNT_QUESTION = 'Show count of qualifying position in final 2025 q
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Lando Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Lando Norris in final 2025 qualifying classification.';
+const UNFILTERED_DUAL_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
+const UNSUPPORTED_DUAL_COUNT_QUESTIONS = [
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per driver in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each driver in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for all drivers in final 2025.',
+  'Show driver, count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position and race classification status from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of qualifying position from qualifying classification and count of finishing position from race classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for round 1 in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification at Monaco in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification in latest recorded 2026.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification in interim 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Lando Norris and Oscar Piastri in final 2025.',
+  'Show season and count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show round and count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each season in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each round in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per event in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by race in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification grouped by qualifying in final 2025.',
+  'Show count of finishing position from qualifying classification and count of qualifying position from race classification in final 2025.',
+  'Show count of finishing position and count of qualifying position from race classification and qualifying classification in final 2025.',
+  'From race classification and qualifying classification, show count of finishing position and count of qualifying position in final 2025.',
+  'Show count of finishing position and finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position and qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by qualifying position in final 2025.',
+  'Show count of finishing position from race classification and finishing position and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification and qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by positions in final 2025.'
+] as const;
 const SINGLETON_STANDINGS_POSITION_QUESTION = 'List driver and championship position for Lando Norris from final 2025 driver standings.';
 const SINGLETON_STANDINGS_SUMMARY_QUESTION = 'List driver, championship position, and championship points for Lando Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION_QUESTION = 'List driver and championship position for Charles Leclerc, George Russell, Lando Norris, Oscar Piastri from final 2025 driver standings.';
@@ -297,10 +334,50 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
+  it.each(UNSUPPORTED_DUAL_COUNT_QUESTIONS)(
+    'rejects broader or reordered dual counts before provider or result execution: %s', async question => {
+    const fake = fakePool(async sql => {
+      if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped) {
+        return { rows: [
+          { driver_id: 'lando-norris', identity: 'Lando Norris', participation_source: 'entrant' },
+          { driver_id: 'oscar-piastri', identity: 'Oscar Piastri', participation_source: 'entrant' }
+        ] };
+      }
+      if (sql === SEMANTIC_SHADOW_RESOLVER_STATEMENTS.event_name) {
+        return { rows: [{ season: 2025, round: 8, identity: 'Monaco' }] };
+      }
+      return { rows: [] };
+    });
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: {
+        mode: 'semantic_shadow', rollout_stage: 0,
+        observation: {
+          outcome: 'abstain', result_query_calls: 0
+        }
+      }
+    });
+    expect(providerCalls).toBe(0);
+    expect(executionAttempts).toBe(0);
+  });
+
   it.each([
-    ['qualifying', SCALAR_COUNT_QUESTION],
-    ['race', RACE_SCALAR_COUNT_QUESTION]
-  ])('proves a scalar %s count without result execution', async (_source, question) => {
+    ['qualifying', SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
+    ['race', RACE_SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
+    ['dual classification', UNFILTERED_DUAL_COUNT_QUESTION, 'scalar_aggregate_compose']
+  ])('proves a scalar %s count without result execution', async (_source, question, topology) => {
     const fake = fakePool();
     let providerCalls = 0;
     let executionAttempts = 0;
@@ -316,7 +393,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(response).toMatchObject({
       status: 200,
       body: { observation: {
-        outcome: 'answer', reason: 'plan_proven', topology_code: 'single_source_aggregate',
+        outcome: 'answer', reason: 'plan_proven', topology_code: topology,
         result_query_calls: 0
       } }
     });

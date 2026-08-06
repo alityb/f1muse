@@ -27,6 +27,43 @@ const RACE_QUESTION = 'List driver and finishing position for round 1 of the fin
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
+const UNFILTERED_RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
+const UNSUPPORTED_DUAL_COUNT_QUESTIONS = [
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per driver in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each driver in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for all drivers in final 2025.',
+  'Show driver, count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position and race classification status from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of qualifying position from qualifying classification and count of finishing position from race classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for round 1 in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification at Monaco in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification in latest recorded 2026.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification in interim 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Lando Norris and Oscar Piastri in final 2025.',
+  'Show season and count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show round and count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each season in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each round in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per event in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by race in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification grouped by qualifying in final 2025.',
+  'Show count of finishing position from qualifying classification and count of qualifying position from race classification in final 2025.',
+  'Show count of finishing position and count of qualifying position from race classification and qualifying classification in final 2025.',
+  'From race classification and qualifying classification, show count of finishing position and count of qualifying position in final 2025.',
+  'Show count of finishing position and finishing position from race classification and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position and qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by finishing position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by qualifying position in final 2025.',
+  'Show count of finishing position from race classification and finishing position and count of qualifying position from qualifying classification in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification and qualifying position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification per position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification for each position in final 2025.',
+  'Show count of finishing position from race classification and count of qualifying position from qualifying classification by positions in final 2025.'
+] as const;
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
@@ -415,6 +452,49 @@ describe('semantic query candidates and independent evidence', () => {
     ]);
   });
 
+  it('enumerates the exact zero-driver aggregate-locality composition', () => {
+    const aggregate = candidateEvidence(UNFILTERED_RACE_QUALIFYING_COUNT_QUESTION).candidates[0];
+    expect(aggregate).toMatchObject({
+      outputs: [
+        {
+          kind: 'aggregate', function: 'count',
+          concept: { source_id: 'event_classification', concept_id: 'finishing_position' }
+        },
+        {
+          kind: 'aggregate', function: 'count',
+          concept: { source_id: 'qualifying_classification', concept_id: 'qualifying_position' }
+        }
+      ],
+      entities: [],
+      filters: [],
+      group_by: [],
+      comparison: { relation: 'count' },
+      order_by: []
+    });
+    expect(aggregate.limit).toBeUndefined();
+    expect(aggregate.scopes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'season', value: 2025 }),
+      expect.objectContaining({ kind: 'temporal', value: 'final' }),
+      expect.objectContaining({ kind: 'session', source_id: 'event_classification', value: 'race' }),
+      expect.objectContaining({ kind: 'session', source_id: 'qualifying_classification', value: 'qualifying' })
+    ]));
+  });
+
+  it.each(UNSUPPORTED_DUAL_COUNT_QUESTIONS)(
+    'refuses broader or reordered dual classification counts before planning: %s', question => {
+    const inventory = [
+      ...['Lando Norris', 'Oscar Piastri'].filter(name => question.includes(name)).map(text => ({
+        type: 'driver' as const,
+        span: span(question, text)
+      })),
+      ...['Monaco'].filter(name => question.includes(name)).map(text => ({
+        type: 'event' as const,
+        span: span(question, text)
+      }))
+    ];
+    expect(enumerateSemanticQueries(question, inventory)).toMatchObject({ type: 'abstention' });
+  });
+
   it.each([
     ['race date', ['date']],
     ['circuit identifier', ['circuit_id']],
@@ -603,21 +683,13 @@ describe('semantic query candidates and independent evidence', () => {
     });
   });
 
-  it('does not collapse multi-source entity attachment or entity-type ambiguity', () => {
+  it('refuses multi-driver scalar attachment and preserves row-join entity-type ambiguity', () => {
     const attached = 'Show count of finishing position for Norris from race classification and count of qualifying position for Piastri from qualifying classification in final 2025.';
     const attachedEvidence = enumerateSemanticQueries(attached, [
       { type: 'driver', span: span(attached, 'Norris') },
       { type: 'driver', span: span(attached, 'Piastri') }
     ]);
-    expect(attachedEvidence).toMatchObject({ type: 'candidate_set', ambiguity_reason: 'attachment_ambiguous' });
-    if (attachedEvidence.type !== 'candidate_set') throw new Error('missing attachment candidates');
-    const attachedAlternative = structuredClone(attachedEvidence.candidates[0]);
-    attachedAlternative.filters = attachedAlternative.filters.map((filter, index) => filter.kind === 'entity'
-      ? { ...filter, operator: 'eq', entity_indices: [index], evidence: [attachedAlternative.entities[index].span] }
-      : filter);
-    expect(admitSemanticQueryCandidates({ version: 2, candidates: [attachedAlternative] }, attached, attachedEvidence)).toMatchObject({
-      type: 'clarification_required', reason: 'attachment_ambiguous'
-    });
+    expect(attachedEvidence).toMatchObject({ type: 'abstention', reason: 'unsupported_source_combination' });
 
     const ambiguous = 'List finishing position and event name from final 2025 race classification and event metadata at Monaco.';
     const monaco = span(ambiguous, 'Monaco');
