@@ -426,7 +426,7 @@ export function enumerateSemanticQueries(
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   if (compatibleSourceIds.length === 1 && compatibleSourceIds[0] === 'event_classification' && operations.rank &&
-      !racePositionRanking) {
+      !operations.count && !racePositionRanking) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
   if (compatibleSourceIds.length === 1 && compatibleSourceIds[0] === 'qualifying_classification' && operations.rank &&
@@ -481,7 +481,7 @@ export function enumerateSemanticQueries(
 
   const unique = new Map(candidates.map(candidate => [computeSemanticQueryHash(candidate), candidate]));
   const sorted = [...unique.values()].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
-  if (operations.count && operations.rank && !isPromotedQualifyingCountRanking(
+  if (operations.count && operations.rank && !isPromotedClassificationPositionCountRanking(
     question,
     entities,
     sourceMatches,
@@ -520,7 +520,7 @@ export function enumerateSemanticQueries(
   }));
 }
 
-function isPromotedQualifyingCountRanking(
+function isPromotedClassificationPositionCountRanking(
   question: AnswerQuestionContract,
   entities: readonly SemanticEntityInventoryItem[],
   sourceMatches: readonly LexicalMatch[],
@@ -528,6 +528,28 @@ function isPromotedQualifyingCountRanking(
   operations: OperationEvidence,
   candidates: readonly SemanticQuery[]
 ): boolean {
+  return ([
+    {
+      source_id: 'event_classification', position_id: 'finishing_position', session: 'race'
+    },
+    {
+      source_id: 'qualifying_classification', position_id: 'qualifying_position', session: 'qualifying'
+    }
+  ] as const).some(specification => matchesPromotedClassificationPositionCountRanking(
+    specification, question, entities, sourceMatches, conceptMatches, operations, candidates
+  ));
+}
+
+function matchesPromotedClassificationPositionCountRanking(
+  specification: { readonly source_id: string; readonly position_id: string; readonly session: 'qualifying' | 'race' },
+  question: AnswerQuestionContract,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  candidates: readonly SemanticQuery[]
+): boolean {
+  const { source_id: sourceId, position_id: positionId, session } = specification;
   const questionShapeMatches = [
     question.years.length === 1,
     question.rounds.length === 0,
@@ -542,9 +564,9 @@ function isPromotedQualifyingCountRanking(
     candidates.length === 1,
     sourceMatches.length === 1,
     stableSerialize([...new Set(sourceMatches.map(match => match.source_id))]) ===
-      stableSerialize(['qualifying_classification']),
-    independentConceptOccurrenceCount(conceptMatches, 'qualifying_classification', 'driver_id') === 1,
-    independentConceptOccurrenceCount(conceptMatches, 'qualifying_classification', 'qualifying_position') === 1
+      stableSerialize([sourceId]),
+    independentConceptOccurrenceCount(conceptMatches, sourceId, 'driver_id') === 1,
+    independentConceptOccurrenceCount(conceptMatches, sourceId, positionId) === 1
   ].every(Boolean);
   if (!questionShapeMatches) {
     return false;
@@ -554,19 +576,19 @@ function isPromotedQualifyingCountRanking(
     stableSerialize(candidate.outputs.map(output => output.kind === 'aggregate'
       ? `${output.concept.source_id}.${output.concept.concept_id}:${output.function}`
       : `${output.concept.source_id}.${output.concept.concept_id}`)) === stableSerialize([
-      'qualifying_classification.driver_id',
-      'qualifying_classification.qualifying_position:count'
+      `${sourceId}.driver_id`,
+      `${sourceId}.${positionId}:count`
     ]),
     candidate.scopes.filter(scope => scope.kind === 'season').length === 1,
     candidate.scopes.some(scope => scope.kind === 'session' &&
-      scope.source_id === 'qualifying_classification' && scope.value === 'qualifying'),
+      scope.source_id === sourceId && scope.value === session),
     candidate.scopes.some(scope => scope.kind === 'temporal' && scope.value === 'final'),
     !candidate.scopes.some(scope => scope.kind === 'round' || scope.kind === 'event'),
     candidate.entities.length === 0,
     candidate.filters.length === 0,
     stableSerialize(candidate.group_by.map(group =>
       `${group.concept.source_id}.${group.concept.concept_id}`)) ===
-      stableSerialize(['qualifying_classification.driver_id']),
+      stableSerialize([`${sourceId}.driver_id`]),
     candidate.comparison?.relation === 'rank',
     stableSerialize(candidate.order_by.map(order => `${order.output_index}:${order.direction}`)) ===
       stableSerialize(['1:desc']),

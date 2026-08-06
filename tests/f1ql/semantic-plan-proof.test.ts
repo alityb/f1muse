@@ -32,6 +32,7 @@ const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race c
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
 const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_COUNT_RANK = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -72,6 +73,7 @@ describe('independent semantic whole-plan proof', () => {
     ['single-source scalar aggregate', SCALAR_COUNT, []],
     ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
     ['single-source grouped qualifying count rank', QUALIFYING_COUNT_RANK, []],
+    ['single-source grouped race count rank', RACE_COUNT_RANK, []],
     ['single-source event date and name', EVENT_DATE_NAME, []],
     ['single-source event date and circuit', EVENT_DATE_CIRCUIT, []],
     ['single-source event name and circuit', EVENT_NAME_CIRCUIT, []],
@@ -204,17 +206,19 @@ describe('independent semantic whole-plan proof', () => {
     ['identity tie break', (plan: any) => { plan.planned_f1ql.root.input.keys[1].direction = 'desc'; }],
     ['season predicate', (plan: any) => { plan.planned_f1ql.root.input.input.input.input.predicates[0].value = 2024; }],
     ['limit', (plan: any) => { plan.planned_f1ql.root.count = 9; }]
-  ])('rejects independently reconstructed qualifying-count rank mutation: %s', async (_name, mutate) => {
-    const prepared = await prepare(QUALIFYING_COUNT_RANK, [], []);
-    const mutated: any = structuredClone(prepared.plan);
-    mutate(mutated);
-    expect(() => proveSemanticAnswerPlan({
-      question: QUALIFYING_COUNT_RANK,
-      evidence: prepared.evidence,
-      admission: prepared.admission,
-      resolution: prepared.resolution,
-      plan: mutated
-    })).toThrow('plan_mismatch');
+  ])('rejects independently reconstructed classification-count rank mutation: %s', async (_name, mutate) => {
+    for (const question of [RACE_COUNT_RANK, QUALIFYING_COUNT_RANK]) {
+      const prepared = await prepare(question, [], []);
+      const mutated: any = structuredClone(prepared.plan);
+      mutate(mutated);
+      expect(() => proveSemanticAnswerPlan({
+        question,
+        evidence: prepared.evidence,
+        admission: prepared.admission,
+        resolution: prepared.resolution,
+        plan: mutated
+      })).toThrow('plan_mismatch');
+    }
   });
 
   it('re-enumerates complete active evidence and rejects copied or mismatched inventories', async () => {

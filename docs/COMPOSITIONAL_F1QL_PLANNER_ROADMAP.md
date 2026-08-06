@@ -810,20 +810,23 @@ positions are valid because no sporting rank is inferred. Multi-driver classific
 filters, event, status, or position filters,
 all other grouped or ranked counts, alternate aggregates, broader output,
 latest-recorded scope, and caller limits remain refused.
-One exact grouped qualifying-count ranking is implemented locally for one final
-historical season from 1950 through 2025. It accepts zero entities and exactly
-the caller-grounded `top 10` limit, groups qualifying classification by
-`driver_id`, returns `driver_id` followed by `COUNT(qualifying_position)`, and
-orders count descending then C-collated driver identity ascending. The count is
-non-null recorded qualifying-position rows, not appearances, events, poles,
-top-ten finishes, or complete participation. Integrity-clean all-null driver
-rows produce zero; absent source evidence, duplicate event-driver grain, or
-positions outside 1 through 30 fail closed. Equal counts are valid and driver
-identity only stabilizes their presentation and the cutoff. Every other or
-missing limit, contradictory return-all wording, selected-driver, race-source,
-event/round-scoped, filtered, alternate-grouped, alternate-aggregate,
-broader-output, comparison, latest-recorded, and interim variant remains
-refused before provider invocation.
+Two exact grouped classification-position count rankings are implemented
+locally for one final historical season from 1950 through 2025. Each accepts
+zero entities and exactly the caller-grounded `top 10` limit. The race form
+groups `event_classification` by `driver_id` and returns `driver_id` followed by
+`COUNT(finishing_position)`; the qualifying form uses
+`qualifying_classification` and `COUNT(qualifying_position)`. Both order count
+descending then C-collated driver identity ascending. Counts include non-null
+recorded positions only. The race count is not starts, events, wins, classified
+finishes, or complete participation; the qualifying count is not appearances,
+events, poles, top-ten finishes, or complete participation. Integrity-clean
+all-null driver rows produce zero; absent source evidence, duplicate
+event-driver grain, or positions outside 1 through 30 fail closed. Equal counts
+are valid and driver identity only stabilizes presentation and the cutoff.
+Every other or missing limit, contradictory return-all wording, selected-driver,
+cross-wired source-position pair, event/round-scoped, filtered,
+alternate-grouped, alternate-aggregate, broader-output, comparison,
+latest-recorded, and interim variant remains refused before provider invocation.
 One unfiltered aggregate-locality composition is also implemented locally for one
 final historical season. Race `COUNT(finishing_position)` and qualifying
 `COUNT(qualifying_position)` are computed independently at their governed source

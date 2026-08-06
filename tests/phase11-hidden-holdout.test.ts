@@ -159,6 +159,35 @@ describe('Phase 11 guarded hidden holdout', () => {
     );
   });
 
+  it('recognizes a race grouped aggregate rank before enforcing hidden structure independence', async () => {
+    const payload: any = validPayload();
+    const question = 'Show top 10 drivers by count of finishing position in final 2024 race classification.';
+    payload.cases[0] = {
+      ...payload.cases[0],
+      id: 'hidden-race-count-ranking-2024',
+      question,
+      question_sha256: createAnswerQuestionContract(question).sha256,
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
+        source_ids: ['event_classification'], plan_family: 'single_source'
+      },
+      structure: {
+        template_free: true,
+        held_out_dimensions: ['season', 'wording', 'composition'],
+        topology: 'single_source_aggregate',
+        source_ids: ['event_classification'],
+        operations: ['source', 'filter', 'aggregate', 'project', 'sort', 'limit'],
+        output_concept_ids: [
+          'event_classification.driver_id',
+          'event_classification.finishing_position'
+        ]
+      }
+    };
+    await expect(evaluateHiddenHoldout(decodeCanonicalPayload(payload))).rejects.toEqual(
+      expect.objectContaining({ code: 'public_plan_structure_overlap' })
+    );
+  });
+
   it('recognizes the race-source scalar aggregate before enforcing hidden structure independence', async () => {
     const payload: any = validPayload();
     const question = 'Show count of finishing position in final 2024 race classification.';

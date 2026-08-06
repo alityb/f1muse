@@ -7,6 +7,7 @@ const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race c
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
 const QUALIFYING_COUNT_RANKING = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_COUNT_RANKING = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const HOLDOUT_STANDINGS = 'Give driver and championship points from 2024 final driver standings.';
 const HOLDOUT_RACE_METADATA = 'Give driver and finishing position, event name, and circuit identifier for round 2 of final 2024 race classification and event metadata.';
 const HOLDOUT_COMPOSE = 'In final 2024, show count of finishing position from race classification and count of qualifying position from qualifying classification for Piastri.';
@@ -40,18 +41,18 @@ const noResolvers = {
 export const compositionalRegressionCorpusInput: unknown = {
   version: 1,
   expected_coverage: {
-    cases_total: 45,
-    action_counts: { answer: 33, clarify: 5, abstain: 7 },
-    split_counts: { development: 30, public_holdout: 3, ambiguity: 5, abstention: 7 },
+    cases_total: 46,
+    action_counts: { answer: 34, clarify: 5, abstain: 7 },
+    split_counts: { development: 31, public_holdout: 3, ambiguity: 5, abstention: 7 },
     topology_counts: {
       single_source_rows: 19,
-      single_source_aggregate: 5,
+      single_source_aggregate: 6,
       row_dimension_join: 6,
       scalar_aggregate_compose: 3
     },
     source_set_counts: {
       driver_standings: 8,
-      event_classification: 4,
+      event_classification: 5,
       qualifying_classification: 5,
       event_metadata: 7,
       event_classification_event_metadata: 4,
@@ -59,7 +60,7 @@ export const compositionalRegressionCorpusInput: unknown = {
       event_metadata_qualifying_classification: 2
     },
     plan_family_counts: {
-      single_source: 24,
+      single_source: 25,
       safe_dimension_join: 6,
       aggregate_locality: 3,
       other: 0
@@ -82,23 +83,23 @@ export const compositionalRegressionCorpusInput: unknown = {
       unsupported_scope: 1
     },
     coverage_tag_counts: {
-      promoted_topology: 30,
+      promoted_topology: 31,
       public_holdout: 3,
       ambiguity: 5,
       abstention: 7,
-      plan_family_single_source: 24,
+      plan_family_single_source: 25,
       plan_family_safe_dimension_join: 6,
       plan_family_aggregate_locality: 3,
       provider_admission: 1
     },
     risk_tag_counts: {
       clean: 1,
-      aggregation: 5,
+      aggregation: 6,
       aggregate_locality: 3,
       join_cardinality: 6,
       resolver_event: 17,
       resolver_identity: 18,
-      template_free: 27,
+      template_free: 28,
       metric_ambiguity: 1,
       output_shape_ambiguity: 1,
       scope_ambiguity: 1,
@@ -592,6 +593,15 @@ export const compositionalRegressionCorpusInput: unknown = {
       expected: {
         action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
         source_ids: ['qualifying_classification'], plan_family: 'single_source'
+      }
+    },
+    {
+      id: 'family-race-count-ranking', split: 'development', question: RACE_COUNT_RANKING,
+      coverage_tags: ['promoted_topology', 'plan_family_single_source'],
+      risk_tags: ['aggregation', 'template_free'], entities: [], provider_mode: 'enumerated', resolver: noResolvers,
+      expected: {
+        action: 'answer', reason: 'semantic_plan_proven', topology: 'single_source_aggregate',
+        source_ids: ['event_classification'], plan_family: 'single_source'
       }
     },
     {

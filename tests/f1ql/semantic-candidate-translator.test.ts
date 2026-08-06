@@ -39,6 +39,7 @@ const QUALIFYING_METADATA = 'List driver, qualifying position, and race date for
 const RACE_QUALIFYING = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const UNFILTERED_RACE_QUALIFYING = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const QUALIFYING_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_COUNT_RANK = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const EVENT_DATE_CIRCUIT = 'List race date and circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_NAME_CIRCUIT = 'List event name and circuit identifier from round 1 of final 2025 event metadata.';
 const EVENT_ALL_METADATA = 'List race date, event name, and circuit identifier from round 1 of final 2025 event metadata.';
@@ -58,6 +59,7 @@ describe('semantic candidate translator foundation', () => {
       { question: RACE_QUALIFYING, entities: [{ type: 'driver', span: span(RACE_QUALIFYING, 'Norris') }] },
       { question: UNFILTERED_RACE_QUALIFYING, entities: [] },
       { question: QUALIFYING_RANK, entities: [] },
+      { question: RACE_COUNT_RANK, entities: [] },
       { question: EVENT_DATE_CIRCUIT, entities: [] },
       { question: EVENT_NAME_CIRCUIT, entities: [] },
       { question: EVENT_ALL_METADATA, entities: [] }
@@ -176,13 +178,13 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('never derive rank from best time, grid position, status, sprint qualifying, or driver identity');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('exact zero-driver request to show top 10 drivers by count of qualifying position');
+      .toContain('either exact zero-driver request to show top 10 drivers by count of recorded position');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('emit exactly driver_id followed by COUNT(qualifying_position), group by driver_id, rank by the count descending, and set the limit to exactly 10');
+      .toContain('race classification emits exactly driver_id followed by COUNT(finishing_position)');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('Driver identity only stabilizes equal counts and the top-10 cutoff');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
-      .toContain('Do not extend this rule to any other limit, no limit, selected drivers, race classification');
+      .toContain('Do not cross-wire the position and classification source');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('exact zero-driver composition that requests count of finishing position from race classification and count of qualifying position from qualifying classification');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)

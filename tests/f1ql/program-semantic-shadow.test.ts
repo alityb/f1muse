@@ -23,6 +23,7 @@ const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 20
 const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Lando Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Lando Norris in final 2025 qualifying classification.';
 const QUALIFYING_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS = [
   'Show top 9 drivers by count of qualifying position in final 2025 qualifying classification.',
   'Rank drivers by count of qualifying position in final 2025 qualifying classification.',
@@ -33,6 +34,22 @@ const UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS = [
   'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification and return all.',
   'Show top 10 drivers by count of qualifying position for each qualifying classification in final 2025 qualifying classification.',
   'Show top 10 drivers by count of qualifying position in latest recorded 2026 qualifying classification.'
+] as const;
+const UNSUPPORTED_RACE_COUNT_RANKING_QUESTIONS = [
+  'Show top 9 drivers by count of finishing position in final 2025 race classification.',
+  'Show top 11 drivers by count of finishing position in final 2025 race classification.',
+  'Rank drivers by count of finishing position in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position in round 1 of final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position in final 2025 qualifying classification.',
+  'Show top 10 drivers by count of finishing position for Lando Norris in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position and finishing position in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position in final 2025 race classification and return all.',
+  'Show top 10 drivers by count of finishing position for each finishing position in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position in final 2025 race classification and race classification.',
+  'Show top 10 drivers by maximum finishing position in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position with classified status in final 2025 race classification.',
+  'Show top 10 drivers by count of finishing position in latest recorded 2026 race classification.',
+  'Show top 10 drivers by count of finishing position in interim 2025 race classification.'
 ] as const;
 const UNFILTERED_DUAL_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const UNSUPPORTED_DUAL_COUNT_QUESTIONS = [
@@ -389,6 +406,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
     ['qualifying', SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
     ['race', RACE_SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
     ['qualifying count ranking', QUALIFYING_COUNT_RANKING_QUESTION, 'single_source_aggregate'],
+    ['race count ranking', RACE_COUNT_RANKING_QUESTION, 'single_source_aggregate'],
     ['dual classification', UNFILTERED_DUAL_COUNT_QUESTION, 'scalar_aggregate_compose']
   ])('proves an unfiltered %s plan without result execution', async (_source, question, topology) => {
     const fake = fakePool();
@@ -420,8 +438,11 @@ describe('WP8 stage-zero semantic shadow route', () => {
     expect(executionAttempts).toBe(0);
   });
 
-  it.each(UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS)(
-    'rejects an adjacent qualifying-count ranking before provider or result execution: %s', async question => {
+  it.each([
+    ...UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS,
+    ...UNSUPPORTED_RACE_COUNT_RANKING_QUESTIONS
+  ])(
+    'rejects an adjacent classification-count ranking before provider or result execution: %s', async question => {
     const fake = fakePool();
     let providerCalls = 0;
     let executionAttempts = 0;

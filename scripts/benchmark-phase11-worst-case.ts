@@ -61,7 +61,8 @@ const hashSetSchema = z.object({
 }).strict();
 const workloadSchema = z.object({
   id: z.enum([
-    'maximum_rows_standings', 'single_source_grouped_aggregate_rank', 'maximum_rows_safe_join',
+    'maximum_rows_standings', 'single_source_grouped_aggregate_rank',
+    'single_source_race_grouped_aggregate_rank', 'maximum_rows_safe_join',
     'maximum_work_and_resolver_compose'
   ]),
   family: familySchema,
@@ -102,13 +103,13 @@ const definitionsSchema = z.object({
     maximum_rows: z.literal(PLANNED_F1QL_MAX_ROWS),
     maximum_resolver_candidates_per_mention: z.literal(SEMANTIC_RESOLVER_MAX_CANDIDATES)
   }).strict(),
-  workloads: z.array(workloadSchema).length(4)
+  workloads: z.array(workloadSchema).length(5)
 }).strict().superRefine((definitions, context) => {
   const workloads = definitions.workloads;
   if (new Set(workloads.map(item => item.id)).size !== workloads.length ||
       new Set(workloads.map(item => item.family)).size !== familySchema.options.length ||
-      new Set(workloads.map(item => item.boundary)).size !== workloads.length) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: 'benchmark workloads, families, and boundaries must be unique' });
+      new Set(workloads.map(item => item.boundary)).size !== 4) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'benchmark workload IDs and required families or boundaries are incomplete' });
   }
   if (Math.max(...workloads.map(item => item.expected.work_units)) !== PLANNED_F1QL_MAX_WORK_UNITS ||
       Math.max(...workloads.map(item => item.expected.requested_rows)) !== PLANNED_F1QL_MAX_ROWS ||
@@ -257,6 +258,18 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         family: 'single_source',
         boundary: 'promoted_topology',
         question: 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.',
+        entities: [],
+        resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
+        expected: {
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: 10,
+          resolver_candidates: 0, reference_rows: 10, hashes: hashes()
+        }
+      },
+      {
+        id: 'single_source_race_grouped_aggregate_rank',
+        family: 'single_source',
+        boundary: 'promoted_topology',
+        question: 'Show top 10 drivers by count of finishing position in final 2025 race classification.',
         entities: [],
         resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
         expected: {
@@ -522,6 +535,7 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
   if (id === 'maximum_rows_standings') {return standingsReferenceDatabase();}
   if (id === 'maximum_rows_safe_join') {return safeJoinReferenceDatabase();}
   if (id === 'single_source_grouped_aggregate_rank') {return groupedQualifyingCountReferenceDatabase();}
+  if (id === 'single_source_race_grouped_aggregate_rank') {return groupedRaceCountReferenceDatabase();}
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -548,6 +562,19 @@ function groupedQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
         eliminated_in_round: null,
         classification_status: 'classified'
       })))
+  };
+}
+
+function groupedRaceCountReferenceDatabase(): PlannedReferenceDatabase {
+  const counts = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 5];
+  return {
+    event_classification: counts.flatMap((count, driverIndex) =>
+      Array.from({ length: count }, (_unused, roundIndex) =>
+        raceRow(
+          roundIndex + 1,
+          `benchmark-driver-${String(driverIndex + 1).padStart(3, '0')}`,
+          roundIndex + 1
+        )))
   };
 }
 

@@ -64,11 +64,47 @@ function qualifyingRankPlan() {
 }
 
 function qualifyingPositionCountRankPlan() {
-  const plan = structuredClone(qualifyingRankPlan());
-  plan.root.input.input.input.input.predicates = [
-    predicate('qualifying_classification', 'season', 2025)
-  ];
-  return plan;
+  return classificationPositionCountRankPlan('qualifying_classification');
+}
+
+function racePositionCountRankPlan() {
+  return classificationPositionCountRankPlan('event_classification');
+}
+
+function classificationPositionCountRankPlan(
+  sourceId: 'event_classification' | 'qualifying_classification'
+) {
+  const positionId = sourceId === 'event_classification' ? 'finishing_position' : 'qualifying_position';
+  const countId = `count_${positionId}`;
+  return {
+    kind: 'internal_planned_f1ql', version: 2, catalog_hash: SEMANTIC_CATALOG_HASH,
+    root: {
+      op: 'limit', count: 10,
+      input: {
+        op: 'sort',
+        keys: [
+          { output_id: countId, direction: 'desc', nulls: 'last' },
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
+        ],
+        input: {
+          op: 'project',
+          input: {
+            op: 'aggregate',
+            input: {
+              op: 'filter', input: { op: 'source', source_id: sourceId },
+              predicates: [predicate(sourceId, 'season', 2025)]
+            },
+            group_by: [ref(sourceId, 'driver_id')],
+            measures: [{ concept: ref(sourceId, positionId), function: 'count', as: countId }]
+          },
+          outputs: [
+            { kind: 'concept', concept: ref(sourceId, 'driver_id'), as: 'driver_id' },
+            { kind: 'aggregate', measure_as: countId, as: countId }
+          ]
+        }
+      }
+    }
+  };
 }
 
 function raceMetadataPlan() {
@@ -2496,6 +2532,88 @@ describe('internal planned F1QL and Core pipeline', () => {
         expect(duplicateRows).toEqual([{
           count_finishing_position: 3, [PLANNED_INTEGRITY_FIELD]: false
         }]);
+      } finally {
+        await client.query('ROLLBACK');
+      }
+    } finally {
+      client.release();
+    }
+  });
+
+  it('matches PostgreSQL for the exact final-season recorded race finishing-position count rank', async () => {
+    const core = lowerPlannedF1QL(racePositionCountRankPlan());
+    const compiled = compilePlannedF1QL(core);
+    const client = await pool.connect();
+    const row = (driver_id: string, round: number, finishing_position: number | null) => ({
+      season: 2025, round, driver_id, finishing_position
+    });
+    const query = async (referenceRows: ReturnType<typeof row>[]) => {
+      const actual = (await client.query(compiled.sql, compiled.params)).rows;
+      expect(actual).toEqual(interpretPlannedF1QL(core, { event_classification: referenceRows }));
+      return actual;
+    };
+    try {
+      await client.query('BEGIN');
+      try {
+        await client.query("DELETE FROM race_data WHERE LOWER(type) IN ('race', 'race_result')");
+        const counts = [3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1];
+        const successRows: ReturnType<typeof row>[] = [];
+        for (const [driverIndex, count] of counts.entries()) {
+          const databaseId = `rank_${String(driverIndex + 1).padStart(2, '0')}`;
+          const referenceId = databaseId.replaceAll('_', '-');
+          await client.query(
+            'INSERT INTO driver (id, name, full_name, abbreviation) VALUES ($1, $1, $1, $2)',
+            [databaseId, `R${String(driverIndex + 1).padStart(2, '0')}`]
+          );
+          for (let round = 1; round <= count; round += 1) {
+            await client.query(`INSERT INTO race_data
+              (race_id, type, driver_id, constructor_id, position_display_order, position_number)
+              VALUES ($1, 'race', $2, 'planned-team', $3, $4)`,
+            [9800 + round, databaseId, driverIndex + 1, round]);
+            successRows.push(row(referenceId, round, round));
+          }
+        }
+        expect(await query(successRows)).toEqual([
+          { driver_id: 'rank-01', count_finishing_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-02', count_finishing_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-03', count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-04', count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-05', count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-06', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-07', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-08', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-09', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+          { driver_id: 'rank-10', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: true }
+        ]);
+
+        await client.query("DELETE FROM race_data WHERE LOWER(type) IN ('race', 'race_result')");
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number)
+          VALUES (9801, 'race', 'rank_01', 'planned-team', 1, NULL)`);
+        expect(await query([row('rank-01', 1, null)])).toEqual([
+          { driver_id: 'rank-01', count_finishing_position: 0, [PLANNED_INTEGRITY_FIELD]: true }
+        ]);
+
+        await client.query("DELETE FROM race_data WHERE LOWER(type) IN ('race', 'race_result')");
+        expect(await query([])).toEqual([]);
+
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number)
+          VALUES (9801, 'race', 'rank_01', 'planned-team', 31, 31)`);
+        expect(await query([row('rank-01', 1, 31)])).toEqual([
+          { driver_id: 'rank-01', count_finishing_position: 1, [PLANNED_INTEGRITY_FIELD]: false }
+        ]);
+
+        await client.query("DELETE FROM race_data WHERE LOWER(type) IN ('race', 'race_result')");
+        await client.query('ALTER TABLE race_data DROP CONSTRAINT race_data_pkey');
+        await client.query(`INSERT INTO race_data
+          (race_id, type, driver_id, constructor_id, position_display_order, position_number)
+          VALUES
+            (9801, 'race', 'rank_01', 'planned-team', 1, 1),
+            (9801, 'race', 'rank_01', 'planned-team', 2, 2)`);
+        expect(await query([row('rank-01', 1, 1), row('rank-01', 1, 2)])).toEqual([
+          { driver_id: 'rank-01', count_finishing_position: 2, [PLANNED_INTEGRITY_FIELD]: false }
+        ]);
       } finally {
         await client.query('ROLLBACK');
       }

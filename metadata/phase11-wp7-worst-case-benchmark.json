@@ -44,7 +44,7 @@
           "core_sha256": "931311473276cc559bac93085ac1b746fda4ed0b1fd0921af9adfbe08291137b",
           "compiled_sha256": "454c77414965bf83657cfd40737c33b91919fdc1df5428c4af6881fc306763ed",
           "reference_output_sha256": "2c16e147aef8dcae8e6fe1a1fdc22a7cf1831022ffca8da633328f50df63e7c3",
-          "formatter_output_sha256": "9252de7c526fccba97f906cc832783081ff8236736892ac1e74dba5c2dc109b2"
+          "formatter_output_sha256": "1ae92e2cff617bf79778bd4d28239a7d80f8a76c34b5aab5cbc1fb79671eecd8"
         }
       }
     },
@@ -75,7 +75,7 @@
           "core_sha256": "3a8a7f58314ec83fb0d4480f39464a6623c86f4759a85f0cb67d8776208b278e",
           "compiled_sha256": "7b89bc4acc46b0eb341551c8a51e3b09fd14c088f41f750f90c01bfee18394d6",
           "reference_output_sha256": "5fe360bfe15b1538122211af96e863f202843957e7e8c2d8307a3eca082abc11",
-          "formatter_output_sha256": "8bc66c2a65abcbb7547e54e4b00ed975d385dc37a7712337eeb92a340f3c1643"
+          "formatter_output_sha256": "dc52a463b89c003a8fbe767d2df6d3980b79f70d26ebbbfed5e93c9d62df4028"
         }
       }
     },
@@ -104,7 +104,36 @@
           "core_sha256": "56752e1c3d659524a46d1703f6730d712ae6fdbed0c6c8949e5ce782b529d4d3",
           "compiled_sha256": "97bd162455da7c08eefd6515bd1261773a34fa656909ace4c8ef1d1969002807",
           "reference_output_sha256": "79f95a3bb9e3d8ad48fe276f9dae386e3aea7b02c0d35d8cd24c194b9067155a",
-          "formatter_output_sha256": "a965497ef534874ab7f3e78195159fd33a261369b173dd9e45d4737453b74ccd"
+          "formatter_output_sha256": "18d5a2908e46a9a6c93aa0b68b324e9c9603c76ab8d817e84879cd30314129df"
+        }
+      }
+    },
+    {
+      "id": "single_source_race_grouped_aggregate_rank",
+      "family": "single_source",
+      "boundary": "promoted_topology",
+      "question": "Show top 10 drivers by count of finishing position in final 2025 race classification.",
+      "entities": [],
+      "resolver": {
+        "driver_mentions": [],
+        "event_resolution": {
+          "type": "missing"
+        }
+      },
+      "expected": {
+        "topology": "single_source_aggregate",
+        "work_units": 30,
+        "requested_rows": 10,
+        "resolver_candidates": 0,
+        "reference_rows": 10,
+        "hashes": {
+          "question_sha256": "a1ba47d3f83920f4a8c5a1bcb6e61df93d33916fe2e92dbd868609c1d13eead2",
+          "answer_plan_sha256": "2baa4fe654538f9a5d6a766a5ffe42eccedd842f5faded886030f8bc40cfa880",
+          "proof_sha256": "eac128ddf1045cb62ef7f8efe285db4366ba927fdc1fe5984b4e3ac266f064bb",
+          "core_sha256": "5d5486d49f81e70cc8d95dc21318915f9e803aca11603ff84f90afba5ee22116",
+          "compiled_sha256": "103510baa303eae710827da3e4f233e83ed60a33216b055b18809c7fc9ca0993",
+          "reference_output_sha256": "47a3c834544637431a5b249c0abbeb773b6e3605939964af81fc9c6a04f2d20d",
+          "formatter_output_sha256": "7ddf130788e4ae50f6a7e15c893c7e379af2b3d42b22047396780234127776b7"
         }
       }
     },
@@ -249,7 +278,7 @@
           "core_sha256": "d66833ab24cdfd93792e7a8162a41aa2df8ab3fa54b7db5a505cb79e3e291361",
           "compiled_sha256": "11049430da6c05c0e5e6a10815e3eeb29cfcce8e2b5168c565266791854a6032",
           "reference_output_sha256": "31253eded9f1922b4d78334d5a8c62ad429c23170304a172bc6458e84626d7d2",
-          "formatter_output_sha256": "04f01e3f8c071d0ae562e8c80de4059f8fea8e303cd39878fec8746e853ac4d8"
+          "formatter_output_sha256": "c07a26f83de1c5d66bc1e52968b068722ecb095cd9c23dd7bea63add0139b0d0"
         }
       }
     }

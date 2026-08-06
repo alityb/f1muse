@@ -25,6 +25,7 @@ const RACE_POSITION_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, 
 const QUALIFYING_POSITION_RANK_QUESTION = 'Rank drivers Max Verstappen, Lando Norris, and Oscar Piastri by qualifying position from round 1 of final 2025 qualifying classification.';
 const RACE_QUESTION = 'List driver and finishing position for round 1 of the final 2025 race classification.';
 const QUALIFYING_RANK_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const RACE_COUNT_RANK_QUESTION = 'Show top 10 drivers by count of finishing position in final 2025 race classification.';
 const RACE_METADATA_QUESTION = 'List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.';
 const RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.';
 const UNFILTERED_RACE_QUALIFYING_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
@@ -116,6 +117,21 @@ describe('semantic query candidates and independent evidence', () => {
     expect(ranking.order_by).toEqual([expect.objectContaining({ output_index: 1, direction: 'desc' })]);
     expect(ranking.limit).toMatchObject({ value: 10 });
 
+    const raceCountRanking = candidateEvidence(RACE_COUNT_RANK_QUESTION).candidates[0];
+    expect(raceCountRanking).toMatchObject({
+      outputs: [
+        { kind: 'concept', concept: { source_id: 'event_classification', concept_id: 'driver_id' } },
+        {
+          kind: 'aggregate', function: 'count',
+          concept: { source_id: 'event_classification', concept_id: 'finishing_position' }
+        }
+      ],
+      group_by: [{ concept: { source_id: 'event_classification', concept_id: 'driver_id' } }],
+      comparison: { relation: 'rank' },
+      order_by: [{ output_index: 1, direction: 'desc' }],
+      limit: { value: 10 }
+    });
+
     const driverNames = ['Max Verstappen', 'Lando Norris', 'Oscar Piastri'];
     const standingsRanking = candidateEvidence(
       STANDINGS_POSITION_RANK_QUESTION,
@@ -191,8 +207,22 @@ describe('semantic query candidates and independent evidence', () => {
     'Show top 10 drivers by count of qualifying position and qualifying position in final 2025 qualifying classification.',
     'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification and return all.',
     'Show top 10 drivers by count of qualifying position for each qualifying classification in final 2025 qualifying classification.',
-    'Show top 10 drivers by count of qualifying position in latest recorded 2026 qualifying classification.'
-  ])('keeps adjacent grouped qualifying-count rankings outside deterministic admission: %s', question => {
+    'Show top 10 drivers by count of qualifying position in latest recorded 2026 qualifying classification.',
+    'Show top 9 drivers by count of finishing position in final 2025 race classification.',
+    'Show top 11 drivers by count of finishing position in final 2025 race classification.',
+    'Rank drivers by count of finishing position in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position in round 1 of final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position in final 2025 qualifying classification.',
+    'Show top 10 drivers by count of finishing position for Norris in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position and finishing position in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position in final 2025 race classification and return all.',
+    'Show top 10 drivers by count of finishing position for each finishing position in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position in final 2025 race classification and race classification.',
+    'Show top 10 drivers by maximum finishing position in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position with classified status in final 2025 race classification.',
+    'Show top 10 drivers by count of finishing position in latest recorded 2026 race classification.',
+    'Show top 10 drivers by count of finishing position in interim 2025 race classification.'
+  ])('keeps adjacent grouped classification-count rankings outside deterministic admission: %s', question => {
     const entities = question.includes('Norris')
       ? [{ type: 'driver' as const, span: span(question, 'Norris') }]
       : [];
