@@ -20,7 +20,7 @@ import { finalStandingsRowsResponseContract } from './final-standings-response-c
 import type { ReviewedFinalStandingsDriverIds } from './final-standings-response-contract';
 export { SEMANTIC_ANSWER_COMPATIBILITY_VERSION } from './semantic-answer-compatibility-version';
 
-export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v25' as const;
+export const SEMANTIC_RESULT_FORMAT_VERSION = 'semantic-result-format-v26' as const;
 
 type CatalogConcept = SemanticCatalogSource['dimensions'][number] | SemanticCatalogSource['measures'][number];
 type SemanticExecutionFormattingBinding = ReturnType<typeof getSemanticPlanExecutionResultBinding>;
@@ -188,6 +188,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   if (classificationScalarCountContract && execution.has_more_rows) {
     throw new SemanticResultFormatError('Classification count result collection evidence was incomplete');
   }
+  const qualifyingCountRankingContract = isQualifyingPositionCountRankingContract(
+    core.root.count, core.root.input.keys, project, branches, sources, columns
+  );
   const rows: Record<string, unknown>[] = [];
   for (let index = 0; index < rowCount; index += 1) {
     rows.push(validateRow(rowsInput[index], index, columns, project.outputs));
@@ -202,6 +205,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   validateOrdering(rows, core.root.input.keys);
   if (classificationCollectionContract && rows.length === 0) {
     throw new SemanticResultFormatError('Classification result collection evidence was incomplete');
+  }
+  if (qualifyingCountRankingContract && rows.length === 0) {
+    throw new SemanticResultFormatError('Qualifying count ranking source evidence was incomplete');
   }
   if (selectedClassificationMetadataContract && rows.length !== requestedDriverRowCount(branches)) {
     throw new SemanticResultFormatError('Selected classification metadata result collection evidence was incomplete');
@@ -248,7 +254,9 @@ function buildSemanticPlanResult(execution: SemanticExecutionFormattingBinding):
   }
   let coverage: AnswerCoverageStatus = finalStandingsContract?.coverage ?? 'sufficient';
   if (!finalStandingsContract && rows.length === 0) {coverage = 'empty';}
-  else if (!finalStandingsContract && execution.has_more_rows) {coverage = 'possibly_truncated';}
+  else if (!finalStandingsContract && execution.has_more_rows && !qualifyingCountRankingContract) {
+    coverage = 'possibly_truncated';
+  }
   const scope = branches.flatMap(branch => branch.predicates.map(predicate => describeScope(predicate)));
   const catalogCaveats = unique(sources.flatMap(source => [
     ...source.authority.prohibited_derivations,
@@ -1169,6 +1177,49 @@ function isClassificationPositionScalarCountContract(
       typeof seasonPredicate.value === 'number' && Number.isSafeInteger(seasonPredicate.value) &&
       source.scope.season_min !== null && seasonPredicate.value >= source.scope.season_min &&
       source.scope.final_season_through !== null && seasonPredicate.value <= source.scope.final_season_through);
+}
+
+// A caller-requested top ten is complete at ten rows even when collection proves an eleventh group exists.
+// eslint-disable-next-line complexity
+function isQualifyingPositionCountRankingContract(
+  rowLimit: number,
+  ordering: readonly PlannedCoreSortKey[],
+  project: PlannedCoreProjectNode,
+  branches: ReturnType<typeof inputBranches>,
+  sources: readonly SemanticCatalogSource[],
+  columns: readonly SemanticResultColumn[]
+): boolean {
+  const branch = branches[0];
+  const source = sources[0];
+  const aggregate = project.input.op === 'aggregate' ? project.input : undefined;
+  const measure = aggregate?.measures[0];
+  const seasonPredicate = branch?.predicates[0];
+  return rowLimit === 10 && sources.length === 1 && source?.id === 'qualifying_classification' &&
+    branches.length === 1 && branch.input.source_id === 'qualifying_classification' &&
+    branch.predicates.length === 1 && seasonPredicate?.concept.source_id === 'qualifying_classification' &&
+    seasonPredicate.concept.concept_id === 'season' && seasonPredicate.operator === 'eq' &&
+    typeof seasonPredicate.value === 'number' && Number.isSafeInteger(seasonPredicate.value) &&
+    source.scope.season_min !== null && seasonPredicate.value >= source.scope.season_min &&
+    source.scope.final_season_through !== null && seasonPredicate.value <= source.scope.final_season_through &&
+    aggregate !== undefined && aggregate.group_by.length === 1 &&
+    aggregate.group_by[0].source_id === 'qualifying_classification' &&
+    aggregate.group_by[0].concept_id === 'driver_id' && aggregate.measures.length === 1 &&
+    measure?.source_id === 'qualifying_classification' && measure.concept_id === 'qualifying_position' &&
+    measure.function === 'count' && measure.as === 'count_qualifying_position' &&
+    project.outputs.length === 2 && project.outputs[0].kind === 'concept' &&
+    project.outputs[0].concept.source_id === 'qualifying_classification' &&
+    project.outputs[0].concept.concept_id === 'driver_id' && project.outputs[0].as === 'driver_id' &&
+    project.outputs[1].kind === 'aggregate' &&
+    project.outputs[1].measure_as === 'count_qualifying_position' &&
+    project.outputs[1].as === 'count_qualifying_position' &&
+    sameStrings(project.output_grain, ['driver_id']) && columns.length === 2 &&
+    columns[0].id === 'driver_id' && columns[0].kind === 'dimension' && columns[0].aggregation === null &&
+    columns[1].id === 'count_qualifying_position' && columns[1].kind === 'aggregate' &&
+    columns[1].aggregation === 'count' && columns[1].physical_type === 'integer' &&
+    columns[1].nullable === false && ordering.length === 2 &&
+    ordering[0].output_id === 'count_qualifying_position' && ordering[0].direction === 'desc' &&
+    ordering[0].nulls === 'last' && ordering[1].output_id === 'driver_id' &&
+    ordering[1].direction === 'asc' && ordering[1].nulls === 'last';
 }
 
 function reviewedEventDriverPredicate(

@@ -63,6 +63,14 @@ function qualifyingRankPlan() {
   };
 }
 
+function qualifyingPositionCountRankPlan() {
+  const plan = structuredClone(qualifyingRankPlan());
+  plan.root.input.input.input.input.predicates = [
+    predicate('qualifying_classification', 'season', 2025)
+  ];
+  return plan;
+}
+
 function raceMetadataPlan() {
   const raceScope = [
     predicate('event_classification', 'round', 1),
@@ -1166,6 +1174,79 @@ describe('internal planned F1QL and Core pipeline', () => {
       { driver_id: 'alpha-driver', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
       { driver_id: 'beta-driver', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true }
     ]);
+  });
+
+  it('matches PostgreSQL for the exact final-season recorded qualifying-position count rank', async () => {
+    const core = lowerPlannedF1QL(qualifyingPositionCountRankPlan());
+    const compiled = compilePlannedF1QL(core);
+    const client = await pool.connect();
+    const row = (driver_id: string, round: number, qualifying_position: number | null) => ({
+      season: 2025, round, driver_id, team_id: 'planned-team', qualifying_position,
+      best_time_ms: null, best_session: null, eliminated_in_round: null,
+      classification_status: 'classified'
+    });
+    const insert = async (driverId: string, round: number, position: number | null) => {
+      await client.query(`INSERT INTO qualifying_results
+        (season, round, driver_id, team_id, qualifying_position, session_type)
+        VALUES (2025, $1, $2, 'planned-team', $3, 'RACE_QUALIFYING')`, [round, driverId, position]);
+    };
+    const query = async (referenceRows: ReturnType<typeof row>[]) => {
+      const actual = (await client.query(compiled.sql, compiled.params)).rows;
+      expect(actual).toEqual(interpretPlannedF1QL(core, { qualifying_classification: referenceRows }));
+      return actual;
+    };
+
+    await client.query('BEGIN');
+    try {
+      await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+      const counts = [3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1];
+      const successRows: ReturnType<typeof row>[] = [];
+      for (const [driverIndex, count] of counts.entries()) {
+        const databaseId = `rank_${String(driverIndex + 1).padStart(2, '0')}`;
+        const referenceId = databaseId.replaceAll('_', '-');
+        for (let round = 1; round <= count; round += 1) {
+          await insert(databaseId, round, round);
+          successRows.push(row(referenceId, round, round));
+        }
+      }
+      expect(await query(successRows)).toEqual([
+        { driver_id: 'rank-01', count_qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-02', count_qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-03', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-04', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-05', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-06', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-07', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-08', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-09', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true },
+        { driver_id: 'rank-10', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true }
+      ]);
+
+      await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+      await insert('null_driver', 1, null);
+      expect(await query([row('null-driver', 1, null)])).toEqual([
+        { driver_id: 'null-driver', count_qualifying_position: 0, [PLANNED_INTEGRITY_FIELD]: true }
+      ]);
+
+      await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+      expect(await query([])).toEqual([]);
+
+      await insert('invalid_driver', 1, 31);
+      expect(await query([row('invalid-driver', 1, 31)])).toEqual([
+        { driver_id: 'invalid-driver', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: false }
+      ]);
+
+      await client.query('DELETE FROM qualifying_results WHERE season = 2025');
+      await client.query('ALTER TABLE qualifying_results DROP CONSTRAINT qualifying_results_pkey');
+      await insert('duplicate_driver', 1, 1);
+      await insert('duplicate_driver', 1, 2);
+      expect(await query([row('duplicate-driver', 1, 1), row('duplicate-driver', 1, 2)])).toEqual([
+        { driver_id: 'duplicate-driver', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: false }
+      ]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
   });
 
   it('matches PostgreSQL for standings ranking with participation-bound drivers', async () => {

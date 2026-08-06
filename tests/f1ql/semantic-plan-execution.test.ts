@@ -158,6 +158,23 @@ const cases = [
     rows: [{ count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true }]
   },
   {
+    id: 'family-qualifying-count-ranking',
+    profile: 'semantic-single-source-v1' as const,
+    answer_compatible: false,
+    rows: [
+      { driver_id: 'alpha-driver', count_qualifying_position: 10, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'bravo-driver', count_qualifying_position: 9, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'charlie-driver', count_qualifying_position: 8, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'delta-driver', count_qualifying_position: 7, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'echo-driver', count_qualifying_position: 6, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'foxtrot-driver', count_qualifying_position: 5, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'golf-driver', count_qualifying_position: 4, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'hotel-driver', count_qualifying_position: 3, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'india-driver', count_qualifying_position: 2, [PLANNED_INTEGRITY_FIELD]: true },
+      { driver_id: 'juliet-driver', count_qualifying_position: 1, [PLANNED_INTEGRITY_FIELD]: true }
+    ]
+  },
+  {
     id: 'family-singleton-standings-position',
     profile: 'semantic-single-source-v1' as const,
     answer_compatible: false,

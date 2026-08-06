@@ -481,6 +481,16 @@ export function enumerateSemanticQueries(
 
   const unique = new Map(candidates.map(candidate => [computeSemanticQueryHash(candidate), candidate]));
   const sorted = [...unique.values()].sort((left, right) => compareText(stableSerialize(left), stableSerialize(right)));
+  if (operations.count && operations.rank && !isPromotedQualifyingCountRanking(
+    question,
+    entities,
+    sourceMatches,
+    conceptMatches,
+    operations,
+    sorted
+  )) {
+    return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
+  }
   if (sorted.length === 0) {
     return verifiedEvidence(abstention(question, catalogHash, 'unsupported_scope'));
   }
@@ -508,6 +518,72 @@ export function enumerateSemanticQueries(
     candidates: sorted,
     ...(ambiguityReason ? { ambiguity_reason: ambiguityReason } : {})
   }));
+}
+
+function isPromotedQualifyingCountRanking(
+  question: AnswerQuestionContract,
+  entities: readonly SemanticEntityInventoryItem[],
+  sourceMatches: readonly LexicalMatch[],
+  conceptMatches: readonly LexicalMatch[],
+  operations: OperationEvidence,
+  candidates: readonly SemanticQuery[]
+): boolean {
+  const questionShapeMatches = [
+    question.years.length === 1,
+    question.rounds.length === 0,
+    entities.length === 0,
+    operations.count_spans.length === 1,
+    operations.temporal.length === 1,
+    operations.temporal[0].value === 'final',
+    operations.limit?.value === 10,
+    operations.rank?.text.toLocaleLowerCase('en-US').replace(/\s+/gu, ' ') === 'top 10',
+    !/\b(?:all|each|per)\b|\b(?:no|without)\s+limit\b/iu.test(question.normalized_question),
+    !hasUnboundScopeKey(question),
+    candidates.length === 1,
+    sourceMatches.length === 1,
+    stableSerialize([...new Set(sourceMatches.map(match => match.source_id))]) ===
+      stableSerialize(['qualifying_classification']),
+    independentConceptOccurrenceCount(conceptMatches, 'qualifying_classification', 'driver_id') === 1,
+    independentConceptOccurrenceCount(conceptMatches, 'qualifying_classification', 'qualifying_position') === 1
+  ].every(Boolean);
+  if (!questionShapeMatches) {
+    return false;
+  }
+  const candidate = candidates[0];
+  return [
+    stableSerialize(candidate.outputs.map(output => output.kind === 'aggregate'
+      ? `${output.concept.source_id}.${output.concept.concept_id}:${output.function}`
+      : `${output.concept.source_id}.${output.concept.concept_id}`)) === stableSerialize([
+      'qualifying_classification.driver_id',
+      'qualifying_classification.qualifying_position:count'
+    ]),
+    candidate.scopes.filter(scope => scope.kind === 'season').length === 1,
+    candidate.scopes.some(scope => scope.kind === 'session' &&
+      scope.source_id === 'qualifying_classification' && scope.value === 'qualifying'),
+    candidate.scopes.some(scope => scope.kind === 'temporal' && scope.value === 'final'),
+    !candidate.scopes.some(scope => scope.kind === 'round' || scope.kind === 'event'),
+    candidate.entities.length === 0,
+    candidate.filters.length === 0,
+    stableSerialize(candidate.group_by.map(group =>
+      `${group.concept.source_id}.${group.concept.concept_id}`)) ===
+      stableSerialize(['qualifying_classification.driver_id']),
+    candidate.comparison?.relation === 'rank',
+    stableSerialize(candidate.order_by.map(order => `${order.output_index}:${order.direction}`)) ===
+      stableSerialize(['1:desc']),
+    candidate.limit?.value === 10
+  ].every(Boolean);
+}
+
+function independentConceptOccurrenceCount(
+  matches: readonly LexicalMatch[],
+  sourceId: string,
+  conceptId: string
+): number {
+  const relevant = matches.filter(match => match.source_id === sourceId && match.concept_id === conceptId);
+  const longest = relevant.filter(match => !relevant.some(other =>
+    other.span.start <= match.span.start && other.span.end >= match.span.end &&
+    (other.span.start < match.span.start || other.span.end > match.span.end)));
+  return new Set(longest.map(match => `${match.span.start}:${match.span.end}`)).size;
 }
 
 export function admitSemanticQueryCandidates(

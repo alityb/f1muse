@@ -31,6 +31,7 @@ const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -70,6 +71,7 @@ describe('independent semantic whole-plan proof', () => {
     ['single-source rows', STANDINGS, []],
     ['single-source scalar aggregate', SCALAR_COUNT, []],
     ['single-source race scalar aggregate', RACE_SCALAR_COUNT, []],
+    ['single-source grouped qualifying count rank', QUALIFYING_COUNT_RANK, []],
     ['single-source event date and name', EVENT_DATE_NAME, []],
     ['single-source event date and circuit', EVENT_DATE_CIRCUIT, []],
     ['single-source event name and circuit', EVENT_NAME_CIRCUIT, []],
@@ -187,6 +189,27 @@ describe('independent semantic whole-plan proof', () => {
     mutate(mutated);
     expect(() => proveSemanticAnswerPlan({
       question: STANDINGS,
+      evidence: prepared.evidence,
+      admission: prepared.admission,
+      resolution: prepared.resolution,
+      plan: mutated
+    })).toThrow('plan_mismatch');
+  });
+
+  it.each([
+    ['group key', (plan: any) => { plan.branches[0].aggregate.group_by = []; }],
+    ['aggregate function', (plan: any) => { plan.planned_f1ql.root.input.input.input.measures[0].function = 'max'; }],
+    ['output order', (plan: any) => { plan.planned_f1ql.root.input.input.outputs.reverse(); }],
+    ['count direction', (plan: any) => { plan.planned_f1ql.root.input.keys[0].direction = 'asc'; }],
+    ['identity tie break', (plan: any) => { plan.planned_f1ql.root.input.keys[1].direction = 'desc'; }],
+    ['season predicate', (plan: any) => { plan.planned_f1ql.root.input.input.input.input.predicates[0].value = 2024; }],
+    ['limit', (plan: any) => { plan.planned_f1ql.root.count = 9; }]
+  ])('rejects independently reconstructed qualifying-count rank mutation: %s', async (_name, mutate) => {
+    const prepared = await prepare(QUALIFYING_COUNT_RANK, [], []);
+    const mutated: any = structuredClone(prepared.plan);
+    mutate(mutated);
+    expect(() => proveSemanticAnswerPlan({
+      question: QUALIFYING_COUNT_RANK,
       evidence: prepared.evidence,
       admission: prepared.admission,
       resolution: prepared.resolution,

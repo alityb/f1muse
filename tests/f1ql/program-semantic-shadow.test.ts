@@ -22,6 +22,18 @@ const SCALAR_COUNT_QUESTION = 'Show count of qualifying position in final 2025 q
 const RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT_QUESTION = 'Show count of finishing position for Lando Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT_QUESTION = 'Show count of qualifying position for Lando Norris in final 2025 qualifying classification.';
+const QUALIFYING_COUNT_RANKING_QUESTION = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+const UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS = [
+  'Show top 9 drivers by count of qualifying position in final 2025 qualifying classification.',
+  'Rank drivers by count of qualifying position in final 2025 qualifying classification.',
+  'Show top 10 drivers by count of qualifying position in round 1 of final 2025 qualifying classification.',
+  'Show top 10 drivers by count of qualifying position in final 2025 race classification.',
+  'Show top 10 drivers by count of qualifying position for Lando Norris in final 2025 qualifying classification.',
+  'Show top 10 drivers by count of qualifying position and qualifying position in final 2025 qualifying classification.',
+  'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification and return all.',
+  'Show top 10 drivers by count of qualifying position for each qualifying classification in final 2025 qualifying classification.',
+  'Show top 10 drivers by count of qualifying position in latest recorded 2026 qualifying classification.'
+] as const;
 const UNFILTERED_DUAL_COUNT_QUESTION = 'Show count of finishing position from race classification and count of qualifying position from qualifying classification in final 2025.';
 const UNSUPPORTED_DUAL_COUNT_QUESTIONS = [
   'Show count of finishing position from race classification and count of qualifying position from qualifying classification per driver in final 2025.',
@@ -376,8 +388,9 @@ describe('WP8 stage-zero semantic shadow route', () => {
   it.each([
     ['qualifying', SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
     ['race', RACE_SCALAR_COUNT_QUESTION, 'single_source_aggregate'],
+    ['qualifying count ranking', QUALIFYING_COUNT_RANKING_QUESTION, 'single_source_aggregate'],
     ['dual classification', UNFILTERED_DUAL_COUNT_QUESTION, 'scalar_aggregate_compose']
-  ])('proves a scalar %s count without result execution', async (_source, question, topology) => {
+  ])('proves an unfiltered %s plan without result execution', async (_source, question, topology) => {
     const fake = fakePool();
     let providerCalls = 0;
     let executionAttempts = 0;
@@ -404,6 +417,29 @@ describe('WP8 stage-zero semantic shadow route', () => {
       { sql: SEMANTIC_SHADOW_RESOLVER_STATEMENTS.driver_inventory_scoped, parameters: [2025, 10_001] },
       { sql: 'ROLLBACK', parameters: undefined }
     ]);
+    expect(executionAttempts).toBe(0);
+  });
+
+  it.each(UNSUPPORTED_QUALIFYING_COUNT_RANKING_QUESTIONS)(
+    'rejects an adjacent qualifying-count ranking before provider or result execution: %s', async question => {
+    const fake = fakePool();
+    let providerCalls = 0;
+    let executionAttempts = 0;
+    const response = await request(fake.pool, {
+      environment: () => ENABLED_ENVIRONMENT,
+      proposer: { propose: async () => {providerCalls += 1; return {};} },
+      providerIdentity: PROVIDER_IDENTITY,
+      logger: () => undefined
+    }, { question }, undefined, () => {
+      executionAttempts += 1;
+      throw new Error('semantic shadow must not execute a result query');
+    });
+
+    expect(response).toMatchObject({
+      status: 200,
+      body: { observation: { outcome: 'abstain', result_query_calls: 0 } }
+    });
+    expect(providerCalls).toBe(0);
     expect(executionAttempts).toBe(0);
   });
 

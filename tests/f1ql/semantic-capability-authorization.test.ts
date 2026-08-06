@@ -347,6 +347,9 @@ const POSITIVE_PROFILE_CASES = {
       candidates: candidateInventory('lando-norris', candidate_count, selected_index),
       active_candidates: ['lando-norris']
     }]
+  }), ({ year }: PositiveProfileInput): PositiveProfileCase => ({
+    question: `Show top 10 drivers by count of qualifying position in final ${year} qualifying classification.`,
+    entity_names: []
   })],
   'semantic-safe-dimension-join-v1': [
     ({ year, round }: PositiveProfileInput): PositiveProfileCase => ({
@@ -408,7 +411,8 @@ describe('semantic complete-interaction capability authorization', () => {
       { min: 2, max: 4 },
       { min: 2, max: 4 },
       { min: 0, max: 0 },
-      { min: 1, max: 1 }
+      { min: 1, max: 1 },
+      { min: 0, max: 0 }
     ]);
     expect(profile.source_sets).toEqual([
       ['driver_standings'], ['event_classification'], ['event_metadata'], ['qualifying_classification']
@@ -620,6 +624,7 @@ describe('semantic complete-interaction capability authorization', () => {
     ['Show count of finishing position in final 2025 race classification.', 'semantic-single-source-v1', []],
     ['Show count of finishing position for Norris in final 2025 race classification.', 'semantic-single-source-v1', ['Norris']],
     ['Show count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
+    ['Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.', 'semantic-single-source-v1', []],
     ['List driver and finishing position, event name, and circuit identifier for round 1 of final 2025 race classification and event metadata.', 'semantic-safe-dimension-join-v1', []],
     ['List driver, qualifying position, and race date for Norris from round 1 of final 2025 qualifying classification and event metadata.', 'semantic-safe-qualifying-dimension-join-v1', ['Norris']],
     ['Show count of finishing position from race classification and count of qualifying position from qualifying classification for Norris in final 2025.', 'semantic-aggregate-locality-v1', ['Norris']],
@@ -729,6 +734,48 @@ describe('semantic complete-interaction capability authorization', () => {
       season_count: 1,
       season_values: [2025],
       rows: 1
+    });
+  });
+
+  it('binds only the exact top-10 recorded qualifying-position count ranking', async () => {
+    const question = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
+    const proof = await semanticProof(question, []);
+    const authorization = authorizeSemanticPlanCapability({
+      proof,
+      profile_id: 'semantic-single-source-v1',
+      principal_class: 'internal_canary',
+      request_id: randomUUID(),
+      canary: canary(),
+      release_attestation: release({ deployment_capability_profile_ids: ['semantic-single-source-v1'] }),
+      now_ms: NOW
+    });
+    expect(authorization.interaction).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_ids: ['qualifying_classification'],
+      relationship_ids: [],
+      operator_signature: 'limit(sort(project(aggregate(filter(source)))))',
+      predicate_bindings: ['qualifying_classification.season:eq'],
+      aggregate_bindings: [
+        'qualifying_classification.qualifying_position:count->count_qualifying_position'
+      ],
+      group_bindings: ['qualifying_classification.driver_id'],
+      output_bindings: [
+        'concept:qualifying_classification.driver_id->driver_id',
+        'aggregate:count_qualifying_position->count_qualifying_position'
+      ],
+      sort_bindings: ['count_qualifying_position:desc:last', 'driver_id:asc:last'],
+      entity_count: 0,
+      event_count: 0,
+      season_count: 1,
+      season_values: [2025],
+      group_count: 1,
+      output_count: 2,
+      rows: 10
+    });
+    expect(authorization.result_collection).toMatchObject({
+      returned_row_limit: 10,
+      completeness_probe_rows: 1,
+      observed_row_limit: 11
     });
   });
 
@@ -1495,10 +1542,6 @@ describe('semantic complete-interaction capability authorization', () => {
       {
         profileId: 'semantic-single-source-v1' as const,
         question: (year: number) => `Show count of finishing position in round 1 of final ${year} race classification.`
-      },
-      {
-        profileId: 'semantic-single-source-v1' as const,
-        question: (year: number) => `Show top 10 drivers by count of qualifying position in final ${year} qualifying classification.`
       },
       {
         profileId: 'semantic-safe-dimension-join-v1' as const,

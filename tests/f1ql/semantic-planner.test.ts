@@ -23,6 +23,7 @@ const SCALAR_COUNT = 'Show count of qualifying position in final 2025 qualifying
 const RACE_SCALAR_COUNT = 'Show count of finishing position in final 2025 race classification.';
 const FILTERED_RACE_SCALAR_COUNT = 'Show count of finishing position for Norris in final 2025 race classification.';
 const FILTERED_QUALIFYING_SCALAR_COUNT = 'Show count of qualifying position for Norris in final 2025 qualifying classification.';
+const QUALIFYING_COUNT_RANK = 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.';
 const SINGLETON_STANDINGS_POSITION = 'List driver and championship position for Norris from final 2025 driver standings.';
 const MULTI_STANDINGS_POSITION = 'List driver and championship position for Lando Norris and Oscar Piastri from final 2025 driver standings.';
 const MULTI_STANDINGS_SUMMARY = 'List driver, championship position, and championship points for Lando Norris and Oscar Piastri from final 2025 driver standings.';
@@ -309,6 +310,40 @@ describe('deterministic semantic planner', () => {
     expect(plan.planned_f1ql.root.input.keys).toEqual([
       { output_id: 'count_qualifying_position', direction: 'asc', nulls: 'last' }
     ]);
+  });
+
+  it('groups recorded qualifying-position counts before applying the exact top-10 ordering', async () => {
+    const admission = admitted(QUALIFYING_COUNT_RANK);
+    const plan = await planSemanticAnswer({
+      question: QUALIFYING_COUNT_RANK,
+      admission,
+      ...resolvers([])
+    });
+    expect(plan).toMatchObject({
+      topology: 'single_source_aggregate',
+      source_graph: { source_ids: ['qualifying_classification'], row_relationship_ids: [] },
+      linked_entities: [],
+      output_grain: ['driver_id'],
+      work: {
+        source_scan_units: 30, resolver_reads: 1, sources: 1, row_joins: 0,
+        compositions: 0, operator_depth: 5, requested_rows: 10
+      }
+    });
+    expect(plan.branches[0]).toMatchObject({
+      fixed_grain: ['season'],
+      residual_grain: ['driver_id'],
+      predicates: [{ concept: { concept_id: 'season' }, operator: 'eq', value: 2025 }],
+      aggregate: { group_by: ['driver_id'], measures: ['count_qualifying_position'] }
+    });
+    expect(plan.planned_f1ql.root).toMatchObject({
+      count: 10,
+      input: {
+        keys: [
+          { output_id: 'count_qualifying_position', direction: 'desc', nulls: 'last' },
+          { output_id: 'driver_id', direction: 'asc', nulls: 'last' }
+        ]
+      }
+    });
   });
 
   it('uses the same bounded scalar topology for race finishing-position counts', async () => {

@@ -176,6 +176,14 @@ describe('semantic candidate translator foundation', () => {
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('never derive rank from best time, grid position, status, sprint qualifying, or driver identity');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('exact zero-driver request to show top 10 drivers by count of qualifying position');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('emit exactly driver_id followed by COUNT(qualifying_position), group by driver_id, rank by the count descending, and set the limit to exactly 10');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Driver identity only stabilizes equal counts and the top-10 cutoff');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
+      .toContain('Do not extend this rule to any other limit, no limit, selected drivers, race classification');
+    expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('exact zero-driver composition that requests count of finishing position from race classification and count of qualifying position from qualifying classification');
     expect(SEMANTIC_CANDIDATE_PROVIDER_SYSTEM_PROMPT)
       .toContain('exactly COUNT(finishing_position) followed by COUNT(qualifying_position), no entities or filters, no grouping, comparison count, no order_by, and no limit');

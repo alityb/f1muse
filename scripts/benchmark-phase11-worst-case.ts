@@ -61,7 +61,7 @@ const hashSetSchema = z.object({
 }).strict();
 const workloadSchema = z.object({
   id: z.enum([
-    'maximum_rows_standings', 'single_source_scalar_aggregate', 'maximum_rows_safe_join',
+    'maximum_rows_standings', 'single_source_grouped_aggregate_rank', 'maximum_rows_safe_join',
     'maximum_work_and_resolver_compose'
   ]),
   family: familySchema,
@@ -253,15 +253,15 @@ export function createWorstCaseBenchmarkDefinitionSeed(): WorstCaseBenchmarkDefi
         }
       },
       {
-        id: 'single_source_scalar_aggregate',
+        id: 'single_source_grouped_aggregate_rank',
         family: 'single_source',
         boundary: 'promoted_topology',
-        question: 'Show count of qualifying position in final 2025 qualifying classification.',
+        question: 'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification.',
         entities: [],
         resolver: { driver_mentions: [], event_resolution: { type: 'missing' } },
         expected: {
-          topology: 'single_source_aggregate', work_units: 30, requested_rows: 1,
-          resolver_candidates: 0, reference_rows: 1, hashes: hashes()
+          topology: 'single_source_aggregate', work_units: 30, requested_rows: 10,
+          resolver_candidates: 0, reference_rows: 10, hashes: hashes()
         }
       },
       {
@@ -521,7 +521,7 @@ async function createResolution(
 function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDatabase {
   if (id === 'maximum_rows_standings') {return standingsReferenceDatabase();}
   if (id === 'maximum_rows_safe_join') {return safeJoinReferenceDatabase();}
-  if (id === 'single_source_scalar_aggregate') {return scalarQualifyingCountReferenceDatabase();}
+  if (id === 'single_source_grouped_aggregate_rank') {return groupedQualifyingCountReferenceDatabase();}
   const rounds = Array.from({ length: 30 }, (_unused, index) => index + 1);
   return {
     event_classification: rounds.map(round => raceRow(round, 'lando-norris', (round % 20) + 1)),
@@ -533,19 +533,21 @@ function referenceDatabaseFor(id: WorkloadDefinition['id']): PlannedReferenceDat
   };
 }
 
-function scalarQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
+function groupedQualifyingCountReferenceDatabase(): PlannedReferenceDatabase {
+  const counts = [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 5];
   return {
-    qualifying_classification: Array.from({ length: PLANNED_F1QL_MAX_ROWS }, (_unused, index) => ({
-      season: 2025,
-      round: (index % 30) + 1,
-      driver_id: `benchmark-driver-${String(index + 1).padStart(3, '0')}`,
-      team_id: 'benchmark-team',
-      qualifying_position: (index % 30) + 1,
-      best_time_ms: 80_000 + index,
-      best_session: 'Q3',
-      eliminated_in_round: null,
-      classification_status: 'classified'
-    }))
+    qualifying_classification: counts.flatMap((count, driverIndex) =>
+      Array.from({ length: count }, (_unused, roundIndex) => ({
+        season: 2025,
+        round: roundIndex + 1,
+        driver_id: `benchmark-driver-${String(driverIndex + 1).padStart(3, '0')}`,
+        team_id: 'benchmark-team',
+        qualifying_position: roundIndex + 1,
+        best_time_ms: 80_000 + driverIndex * 30 + roundIndex,
+        best_session: 'Q3',
+        eliminated_in_round: null,
+        classification_status: 'classified'
+      })))
   };
 }
 

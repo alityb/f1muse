@@ -181,6 +181,24 @@ describe('semantic query candidates and independent evidence', () => {
     ]);
   });
 
+  it.each([
+    'Show top 9 drivers by count of qualifying position in final 2025 qualifying classification.',
+    'Show top 11 drivers by count of qualifying position in final 2025 qualifying classification.',
+    'Rank drivers by count of qualifying position in final 2025 qualifying classification.',
+    'Show top 10 drivers by count of qualifying position in round 1 of final 2025 qualifying classification.',
+    'Show top 10 drivers by count of qualifying position in final 2025 race classification.',
+    'Show top 10 drivers by count of qualifying position for Norris in final 2025 qualifying classification.',
+    'Show top 10 drivers by count of qualifying position and qualifying position in final 2025 qualifying classification.',
+    'Show top 10 drivers by count of qualifying position in final 2025 qualifying classification and return all.',
+    'Show top 10 drivers by count of qualifying position for each qualifying classification in final 2025 qualifying classification.',
+    'Show top 10 drivers by count of qualifying position in latest recorded 2026 qualifying classification.'
+  ])('keeps adjacent grouped qualifying-count rankings outside deterministic admission: %s', question => {
+    const entities = question.includes('Norris')
+      ? [{ type: 'driver' as const, span: span(question, 'Norris') }]
+      : [];
+    expect(enumerateSemanticQueries(question, entities)).toMatchObject({ type: 'abstention' });
+  });
+
   it('enumerates one selected driver recorded final championship position without ranking', () => {
     const norris = {
       type: 'driver' as const,
