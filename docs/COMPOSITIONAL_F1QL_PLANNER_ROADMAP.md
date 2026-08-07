@@ -973,6 +973,15 @@ atomic implementation, parity, canary, and signed production evidence gates.
 The active semantic catalog, provider schema, grants, capability profiles,
 answer policy, and routes remain unchanged.
 
+The next detached interface slice now fixes question v28, proposal/provider v2,
+fact-space v4, compatibility/equivalence, and answer-authorization expectations.
+It deliberately stops short of claiming generated provider artifacts or semantic
+v32 output evidence. Existing closed F1QL result files are regression oracles
+only. The public wire shape is also unresolved: compatibility is marked
+activation-ineligible until a separately reviewed, versioned contract preserves
+the public route without synthetic legacy authorization. Shadow and release
+targets may proceed, but runtime activation cannot pass this blocker.
+
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every
 sealed source artifact, the exact future source/concept/relationship contracts,

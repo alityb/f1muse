@@ -334,6 +334,22 @@ decimals, absolute delta, null-on-tie winner, and public omission of the interna
 integrity field. Runtime implementation and implementation evidence remain null;
 active profile 33 and formatter v31 do not import or expose this target.
 
+The detached interface target extends those expectations through question,
+provider, fact-space, compatibility, and answer authorization contracts at
+composite SHA-256
+`240d11e597e2e47e0c7782d55b47415b573edf204cc484e50904e468868fd692`.
+Only five whole-question normalized grammar patterns are admitted across the two
+named metrics. The provider may return the fixed operation discriminator and
+exact literal spans only; metric, source, session, aggregation, exclusions,
+coverage, identities, topology, output, and SQL remain deterministic server
+contracts. The exact provider extension and prompt are pinned, but complete v2
+provider artifacts have not been generated and all generated hashes remain null.
+Fact-space v4 remains bound to expectations-only database/principal evidence.
+Legacy closed-result fixtures remain regression oracles, not semantic formatter
+evidence. Semantic-v32 fixtures and public wire compatibility are absent; public
+activation stays explicitly ineligible until a separately versioned wire
+contract is reviewed and hash-bound.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain
