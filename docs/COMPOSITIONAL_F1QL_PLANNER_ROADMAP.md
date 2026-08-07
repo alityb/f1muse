@@ -987,6 +987,16 @@ entire catalog/database/planner/proof/authorization/formatter/provider/shadow/
 release slice and its canary and production evidence to switch together; the
 bundle rejects a partial hash set or independently activated component.
 
+The fixed coverage-reader target is also complete locally but remains detached
+from routing. It executes at most one fingerprinted aggregate-only statement
+through the narrow view, with exact request and result schemas, classified-lap
+expectations pinned for all 20 reviewed identities, transaction and wall-clock
+bounds, unsafe-client discard, and distinct coverage/integrity abstentions.
+Disposable PostgreSQL evidence verifies the real 790-row source under the
+restricted answer role and proves idempotent stale-ACL removal. The reader is a
+separately versioned and signed activation target; completing it does not remove
+the family exclusion or authorize either metric.
+
 Definition of done: local migration, immutable dataset, security-barrier view,
 catalog/database binding, planner/proof/capability/formatter path, missing-row
 coverage behavior, SQL/reference parity, and internal/public canaries all pass.

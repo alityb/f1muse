@@ -36,6 +36,7 @@ WHERE authority = 'FIA'
   AND source_artifact_sha256 = '30f7db339b437cea5fd73f0a7bf6a3a16783119b3b62d07c5793934e2b26d105';
 
 REVOKE ALL ON f1ql.official_race_lap_timing FROM PUBLIC;
+REVOKE ALL ON f1ql.official_race_lap_timing FROM f1ql_answer;
 GRANT SELECT ON f1ql.official_race_lap_timing TO f1ql_answer;
 
 COMMENT ON VIEW f1ql.official_race_lap_timing IS

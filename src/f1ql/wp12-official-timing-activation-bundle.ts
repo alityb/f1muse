@@ -47,7 +47,11 @@ const activationBundleSchema = z.object({
       deleted_laps_artifact_sha256: sha256Schema,
       identity_count: z.literal(20),
       fact_count: z.literal(790),
-      fact_bearing_driver_count: z.literal(19)
+      fact_bearing_driver_count: z.literal(19),
+      classified_laps_by_driver: z.array(z.object({
+        driver_id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+        classified_laps: z.number().int().min(0).max(50)
+      }).strict()).length(20)
     }).strict(),
     target_view_columns: z.array(idSchema).min(1).max(30),
     inaccessible_columns: z.array(idSchema).min(1).max(10),
@@ -175,7 +179,7 @@ const activationBundleSchema = z.object({
     current: z.union([z.string().min(1), z.number().int().positive()]),
     target: z.union([z.string().min(1), z.number().int().positive()]),
     transition: z.enum(['atomic', 'unchanged'])
-  }).strict()).min(1).max(30),
+  }).strict()).min(1).max(40),
   activation_attestation: z.object({
     required_target_hashes: z.array(idSchema).min(1).max(50),
     signed_release_attestation_required: z.literal(true),
@@ -306,7 +310,29 @@ const rawActivationBundle = {
       deleted_laps_artifact_sha256: '112bfb62c955ec88971bf215280a94b500ddcdad02dcd79ebe0a8c07c44c1e52',
       identity_count: 20,
       fact_count: 790,
-      fact_bearing_driver_count: 19
+      fact_bearing_driver_count: 19,
+      classified_laps_by_driver: [
+        { driver_id: 'alexander-albon', classified_laps: 44 },
+        { driver_id: 'carlos-sainz', classified_laps: 44 },
+        { driver_id: 'charles-leclerc', classified_laps: 44 },
+        { driver_id: 'daniel-ricciardo', classified_laps: 44 },
+        { driver_id: 'esteban-ocon', classified_laps: 44 },
+        { driver_id: 'fernando-alonso', classified_laps: 44 },
+        { driver_id: 'george-russell', classified_laps: 44 },
+        { driver_id: 'guanyu-zhou', classified_laps: 44 },
+        { driver_id: 'kevin-magnussen', classified_laps: 43 },
+        { driver_id: 'lance-stroll', classified_laps: 44 },
+        { driver_id: 'lando-norris', classified_laps: 44 },
+        { driver_id: 'lewis-hamilton', classified_laps: 0 },
+        { driver_id: 'max-verstappen', classified_laps: 44 },
+        { driver_id: 'mick-schumacher', classified_laps: 43 },
+        { driver_id: 'nicholas-latifi', classified_laps: 43 },
+        { driver_id: 'pierre-gasly', classified_laps: 44 },
+        { driver_id: 'sebastian-vettel', classified_laps: 44 },
+        { driver_id: 'sergio-perez', classified_laps: 44 },
+        { driver_id: 'valtteri-bottas', classified_laps: 1 },
+        { driver_id: 'yuki-tsunoda', classified_laps: 44 }
+      ]
     },
     target_view_columns: [
       'authority', 'contract_version', 'dataset_sha256', 'driver_id', 'event_name', 'fact_fingerprint',
@@ -521,7 +547,7 @@ const rawActivationBundle = {
       '20260807_f1ql_official_race_lap_timing_activation.sql'
     ],
     target_activation_migration: '20260807_f1ql_official_race_lap_timing_activation.sql',
-    target_activation_migration_sha256: 'f4807adeea81b8555e750e0950efd62745c56665d4d63b6641273fb027381735',
+    target_activation_migration_sha256: 'feee77471d5d80342a2a22b3480b3ac3a8d74df628b7a7ab433ea6aa414b6eaf',
     answer_role: 'f1ql_answer',
     exact_select_relations_after_activation: [
       'f1ql.answer_driver_identity', 'f1ql.answer_event_identity', 'f1ql.answer_season_participation',
@@ -556,6 +582,7 @@ const rawActivationBundle = {
     { component: 'planned_pipeline', current: 'planned-pipeline-v1', target: 'planned-pipeline-v2', transition: 'atomic' },
     { component: 'planner', current: 'semantic-planner-v2', target: 'semantic-planner-v3', transition: 'atomic' },
     { component: 'plan_execution_result', current: 'semantic-plan-execution-result-v2', target: 'semantic-plan-execution-result-v3', transition: 'atomic' },
+    { component: 'official_timing_coverage_reader', current: 'inactive', target: 'official-timing-coverage-v1', transition: 'atomic' },
     { component: 'principal_audit', current: 4, target: 5, transition: 'atomic' },
     { component: 'release_attestation', current: 8, target: 9, transition: 'atomic' },
     { component: 'resolution_evidence', current: 'semantic-resolution-v1', target: 'semantic-resolution-v2', transition: 'atomic' },
@@ -575,7 +602,7 @@ const rawActivationBundle = {
     required_target_hashes: [
       'activation_migration', 'answer_authorization_code', 'answer_question', 'candidate_proposal',
       'capability_authorization', 'capability_profile', 'capability_registry', 'catalog', 'catalog_database_binding',
-      'fact_space', 'plan_execution_result', 'plan_work_model', 'planned_compiler', 'planned_cost',
+      'fact_space', 'official_timing_coverage_reader', 'plan_execution_result', 'plan_work_model', 'planned_compiler', 'planned_cost',
       'planned_f1ql', 'planned_pipeline', 'planner', 'principal_audit', 'provider_schema',
       'release_attestation', 'resolution_evidence', 'result_formatter', 'semantic_answer_compatibility',
       'semantic_evidence', 'semantic_plan_proof', 'semantic_query', 'semantic_response_equivalence',

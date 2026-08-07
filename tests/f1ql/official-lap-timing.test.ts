@@ -9,11 +9,13 @@ import { executeF1QL } from '../../src/f1ql/executor';
 import { interpretOfficialEventMeanProgram, interpretOfficialLapWindowProgram, type OfficialLapTimingRow } from '../../src/f1ql/interpreter';
 import { OFFICIAL_EVENT_MEAN_METRIC_ID } from '../../src/f1ql/official-event-mean';
 import { OFFICIAL_LAP_WINDOW_METRIC_ID } from '../../src/f1ql/official-lap-window';
+import { readOfficialTimingCoverage } from '../../src/f1ql/official-timing-coverage';
 import { getTestDatabaseUrl, setupTestDatabase } from '../../src/test/setup';
 import { emitOfficialEventMeanF1QL, emitOfficialLapWindowF1QL } from '../../scripts/snapshot-phase8-belgium-2022-f1ql';
 
 const storageMigration = fs.readFileSync(path.resolve('migrations/20260801_official_timing_historical_laps.sql'), 'utf8');
 const servingMigration = fs.readFileSync(path.resolve('migrations/20260802_f1ql_official_lap_timing.sql'), 'utf8');
+const activationMigration = fs.readFileSync(path.resolve('migrations/20260807_f1ql_official_race_lap_timing_activation.sql'), 'utf8');
 const sourceContent = fs.readFileSync('data/phase8-belgium-2022-pilot.json');
 const identityContent = fs.readFileSync('data/phase8-belgium-2022-identity-map.json');
 const role = 'f1ql_official_lap_test';
@@ -110,6 +112,17 @@ describe('sealed official lap timing serving contract', () => {
     await pool.query(storageMigration);
     await pool.query(servingMigration);
     await pool.query(servingMigration);
+    await pool.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'f1ql_answer') THEN
+        CREATE ROLE f1ql_answer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+      END IF;
+    END $$`);
+    await pool.query('REVOKE ALL PRIVILEGES ON SCHEMA f1ql FROM f1ql_answer');
+    await pool.query('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA f1ql FROM f1ql_answer');
+    await pool.query('GRANT USAGE ON SCHEMA f1ql TO f1ql_answer');
+    await pool.query(activationMigration);
+    await pool.query('GRANT INSERT, UPDATE, DELETE ON f1ql.official_race_lap_timing TO f1ql_answer');
+    await pool.query(activationMigration);
     await pool.query(`INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
       (2022, 'phase8-red-bull', 'RBR', 'max_verstappen', false),
       (2022, 'phase8-alpine', 'ALP', 'fernando_alonso', false),
@@ -134,6 +147,25 @@ describe('sealed official lap timing serving contract', () => {
     `);
     expect(metadata.rows).toEqual([{ reloptions: ['security_barrier=true'], public_select: false }]);
     await expect(pool.query('SELECT count(*)::integer AS count FROM f1ql.official_lap_timing')).resolves.toMatchObject({ rows: [{ count: 0 }] });
+    const activationMetadata = await pool.query<{ column_name: string; is_nullable: string }>(`
+      SELECT column_name, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'f1ql' AND table_name = 'official_race_lap_timing'
+      ORDER BY ordinal_position
+    `);
+    expect(activationMetadata.rows).toEqual([
+      'authority', 'contract_version', 'dataset_sha256', 'driver_id', 'event_name', 'fact_fingerprint',
+      'identity_fingerprint', 'identity_map_sha256', 'lap_number', 'lap_time_seconds',
+      'official_deleted_lap', 'official_pit_marker', 'round', 'season', 'session_type',
+      'source_artifact_sha256', 'source_manifest_sha256'
+    ].map(column_name => ({ column_name, is_nullable: 'YES' })));
+    const activationOptions = await pool.query<{ reloptions: string[] | null; public_select: boolean }>(`
+      SELECT c.reloptions, has_table_privilege('public', 'f1ql.official_race_lap_timing', 'SELECT') AS public_select
+      FROM pg_class c WHERE c.oid = 'f1ql.official_race_lap_timing'::regclass
+    `);
+    expect(activationOptions.rows).toEqual([{ reloptions: ['security_barrier=true'], public_select: false }]);
+    await expect(pool.query('SELECT count(*)::integer AS count FROM f1ql.official_race_lap_timing'))
+      .resolves.toMatchObject({ rows: [{ count: 0 }] });
   });
 
   it('exposes exactly the complete sealed event and no private-table privileges', async () => {
@@ -144,6 +176,8 @@ describe('sealed official lap timing serving contract', () => {
       FROM f1ql.official_lap_timing
     `);
     expect(served.rows).toEqual([{ rows: 790, drivers: 19, minimum_lap: 1, maximum_lap: 44 }]);
+    await expect(pool.query(`SELECT count(*)::integer AS rows, count(DISTINCT driver_id)::integer AS drivers
+      FROM f1ql.official_race_lap_timing`)).resolves.toMatchObject({ rows: [{ rows: 790, drivers: 19 }] });
 
     await pool.query(`CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS`);
     await pool.query(`GRANT USAGE ON SCHEMA f1ql TO ${role}`);
@@ -162,6 +196,70 @@ describe('sealed official lap timing serving contract', () => {
     } finally {
       await client.query('RESET ROLE');
       client.release();
+    }
+
+    const answerClient = await pool.connect();
+    try {
+      await answerClient.query('SET ROLE f1ql_answer');
+      await expect(answerClient.query('SELECT count(*)::integer AS count FROM f1ql.official_race_lap_timing'))
+        .resolves.toMatchObject({ rows: [{ count: 790 }] });
+      await expect(answerClient.query('SELECT leader_gap_seconds FROM f1ql.official_race_lap_timing')).rejects.toMatchObject({ code: '42703' });
+      await expect(answerClient.query('SELECT count(*) FROM f1ql.official_lap_timing')).rejects.toMatchObject({ code: '42501' });
+      await expect(answerClient.query('SELECT count(*) FROM official_timing.dataset')).rejects.toMatchObject({ code: '42501' });
+      const answerPrivileges = await answerClient.query<{ select: boolean; insert: boolean; update: boolean; delete: boolean }>(`
+        SELECT
+          has_table_privilege(current_user, 'f1ql.official_race_lap_timing', 'SELECT') AS select,
+          has_table_privilege(current_user, 'f1ql.official_race_lap_timing', 'INSERT') AS insert,
+          has_table_privilege(current_user, 'f1ql.official_race_lap_timing', 'UPDATE') AS update,
+          has_table_privilege(current_user, 'f1ql.official_race_lap_timing', 'DELETE') AS delete
+      `);
+      expect(answerPrivileges.rows).toEqual([{ select: true, insert: false, update: false, delete: false }]);
+      await expect(answerClient.query('DELETE FROM f1ql.official_race_lap_timing')).rejects.toBeDefined();
+    } finally {
+      await answerClient.query('RESET ROLE');
+      answerClient.release();
+    }
+  });
+
+  it('reads real fixed coverage and distinguishes coverage absence from eligible facts', async () => {
+    const answerPool = new Pool({ connectionString: getTestDatabaseUrl(), options: '-c role=f1ql_answer', max: 1 });
+    try {
+      await expect(readOfficialTimingCoverage(answerPool, {
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2022,
+        round: 14,
+        session_type: 'R',
+        driver_ids: ['max-verstappen', 'fernando-alonso']
+      })).resolves.toMatchObject({
+        type: 'eligible',
+        coverage_query_id: 'official_event_coverage_v1',
+        driver_coverage: [
+          { driver_id: 'max-verstappen', completed_laps: 44, eligible_laps: 42 },
+          { driver_id: 'fernando-alonso', completed_laps: 44, eligible_laps: 42 }
+        ]
+      });
+    } finally {
+      await answerPool.end();
+    }
+    await expect(readOfficialTimingCoverage(pool, {
+      metric: OFFICIAL_LAP_WINDOW_METRIC_ID,
+      season: 2022,
+      round: 14,
+      session_type: 'R',
+      driver_ids: ['max-verstappen', 'fernando-alonso'],
+      lap_start: 3,
+      lap_end: 10
+    })).resolves.toMatchObject({ type: 'eligible', coverage_query_id: 'official_window_coverage_v1' });
+    for (const driverId of ['lewis-hamilton', 'valtteri-bottas']) {
+      await expect(readOfficialTimingCoverage(pool, {
+        metric: OFFICIAL_EVENT_MEAN_METRIC_ID,
+        season: 2022,
+        round: 14,
+        session_type: 'R',
+        driver_ids: ['fernando-alonso', driverId]
+      })).resolves.toEqual({
+        type: 'abstain', reason: 'source_coverage_missing', stage: 'official_timing_coverage', query_calls: 1
+      });
     }
   });
 

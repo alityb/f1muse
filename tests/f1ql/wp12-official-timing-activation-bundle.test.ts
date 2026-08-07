@@ -27,7 +27,7 @@ describe('WP12 official timing atomic activation bundle', () => {
     expect(Object.isFrozen(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.source.certified_scope)).toBe(true);
     expect(Object.isFrozen(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.versions[0])).toBe(true);
     expect(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE_SHA256)
-      .toBe('3c6b4db83304799e3102d3e5872e824a8eb6da49faef1b95eeaeaf0775648a92');
+      .toBe('e02ea6b00b55fbc8774c735b34eb04bf92177373fb31cd9c66079d8bb3f219aa');
     const reordered = Object.fromEntries(Object.entries(cloneBundle()).reverse());
     expect(parseWP12OfficialTimingActivationBundle(reordered)).toEqual(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE);
   });
@@ -214,7 +214,7 @@ describe('WP12 official timing atomic activation bundle', () => {
     ]);
     expect(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.database).toMatchObject({
       target_activation_migration: '20260807_f1ql_official_race_lap_timing_activation.sql',
-      target_activation_migration_sha256: 'f4807adeea81b8555e750e0950efd62745c56665d4d63b6641273fb027381735'
+      target_activation_migration_sha256: 'feee77471d5d80342a2a22b3480b3ac3a8d74df628b7a7ab433ea6aa414b6eaf'
     });
     expect(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.versions.filter(version => version.transition === 'atomic').length)
       .toBeGreaterThan(20);
@@ -247,6 +247,7 @@ describe('WP12 official timing atomic activation bundle', () => {
     expect(sql).toContain('CREATE OR REPLACE VIEW f1ql.official_race_lap_timing');
     expect(sql).toContain('WITH (security_barrier = true)');
     expect(sql).toContain('GRANT SELECT ON f1ql.official_race_lap_timing TO f1ql_answer');
+    expect(sql).toContain('REVOKE ALL ON f1ql.official_race_lap_timing FROM f1ql_answer');
     expect(sql).not.toMatch(/\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\b/);
     expect(sql).not.toContain('leader_gap_seconds');
     expect(sql).not.toContain('official_name');
@@ -303,6 +304,12 @@ describe('WP12 official timing atomic activation bundle', () => {
     expect(scope.final_classification_artifact_sha256).toBe(sourceFixture.artifacts.final_race_classification.sha256);
     expect(scope.deleted_laps_artifact_sha256).toBe(sourceFixture.artifacts.deleted_race_lap_times.sha256);
     expect(scope.race_history_artifact_sha256).toBe(sourceFixture.artifacts.race_history_chart.sha256);
+    const identities = JSON.parse(fs.readFileSync('data/phase8-belgium-2022-identity-map.json', 'utf8')) as any;
+    const classifiedByRacingNumber = new Map(sourceFixture.identities.map((identity: any) => [identity.racing_number, identity.classified_laps]));
+    expect(scope.classified_laps_by_driver).toEqual(identities.mappings.map((mapping: any) => ({
+      driver_id: mapping.driver_id.replaceAll('_', '-'),
+      classified_laps: classifiedByRacingNumber.get(mapping.racing_number)
+    })).sort((left: any, right: any) => left.driver_id.localeCompare(right.driver_id)));
     expect(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.output_schemas[0].field_ids).toEqual(Object.keys(meanFixture.rows[0]));
     expect(WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.output_schemas[1].field_ids).toEqual(Object.keys(windowFixture.rows[0]));
   });
@@ -313,6 +320,7 @@ describe('WP12 official timing atomic activation bundle', () => {
     ['dataset pin', (bundle: any) => { bundle.source.certified_scope.dataset_sha256 = '0'.repeat(64); }],
     ['final classification artifact', (bundle: any) => { bundle.source.certified_scope.final_classification_artifact_sha256 = '0'.repeat(64); }],
     ['deleted laps artifact', (bundle: any) => { bundle.source.certified_scope.deleted_laps_artifact_sha256 = '0'.repeat(64); }],
+    ['classified lap map', (bundle: any) => { bundle.source.certified_scope.classified_laps_by_driver[0].classified_laps = 43; }],
     ['prohibited column', (bundle: any) => { bundle.source.target_view_columns.push('leader_gap_seconds'); }],
     ['relationship key', (bundle: any) => { bundle.relationships[1].to_keys = ['season']; }],
     ['metric rule', (bundle: any) => { bundle.metrics[0].minimum_eligible_laps_per_driver = 1; }],
