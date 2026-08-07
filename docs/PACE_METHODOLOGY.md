@@ -317,7 +317,7 @@ unapplied sealed-serving migration and executes the closed canonical
 `official_lap_window_median_compare` program through the real parser,
 validation, participation, lowering, core validation, compiler, read-only
 statement-timeout, and row-bound path. Its generated result SHA-256 is
-`4f38fe42338e863df55eb9441308e44e7452bde1cfe6694b8a9ca1c2ac3bbcde` and
+`972b7d5066e1e2bea768eb3db0a31c44e447dd1b4747db88957b8cf61c99e6c0` and
 matches the temporary reference values exactly. The answer policy rejects the
 operation. Both migrations remain localhost-only with no persistent runtime
 grant, production application, or production ingestion authorization.

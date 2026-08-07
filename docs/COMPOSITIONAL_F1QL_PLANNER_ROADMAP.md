@@ -953,6 +953,20 @@ Verstappen versus Alonso over supported Belgian 2022 laps may answer, while an
 Alonso versus Hamilton window must abstain because the retained dataset records
 Hamilton with zero completed laps.
 
+The first WP12 dependency is now complete locally as an inactive candidate. It
+pins the sealed Belgian 2022 dataset, source and identity manifests, identity
+and fact fingerprints, and Race History Chart artifact; declares only official
+raw race timing fields at driver-event-lap grain; and adds a strict typed
+complete-window coverage oracle for
+`official_non_deleted_non_pit_window_median_v1`. The active semantic catalog,
+provider schema, grants, capability profiles, answer policy, and routes remain
+unchanged. Verstappen versus Alonso laps 3-10 is eligible against the existing
+closed reference, while Alonso versus the retained zero-lap Hamilton identity
+on laps 2-10 returns `source_coverage_missing`. This is pre-activation evidence,
+not a catalog source or answer capability. The event-mean candidate and the
+complete catalog/planner/proof/authorization/formatter/database-binding slice
+remain separate later milestones.
+
 Definition of done: local migration, immutable dataset, security-barrier view,
 catalog/database binding, planner/proof/capability/formatter path, missing-row
 coverage behavior, SQL/reference parity, and internal/public canaries all pass.

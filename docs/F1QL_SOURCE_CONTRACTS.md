@@ -282,7 +282,7 @@ semantics are in `docs/OFFICIAL_EVENT_MEAN_METRIC.md`.
 
 Local generated F1QL evidence is
 `data/phase8-belgium-2022-f1ql-result.json` with SHA-256
-`4f38fe42338e863df55eb9441308e44e7452bde1cfe6694b8a9ca1c2ac3bbcde`.
+`972b7d5066e1e2bea768eb3db0a31c44e447dd1b4747db88957b8cf61c99e6c0`.
 No persistent runtime role or production grant exists. The answer policy
 explicitly rejects both official timing operations, and neither migration has been applied nor
 has historical data been ingested in production.
