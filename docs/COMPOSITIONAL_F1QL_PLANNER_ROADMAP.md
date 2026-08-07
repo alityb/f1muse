@@ -958,14 +958,19 @@ pins the sealed Belgian 2022 dataset, source and identity manifests, identity
 and fact fingerprints, and Race History Chart artifact; declares only official
 raw race timing fields at driver-event-lap grain; and adds a strict typed
 complete-window coverage oracle for
-`official_non_deleted_non_pit_window_median_v1`. The active semantic catalog,
-provider schema, grants, capability profiles, answer policy, and routes remain
-unchanged. Verstappen versus Alonso laps 3-10 is eligible against the existing
-closed reference, while Alonso versus the retained zero-lap Hamilton identity
-on laps 2-10 returns `source_coverage_missing`. This is pre-activation evidence,
-not a catalog source or answer capability. The event-mean candidate and the
-complete catalog/planner/proof/authorization/formatter/database-binding slice
-remain separate later milestones.
+`official_non_deleted_non_pit_window_median_v1`. The separate inactive
+`official_non_deleted_non_pit_event_mean_v1` candidate is also complete: it
+requires the full classified lap sequence, permits disclosed asymmetric
+completed counts, applies only official deletion and explicit `PIT` exclusions,
+and requires two eligible laps per driver. The active semantic catalog, provider
+schema, grants, capability profiles, answer policy, and routes remain unchanged.
+Verstappen versus Alonso laps 3-10 is eligible against the existing closed
+window reference, while Alonso versus the retained zero-lap Hamilton identity
+on laps 2-10 returns `source_coverage_missing`; the event mean likewise abstains
+for Hamilton and one-lap Bottas. These are pre-activation contracts, not catalog
+sources or answer capabilities. The complete versioned catalog, same-source
+comparison topology, database binding/grant, planner, proof, authorization,
+formatter, and shadow-observation slice remains the next local milestone.
 
 Definition of done: local migration, immutable dataset, security-barrier view,
 catalog/database binding, planner/proof/capability/formatter path, missing-row
