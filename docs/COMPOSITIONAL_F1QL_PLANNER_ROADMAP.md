@@ -972,6 +972,21 @@ sources or answer capabilities. The complete versioned catalog, same-source
 comparison topology, database binding/grant, planner, proof, authorization,
 formatter, and shadow-observation slice remains the next local milestone.
 
+The atomic preactivation boundary is now complete locally without changing that
+active state. A strict hash-bound bundle pins both candidate commits, every
+sealed source artifact, the exact future source/concept/relationship contracts,
+separate event-mean and lap-window topologies, typed coverage and integrity
+abstention, closed output order and decimal behavior, least-privilege principal
+scope, coordinated component versions, signed target hashes, activation gates,
+and shadow non-execution. Its unapplied security-barrier migration exposes only
+the certified pinned raw timing fields to `f1ql_answer`; prohibited identity and
+leader-gap columns remain physically inaccessible. Coverage preflight is limited
+to one of two fingerprinted aggregate-only statements under fixed transaction,
+timeout, parameter, projection, and row bounds. Activation still requires the
+entire catalog/database/planner/proof/authorization/formatter/provider/shadow/
+release slice and its canary and production evidence to switch together; the
+bundle rejects a partial hash set or independently activated component.
+
 Definition of done: local migration, immutable dataset, security-barrier view,
 catalog/database binding, planner/proof/capability/formatter path, missing-row
 coverage behavior, SQL/reference parity, and internal/public canaries all pass.
