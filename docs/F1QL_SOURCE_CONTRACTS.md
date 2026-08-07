@@ -318,6 +318,22 @@ row-security-bypass attribute. Future database-binding and principal evidence
 must bind the same hashed current user and current database. Active principal
 audit v4 and its seven-relation allowlist remain unchanged.
 
+The separate detached semantic target family is also expectations-only. It binds
+semantic query/evidence v3 through result formatter v32 at composite SHA-256
+`1b06103fa99c9556484cbba46c1bf83a9fcfaaba2572eed1e012e391dcf053bc`.
+Only the named complete-event mean and inclusive-window median operations exist;
+the target grants no generic aggregation over `lap_time_seconds`. Both require an
+eligible decision from the exact fingerprinted coverage query before planning,
+two distinct governed drivers, the certified Belgian 2022 race, one source read
+through two logical scans, no physical join, metric-local deleted/PIT exclusions,
+and one exact result row. The execution-result expectation preserves one consumed
+authorization, repeatable-read read-only operation, statement timeout, deadline,
+rollback, and unsafe-client discard. Formatter expectations bind every disclosed
+count to ordered coverage, fixed scope and provenance values, nonnegative scale-4
+decimals, absolute delta, null-on-tie winner, and public omission of the internal
+integrity field. Runtime implementation and implementation evidence remain null;
+active profile 33 and formatter v31 do not import or expose this target.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain

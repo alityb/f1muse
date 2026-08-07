@@ -962,11 +962,16 @@ Alonso laps 3-10 is eligible against the existing closed window reference, while
 Alonso versus the retained zero-lap Hamilton identity on laps 2-10 returns
 `source_coverage_missing`; the event mean likewise abstains for Hamilton and
 one-lap Bottas. These remain detached pre-activation contracts, not active
-catalog sources or answer capabilities. The next local milestone is the
-semantic-query/planner/compiler/proof/authorization/formatter target slice;
-provider, shadow, release, canary, and signed production evidence follow before
-the atomic switch. The active semantic catalog, provider schema, grants,
-capability profiles, answer policy, and routes remain unchanged.
+catalog sources or answer capabilities. The detached expectations-only
+semantic-query-through-formatter target slice is now also complete. It binds the
+two named metrics to exact v3 query/planner/compiler interfaces, pre-planning
+coverage, independent proof, profile 34 authorization, a bounded read-only
+execution-result handoff, and closed formatter v32 outputs, but contains no
+runtime implementation or implementation evidence. Remaining provider/schema,
+answer/question/fact-space/compatibility, shadow, and release targets precede the
+atomic implementation, parity, canary, and signed production evidence gates.
+The active semantic catalog, provider schema, grants, capability profiles,
+answer policy, and routes remain unchanged.
 
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every
