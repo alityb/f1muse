@@ -914,6 +914,21 @@ No schema crawler or model may automatically expose a database field. New
 concepts are reviewed semantic contracts. Unsupported formulas and combinations
 remain absent even if their input columns exist.
 
+The first constructor milestone is implemented locally and remains PARTIAL at
+the production-evidence boundary. A guarded read-only audit now checks only the
+fixed retained final-2025 `season_constructor_standing`, constructor identity,
+exact critical key shapes, rounds `1..24`, and complete retained race-classification
+participation contract. It emits only strict canonical counts and hashes,
+including normalized identity plus exact recorded-points facts, and never
+reconstructs points or ranking. Production additionally requires an independently
+supplied approved database-target hash before pool construction. It adds no
+catalog source, view, grant, capability profile, provider request, production
+query, migration, deployment, or route. After a committed green audit passes once
+in production, the next milestone may add least-privilege serving and identity
+views and then one narrow final-2025 constructor championship-points profile. A
+failed production audit leaves constructor semantics absent. The exact report
+contract and finishing sequence are in `CONSTRUCTOR_AUTHORITY_AUDIT.md`.
+
 Definition of done: every newly exposed concept is queryable through all and
 only its declared operators, generated valid combinations pass SQL/reference
 parity, invalid combinations fail before result-query acquisition, and missing

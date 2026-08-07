@@ -222,7 +222,8 @@ export async function setupTestDatabase(
       engine_manufacturer_id TEXT,
       points NUMERIC NOT NULL,
       championship_won BOOLEAN DEFAULT false,
-      PRIMARY KEY (year, position_display_order)
+      PRIMARY KEY (year, position_display_order),
+      UNIQUE (year, constructor_id)
     );
   `);
 
