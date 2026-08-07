@@ -6,23 +6,26 @@ const nonEmptyText = z.string().trim().min(1).max(500);
 const governanceSchema = z.enum(['experimental', 'verified', 'certified']);
 const physicalTypeSchema = z.enum(['boolean', 'date', 'integer', 'numeric', 'text']);
 const semanticTypeSchema = z.enum([
-  'boolean', 'circuit_id', 'date', 'driver_id', 'duration_ms', 'event_id',
-  'identity', 'number', 'position', 'provenance', 'round', 'season', 'status',
+  'boolean', 'circuit_id', 'date', 'driver_id', 'duration_ms', 'duration_seconds_exact', 'event_id',
+  'identity', 'lap', 'number', 'position', 'provenance', 'round', 'season', 'status',
   'team_id', 'text'
 ]);
 const filterOperatorSchema = z.enum(['eq', 'in', 'range']);
 const aggregationSchema = z.enum(['count', 'max', 'min', 'sum']);
 const operationClassSchema = z.enum(['comparison', 'position_filter', 'ranking']);
 const sourceIntegrityCheckSchema = z.enum([
-  'ambiguity_preserved', 'entrant_precedence', 'non_null_position', 'position_bounds',
+  'ambiguity_preserved', 'certified_scope_pin', 'entrant_precedence', 'non_null_position', 'position_bounds',
   'single_resolved_identity', 'source_presence', 'unique_event_key', 'unique_grain',
   'unique_relevant_position'
 ]);
 const relationshipIntegrityCheckSchema = z.enum([
-  'deduplicate_keys', 'entrant_precedence', 'non_null_measure', 'non_null_requested_to_concepts',
+  'certified_scope_pin', 'deduplicate_keys', 'entrant_precedence', 'non_null_measure', 'non_null_requested_to_concepts',
   'single_resolved_key', 'source_presence', 'unique_filtered_branch', 'unique_from_key', 'unique_to_key'
 ]);
 const SEMANTIC_CATALOG_CONTROL_TIMEOUT_MS = 2_000;
+const OFFICIAL_TIMING_SOURCE_ID = 'official_race_lap_timing';
+const OFFICIAL_TIMING_SOURCE_CONTRACT_SHA256 = '6ec8e5a5709154e861ab2ddce62de426b8f87dbb7fdb29aa8b943978feaa5798';
+const OFFICIAL_TIMING_RELATIONSHIPS_CONTRACT_SHA256 = '468f3df0277ebeeaa4044343469d5ed92c618f94f7386792dc56dc5bf773cd81';
 
 const languageSchema = z.object({
   names: z.array(nonEmptyText).min(1).max(20),
@@ -65,6 +68,28 @@ const measureSchema = z.object({
   language: languageSchema.nullable()
 }).strict();
 
+const certifiedScopeSchema = z.object({
+  season: z.number().int().min(1950).max(2200),
+  round: z.number().int().positive(),
+  session_type: z.literal('R'),
+  event_name: nonEmptyText,
+  dataset_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  source_manifest_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  identity_map_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  identity_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  fact_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  race_history_artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  final_classification_artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  deleted_laps_artifact_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  identity_count: z.number().int().positive(),
+  fact_count: z.number().int().positive(),
+  fact_bearing_driver_count: z.number().int().positive(),
+  classified_laps_by_driver: z.array(z.object({
+    driver_id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    classified_laps: z.number().int().nonnegative()
+  }).strict()).min(1).max(100)
+}).strict();
+
 const sourceSchema = z.object({
   id: idSchema,
   family_id: idSchema,
@@ -75,7 +100,7 @@ const sourceSchema = z.object({
   governance: governanceSchema,
   description: nonEmptyText,
   grain: z.object({
-    kind: z.enum(['driver_event', 'driver_season', 'event', 'identity_value', 'participation_evidence']),
+    kind: z.enum(['driver_event', 'driver_event_lap', 'driver_season', 'event', 'identity_value', 'participation_evidence']),
     key: z.array(idSchema).min(1).max(5),
     uniqueness: z.enum(['required', 'verified_at_query', 'not_unique'])
   }).strict(),
@@ -121,11 +146,13 @@ const sourceSchema = z.object({
       as_of: z.string().date()
     }).strict().nullable(),
     certification_class: z.enum(['cited_facts_only', 'inventory_only', 'operational_projection']),
-    freshness_class: z.enum(['current_projection', 'latest_recorded', 'mixed_final_and_latest']),
+    freshness_class: z.enum(['current_projection', 'immutable_historical', 'latest_recorded', 'mixed_final_and_latest']),
     unsupported_ids: z.array(idSchema).min(1).max(30),
     unsupported: z.array(nonEmptyText).min(1).max(30)
   }).strict(),
-  language: languageSchema
+  language: languageSchema,
+  certified_scope: certifiedScopeSchema.optional(),
+  prohibited_claims: z.array(idSchema).min(1).max(30).optional()
 }).strict();
 
 const relationshipSchema = z.object({
@@ -156,7 +183,7 @@ const relationshipSchema = z.object({
 });
 
 const catalogSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   owner: idSchema,
   governance: governanceSchema,
   families: z.array(z.object({
@@ -1282,7 +1309,11 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     assertUniqueAndSorted(measures, `measures for source ${source.id}`);
     assertUnique([...dimensions, ...measures], `concept IDs for source ${source.id}`);
     assertUnique([...source.dimensions.map(item => item.physical_field), ...source.measures.flatMap(item => item.physical_field ? [item.physical_field] : [])], `physical fields for source ${source.id}`);
-    assertUniqueAndSorted(source.grain.key, `grain key for source ${source.id}`);
+    if (source.grain.kind === 'driver_event_lap') {
+      assertUnique(source.grain.key, `grain key for source ${source.id}`);
+    } else {
+      assertUniqueAndSorted(source.grain.key, `grain key for source ${source.id}`);
+    }
     assertUniqueAndSorted(source.scope.sessions, `sessions for source ${source.id}`);
     assertUniqueAndSorted(source.integrity.required_checks, `integrity checks for source ${source.id}`);
     assertUniqueAndSorted(source.integrity.operation_checks.map(item => item.operation_class), `operation checks for source ${source.id}`);
@@ -1294,7 +1325,47 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
       }
     }
     assertUniqueAndSorted(source.coverage.unsupported_ids, `unsupported coverage IDs for source ${source.id}`);
+    if (source.prohibited_claims !== undefined) {
+      assertUniqueAndSorted(source.prohibited_claims, `prohibited claims for source ${source.id}`);
+    }
     validateLanguage(source.id, source.language);
+
+    if (catalog.version === 1 && (source.certified_scope !== undefined || source.prohibited_claims !== undefined ||
+        source.grain.kind === 'driver_event_lap' || source.coverage.freshness_class === 'immutable_historical' ||
+        source.integrity.required_checks.includes('certified_scope_pin') ||
+        source.integrity.operation_checks.some(check => check.required_checks.includes('certified_scope_pin')) ||
+        [...source.dimensions, ...source.measures].some(item =>
+          item.semantic_type === 'duration_seconds_exact' || item.semantic_type === 'lap'))) {
+      throw new Error(`catalog v1 source ${source.id} cannot use catalog v2 contracts`);
+    }
+    const usesCertifiedScopePin = source.integrity.required_checks.includes('certified_scope_pin') ||
+      source.integrity.operation_checks.some(check => check.required_checks.includes('certified_scope_pin'));
+    if (source.grain.kind === 'driver_event_lap') {
+      if (catalog.version !== 2 || source.governance !== 'certified' || source.certified_scope === undefined ||
+          source.prohibited_claims === undefined || !source.integrity.required_checks.includes('certified_scope_pin') ||
+          stableSerialize(source.grain.key) !== stableSerialize(['season', 'round', 'driver_id', 'lap_number']) ||
+          source.measures.some(item => item.allowed_aggregations.length > 0)) {
+        throw new Error(`driver-event-lap source ${source.id} lacks its certified catalog v2 contract`);
+      }
+      const certified = source.certified_scope;
+      if (source.scope.season_min !== certified.season || source.scope.season_max !== certified.season ||
+          stableSerialize(source.scope.sessions) !== stableSerialize(['race']) ||
+          source.dimensions.some(item => item.physical_nullable !== true || item.nullable !== false) ||
+          source.measures.some(item => item.physical_nullable !== true || item.nullable !== false) ||
+          certified.classified_laps_by_driver.length !== certified.identity_count ||
+          certified.classified_laps_by_driver.filter(item => item.classified_laps > 0).length !==
+            certified.fact_bearing_driver_count ||
+          certified.classified_laps_by_driver.reduce((sum, item) => sum + item.classified_laps, 0) !==
+            certified.fact_count) {
+        throw new Error(`driver-event-lap source ${source.id} differs from its certified scope or null contract`);
+      }
+      assertUniqueAndSorted(
+        certified.classified_laps_by_driver.map(item => item.driver_id),
+        `classified-lap driver IDs for source ${source.id}`
+      );
+    } else if (source.certified_scope !== undefined || source.prohibited_claims !== undefined || usesCertifiedScopePin) {
+      throw new Error(`source ${source.id} has certified fields without driver-event-lap grain`);
+    }
 
     if ((source.scope.season_min === null) !== (source.scope.season_max === null)) {
       throw new Error(`source ${source.id} must set both season bounds or neither`);
@@ -1327,10 +1398,12 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     for (const dimensionItem of source.dimensions) {
       assertUniqueAndSorted(dimensionItem.filter_operators, `filter operators for ${source.id}.${dimensionItem.id}`);
       assertUniqueAndSorted(dimensionItem.allowed_values, `allowed values for ${source.id}.${dimensionItem.id}`);
-      if (dimensionItem.filter_operators.includes('range') && !['date', 'duration_ms', 'number', 'position', 'round', 'season'].includes(dimensionItem.semantic_type)) {
+      if (dimensionItem.filter_operators.includes('range') && !['date', 'duration_ms', 'lap', 'number', 'position', 'round', 'season'].includes(dimensionItem.semantic_type)) {
         throw new Error(`dimension ${source.id}.${dimensionItem.id} cannot use range filtering`);
       }
-      if ((dimensionItem.semantic_type === 'status' || dimensionItem.semantic_type === 'provenance') && dimensionItem.allowed_values.length === 0) {
+      if ((dimensionItem.semantic_type === 'status' ||
+          (dimensionItem.semantic_type === 'provenance' && source.grain.kind !== 'driver_event_lap')) &&
+          dimensionItem.allowed_values.length === 0) {
         throw new Error(`dimension ${source.id}.${dimensionItem.id} requires allowed values`);
       }
       if (dimensionItem.language !== null) {
@@ -1423,6 +1496,9 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     assertUniqueAndSorted(relationship.required_branch_filters, `branch filters for relationship ${relationship.id}`);
     assertUniqueAndSorted(relationship.required_checks, `checks for relationship ${relationship.id}`);
     assertUniqueAndSorted(relationship.required_scope_predicates.map(predicate => `${predicate.side}.${predicate.concept_id}.${predicate.operator}.${predicate.parameter}`), `scope predicates for relationship ${relationship.id}`);
+    if (catalog.version === 1 && relationship.required_checks.includes('certified_scope_pin')) {
+      throw new Error(`catalog v1 relationship ${relationship.id} cannot use catalog v2 checks`);
+    }
     const from = sources.get(relationship.from_source);
     const to = sources.get(relationship.to_source);
     if (!from || !to) {
@@ -1460,7 +1536,11 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
     }
     if (relationship.join_stage === 'row' && relationship.from_source === relationship.to_source) {
       const coveredGrain = new Set([...relationship.from_keys, ...relationship.required_branch_filters]);
-      if (from.grain.key.some(key => !coveredGrain.has(key)) || relationship.cardinality !== 'many_to_many' ||
+      const uncoveredGrain = from.grain.key.filter(key => !coveredGrain.has(key));
+      const certifiedLapComparison = from.grain.kind === 'driver_event_lap' &&
+        stableSerialize(uncoveredGrain) === stableSerialize(['lap_number']) &&
+        relationship.required_checks.includes('certified_scope_pin');
+      if ((!certifiedLapComparison && uncoveredGrain.length > 0) || relationship.cardinality !== 'many_to_many' ||
           !relationship.required_checks.includes('source_presence') || !relationship.required_checks.includes('unique_filtered_branch')) {
         throw new Error(`self relationship ${relationship.id} must expose raw fanout and complete branch-filter preconditions`);
       }
@@ -1500,7 +1580,60 @@ function validateCatalogSemantics(catalog: SemanticCatalog): void {
       throw new Error(`resolution relationship ${relationship.id} into answer facts must require one resolved key`);
     }
   }
+  if (catalog.version === 2) {validateOfficialTimingCatalogV2(catalog);}
   assertConnectedSourceGraph(catalog);
+}
+
+function validateOfficialTimingCatalogV2(catalog: SemanticCatalog): void {
+  const certifiedSources = catalog.sources.filter(source => source.grain.kind === 'driver_event_lap');
+  if (certifiedSources.length !== 1) {
+    throw new Error('catalog v2 official timing source differs from its exact certified contract');
+  }
+  const source = certifiedSources[0]!;
+  const safetyContract = {
+    id: source.id,
+    family_id: source.family_id,
+    view: source.view,
+    usage: source.usage,
+    view_security_barrier: source.view_security_barrier,
+    governance: source.governance,
+    freshness_class: source.coverage.freshness_class,
+    uniqueness: source.grain.uniqueness,
+    source_presence_required: source.integrity.source_presence_required,
+    unique_key_required: source.integrity.unique_key_required,
+    required_checks: source.integrity.required_checks,
+    excluded: catalog.excluded_families.includes('official_historical_laps')
+  };
+  const expectedSafetyContract = {
+    id: OFFICIAL_TIMING_SOURCE_ID,
+    family_id: 'official_historical_laps',
+    view: 'f1ql.official_race_lap_timing',
+    usage: 'answer_fact',
+    view_security_barrier: true,
+    governance: 'certified',
+    freshness_class: 'immutable_historical',
+    uniqueness: 'required',
+    source_presence_required: true,
+    unique_key_required: true,
+    required_checks: ['certified_scope_pin', 'source_presence', 'unique_grain'],
+    excluded: false
+  };
+  if (stableSerialize(safetyContract) !== stableSerialize(expectedSafetyContract) ||
+      hashContract(source) !== OFFICIAL_TIMING_SOURCE_CONTRACT_SHA256) {
+    throw new Error('catalog v2 official timing source differs from its exact certified contract');
+  }
+  const relationships = catalog.relationships.filter(relationship =>
+    relationship.from_source === OFFICIAL_TIMING_SOURCE_ID || relationship.to_source === OFFICIAL_TIMING_SOURCE_ID
+  );
+  if (hashContract(relationships) !== OFFICIAL_TIMING_RELATIONSHIPS_CONTRACT_SHA256 ||
+      catalog.relationships.some(relationship => relationship.required_checks.includes('certified_scope_pin') &&
+        !relationships.includes(relationship))) {
+    throw new Error('catalog v2 official timing relationships differ from their exact certified contract');
+  }
+}
+
+function hashContract(value: unknown): string {
+  return createHash('sha256').update(stableSerialize(value)).digest('hex');
 }
 
 function assertConnectedSourceGraph(catalog: SemanticCatalog): void {

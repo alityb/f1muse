@@ -953,24 +953,20 @@ Verstappen versus Alonso over supported Belgian 2022 laps may answer, while an
 Alonso versus Hamilton window must abstain because the retained dataset records
 Hamilton with zero completed laps.
 
-The first WP12 dependency is now complete locally as an inactive candidate. It
-pins the sealed Belgian 2022 dataset, source and identity manifests, identity
-and fact fingerprints, and Race History Chart artifact; declares only official
-raw race timing fields at driver-event-lap grain; and adds a strict typed
-complete-window coverage oracle for
-`official_non_deleted_non_pit_window_median_v1`. The separate inactive
-`official_non_deleted_non_pit_event_mean_v1` candidate is also complete: it
-requires the full classified lap sequence, permits disclosed asymmetric
-completed counts, applies only official deletion and explicit `PIT` exclusions,
-and requires two eligible laps per driver. The active semantic catalog, provider
-schema, grants, capability profiles, answer policy, and routes remain unchanged.
-Verstappen versus Alonso laps 3-10 is eligible against the existing closed
-window reference, while Alonso versus the retained zero-lap Hamilton identity
-on laps 2-10 returns `source_coverage_missing`; the event mean likewise abstains
-for Hamilton and one-lap Bottas. These are pre-activation contracts, not catalog
-sources or answer capabilities. The complete versioned catalog, same-source
-comparison topology, database binding/grant, planner, proof, authorization,
-formatter, and shadow-observation slice remains the next local milestone.
+The source candidates, fixed coverage reader, and detached catalog-v2,
+database-binding-v2, and principal-v5 targets are now complete locally. They pin
+the sealed Belgian 2022 dataset and artifacts, exact driver-event-lap concepts,
+three official resolution/comparison relationships, all eight future physical
+view contracts, and the least-privilege principal transition. Verstappen versus
+Alonso laps 3-10 is eligible against the existing closed window reference, while
+Alonso versus the retained zero-lap Hamilton identity on laps 2-10 returns
+`source_coverage_missing`; the event mean likewise abstains for Hamilton and
+one-lap Bottas. These remain detached pre-activation contracts, not active
+catalog sources or answer capabilities. The next local milestone is the
+semantic-query/planner/compiler/proof/authorization/formatter target slice;
+provider, shadow, release, canary, and signed production evidence follow before
+the atomic switch. The active semantic catalog, provider schema, grants,
+capability profiles, answer policy, and routes remain unchanged.
 
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every

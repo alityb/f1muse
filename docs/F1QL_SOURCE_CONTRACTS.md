@@ -284,8 +284,39 @@ Local generated F1QL evidence is
 `data/phase8-belgium-2022-f1ql-result.json` with SHA-256
 `972b7d5066e1e2bea768eb3db0a31c44e447dd1b4747db88957b8cf61c99e6c0`.
 No persistent runtime role or production grant exists. The answer policy
-explicitly rejects both official timing operations, and neither migration has been applied nor
-has historical data been ingested in production.
+explicitly rejects both official timing operations, and none of the three official-timing
+migrations has been applied nor has historical data been ingested in production.
+
+## Detached WP12 Catalog Target
+
+The inactive WP12 target adds `f1ql.official_race_lap_timing` only to a detached
+semantic catalog v2 assembled from the active catalog v1 and the reviewed
+activation bundle. The public catalog parser requires the exact certified source
+contract, including its security barrier, immutable coverage, required unique
+driver-event-lap grain, all physical-nullable/semantic-non-null concepts, pinned
+dataset and artifact identities, no generic raw-lap aggregation, and exactly the
+driver-resolution, event-resolution, and same-source comparison relationships.
+The exported active catalog remains v1 with `official_historical_laps` excluded.
+
+The detached database-binding v2 object is expectations-only, not production
+evidence. It pins all eight physical view column orders and each reviewed
+definition migration SHA-256. Existing view owners must match a future signed
+active-catalog binding; the new view owner must match the activation migration
+executor. Every owner identity, PostgreSQL view-definition hash, database target,
+current database, and login principal must be captured by signed activation
+evidence. The answer login and `f1ql_answer` group role are prohibited owners.
+Required grain uniqueness must be observed after migration; the target does not
+claim that a duplicate-grain query has already returned false.
+
+Principal-audit v5 remains detached and preserves the v4 least-privilege boundary:
+the database login is `current_user`, is read-only, has no dangerous role,
+database, schema-create, write, or routine-execute privilege, and can select only
+the eight governed views. It must have exactly one depth-1, non-admin membership
+that can `SET ROLE` to the separate `f1ql_answer` NOLOGIN, NOINHERIT group role;
+that group retains no superuser, create-role, create-database, replication, or
+row-security-bypass attribute. Future database-binding and principal evidence
+must bind the same hashed current user and current database. Active principal
+audit v4 and its seven-relation allowlist remain unchanged.
 
 ## Evidence Maintenance
 
