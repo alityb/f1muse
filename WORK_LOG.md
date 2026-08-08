@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M8: Result Formatter v32 + Authorization v28 Conformance
+- Added `official-timing-format.ts`: exact BigInt scale-4 formatting (rounded mean, exact median, exact-rational winner with null on ties), witness arithmetic re-verification with row cross-checks, sealed field-order projection with the internal integrity field omitted, and the `proven_semantic_result` v32 envelope matching the public-wire contract field-for-field. v28 conformance is behavioral. Review fixes covered rounding branches, null median arrays, and question binding. Final review `No findings.` Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M7: Execution Result v3
 - Added `official-timing-execution.ts`: brand-then-consume ordering, one-time authorization before connect, read-only repeatable-read execution with deadline/timeout bounds, strict per-metric row validation, and the branded result with all seven hash bindings. Wrapped DB round trip proves both statements against the real sealed view as `f1ql_answer`. Review fixes: planned-core hash verification, typed reason propagation, brand-before-consume ordering. Final review `No findings.`
 

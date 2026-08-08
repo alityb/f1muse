@@ -25,6 +25,7 @@ import {
 } from '../../src/f1ql/official-timing-authorization';
 import { WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE } from '../../src/f1ql/wp12-official-timing-activation-bundle';
 import { WP12_OFFICIAL_TIMING_CATALOG_TARGET } from '../../src/f1ql/wp12-official-timing-catalog-target';
+import { WP12_OFFICIAL_TIMING_INTERFACE_TARGET } from '../../src/f1ql/wp12-official-timing-interface-target';
 import { WP12_OFFICIAL_TIMING_SEMANTIC_TARGET } from '../../src/f1ql/wp12-official-timing-semantic-target';
 
 const CATALOG_V2 = WP12_OFFICIAL_TIMING_CATALOG_TARGET.catalog;
@@ -213,6 +214,23 @@ describe('official timing capability authorization v34', () => {
       .toThrowError(expect.objectContaining({ reason: 'release_inactive' }));
     expect(() => authorize(context, { release: releaseBinding({ audience: '' }) }))
       .toThrowError(expect.objectContaining({ reason: 'release_inactive' }));
+  });
+
+  it('meets the answer-authorization v28 contract expectations behaviorally', async () => {
+    const target: any = WP12_OFFICIAL_TIMING_INTERFACE_TARGET.components.answer_authorization_code.contract;
+    // TTL: the implementation constant equals the sealed maximum and caps issuance.
+    expect(OFFICIAL_TIMING_AUTHORIZATION_TTL_MS).toBe(target.authorization_ttl_ms_maximum);
+    // Release attestation version: the implementation requires exactly the sealed target version.
+    expect(target.release_attestation_version).toBe(9);
+    const context = await chain();
+    expect(() => authorize(context, { release: releaseBinding({ release_version: 8 as never }) }))
+      .toThrowError(expect.objectContaining({ reason: 'release_inactive' }));
+    // Release expiry caps authorization: issuance under an imminent release expiry shortens the token.
+    const capped = authorize(context, { release: releaseBinding({ expires_at: new Date(NOW + 1000).toISOString() }) });
+    expect(capped.expires_at_ms).toBe(NOW + 1000);
+    // No authorization from a forged proof over a genuine chain.
+    expect(() => authorize(context, { proof: structuredClone(context.proof) }))
+      .toThrowError(expect.objectContaining({ reason: 'invalid_authorization' }));
   });
 
   it('rejects replay, wrong binding, expiry, and kill switch at consumption', async () => {
