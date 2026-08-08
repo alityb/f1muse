@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M4: Planner v3 + Planned F1QL v3 + Cost v2
+- Added `official-timing-plan.ts`: deterministic plan materialization from brand-verified resolutions into the closed planned F1QL v3 IR (fixed predicate order with literal-pinned scope values, aggregate-local exclusions, compare/project/sort/limit spine, sealed per-metric output field order), exact work model v2 accounting, and a fail-closed cost gate. Two independent review rounds; all medium schema-closure gaps probe-verified closed. Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M3: Resolution v2 + Coverage Witness
 - Added `official-timing-resolution.ts`: brand-verified evidence intake, certified-scope driver/event resolution, exactly one coverage read via the existing reader, and a hash-bound resolution artifact with resolved/abstained outcomes (abstention carries no plan-eligible payload). Review fixes: typed catalog error propagation and fail-closed missing-window throw. Detached from active runtime.
 
