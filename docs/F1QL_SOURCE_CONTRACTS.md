@@ -350,6 +350,21 @@ evidence. Semantic-v32 fixtures and public wire compatibility are absent; public
 activation stays explicitly ineligible until a separately versioned wire
 contract is reviewed and hash-bound.
 
+The detached shadow/release target completes the interface expectations through
+observation, orchestration, retention, and release attestation at composite
+SHA-256 `930c8f4357852e0b57ca6a5d83d8e4bb4b58893d49eb21d15f22b4595659cbf1`.
+Shadow observation v2 admits only the official same-source comparison with all
+translated, planned-result, and answer-result execution counters pinned to zero
+and at most one fingerprinted coverage read between admission and planning.
+Orchestrator v7 never creates capability authorization, constructs an execution
+result, invokes the formatter, or falls back to templates or legacy routes.
+Retained observation v3 holds hashed evidence only; its transport forbids every
+application-owned persistent sink (database table, DML, file append, Redis,
+HTTP/object store, background queue). Release attestation v9 binds exactly the
+activation bundle's 32 target names and stays not constructible locally: the
+release artifact, signature, shadow collection/report artifacts, production
+capture, and metadata evidence are all null until real evidence exists.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain

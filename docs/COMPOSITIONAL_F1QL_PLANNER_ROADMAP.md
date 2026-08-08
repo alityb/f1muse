@@ -982,6 +982,16 @@ activation-ineligible until a separately reviewed, versioned contract preserves
 the public route without synthetic legacy authorization. Shadow and release
 targets may proceed, but runtime activation cannot pass this blocker.
 
+The shadow/release slice is now also fixed at composite SHA-256
+`930c8f4357852e0b57ca6a5d83d8e4bb4b58893d49eb21d15f22b4595659cbf1`: observation
+v2 and orchestrator v7 enforce zero translated/planned/result execution and one
+coverage read; retained v3 uses a sanitized single-line logger with no
+application-owned persistent sink; release v9 binds the exact 32-name target set
+and remains not constructible until provider, formatter, database, parity,
+benchmark, canary, and production evidence are all non-null and passing. The
+remaining detached contract work is the activation-migration target and the
+public-wire decision; runtime implementation follows only after both.
+
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every
 sealed source artifact, the exact future source/concept/relationship contracts,
