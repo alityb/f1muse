@@ -989,8 +989,15 @@ coverage read; retained v3 uses a sanitized single-line logger with no
 application-owned persistent sink; release v9 binds the exact 32-name target set
 and remains not constructible until provider, formatter, database, parity,
 benchmark, canary, and production evidence are all non-null and passing. The
-remaining detached contract work is the activation-migration target and the
-public-wire decision; runtime implementation follows only after both.
+activation-migration slice seals the unapplied activation SQL by verified bytes
+at composite SHA-256
+`547bee7852b9dbfe24254fa3c56033291bd1fbc8ec68fcd1f817f89ddeeaf2af`: exact column
+order, filter pins, security-barrier DDL, grant contract, prerequisites, and
+null post-application evidence. With catalog, semantic, interface,
+shadow/release, and migration families complete, every detached contract named
+by the activation bundle now exists. The remaining pre-runtime work is the
+separately reviewed public-wire decision; runtime implementation and the
+evidence chain follow only after it.
 
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every

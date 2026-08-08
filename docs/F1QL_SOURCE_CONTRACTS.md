@@ -365,6 +365,17 @@ activation bundle's 32 target names and stays not constructible locally: the
 release artifact, signature, shadow collection/report artifacts, production
 capture, and metadata evidence are all null until real evidence exists.
 
+The detached activation-migration target seals the unapplied
+`20260807_f1ql_official_race_lap_timing_activation.sql` by verified bytes at
+composite SHA-256 `547bee7852b9dbfe24254fa3c56033291bd1fbc8ec68fcd1f817f89ddeeaf2af`.
+The contract pins the exact 17-column SELECT list in order, all 12 WHERE
+predicates against the certified scope pins, the security-barrier DDL over
+`f1ql.official_lap_timing`, exactly two REVOKEs and one GRANT SELECT to
+`f1ql_answer`, and both prerequisite migrations in bundle order. Application is
+gated to the atomic activation only; `applied_locally` and `applied_production`
+are false and every post-application evidence hash is null. The migration
+remains unapplied everywhere.
+
 ## Evidence Maintenance
 
 When a production observation materially changes one of these contracts, retain
