@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M10: Provider Artifacts + Semantic v32 Fixture + Evidence Chain
+- Added the deterministic provider v2 artifact generator (projection/prompt/OpenAI/Anthropic/request-config with sealed-input cross-checks) and the real-emitter semantic v32 snapshot over the sealed view as `f1ql_answer`; both fixtures regenerate byte-exactly and the semantic fixture matches both legacy oracles at scale 4. Interface target now binds the generated hashes and fixture; composites cascaded. Review fixes: sibling-safe test cleanup and the exact-localhost FAIL_CLOSED snapshot guard. Final review `No findings.` PARTIAL: provider requests, shadow collection with real credentials, and release v9 signing/production evidence await credentials and production access.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M9: Shadow Orchestrator v7 + Observation v2 + Retained v3
 - Added `official-timing-shadow.ts`: the complete M1–M5 chain in shadow mode with zero execution, closed observation/retained schemas, exact provider admission against the sealed provider schema v2 (offset-only spans, length-1 evidence, metric-conditional lap range), wrapper-counted reads, and literal-zero execution counters. Review fixed a HIGH provider-schema contradiction plus taxonomy/counter findings; final probes passed. Detached from active runtime.
 

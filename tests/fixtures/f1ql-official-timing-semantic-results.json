@@ -1,0 +1,412 @@
+{
+  "emitter": "localhost_sealed_official_timing_semantic_v32_v1",
+  "generated_at": null,
+  "results": [
+    {
+      "id": "official_event_mean_verstappen_alonso",
+      "question": "Who was faster between Max Verstappen and Fernando Alonso at the 2022 Belgian Grand Prix?",
+      "envelope": {
+        "mode": "proven_semantic_result",
+        "format_version": "semantic-result-format-v32",
+        "proof_hash": "58a3cd35426930da253b77b83e70c77b26cba73303ebe4044a111f3e5e88fff7",
+        "planned_f1ql_hash": "2e1cf4687f711a0a0d300f46827dac4ec746fec22764faf6998ba545b7dfa3b3",
+        "core_hash": "91b4fa00a98b94fbd7c300d845e1b5ce6287628aec3ae357874885e4431ed0b8",
+        "answer": {
+          "headline": "Max Verstappen was faster on official mean race lap time at the 2022 Belgian Grand Prix by 1.6425s",
+          "facts": [
+            {
+              "subject": "Max Verstappen",
+              "values": {
+                "mean_lap_time_seconds": "117.0939"
+              }
+            },
+            {
+              "subject": "Fernando Alonso",
+              "values": {
+                "mean_lap_time_seconds": "118.7364"
+              }
+            }
+          ]
+        },
+        "rows": [
+          {
+            "driver_a_id": "max-verstappen",
+            "driver_b_id": "fernando-alonso",
+            "metric_id": "official_non_deleted_non_pit_event_mean_v1",
+            "season": 2022,
+            "round": 14,
+            "session_type": "R",
+            "event_name": "2022 Belgian Grand Prix",
+            "driver_a_completed_laps": 44,
+            "driver_b_completed_laps": 44,
+            "driver_a_eligible_laps": 42,
+            "driver_b_eligible_laps": 42,
+            "driver_a_excluded_deleted_laps": 0,
+            "driver_b_excluded_deleted_laps": 0,
+            "driver_a_excluded_pit_marker_laps": 2,
+            "driver_b_excluded_pit_marker_laps": 2,
+            "driver_a_mean_lap_time_seconds": "117.0939",
+            "driver_b_mean_lap_time_seconds": "118.7364",
+            "mean_delta_seconds": "1.6425",
+            "winner_driver_id": "max-verstappen",
+            "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+            "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
+            "identity_map_sha256": "1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd",
+            "fact_fingerprint": "f31adb2eebb906017b9aaea2a63329e142012da7ed312cdfe26d19c7dce30d8f"
+          }
+        ],
+        "metadata": {
+          "catalog_hash": "44abf16a8731b25e505afdbdcbb24855eff7d91de81aeb6cf0587465f81dbe57",
+          "columns": [
+            {
+              "id": "driver_a_id",
+              "label": "driver a id"
+            },
+            {
+              "id": "driver_b_id",
+              "label": "driver b id"
+            },
+            {
+              "id": "metric_id",
+              "label": "metric id"
+            },
+            {
+              "id": "season",
+              "label": "season"
+            },
+            {
+              "id": "round",
+              "label": "round"
+            },
+            {
+              "id": "session_type",
+              "label": "session type"
+            },
+            {
+              "id": "event_name",
+              "label": "event name"
+            },
+            {
+              "id": "driver_a_completed_laps",
+              "label": "driver a completed laps"
+            },
+            {
+              "id": "driver_b_completed_laps",
+              "label": "driver b completed laps"
+            },
+            {
+              "id": "driver_a_eligible_laps",
+              "label": "driver a eligible laps"
+            },
+            {
+              "id": "driver_b_eligible_laps",
+              "label": "driver b eligible laps"
+            },
+            {
+              "id": "driver_a_excluded_deleted_laps",
+              "label": "driver a excluded deleted laps"
+            },
+            {
+              "id": "driver_b_excluded_deleted_laps",
+              "label": "driver b excluded deleted laps"
+            },
+            {
+              "id": "driver_a_excluded_pit_marker_laps",
+              "label": "driver a excluded pit marker laps"
+            },
+            {
+              "id": "driver_b_excluded_pit_marker_laps",
+              "label": "driver b excluded pit marker laps"
+            },
+            {
+              "id": "driver_a_mean_lap_time_seconds",
+              "label": "driver a mean lap time seconds"
+            },
+            {
+              "id": "driver_b_mean_lap_time_seconds",
+              "label": "driver b mean lap time seconds"
+            },
+            {
+              "id": "mean_delta_seconds",
+              "label": "mean delta seconds"
+            },
+            {
+              "id": "winner_driver_id",
+              "label": "winner driver id"
+            },
+            {
+              "id": "dataset_sha256",
+              "label": "dataset sha256"
+            },
+            {
+              "id": "source_manifest_sha256",
+              "label": "source manifest sha256"
+            },
+            {
+              "id": "identity_map_sha256",
+              "label": "identity map sha256"
+            },
+            {
+              "id": "fact_fingerprint",
+              "label": "fact fingerprint"
+            }
+          ],
+          "scope": [
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "season",
+              "value": 2022
+            },
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "round",
+              "value": 14
+            },
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "session_type",
+              "value": "R"
+            }
+          ],
+          "sources": [
+            {
+              "id": "official_race_lap_timing",
+              "authority": "FIA official race timing documents"
+            }
+          ],
+          "aggregations": [
+            {
+              "output_id": "official_non_deleted_non_pit_event_mean_v1",
+              "function": "arithmetic_mean_integer_milliseconds",
+              "semantics": "official non-deleted non-pit race laps only"
+            }
+          ],
+          "ordering": [
+            {
+              "output_id": "metric_id",
+              "direction": "asc",
+              "nulls": "last"
+            }
+          ],
+          "coverage": {
+            "status": "sufficient",
+            "rows_returned": 1,
+            "row_limit": 1
+          },
+          "caveats": [
+            "all_completed_laps_per_driver_with_asymmetric_counts_disclosed",
+            "fia_official_raw_race_lap_timing",
+            "not_clean_air_or_causal_pace",
+            "official_deleted_and_explicit_pit_rows_excluded",
+            "race_state_effects_included"
+          ]
+        }
+      }
+    },
+    {
+      "id": "official_window_median_verstappen_alonso_laps_3_10",
+      "question": "Compare the official median race lap time of Max Verstappen and Fernando Alonso over laps 3 to 10 at the 2022 Belgian Grand Prix",
+      "envelope": {
+        "mode": "proven_semantic_result",
+        "format_version": "semantic-result-format-v32",
+        "proof_hash": "9f196660c02fdcfcf55a42846eb5fcd2e1621599520769937f9caa3e124dd319",
+        "planned_f1ql_hash": "b4ba34b9b598208b00e020b2fc6a4f14252d2a092d00eeb153df734f599af62f",
+        "core_hash": "7be8829be9879d64c6f79517be0e049ab3e157a69ff62a0d217e93b75b8eb049",
+        "answer": {
+          "headline": "Max Verstappen was faster on official median race lap time over laps 3 to 10 at the 2022 Belgian Grand Prix by 1.3335s",
+          "facts": [
+            {
+              "subject": "Max Verstappen",
+              "values": {
+                "median_lap_time_seconds": "113.8495"
+              }
+            },
+            {
+              "subject": "Fernando Alonso",
+              "values": {
+                "median_lap_time_seconds": "115.1830"
+              }
+            }
+          ]
+        },
+        "rows": [
+          {
+            "driver_a_id": "max-verstappen",
+            "driver_b_id": "fernando-alonso",
+            "metric_id": "official_non_deleted_non_pit_window_median_v1",
+            "season": 2022,
+            "round": 14,
+            "session_type": "R",
+            "event_name": "2022 Belgian Grand Prix",
+            "lap_start": 3,
+            "lap_end": 10,
+            "requested_laps_per_driver": 8,
+            "driver_a_eligible_laps": 8,
+            "driver_b_eligible_laps": 8,
+            "driver_a_excluded_deleted_laps": 0,
+            "driver_b_excluded_deleted_laps": 0,
+            "driver_a_excluded_pit_marker_laps": 0,
+            "driver_b_excluded_pit_marker_laps": 0,
+            "driver_a_median_lap_time_seconds": "113.8495",
+            "driver_b_median_lap_time_seconds": "115.1830",
+            "median_delta_seconds": "1.3335",
+            "winner_driver_id": "max-verstappen",
+            "dataset_sha256": "81b7db4e84433ef879c1c6e0bfe08a1d7b36476d9d7f5a7b4cf414a5a0fbc37b",
+            "source_manifest_sha256": "491c7a7b01c9aa32742cfbf5b1b2cf3704e2ec7b48b84fbc08cdf2ea4df4caab",
+            "identity_map_sha256": "1b177167217c5ead145bbfb2669dde66e0c39296c09051a9d514a3ad1cc75cbd",
+            "fact_fingerprint": "f31adb2eebb906017b9aaea2a63329e142012da7ed312cdfe26d19c7dce30d8f"
+          }
+        ],
+        "metadata": {
+          "catalog_hash": "44abf16a8731b25e505afdbdcbb24855eff7d91de81aeb6cf0587465f81dbe57",
+          "columns": [
+            {
+              "id": "driver_a_id",
+              "label": "driver a id"
+            },
+            {
+              "id": "driver_b_id",
+              "label": "driver b id"
+            },
+            {
+              "id": "metric_id",
+              "label": "metric id"
+            },
+            {
+              "id": "season",
+              "label": "season"
+            },
+            {
+              "id": "round",
+              "label": "round"
+            },
+            {
+              "id": "session_type",
+              "label": "session type"
+            },
+            {
+              "id": "event_name",
+              "label": "event name"
+            },
+            {
+              "id": "lap_start",
+              "label": "lap start"
+            },
+            {
+              "id": "lap_end",
+              "label": "lap end"
+            },
+            {
+              "id": "requested_laps_per_driver",
+              "label": "requested laps per driver"
+            },
+            {
+              "id": "driver_a_eligible_laps",
+              "label": "driver a eligible laps"
+            },
+            {
+              "id": "driver_b_eligible_laps",
+              "label": "driver b eligible laps"
+            },
+            {
+              "id": "driver_a_excluded_deleted_laps",
+              "label": "driver a excluded deleted laps"
+            },
+            {
+              "id": "driver_b_excluded_deleted_laps",
+              "label": "driver b excluded deleted laps"
+            },
+            {
+              "id": "driver_a_excluded_pit_marker_laps",
+              "label": "driver a excluded pit marker laps"
+            },
+            {
+              "id": "driver_b_excluded_pit_marker_laps",
+              "label": "driver b excluded pit marker laps"
+            },
+            {
+              "id": "driver_a_median_lap_time_seconds",
+              "label": "driver a median lap time seconds"
+            },
+            {
+              "id": "driver_b_median_lap_time_seconds",
+              "label": "driver b median lap time seconds"
+            },
+            {
+              "id": "median_delta_seconds",
+              "label": "median delta seconds"
+            },
+            {
+              "id": "winner_driver_id",
+              "label": "winner driver id"
+            },
+            {
+              "id": "dataset_sha256",
+              "label": "dataset sha256"
+            },
+            {
+              "id": "source_manifest_sha256",
+              "label": "source manifest sha256"
+            },
+            {
+              "id": "identity_map_sha256",
+              "label": "identity map sha256"
+            },
+            {
+              "id": "fact_fingerprint",
+              "label": "fact fingerprint"
+            }
+          ],
+          "scope": [
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "season",
+              "value": 2022
+            },
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "round",
+              "value": 14
+            },
+            {
+              "source_id": "official_race_lap_timing",
+              "concept_id": "session_type",
+              "value": "R"
+            }
+          ],
+          "sources": [
+            {
+              "id": "official_race_lap_timing",
+              "authority": "FIA official race timing documents"
+            }
+          ],
+          "aggregations": [
+            {
+              "output_id": "official_non_deleted_non_pit_window_median_v1",
+              "function": "median_integer_milliseconds",
+              "semantics": "official non-deleted non-pit race laps only"
+            }
+          ],
+          "ordering": [
+            {
+              "output_id": "metric_id",
+              "direction": "asc",
+              "nulls": "last"
+            }
+          ],
+          "coverage": {
+            "status": "sufficient",
+            "rows_returned": 1,
+            "row_limit": 1
+          },
+          "caveats": [
+            "fia_official_raw_race_lap_timing",
+            "not_clean_air_or_causal_pace",
+            "official_deleted_and_explicit_pit_rows_excluded",
+            "race_state_effects_included"
+          ]
+        }
+      }
+    }
+  ]
+}

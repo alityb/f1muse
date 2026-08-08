@@ -1,0 +1,2038 @@
+{
+  "generator": "wp12-official-timing-provider-artifacts-v1",
+  "candidate_proposal_version": 2,
+  "schema_name": "f1_semantic_candidate_proposals_v2",
+  "sealed_inputs": {
+    "predecessor_openai_schema_sha256": "013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa",
+    "predecessor_prompt_sha256": "4ac425d9c584ec97fa21eedfe3622767d8b0e4a02526a016ebd04cb9ff31e0e6",
+    "official_variant_schema_sha256": "e8eceedbcdbbfc9dd373c4975871b3574fe1ccd33cce7f7dfabd0453785e3314",
+    "prompt_extension_sha256": "fee0168c3de4630fb139ddf35c9faa5f37cf7e809f3e425cd23dafa37fc19be0",
+    "catalog_v2_sha256": "44abf16a8731b25e505afdbdcbb24855eff7d91de81aeb6cf0587465f81dbe57"
+  },
+  "artifacts": {
+    "catalog_language_projection": {
+      "version": 2,
+      "sources": [
+        {
+          "source_ref": "driver_standings",
+          "language": {
+            "names": [
+              "driver standings"
+            ],
+            "synonyms": [
+              "championship standings",
+              "final driver standings"
+            ],
+            "abbreviations": [
+              "wdc"
+            ],
+            "ambiguity_groups": [
+              "current_final",
+              "standings_rank"
+            ],
+            "forbidden_conflations": [
+              "Do not conflate championship points with summed race points.",
+              "Do not conflate current and final standings."
+            ]
+          },
+          "concepts": [
+            {
+              "concept_ref": "driver_id",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "driver"
+                ],
+                "synonyms": [
+                  "drivers"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "driver_identity"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat a driver reference as a canonical driver identifier."
+                ]
+              }
+            },
+            {
+              "concept_ref": "championship_position",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "championship position"
+                ],
+                "synonyms": [
+                  "championship rank",
+                  "position",
+                  "standings position"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "classification_position",
+                  "standings_rank"
+                ],
+                "forbidden_conflations": [
+                  "Do not derive official championship position by sorting points."
+                ]
+              }
+            },
+            {
+              "concept_ref": "points",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "championship points"
+                ],
+                "synonyms": [
+                  "points",
+                  "standings points"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "points_authority"
+                ],
+                "forbidden_conflations": [
+                  "Do not derive championship points by summing recorded race points."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "source_ref": "event_classification",
+          "language": {
+            "names": [
+              "race classification"
+            ],
+            "synonyms": [
+              "finishing order",
+              "race result"
+            ],
+            "abbreviations": [
+              "race result"
+            ],
+            "ambiguity_groups": [
+              "classification_position",
+              "race_qualifying"
+            ],
+            "forbidden_conflations": [
+              "Do not conflate finishing position with grid or qualifying position.",
+              "Do not conflate official classification with race pace."
+            ]
+          },
+          "concepts": [
+            {
+              "concept_ref": "classification_status",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "race classification status"
+                ],
+                "synonyms": [
+                  "race status",
+                  "status"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "classification_status"
+                ],
+                "forbidden_conflations": [
+                  "Do not infer a classification status from a null finishing position."
+                ]
+              }
+            },
+            {
+              "concept_ref": "driver_id",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "driver"
+                ],
+                "synonyms": [
+                  "drivers"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "driver_identity"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat a driver reference as a canonical driver identifier."
+                ]
+              }
+            },
+            {
+              "concept_ref": "finishing_position",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "finishing position"
+                ],
+                "synonyms": [
+                  "position",
+                  "race position"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "classification_position"
+                ],
+                "forbidden_conflations": [
+                  "Do not conflate finishing position with grid, qualifying, time-gap, or pace semantics."
+                ]
+              }
+            },
+            {
+              "concept_ref": "points",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "race points"
+                ],
+                "synonyms": [
+                  "points"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "points_authority"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat race points as championship standings points."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "source_ref": "event_metadata",
+          "language": {
+            "names": [
+              "event metadata"
+            ],
+            "synonyms": [
+              "grand prix metadata",
+              "race date"
+            ],
+            "abbreviations": [
+              "gp metadata"
+            ],
+            "ambiguity_groups": [
+              "event_identity",
+              "session_scope"
+            ],
+            "forbidden_conflations": [
+              "Do not conflate circuit identity with Grand Prix identity.",
+              "Do not infer separate session dates from the race date."
+            ]
+          },
+          "concepts": [
+            {
+              "concept_ref": "circuit_id",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "circuit identifier"
+                ],
+                "synonyms": [
+                  "circuit id"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "event_identity"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat a circuit identifier as a Grand Prix or venue name."
+                ]
+              }
+            },
+            {
+              "concept_ref": "date",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "race date"
+                ],
+                "synonyms": [
+                  "event date"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "session_scope"
+                ],
+                "forbidden_conflations": [
+                  "Do not infer qualifying, practice, or sprint dates from the race date."
+                ]
+              }
+            },
+            {
+              "concept_ref": "event_name",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "event name"
+                ],
+                "synonyms": [
+                  "grand prix name"
+                ],
+                "abbreviations": [
+                  "gp name"
+                ],
+                "ambiguity_groups": [
+                  "event_identity"
+                ],
+                "forbidden_conflations": [
+                  "Do not normalize an event name into a circuit identifier."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "source_ref": "official_race_lap_timing",
+          "language": {
+            "names": [
+              "official raw lap timing"
+            ],
+            "synonyms": [],
+            "abbreviations": [],
+            "ambiguity_groups": [
+              "official_timing"
+            ],
+            "forbidden_conflations": [
+              "Every other event or session.",
+              "Generic pace and unreviewed race-state context."
+            ]
+          },
+          "concepts": [
+            {
+              "concept_ref": "authority",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "authority"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "contract_version",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "dataset contract"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "dataset_sha256",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "dataset fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "driver_id",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "driver"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "event_name",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "race event"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "fact_fingerprint",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "fact fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "identity_fingerprint",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "identity fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "identity_map_sha256",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "identity map fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "lap_number",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "lap number"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "official_deleted_lap",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "officially deleted lap"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "official_pit_marker",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "explicit pit lap"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "round",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "round"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "season",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "season"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "session_type",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "race session"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "source_artifact_sha256",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "source artifact fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "source_manifest_sha256",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "source manifest fingerprint"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            },
+            {
+              "concept_ref": "lap_time_seconds",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "official lap time"
+                ],
+                "synonyms": [],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "official_timing"
+                ],
+                "forbidden_conflations": [
+                  "Every other event or session.",
+                  "Generic pace and unreviewed race-state context."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "source_ref": "qualifying_classification",
+          "language": {
+            "names": [
+              "qualifying classification"
+            ],
+            "synonyms": [
+              "qualifying order",
+              "qualifying result"
+            ],
+            "abbreviations": [
+              "quali"
+            ],
+            "ambiguity_groups": [
+              "classification_position",
+              "race_qualifying"
+            ],
+            "forbidden_conflations": [
+              "Do not conflate qualifying position with qualifying time gap.",
+              "Do not conflate qualifying position with starting grid position."
+            ]
+          },
+          "concepts": [
+            {
+              "concept_ref": "classification_status",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "qualifying classification status"
+                ],
+                "synonyms": [
+                  "qualifying status",
+                  "status"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "classification_status"
+                ],
+                "forbidden_conflations": [
+                  "Do not infer unsupported steward statuses from qualifying timing."
+                ]
+              }
+            },
+            {
+              "concept_ref": "driver_id",
+              "kind": "dimension",
+              "language": {
+                "names": [
+                  "driver"
+                ],
+                "synonyms": [
+                  "drivers"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "driver_identity"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat a driver reference as a canonical driver identifier."
+                ]
+              }
+            },
+            {
+              "concept_ref": "best_time_ms",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "best qualifying time"
+                ],
+                "synonyms": [
+                  "qualifying time"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "qualifying_metric"
+                ],
+                "forbidden_conflations": [
+                  "Do not treat a recorded best qualifying time as a time gap or race pace."
+                ]
+              }
+            },
+            {
+              "concept_ref": "qualifying_position",
+              "kind": "measure",
+              "language": {
+                "names": [
+                  "qualifying position"
+                ],
+                "synonyms": [
+                  "position"
+                ],
+                "abbreviations": [],
+                "ambiguity_groups": [
+                  "classification_position",
+                  "qualifying_metric"
+                ],
+                "forbidden_conflations": [
+                  "Do not conflate qualifying position with grid position, time gap, or race pace."
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "projection_sha256": "3e1f64c9fdc4f070bed751f8022f53c555e89531658d9743a91e50665068eec3"
+    },
+    "effective_prompt": "Propose only semantic candidates using the strict response schema. Use only source_ref and concept_ref values allowed by that schema, and pair each concept_ref only with the source_ref that contains it in the catalog projection. Every candidate must include at least three scopes: one grounded season scope, one grounded temporal scope, and one source-qualified session scope for every referenced source. Use session season for driver_standings, race for event_classification and event_metadata, and qualifying for qualifying_classification; include round or event scopes only when grounded by the question. Entities are only spans naming a specific driver or event, never generic words such as driver, event, race, or qualifying; every emitted entity must be referenced by an entity scope or filter. Use empty arrays for absent entities, filters, group_by, or order_by; use null, never an empty array or object, for an absent comparison or limit. Every evidence and entity span is an inclusive-start, exclusive-end Unicode-code-point range in the normalized question. Do not use UTF-16 offsets. Choose evidence deterministically. For every candidate, exclude a concept phrase contained in a longer explicit source phrase. For a single-source candidate, among overlapping phrases for the same concept retain the containing phrase, then use the earliest remaining occurrence. Each output evidence must copy the complete start and end offsets of that selected phrase. The session scope must copy the exact earliest output evidence offsets; never use an explicit source phrase for a single-source session scope. For a multi-source composition, retain only globally longest phrases for each source-qualified concept, then use the earliest remaining concept phrase not contained in another selected phrase; for each session scope use the earliest explicit source phrase for that source when present, otherwise reuse the earliest output evidence span for that source. Use exact triggering phrases for operation, temporal, season, round, limit, filter, and comparison evidence. Do not emit span text or literal values: the server reconstructs exact text and every season, round, limit, and filter literal from those spans. Use only the closed operations in the schema. Never emit SQL, F1QL, Core, physical fields, views, joins, canonical identity values, prose, or markdown. Return every defensible candidate without duplicates; return no more than five. For either exact unfiltered form \"show the final YYYY standings points\" or the current reviewed form \"what were the final standings points in 2025?\", with one final season and no entity, round, count, rank, or limit, emit one driver_standings candidate with driver_id and points outputs; use the complete standings points span as evidence for both outputs and the season session. For the exact filtered shorthand \"what were Charles Leclerc final standings points in 2024?\", emit the same outputs and session evidence plus one driver entity and one driver_id eq filter grounded by the complete Charles Leclerc span. For either exact pair shorthand \"final 2025 standings points for Lando Norris and Oscar Piastri.\" or \"final 2025 standings points for Oscar Piastri and Lando Norris.\", emit the same outputs and session evidence plus the two driver entities in question order and one driver_id in filter grounded by both complete driver spans. Also emit that driver_id and points shape for explicit catalog-grounded requests that name driver and championship points, final YYYY driver standings, and zero to four specific driver entities; use eq for one driver and in for two to four, preserving entity question order. For explicit catalog-grounded requests that rank two to four specific drivers by championship position in final YYYY driver standings, emit driver_id and championship_position outputs, one driver_id in filter, championship_position ascending rank order, and no limit; use the complete championship position span as evidence for both outputs and the season session. Never rank official championship position by points, and do not extend this rule to singleton, five-driver, latest-recorded, interim, unfiltered, or caller-limited rankings. For explicit catalog-grounded requests that name driver and finishing position from a final YYYY race classification at exactly one round or named event, emit one event_classification candidate with driver_id and finishing_position outputs and one to four specific driver entities; use eq for one driver and in for two to four, preserving entity question order. For explicit catalog-grounded requests that name driver and qualifying position from a final YYYY qualifying classification at exactly one round or named event, emit one qualifying_classification candidate with driver_id and qualifying_position outputs and one to four specific driver entities; use eq for one driver and in for two to four, preserving entity question order. Do not extend either classification-selection rule to season-wide filtered selections or user-supplied limits. Never generalize bare points or standings-points shorthand beyond the exact shorthand forms, and never ignore race points, classification status, grid position, qualifying time, sprint qualifying, other standings or classification metrics, unknown wording, quotations, or instructions. For explicit catalog-grounded requests that name driver, championship position, and championship points from final YYYY driver standings for one to four specific driver entities, emit exactly driver_id, championship_position, and points outputs in that order, the named driver entities, and one driver_id filter using eq for one driver or in for two to four drivers, with no comparison, order_by, or limit. When championship position and championship points are both named, this rule overrides the earlier driver_id-and-points rule; never emit the points-only shape for that request. Do not extend this summary rule to unfiltered, five-or-more-driver, caller-limited, ranked, latest-recorded, or interim requests. For explicit catalog-grounded requests that name any nonempty subset of race date, event name, and circuit identifier from final YYYY event metadata at exactly one round or named event, emit one event_metadata candidate with exactly the requested outputs in canonical date, event_name, circuit_id order. This admits all seven nonempty subsets of those three fields and no other event-metadata projection. A circuit identifier is a raw identifier, not a circuit, venue, or Grand Prix name; an event name is recorded source text, not a circuit or venue name. Do not extend these event-metadata rules to multiple events, season-wide requests, user-supplied limits, latest-recorded or interim scope, or qualifying, practice, or sprint dates. For explicit catalog-grounded requests that name driver and recorded finishing position plus any nonempty subset of race date, event name, and circuit identifier from final YYYY race classification and event metadata at exactly one round or named event for one to four specific drivers, emit one two-source candidate. Emit exactly driver_id, finishing_position, and the requested metadata outputs in canonical date, event_name, circuit_id order; filter event_classification.driver_id with eq for one driver or in for two to four drivers. Use no comparison, order_by, or limit. Preserve nullable finishing position, while requested joined metadata must be present. Do not extend this rule to zero or five-or-more selected drivers, multiple events, season-wide requests, latest-recorded or interim scope, caller limits, ranking, aggregation, status, race points, qualifying metadata, or broader outputs. For explicit catalog-grounded requests that name driver and recorded qualifying position plus any nonempty subset of race date, event name, and circuit identifier from final YYYY qualifying classification and event metadata at exactly one round or named event for one to four specific drivers, emit one two-source candidate. Emit exactly driver_id, qualifying_position, and the requested metadata outputs in canonical date, event_name, circuit_id order; filter qualifying_classification.driver_id with eq for one driver or in for two to four drivers. Use no comparison, order_by, or limit. Metadata date always means the race date, never a qualifying-session date. Preserve nullable qualifying position, while requested joined metadata must be present. Do not extend this rule to zero or five-or-more selected drivers, multiple events, season-wide requests, latest-recorded or interim scope, caller limits, ranking, aggregation, status, timing, grid, sprint, race position, or broader outputs. For explicit catalog-grounded requests that rank two to four specific drivers by recorded finishing position from final YYYY race classification at exactly one round or named event, emit driver_id and finishing_position outputs, one driver_id in filter, finishing_position ascending rank order, and no limit. Preserve null positions last and equal positions; driver identity only stabilizes their presentation order. Do not extend this rule to singleton, five-driver, unfiltered, season-wide, latest-recorded, interim, caller-limited, race-points, status, or broader-output rankings. For explicit catalog-grounded requests that rank two to four specific drivers by recorded qualifying position from final YYYY qualifying classification at exactly one round or named event, emit driver_id and qualifying_position outputs, one driver_id in filter, qualifying_position ascending rank order, and no limit. Require non-null, unique recorded positions across the event; never derive rank from best time, grid position, status, sprint qualifying, or driver identity. Do not extend this rule to singleton, five-driver, unfiltered, season-wide, latest-recorded, interim, caller-limited, or broader-output rankings. For the exact zero-entity request to show count of finishing position per driver in one final YYYY race classification season, emit exactly event_classification.driver_id followed by COUNT(event_classification.finishing_position), group by event_classification.driver_id, and use comparison count with no filters, order_by, or caller limit. Count only non-null retained recorded finishing positions; an integrity-clean retained driver with only null positions has factual count zero. This is not starts, events, wins, classified finishes, or complete participation. Do not extend this rule to qualifying classification, missing per-driver language, selected or singleton drivers, return-all or universe claims, rank, top-N, limits, event or round scope, filters, alternate grouping or aggregation, extra or reordered outputs, repeated source or measure clauses, latest-recorded, interim, cross-wired source and position, or any comparison other than count. For the exact zero-entity request to show count of qualifying position per driver in one final YYYY qualifying classification season, emit exactly qualifying_classification.driver_id followed by COUNT(qualifying_classification.qualifying_position), group by qualifying_classification.driver_id, and use comparison count with no filters, order_by, or caller limit. Count only non-null retained recorded qualifying positions; an integrity-clean retained driver with only null positions has factual count zero. This is not appearances, events, poles, top-ten results, grid positions, timing, sprint sessions, or complete participation. Do not extend this rule to race classification, missing per-driver language, selected or singleton drivers, return-all or universe claims, rank, top-N, limits, event or round scope, filters, alternate grouping or aggregation, extra or reordered outputs, repeated source or measure clauses, latest-recorded, interim, cross-wired source and position, or any comparison other than count. For explicit catalog-grounded requests that name driver and count of recorded position from final YYYY classification for exactly two to four specific drivers, use only the matching source-position pair: race classification emits exactly driver_id followed by COUNT(finishing_position), groups by event_classification.driver_id, and filters event_classification.driver_id with in; qualifying classification emits exactly driver_id followed by COUNT(qualifying_position), groups by qualifying_classification.driver_id, and filters qualifying_classification.driver_id with in. Ground the one in filter by every selected driver. Use comparison count, no order_by, and no caller limit. Each selected per-driver rule takes precedence over its pooled scalar count and zero-driver top-10 count-ranking rule. Count only non-null retained recorded positions; a selected driver retained only with null positions has factual count zero. Race count is not starts, events, wins, classified finishes, or complete participation. Qualifying count is not appearances, events, poles, top-ten results, grid positions, timing, sprint sessions, or complete participation. Do not cross-wire source and position or extend either rule to zero, one, or five-or-more drivers, pooled scalar wording, round or event scope, status, position, team, grid, timing, or sprint filters or broader concepts, ranking, top-N, caller limits, comparisons, alternate grouping or aggregation, broader or reordered outputs, repeated source or measure clauses, latest-recorded, interim, or return-all and universe claims. For either exact zero-driver request to show top 10 drivers by count of recorded position in one final YYYY classification season, use only its matching source pair: race classification emits exactly driver_id followed by COUNT(finishing_position), while qualifying classification emits exactly driver_id followed by COUNT(qualifying_position). Group by the matching source driver_id, rank by the count descending, and set the limit to exactly 10. Use no entity or row filter. Count only non-null recorded position rows; a retained driver with only null positions has count zero. Race count is not starts, events, wins, classified finishes, or complete participation. Qualifying count is not appearances, events, poles, top-ten finishes, or complete participation. Driver identity only stabilizes equal counts and the top-10 cutoff. Do not cross-wire the position and classification source or extend either rule to any other limit, no limit, selected drivers, round or event scope, position or status filters, alternate grouping or aggregation, additional outputs, comparison or delta, latest-recorded 2026, or interim scope. For the exact zero-driver composition that requests count of finishing position from race classification and count of qualifying position from qualifying classification in one final YYYY season, emit one two-source candidate with exactly COUNT(finishing_position) followed by COUNT(qualifying_position), no entities or filters, no grouping, comparison count, no order_by, and no limit. Each count means non-null recorded position rows from its own source after the season scope; it is not starts, appearances, events, entrants, classified finishes, poles, top-ten results, or calendar or session completeness. Do not extend this rule to selected, multiple, or pooled drivers, per-driver output, round, event, status, position, or team filters, grouping, ranking, comparison or delta, caller limits, alternate aggregates, extra or reordered outputs, multiple seasons, latest-recorded 2026, or interim scope. For the exact reviewed official timing grammar only, emit certified_official_timing_compare with two ordered driver spans, one event span, operation and season evidence, and nullable lap-range evidence. Session is server-derived from the verified grammar. Never emit a metric, aggregate, exclusion, identifier, topology, output, integrity rule, SQL, F1QL, or Core.",
+    "openai_compatible_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "candidates"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "enum": [
+            2
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "outputs",
+                  "scopes",
+                  "entities",
+                  "filters",
+                  "group_by",
+                  "comparison",
+                  "order_by",
+                  "limit"
+                ],
+                "properties": {
+                  "outputs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "select"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "function",
+                            "concept",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "aggregate"
+                              ]
+                            },
+                            "function": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "max",
+                                "min",
+                                "sum"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 8,
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "season"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "round"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "source_ref",
+                            "value",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "session"
+                              ]
+                            },
+                            "source_ref": {
+                              "type": "string",
+                              "enum": [
+                                "driver_standings",
+                                "event_classification",
+                                "event_metadata",
+                                "qualifying_classification"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "enum": [
+                                "season",
+                                "race",
+                                "qualifying"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "value",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "temporal"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "enum": [
+                                "final",
+                                "latest_recorded"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "entity_index",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "event"
+                              ]
+                            },
+                            "entity_index": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 7
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "type",
+                        "span"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "driver",
+                            "event"
+                          ]
+                        },
+                        "span": {
+                          "$ref": "#/$defs/span_ref"
+                        }
+                      }
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "entity_indices",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "entity_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "in"
+                              ]
+                            },
+                            "entity_indices": {
+                              "type": "array",
+                              "minItems": 1,
+                              "maxItems": 8,
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 7
+                              }
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "value_span",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "eq"
+                              ]
+                            },
+                            "value_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "value_spans",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_set_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "in"
+                              ]
+                            },
+                            "value_spans": {
+                              "type": "array",
+                              "minItems": 1,
+                              "maxItems": 20,
+                              "items": {
+                                "$ref": "#/$defs/span_ref"
+                              }
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "min_span",
+                            "max_span",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_range_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "range"
+                              ]
+                            },
+                            "min_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "max_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "group_by": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "concept",
+                        "evidence"
+                      ],
+                      "properties": {
+                        "concept": {
+                          "$ref": "#/$defs/concept_ref"
+                        },
+                        "evidence": {
+                          "$ref": "#/$defs/evidence_ref"
+                        }
+                      }
+                    }
+                  },
+                  "comparison": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "operation",
+                          "evidence"
+                        ],
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "count",
+                              "delta",
+                              "higher",
+                              "lower",
+                              "rank",
+                              "shared_event"
+                            ]
+                          },
+                          "evidence": {
+                            "$ref": "#/$defs/evidence_ref"
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "maxItems": 0
+                      }
+                    ]
+                  },
+                  "order_by": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "output_index",
+                        "direction",
+                        "evidence"
+                      ],
+                      "properties": {
+                        "output_index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 7
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "asc",
+                            "desc"
+                          ]
+                        },
+                        "evidence": {
+                          "$ref": "#/$defs/evidence_ref"
+                        }
+                      }
+                    }
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "evidence"
+                        ],
+                        "properties": {
+                          "evidence": {
+                            "$ref": "#/$defs/evidence_ref"
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "maxItems": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation",
+                  "driver_a_span",
+                  "driver_b_span",
+                  "event_span",
+                  "operation_evidence",
+                  "season_evidence",
+                  "lap_range_evidence"
+                ],
+                "properties": {
+                  "operation": {
+                    "const": "certified_official_timing_compare"
+                  },
+                  "driver_a_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "driver_b_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "event_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "operation_evidence": {
+                    "$ref": "#/$defs/evidence_ref"
+                  },
+                  "season_evidence": {
+                    "$ref": "#/$defs/evidence_ref"
+                  },
+                  "lap_range_evidence": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "start_span",
+                          "end_span"
+                        ],
+                        "properties": {
+                          "start_span": {
+                            "$ref": "#/$defs/span_ref"
+                          },
+                          "end_span": {
+                            "$ref": "#/$defs/span_ref"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "$defs": {
+        "span_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        },
+        "evidence_ref": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/span_ref"
+          }
+        },
+        "concept_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_ref",
+            "concept_ref"
+          ],
+          "properties": {
+            "source_ref": {
+              "type": "string",
+              "enum": [
+                "driver_standings",
+                "event_classification",
+                "event_metadata",
+                "qualifying_classification"
+              ]
+            },
+            "concept_ref": {
+              "type": "string",
+              "enum": [
+                "driver_id",
+                "championship_position",
+                "points",
+                "classification_status",
+                "finishing_position",
+                "circuit_id",
+                "date",
+                "event_name",
+                "best_time_ms",
+                "qualifying_position"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "anthropic_wire_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "candidates"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "enum": [
+            2
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "outputs",
+                  "scopes",
+                  "entities",
+                  "filters",
+                  "group_by",
+                  "comparison",
+                  "order_by",
+                  "limit"
+                ],
+                "properties": {
+                  "outputs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "select"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "function",
+                            "concept",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "aggregate"
+                              ]
+                            },
+                            "function": {
+                              "type": "string",
+                              "enum": [
+                                "count",
+                                "max",
+                                "min",
+                                "sum"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "season"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "round"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "source_ref",
+                            "value",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "session"
+                              ]
+                            },
+                            "source_ref": {
+                              "type": "string",
+                              "enum": [
+                                "driver_standings",
+                                "event_classification",
+                                "event_metadata",
+                                "qualifying_classification"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "enum": [
+                                "season",
+                                "race",
+                                "qualifying"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "value",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "temporal"
+                              ]
+                            },
+                            "value": {
+                              "type": "string",
+                              "enum": [
+                                "final",
+                                "latest_recorded"
+                              ]
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "entity_index",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "event"
+                              ]
+                            },
+                            "entity_index": {
+                              "type": "integer"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "entities": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "type",
+                        "span"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "driver",
+                            "event"
+                          ]
+                        },
+                        "span": {
+                          "$ref": "#/$defs/span_ref"
+                        }
+                      }
+                    }
+                  },
+                  "filters": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "entity_indices",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "entity_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "eq",
+                                "in"
+                              ]
+                            },
+                            "entity_indices": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "type": "integer"
+                              }
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "value_span",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "eq"
+                              ]
+                            },
+                            "value_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "value_spans",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_set_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "in"
+                              ]
+                            },
+                            "value_spans": {
+                              "type": "array",
+                              "minItems": 1,
+                              "items": {
+                                "$ref": "#/$defs/span_ref"
+                              }
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "operation",
+                            "concept",
+                            "operator",
+                            "min_span",
+                            "max_span",
+                            "evidence"
+                          ],
+                          "properties": {
+                            "operation": {
+                              "type": "string",
+                              "enum": [
+                                "literal_range_filter"
+                              ]
+                            },
+                            "concept": {
+                              "$ref": "#/$defs/concept_ref"
+                            },
+                            "operator": {
+                              "type": "string",
+                              "enum": [
+                                "range"
+                              ]
+                            },
+                            "min_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "max_span": {
+                              "$ref": "#/$defs/span_ref"
+                            },
+                            "evidence": {
+                              "$ref": "#/$defs/evidence_ref"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "group_by": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "concept",
+                        "evidence"
+                      ],
+                      "properties": {
+                        "concept": {
+                          "$ref": "#/$defs/concept_ref"
+                        },
+                        "evidence": {
+                          "$ref": "#/$defs/evidence_ref"
+                        }
+                      }
+                    }
+                  },
+                  "comparison": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "operation",
+                          "evidence"
+                        ],
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "enum": [
+                              "count",
+                              "delta",
+                              "higher",
+                              "lower",
+                              "rank",
+                              "shared_event"
+                            ]
+                          },
+                          "evidence": {
+                            "$ref": "#/$defs/evidence_ref"
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "order_by": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "output_index",
+                        "direction",
+                        "evidence"
+                      ],
+                      "properties": {
+                        "output_index": {
+                          "type": "integer"
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "asc",
+                            "desc"
+                          ]
+                        },
+                        "evidence": {
+                          "$ref": "#/$defs/evidence_ref"
+                        }
+                      }
+                    }
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "evidence"
+                        ],
+                        "properties": {
+                          "evidence": {
+                            "$ref": "#/$defs/evidence_ref"
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation",
+                  "driver_a_span",
+                  "driver_b_span",
+                  "event_span",
+                  "operation_evidence",
+                  "season_evidence",
+                  "lap_range_evidence"
+                ],
+                "properties": {
+                  "operation": {
+                    "const": "certified_official_timing_compare"
+                  },
+                  "driver_a_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "driver_b_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "event_span": {
+                    "$ref": "#/$defs/span_ref"
+                  },
+                  "operation_evidence": {
+                    "$ref": "#/$defs/evidence_ref"
+                  },
+                  "season_evidence": {
+                    "$ref": "#/$defs/evidence_ref"
+                  },
+                  "lap_range_evidence": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "start_span",
+                          "end_span"
+                        ],
+                        "properties": {
+                          "start_span": {
+                            "$ref": "#/$defs/span_ref"
+                          },
+                          "end_span": {
+                            "$ref": "#/$defs/span_ref"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "$defs": {
+        "span_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "type": "integer"
+            },
+            "end": {
+              "type": "integer"
+            }
+          }
+        },
+        "evidence_ref": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/span_ref"
+          }
+        },
+        "concept_ref": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_ref",
+            "concept_ref"
+          ],
+          "properties": {
+            "source_ref": {
+              "type": "string",
+              "enum": [
+                "driver_standings",
+                "event_classification",
+                "event_metadata",
+                "qualifying_classification"
+              ]
+            },
+            "concept_ref": {
+              "type": "string",
+              "enum": [
+                "driver_id",
+                "championship_position",
+                "points",
+                "classification_status",
+                "finishing_position",
+                "circuit_id",
+                "date",
+                "event_name",
+                "best_time_ms",
+                "qualifying_position"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "provider_request_config": {
+      "schema_name": "f1_semantic_candidate_proposals_v2",
+      "strict_schema": true,
+      "max_response_bytes": 65536,
+      "max_tokens": 8192,
+      "temperature": 0,
+      "timeout_ms_bounds": {
+        "min": 1,
+        "max": 30000
+      },
+      "providers": {
+        "openai-compatible": {
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "f1_semantic_candidate_proposals_v2",
+              "strict": true
+            }
+          }
+        },
+        "anthropic": {
+          "anthropic_version": "2023-06-01",
+          "output_format": "json_schema"
+        }
+      }
+    }
+  },
+  "artifact_hashes": {
+    "catalog_language_projection_sha256": "721dd6db8fbf431a8d5c7ac792312add1eec0596a24e99f9d2e929d3e2523432",
+    "effective_prompt_sha256": "d4d70a803f00fc80b9876e02ef75e7fc2293da9c382f680b582263aa25bdfedb",
+    "openai_compatible_schema_sha256": "a3ca023d9a8bc3121857e85694d7b02a24f3a97c9f9fe32b98e99245e00c2bda",
+    "anthropic_wire_schema_sha256": "4af30061acef2a1a6b6ad57c7ca5dc30ddd8a83885c57ff09e1650b52e141cb8",
+    "provider_request_config_sha256": "9f473f045639cc2ca04d9e1bc403171462fbf761c8fa263d4d9edda01daac58d"
+  }
+}

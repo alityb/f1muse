@@ -166,10 +166,10 @@ describe('WP12 detached official timing shadow/release target', () => {
     expect(parseWP12OfficialTimingShadowReleaseTarget(cloneTarget()))
       .toEqual(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET);
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET_SHA256)
-      .toBe('bc6dcdee2cc973391d1980e5ca5ae62f9a949ea9891dec1da06c83f2faf70c81');
+      .toBe('7a61974594ec66e831da2f1ed0da299358315e3b75a7c3fe8640bbbd7f0efaf3');
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_COMPONENT_HASHES).toEqual({
       shadow_observation: 'a5c55ed458be04674052f6f9e20b8dc28783502b4dc25dbd3c2bebe84960af7e',
-      shadow_orchestrator: 'd97e592a95caf4851046864d8bacbf98511f6a05155a5edfc57ca06865c90a47',
+      shadow_orchestrator: 'dedc25e93975b3336999c52bed80fb13682e508c5d8f79e5c7181626c0c0f2b9',
       shadow_retained_observation: 'a8f95fe91a4da7789d04ccc57d30eeaca6d2834a6b420d098a8edd1a36692bf7',
       release_attestation: '74941a0bc9eeb2a7dc23867f0b1c7223a9414a6d07f24c6d8d1ea5e84a3e3e9d'
     });

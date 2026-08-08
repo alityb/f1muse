@@ -113,9 +113,14 @@ describe('WP12 detached official timing interface target', () => {
     expect(provider.official_variant_schema.required).not.toContain('session_evidence');
     expect(JSON.stringify(provider.official_variant_schema)).not.toContain('session_evidence');
     expect(provider.generated_artifacts).toEqual({
-      status: 'not_generated', catalog_language_projection_sha256: null,
-      effective_prompt_sha256: null, openai_compatible_schema_sha256: null,
-      anthropic_wire_schema_sha256: null, provider_request_config_sha256: null
+      status: 'generated',
+      generator: 'wp12-official-timing-provider-artifacts-v1',
+      artifact_file: 'tests/fixtures/wp12-official-timing-provider-artifacts.json',
+      catalog_language_projection_sha256: '721dd6db8fbf431a8d5c7ac792312add1eec0596a24e99f9d2e929d3e2523432',
+      effective_prompt_sha256: 'd4d70a803f00fc80b9876e02ef75e7fc2293da9c382f680b582263aa25bdfedb',
+      openai_compatible_schema_sha256: 'a3ca023d9a8bc3121857e85694d7b02a24f3a97c9f9fe32b98e99245e00c2bda',
+      anthropic_wire_schema_sha256: '4af30061acef2a1a6b6ad57c7ca5dc30ddd8a83885c57ff09e1650b52e141cb8',
+      provider_request_config_sha256: '9f473f045639cc2ca04d9e1bc403171462fbf761c8fa263d4d9edda01daac58d'
     });
     expect(provider.activation_requires_real_generated_hashes).toBe(true);
     expect(provider.predecessor_schema_sha256).toBe(SEMANTIC_CANDIDATE_SCHEMA_SHA256);
@@ -146,8 +151,9 @@ describe('WP12 detached official timing interface target', () => {
     ]);
     expect(response.official_timing_overlaps.every((overlap: any) =>
       overlap.exact_one_row && !overlap.has_more_rows && overlap.recompute_delta_and_winner &&
-      !overlap.legacy_oracle_is_semantic_v32_evidence && overlap.semantic_v32_fixture_sha256 === null &&
-      overlap.equivalence_evidence === null && overlap.status === 'pending_real_semantic_v32_emitter')).toBe(true);
+      !overlap.legacy_oracle_is_semantic_v32_evidence &&
+      overlap.semantic_v32_fixture_sha256 === '8cba0bc9d3a680a0a636501ec3183ef0f4b30c96ca590f9673f28ab06fbbc65d' &&
+      overlap.status === 'real_emitter_fixture_verified_against_legacy_oracle')).toBe(true);
     expect(compatibility.official_timing.every((entry: any) =>
       entry.public_wire_contract_sha256 === WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 &&
       WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 ===
@@ -212,12 +218,12 @@ describe('WP12 detached official timing interface target', () => {
     expect(WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES).toEqual({
       answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
       candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
-      provider_schema: 'a6927aed2b27a32c4ad892d1d95b9a01ba20c4f031ad8733c147ea4b64eb41af',
+      provider_schema: '45bb9413506a8eb11502917ca83f5665f749f63e54e51c18460b70a3637f0e5c',
       fact_space: '16963ad9e58b984bc09dcb0dae4f82cd27b4c3ba0b15864d2f47784af2886398',
-      semantic_response_equivalence: '275b64ca184f5d2703c63387f0bf9b693bde277ea7780782d5b916a78045d795',
-      semantic_answer_compatibility: 'f6765ab6a2b9f23541875e216cae7bd6145603336ef8947814ea6277590daa61',
-      semantic_template_equivalence: 'c176da0b086d21c17235bbc03dc9de846e2360f66abfa991e3af131d921c7398',
-      answer_authorization_code: '1cdce1f6ddf49fadf04c4bac98b176801a92dc77f26c0121d70a80736824937b'
+      semantic_response_equivalence: 'd52d83236baa73c786aadb367093bc34d9f0d923ec8015629e706ef65f4d83d5',
+      semantic_answer_compatibility: 'a7d726f4e90cf2150449a0d03d3e37018abd4a6b6ed1b2e68faffb0b123018a5',
+      semantic_template_equivalence: 'a3105b169dde9f72c9c8f1b878ced9da508d215e897f520d697d5bde2137925c',
+      answer_authorization_code: '666892b3ad97a1c9697fb1bf9b10ac1779b7b7a66e930b2d8ea6e26a44707885'
     });
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET.semantic_target_sha256)
       .toBe(WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256);
@@ -230,7 +236,7 @@ describe('WP12 detached official timing interface target', () => {
         result_formatter: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.result_formatter
       }));
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256)
-      .toBe('3949bb3eaf2afaab3288fc416df2da353461a247d113fbcc48a353ba58a67071');
+      .toBe('a7fe473c2ca6a0b9a88f79e3f17e37847dcf892fe3ef4856608a5d2eb7e78713');
     expect(parseWP12OfficialTimingInterfaceTarget(cloneTarget())).toEqual(WP12_OFFICIAL_TIMING_INTERFACE_TARGET);
   });
 
