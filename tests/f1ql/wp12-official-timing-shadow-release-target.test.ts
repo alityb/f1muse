@@ -8,6 +8,7 @@ import {
   WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET_SHA256
 } from '../../src/f1ql/wp12-official-timing-shadow-release-target';
 import { WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE } from '../../src/f1ql/wp12-official-timing-activation-bundle';
+import { WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 } from '../../src/f1ql/wp12-official-timing-public-wire-target';
 import { SEMANTIC_SHADOW_OBSERVATION_VERSION } from '../../src/f1ql/semantic-shadow-observations';
 import { SEMANTIC_SHADOW_ORCHESTRATOR_VERSION } from '../../src/f1ql/semantic-shadow-planner';
 import { SEMANTIC_SHADOW_RETAINED_OBSERVATION_VERSION } from '../../src/f1ql/semantic-shadow-retained-observation';
@@ -113,7 +114,11 @@ describe('WP12 detached official timing shadow/release target', () => {
     expect(release.release_artifact_sha256).toBeNull();
     expect(release.release_signature).toBeNull();
     expect(release.release_not_constructible_locally).toBe(true);
-    expect(release.public_wire_compatibility_currently_blocked).toBe(true);
+    expect(release.public_wire_compatibility_required).toBe(true);
+    expect(release.public_wire_compatibility_currently_blocked).toBe(false);
+    expect(release.public_wire_contract_sha256)
+      .toBe('ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0');
+    expect(release.public_wire_contract_sha256).toBe(WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256);
     expect(release.shadow_translated_execution_zero_required).toBe(true);
     expect(release.shadow_result_query_calls_zero_required).toBe(true);
     expect(release.compositional_routing_rejected_before_evidence).toBe(true);
@@ -161,12 +166,12 @@ describe('WP12 detached official timing shadow/release target', () => {
     expect(parseWP12OfficialTimingShadowReleaseTarget(cloneTarget()))
       .toEqual(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET);
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET_SHA256)
-      .toBe('930c8f4357852e0b57ca6a5d83d8e4bb4b58893d49eb21d15f22b4595659cbf1');
+      .toBe('bc6dcdee2cc973391d1980e5ca5ae62f9a949ea9891dec1da06c83f2faf70c81');
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_COMPONENT_HASHES).toEqual({
       shadow_observation: 'a5c55ed458be04674052f6f9e20b8dc28783502b4dc25dbd3c2bebe84960af7e',
       shadow_orchestrator: 'd97e592a95caf4851046864d8bacbf98511f6a05155a5edfc57ca06865c90a47',
       shadow_retained_observation: 'a8f95fe91a4da7789d04ccc57d30eeaca6d2834a6b420d098a8edd1a36692bf7',
-      release_attestation: '320fe2d0b3e5a1411ff8850443aabfa4f0763500e8b57b14082bcd98f44978a9'
+      release_attestation: '74941a0bc9eeb2a7dc23867f0b1c7223a9414a6d07f24c6d8d1ea5e84a3e3e9d'
     });
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_SUBORDINATE_HASHES).toEqual({
       shadow_evidence_collector: 'b9a55d53934fc8c10b444e92e631d3e40d43b613502367612a0df922f8488cff',

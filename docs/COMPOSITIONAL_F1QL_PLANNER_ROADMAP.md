@@ -977,13 +977,15 @@ The next detached interface slice now fixes question v28, proposal/provider v2,
 fact-space v4, compatibility/equivalence, and answer-authorization expectations.
 It deliberately stops short of claiming generated provider artifacts or semantic
 v32 output evidence. Existing closed F1QL result files are regression oracles
-only. The public wire shape is also unresolved: compatibility is marked
-activation-ineligible until a separately reviewed, versioned contract preserves
-the public route without synthetic legacy authorization. Shadow and release
-targets may proceed, but runtime activation cannot pass this blocker.
+only. The public wire shape was the remaining contractual blocker and is now
+sealed by the separately versioned `f1ql-answer-wire-v2` contract
+(`ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0`), which
+preserves both public routes without synthetic legacy authorization and maps
+coverage/integrity abstentions to the closed 422 shape. Activation remains
+gated by the full release v9 evidence chain.
 
 The shadow/release slice is now also fixed at composite SHA-256
-`930c8f4357852e0b57ca6a5d83d8e4bb4b58893d49eb21d15f22b4595659cbf1`: observation
+`bc6dcdee2cc973391d1980e5ca5ae62f9a949ea9891dec1da06c83f2faf70c81`: observation
 v2 and orchestrator v7 enforce zero translated/planned/result execution and one
 coverage read; retained v3 uses a sanitized single-line logger with no
 application-owned persistent sink; release v9 binds the exact 32-name target set
@@ -991,13 +993,15 @@ and remains not constructible until provider, formatter, database, parity,
 benchmark, canary, and production evidence are all non-null and passing. The
 activation-migration slice seals the unapplied activation SQL by verified bytes
 at composite SHA-256
-`547bee7852b9dbfe24254fa3c56033291bd1fbc8ec68fcd1f817f89ddeeaf2af`: exact column
+`04f9a7048b5850da014f576488c7ed65d0bd4b1d5e7ffb02ec8367e8d39a8e32`: exact column
 order, filter pins, security-barrier DDL, grant contract, prerequisites, and
 null post-application evidence. With catalog, semantic, interface,
-shadow/release, and migration families complete, every detached contract named
-by the activation bundle now exists. The remaining pre-runtime work is the
-separately reviewed public-wire decision; runtime implementation and the
-evidence chain follow only after it.
+shadow/release, migration, and public-wire families complete, every detached
+contract named by the activation bundle now exists and the public-wire blocker
+is resolved at the contract level. The remaining work is runtime implementation
+plus the evidence chain: generated provider artifacts, semantic-v32 emitter
+fixtures, shadow collection/report, signed database evidence, parity,
+benchmark, canaries, and the production round trip.
 
 The atomic preactivation boundary is now complete locally without changing that
 active state. A strict hash-bound bundle pins both candidate commits, every

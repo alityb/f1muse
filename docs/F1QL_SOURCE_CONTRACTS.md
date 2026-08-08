@@ -337,7 +337,7 @@ active profile 33 and formatter v31 do not import or expose this target.
 The detached interface target extends those expectations through question,
 provider, fact-space, compatibility, and answer authorization contracts at
 composite SHA-256
-`240d11e597e2e47e0c7782d55b47415b573edf204cc484e50904e468868fd692`.
+`3949bb3eaf2afaab3288fc416df2da353461a247d113fbcc48a353ba58a67071`.
 Only five whole-question normalized grammar patterns are admitted across the two
 named metrics. The provider may return the fixed operation discriminator and
 exact literal spans only; metric, source, session, aggregation, exclusions,
@@ -346,13 +346,19 @@ contracts. The exact provider extension and prompt are pinned, but complete v2
 provider artifacts have not been generated and all generated hashes remain null.
 Fact-space v4 remains bound to expectations-only database/principal evidence.
 Legacy closed-result fixtures remain regression oracles, not semantic formatter
-evidence. Semantic-v32 fixtures and public wire compatibility are absent; public
-activation stays explicitly ineligible until a separately versioned wire
-contract is reviewed and hash-bound.
+evidence. Semantic-v32 fixtures remain absent. Public wire compatibility is now
+sealed by the separately versioned `f1ql-answer-wire-v2` contract (composite
+SHA-256 `ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0`):
+both answer routes keep their exact request shape, guards, and refusal shapes;
+official timing answers use the semantic `proven_semantic_result` envelope with
+no legacy program/rendering fields, no synthetic legacy authorization, and no
+prose-only downgrade; coverage and integrity abstentions map to the closed 422
+`capability_unsupported` shape. Activation remains gated by the full release v9
+evidence chain.
 
 The detached shadow/release target completes the interface expectations through
 observation, orchestration, retention, and release attestation at composite
-SHA-256 `930c8f4357852e0b57ca6a5d83d8e4bb4b58893d49eb21d15f22b4595659cbf1`.
+SHA-256 `bc6dcdee2cc973391d1980e5ca5ae62f9a949ea9891dec1da06c83f2faf70c81`.
 Shadow observation v2 admits only the official same-source comparison with all
 translated, planned-result, and answer-result execution counters pinned to zero
 and at most one fingerprinted coverage read between admission and planning.
@@ -367,7 +373,7 @@ capture, and metadata evidence are all null until real evidence exists.
 
 The detached activation-migration target seals the unapplied
 `20260807_f1ql_official_race_lap_timing_activation.sql` by verified bytes at
-composite SHA-256 `547bee7852b9dbfe24254fa3c56033291bd1fbc8ec68fcd1f817f89ddeeaf2af`.
+composite SHA-256 `04f9a7048b5850da014f576488c7ed65d0bd4b1d5e7ffb02ec8367e8d39a8e32`.
 The contract pins the exact 17-column SELECT list in order, all 12 WHERE
 predicates against the certified scope pins, the security-barrier DDL over
 `f1ql.official_lap_timing`, exactly two REVOKEs and one GRANT SELECT to

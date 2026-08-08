@@ -338,16 +338,21 @@ export const WP12_OFFICIAL_TIMING_RESPONSE_EQUIVALENCE_TARGET = component('seman
   regression_execution_allowed: false
 });
 
+const WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 =
+  'ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0';
+
 export const WP12_OFFICIAL_TIMING_ANSWER_COMPATIBILITY_TARGET = component('semantic_answer_compatibility', {
   response_equivalence_target_sha256: hash(WP12_OFFICIAL_TIMING_RESPONSE_EQUIVALENCE_TARGET),
   formatter_target_sha256: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.result_formatter,
   preserve_final_standings_legacy_compatibility: true,
   official_timing: metrics.map(metric => ({
     metric_id: metric.metric_id,
-    disposition: 'public_wire_contract_unresolved',
-    public_wire_envelope: null,
-    activation_eligible: false,
-    activation_blocker: 'separately_versioned_public_wire_contract_required',
+    disposition: 'sealed_public_wire_contract',
+    public_wire_envelope: 'f1ql-answer-wire-v2',
+    public_wire_contract_sha256: WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256,
+    activation_eligible: true,
+    activation_blocker: null,
+    activation_still_gated_by_release_v9_evidence: true,
     legacy_template_id: null,
     legacy_answer_envelope_equivalence: false,
     synthetic_legacy_authorization_allowed: false,

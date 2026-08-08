@@ -18,6 +18,7 @@ import {
 import { SEMANTIC_RESPONSE_EQUIVALENCE_VERSION } from '../../src/f1ql/semantic-response-equivalence';
 import { SEMANTIC_TEMPLATE_EQUIVALENCE, SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION } from '../../src/f1ql/semantic-template-equivalence';
 import { WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE } from '../../src/f1ql/wp12-official-timing-activation-bundle';
+import { WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 } from '../../src/f1ql/wp12-official-timing-public-wire-target';
 import {
   WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES,
   WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256
@@ -147,11 +148,17 @@ describe('WP12 detached official timing interface target', () => {
       overlap.exact_one_row && !overlap.has_more_rows && overlap.recompute_delta_and_winner &&
       !overlap.legacy_oracle_is_semantic_v32_evidence && overlap.semantic_v32_fixture_sha256 === null &&
       overlap.equivalence_evidence === null && overlap.status === 'pending_real_semantic_v32_emitter')).toBe(true);
+    expect(compatibility.official_timing.every((entry: any) =>
+      entry.public_wire_contract_sha256 === WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 &&
+      WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 ===
+        'ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0')).toBe(true);
     expect(compatibility.official_timing).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        disposition: 'public_wire_contract_unresolved', public_wire_envelope: null,
-        activation_eligible: false,
-        activation_blocker: 'separately_versioned_public_wire_contract_required',
+        disposition: 'sealed_public_wire_contract', public_wire_envelope: 'f1ql-answer-wire-v2',
+        public_wire_contract_sha256: WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256,
+        activation_eligible: true,
+        activation_blocker: null,
+        activation_still_gated_by_release_v9_evidence: true,
         legacy_template_id: null, legacy_answer_envelope_equivalence: false,
         synthetic_legacy_authorization_allowed: false, prose_only_downgrade_allowed: false
       })
@@ -208,9 +215,9 @@ describe('WP12 detached official timing interface target', () => {
       provider_schema: 'a6927aed2b27a32c4ad892d1d95b9a01ba20c4f031ad8733c147ea4b64eb41af',
       fact_space: '16963ad9e58b984bc09dcb0dae4f82cd27b4c3ba0b15864d2f47784af2886398',
       semantic_response_equivalence: '275b64ca184f5d2703c63387f0bf9b693bde277ea7780782d5b916a78045d795',
-      semantic_answer_compatibility: '7dcf89fd050f10e96834024697238a0cfe17cc907e77cc83195ed8e0518457f5',
-      semantic_template_equivalence: 'c6b0684e213743ccf4f00192d0af187ba58c2acd012d3da22f2cc7005101b6e4',
-      answer_authorization_code: '964f51407b972ec3f88a52962c712dbdc6bed60e229dabe72e4ca97137b38bdf'
+      semantic_answer_compatibility: 'f6765ab6a2b9f23541875e216cae7bd6145603336ef8947814ea6277590daa61',
+      semantic_template_equivalence: 'c176da0b086d21c17235bbc03dc9de846e2360f66abfa991e3af131d921c7398',
+      answer_authorization_code: '1cdce1f6ddf49fadf04c4bac98b176801a92dc77f26c0121d70a80736824937b'
     });
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET.semantic_target_sha256)
       .toBe(WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256);
@@ -223,7 +230,7 @@ describe('WP12 detached official timing interface target', () => {
         result_formatter: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.result_formatter
       }));
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256)
-      .toBe('240d11e597e2e47e0c7782d55b47415b573edf204cc484e50904e468868fd692');
+      .toBe('3949bb3eaf2afaab3288fc416df2da353461a247d113fbcc48a353ba58a67071');
     expect(parseWP12OfficialTimingInterfaceTarget(cloneTarget())).toEqual(WP12_OFFICIAL_TIMING_INTERFACE_TARGET);
   });
 

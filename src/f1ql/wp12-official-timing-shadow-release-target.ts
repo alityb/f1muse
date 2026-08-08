@@ -13,7 +13,9 @@ const implementationStatusSchema = z.literal('contract_expectations_only_not_run
 const WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256 =
   '1b06103fa99c9556484cbba46c1bf83a9fcfaaba2572eed1e012e391dcf053bc';
 const WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256 =
-  '240d11e597e2e47e0c7782d55b47415b573edf204cc484e50904e468868fd692';
+  '3949bb3eaf2afaab3288fc416df2da353461a247d113fbcc48a353ba58a67071';
+const WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 =
+  'ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0';
 const WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES = Object.freeze({
   answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
   candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
@@ -320,7 +322,8 @@ export const WP12_OFFICIAL_TIMING_RELEASE_ATTESTATION_TARGET = component('releas
   statuses_required_all_pass: true,
   migration_application_state_bound: true,
   public_wire_compatibility_required: true,
-  public_wire_compatibility_currently_blocked: true,
+  public_wire_compatibility_currently_blocked: false,
+  public_wire_contract_sha256: WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256,
   answer_routing_mode_target: 'compositional_profiles',
   release_artifact_sha256: null,
   release_signature: null,
