@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M9: Shadow Orchestrator v7 + Observation v2 + Retained v3
+- Added `official-timing-shadow.ts`: the complete M1–M5 chain in shadow mode with zero execution, closed observation/retained schemas, exact provider admission against the sealed provider schema v2 (offset-only spans, length-1 evidence, metric-conditional lap range), wrapper-counted reads, and literal-zero execution counters. Review fixed a HIGH provider-schema contradiction plus taxonomy/counter findings; final probes passed. Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M8: Result Formatter v32 + Authorization v28 Conformance
 - Added `official-timing-format.ts`: exact BigInt scale-4 formatting (rounded mean, exact median, exact-rational winner with null on ties), witness arithmetic re-verification with row cross-checks, sealed field-order projection with the internal integrity field omitted, and the `proven_semantic_result` v32 envelope matching the public-wire contract field-for-field. v28 conformance is behavioral. Review fixes covered rounding branches, null median arrays, and question binding. Final review `No findings.` Detached from active runtime.
 
