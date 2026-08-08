@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M2: Semantic Query v3 + Evidence v3
+- Added `official-timing-semantic-query.ts`: closed v3 query schema for the two named metrics with per-metric aggregation pinning, question-ordered distinct driver entities, exact scope/filter composition, and provenance-branded evidence with hash bindings (question, catalog v2, candidate set) and reproduction-based verification. Catalog gate re-parses and requires catalog v2 with certified official source governance. Independent review found six schema bypasses; all closed and verified by mutation probes. Final review: `No findings.` Detached from active runtime; imported only by tests.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M1: Question v28 Grammar
 - Added `official-timing-question.ts` implementing the interface target's answer-question v28 expectations: exactly five whole-question grammar patterns for the two named metrics, exact code-point spans via regex match indices, the exact 29-reason refusal set with deterministic precedence, closed driver-span and lap-window validation, and normalization/errors shared with the active question module. Conformance tests instantiate every target pattern and assert refusal-set equality. Independent adversarial review found no correctness issues after fixes (lint budget restored, two refusal branches covered). The module is detached: imported only by tests; active routes unchanged.
 
