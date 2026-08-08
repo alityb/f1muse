@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M5: Planned Compiler v3 + Pipeline v2 + Proof v2
+- Added `official-timing-compiler.ts` (two pinned parameterized read-only SELECTs with exact integer-ms math, sealed pipeline gate order, zero execution) and `official-timing-proof.ts` (proof v2 with full brand chain, independent branch/parameter reconstruction, and complete cross-artifact hash bindings). Review closed a cross-question binding exploit with a regression test; final review `No findings.` Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M4: Planner v3 + Planned F1QL v3 + Cost v2
 - Added `official-timing-plan.ts`: deterministic plan materialization from brand-verified resolutions into the closed planned F1QL v3 IR (fixed predicate order with literal-pinned scope values, aggregate-local exclusions, compare/project/sort/limit spine, sealed per-metric output field order), exact work model v2 accounting, and a fail-closed cost gate. Two independent review rounds; all medium schema-closure gaps probe-verified closed. Detached from active runtime.
 
