@@ -16,7 +16,7 @@ export const OFFICIAL_TIMING_PLANNED_PIPELINE_VERSION = 'planned-pipeline-v2' as
 
 const CERTIFIED_SCOPE = WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE.source.certified_scope;
 
-const EVENT_MEAN_STATEMENT = `WITH driver_a AS (
+export const OFFICIAL_TIMING_EVENT_MEAN_STATEMENT = `WITH driver_a AS (
   SELECT COUNT(*)::integer AS eligible_laps,
          COALESCE(SUM((lap_time_seconds * 1000)::bigint), 0)::text AS total_ms
   FROM f1ql.official_race_lap_timing
@@ -45,7 +45,7 @@ SELECT driver_a.eligible_laps AS driver_a_eligible_laps,
 FROM driver_a
 CROSS JOIN driver_b`;
 
-const WINDOW_MEDIAN_STATEMENT = `WITH driver_a AS (
+export const OFFICIAL_TIMING_WINDOW_MEDIAN_STATEMENT = `WITH driver_a AS (
   SELECT COUNT(*)::integer AS eligible_laps,
          ARRAY_AGG((lap_time_seconds * 1000)::bigint ORDER BY (lap_time_seconds * 1000)::bigint)::text[] AS ms_values
   FROM f1ql.official_race_lap_timing
@@ -177,7 +177,7 @@ export function verifyOfficialTimingCompiledStatement(input: unknown): OfficialT
 export function compileOfficialTimingPlan(plan: OfficialTimingPlan): OfficialTimingCompiledStatement {
   const verified = verifyOfficialTimingPlan(plan);
   const isEventMean = verified.metric_id === OFFICIAL_TIMING_EVENT_MEAN_METRIC_ID;
-  const statement = isEventMean ? EVENT_MEAN_STATEMENT : WINDOW_MEDIAN_STATEMENT;
+  const statement = isEventMean ? OFFICIAL_TIMING_EVENT_MEAN_STATEMENT : OFFICIAL_TIMING_WINDOW_MEDIAN_STATEMENT;
   const parameters: (string | number)[] = [
     CERTIFIED_SCOPE.season,
     CERTIFIED_SCOPE.round,

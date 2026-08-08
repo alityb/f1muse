@@ -42,6 +42,12 @@ export async function prepareOfficialTimingTestDatabase(pool: Pool): Promise<voi
     VALUES (900202214, 2022, 14, 'belgian_gp_2022', 'Formula 1 Belgian Grand Prix 2022', '2022-08-28')
     ON CONFLICT (id) DO NOTHING
   `);
+  await pool.query(`
+    INSERT INTO season_entrant_driver (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
+      (2022, 'phase8-red-bull', 'RBR', 'max_verstappen', false),
+      (2022, 'phase8-alpine', 'ALP', 'fernando_alonso', false)
+    ON CONFLICT DO NOTHING
+  `);
 }
 
 async function main(): Promise<void> {
