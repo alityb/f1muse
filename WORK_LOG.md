@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M3: Resolution v2 + Coverage Witness
+- Added `official-timing-resolution.ts`: brand-verified evidence intake, certified-scope driver/event resolution, exactly one coverage read via the existing reader, and a hash-bound resolution artifact with resolved/abstained outcomes (abstention carries no plan-eligible payload). Review fixes: typed catalog error propagation and fail-closed missing-window throw. Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M2: Semantic Query v3 + Evidence v3
 - Added `official-timing-semantic-query.ts`: closed v3 query schema for the two named metrics with per-metric aggregation pinning, question-ordered distinct driver entities, exact scope/filter composition, and provenance-branded evidence with hash bindings (question, catalog v2, candidate set) and reproduction-based verification. Catalog gate re-parses and requires catalog v2 with certified official source governance. Independent review found six schema bypasses; all closed and verified by mutation probes. Final review: `No findings.` Detached from active runtime; imported only by tests.
 
