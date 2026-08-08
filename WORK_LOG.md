@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-07 - Phase 11 WP12 Runtime M6: Capability Profile 34 + Authorization v34
+- Added `official-timing-capability.ts` (profile 34 byte-identical to the sealed target contract, proven by canonical hash equality) and `official-timing-authorization.ts` (v34 one-time authorization with whole-chain proof verification, release v9 structural gate, expiry capping, and typed replay/expiry/kill-switch failures). Review fixes: canary-stage enforcement, replay reason ordering, coverage-reader version sourcing, release identity validation. PARTIAL: release binding authenticity awaits real signed release v9 (M10). Detached from active runtime.
+
 ## 2026-08-07 - Phase 11 WP12 Runtime M5: Planned Compiler v3 + Pipeline v2 + Proof v2
 - Added `official-timing-compiler.ts` (two pinned parameterized read-only SELECTs with exact integer-ms math, sealed pipeline gate order, zero execution) and `official-timing-proof.ts` (proof v2 with full brand chain, independent branch/parameter reconstruction, and complete cross-artifact hash bindings). Review closed a cross-question binding exploit with a regression test; final review `No findings.` Detached from active runtime.
 
