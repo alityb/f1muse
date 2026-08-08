@@ -27,6 +27,7 @@ import {
   formatOfficialTimingResult,
   OfficialTimingSemanticEnvelope
 } from './official-timing-format';
+import { admitOfficialTimingProviderProposal } from './official-timing-provider-admission';
 
 export const OFFICIAL_TIMING_ANSWER_ORCHESTRATOR_VERSION = 'official-timing-answer-v1' as const;
 
@@ -35,6 +36,13 @@ export interface OfficialTimingAnswerDependencies {
   readonly catalog: OfficialTimingResolutionDependencies['catalog'];
   readonly driver_resolver: OfficialTimingResolutionDependencies['driver_resolver'];
   readonly event_resolver: OfficialTimingResolutionDependencies['event_resolver'];
+  readonly proposer: {
+    propose(request: {
+      readonly question: string;
+      readonly semantic_query_version: 3;
+      readonly max_candidates: 2;
+    }): Promise<unknown>;
+  };
   readonly release: OfficialTimingReleaseBinding;
   readonly principal_class: OfficialTimingPrincipalClass;
   readonly canary: { readonly stage: number; readonly subject_id: string };
@@ -48,12 +56,16 @@ export interface OfficialTimingAnswerDependencies {
 export type OfficialTimingAnswerOutcome =
   | { readonly type: 'answered'; readonly envelope: OfficialTimingSemanticEnvelope }
   | { readonly type: 'refused'; readonly reason: OfficialTimingQuestionRefusalReason | 'question_invalid' }
-  | { readonly type: 'abstained'; readonly reason: 'source_coverage_missing' | 'source_integrity_failed' }
+  | {
+      readonly type: 'abstained';
+      readonly reason: 'source_coverage_missing' | 'source_integrity_failed' | 'provider_candidate_not_enumerated';
+    }
   | {
       readonly type: 'unavailable';
       readonly reason:
         | 'authorization_binding_mismatch' | 'authorization_expired' | 'authorization_replayed'
         | 'catalog_mismatch' | 'internal_failure' | 'kill_switch_active' | 'profile_not_released'
+        | 'provider_malformed' | 'provider_unavailable'
         | 'release_inactive' | 'routing_mode_inactive' | 'statement_timeout' | 'request_timeout';
     };
 
@@ -71,6 +83,10 @@ export async function answerOfficialTimingQuestion(
     evidence = enumerateOfficialTimingEvidence(question, dependencies.catalog);
   } catch {
     return deepFreeze({ type: 'unavailable', reason: 'internal_failure' });
+  }
+  const providerAdmission = await admitProvider(dependencies.proposer, question);
+  if (providerAdmission !== null) {
+    return providerAdmission;
   }
   let resolution;
   try {
@@ -126,6 +142,30 @@ function preAnswerGate(
       : { type: 'unavailable', reason: 'internal_failure' };
     return { type: 'outcome', outcome: deepFreeze(outcome) };
   }
+}
+
+async function admitProvider(
+  proposer: OfficialTimingAnswerDependencies['proposer'],
+  question: OfficialTimingQuestionMatch
+): Promise<OfficialTimingAnswerOutcome | null> {
+  let proposal: unknown;
+  try {
+    proposal = await proposer.propose(deepFreeze({
+      question: question.normalized_question,
+      semantic_query_version: 3,
+      max_candidates: 2
+    }));
+  } catch {
+    return deepFreeze({ type: 'unavailable', reason: 'provider_unavailable' });
+  }
+  const admission = admitOfficialTimingProviderProposal(proposal, question);
+  if (admission.type === 'malformed') {
+    return deepFreeze({ type: 'unavailable', reason: 'provider_malformed' });
+  }
+  if (admission.type === 'drifted') {
+    return deepFreeze({ type: 'abstained', reason: 'provider_candidate_not_enumerated' });
+  }
+  return null;
 }
 
 async function executeAnswerChain(

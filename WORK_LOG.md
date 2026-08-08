@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-08 - Phase 11 WP12 Runtime M13: Provider v2 Admission Sharing
+- Added `official-timing-provider-admission.ts` as the single shared exact-admission implementation of the sealed provider schema v2; shadow delegates to it, and the production answer orchestrator now requires provider admission between enumeration and resolution with closed outcome mappings. Review: `No findings.`
+
 ## 2026-08-08 - Phase 11 WP12 Runtime M11+M12: Answer Orchestrator + Reference Parity + Benchmark
 - Added `official-timing-answer.ts` (fail-closed production-shaped orchestration; wrapped end-to-end answers with exact known values as `f1ql_answer`), a reference-parity suite proving value equality with the legacy `executeF1QL` implementations on the same sealed dataset, and the worst-case benchmark collector + committed artifact (all p95 far below the 2000ms statement timeout). Review fixes: kill switch first (including refusals), typed parse-error mapping, reachable request_timeout. Detached from active routes; activation awaits the evidence chain.
 

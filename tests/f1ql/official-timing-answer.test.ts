@@ -7,12 +7,32 @@ import {
 import { OFFICIAL_TIMING_CAPABILITY_PROFILE_ID, OFFICIAL_TIMING_CATALOG_V2_SHA256 } from '../../src/f1ql/official-timing-capability';
 import { prepareOfficialTimingTestDatabase } from '../../scripts/prepare-official-timing-test-db';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
+import { parseOfficialTimingQuestion } from '../../src/f1ql/official-timing-question';
 import { getTestDatabaseUrl } from '../../src/test/setup';
 import { WP12_OFFICIAL_TIMING_CATALOG_TARGET } from '../../src/f1ql/wp12-official-timing-catalog-target';
 
 const CATALOG_V2 = WP12_OFFICIAL_TIMING_CATALOG_TARGET.catalog;
 const NOW = Date.parse('2026-08-07T12:00:00.000Z');
 const EVENT_MEAN_QUESTION = 'Who was faster between Max Verstappen and Fernando Alonso at the 2022 Belgian Grand Prix?';
+
+function proposerFor(question: string) {
+  const parsed = parseOfficialTimingQuestion(question);
+  if (parsed.type !== 'matched') {throw new Error('question must match');}
+  const span = ({ start, end }: { start: number; end: number }) => ({ start, end });
+  return {
+    propose: async () => ({
+      operation: 'certified_official_timing_compare',
+      driver_a_span: span(parsed.driver_a),
+      driver_b_span: span(parsed.driver_b),
+      event_span: span(parsed.event_span),
+      operation_evidence: [span(parsed.operation_span)],
+      season_evidence: [span(parsed.season_span)],
+      lap_range_evidence: parsed.lap_range === null
+        ? null
+        : { start_span: span(parsed.lap_range.start_span), end_span: span(parsed.lap_range.end_span) }
+    })
+  };
+}
 
 function releaseBinding(nowMs = NOW) {
   return {
@@ -67,6 +87,7 @@ function unitDependencies(overrides: Partial<OfficialTimingAnswerDependencies> =
   return {
     database: fakePool(MEAN_ROWS),
     catalog: CATALOG_V2,
+    proposer: proposerFor(EVENT_MEAN_QUESTION),
     driver_resolver: {
       resolveUnambiguous: async (alias: string) => {
         const ids: Record<string, string> = { 'Max Verstappen': 'max-verstappen', 'Fernando Alonso': 'fernando-alonso' };
@@ -152,6 +173,26 @@ describe('official timing answer orchestrator (unit)', () => {
     expect(timedOut).toEqual({ type: 'unavailable', reason: 'request_timeout' });
   });
 
+  it('maps provider failure, malformed proposals, and drift to closed outcomes', async () => {
+    const unavailable = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, unitDependencies({
+      proposer: { propose: async () => { throw new Error('upstream down'); } }
+    }));
+    expect(unavailable).toEqual({ type: 'unavailable', reason: 'provider_unavailable' });
+    const malformed = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, unitDependencies({
+      proposer: { propose: async () => ({ operation: 'wrong' }) }
+    }));
+    expect(malformed).toEqual({ type: 'unavailable', reason: 'provider_malformed' });
+    const drifted = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, unitDependencies({
+      proposer: {
+        propose: async () => {
+          const response = await proposerFor(EVENT_MEAN_QUESTION).propose();
+          return { ...response, driver_a_span: { start: response.driver_a_span.start + 1, end: response.driver_a_span.end } };
+        }
+      }
+    }));
+    expect(drifted).toEqual({ type: 'abstained', reason: 'provider_candidate_not_enumerated' });
+  });
+
   it('maps release and coverage failures to closed unavailable reasons', async () => {
     const routing = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, unitDependencies({
       database: coverageServingPool(),
@@ -216,6 +257,7 @@ describe('official timing answer orchestrator (wrapped database round trip)', ()
     };
     const mean = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, {
       ...base,
+      proposer: proposerFor(EVENT_MEAN_QUESTION),
       driver_resolver: new AnswerDriverIdentityResolver(answerPool as Pool),
       event_resolver: new AnswerEventIdentityResolver(answerPool as Pool),
       request_id: 'answer-mean',
@@ -225,10 +267,12 @@ describe('official timing answer orchestrator (wrapped database round trip)', ()
     if (mean.type !== 'answered') {throw new Error('expected answered');}
     expect(mean.envelope.rows[0].driver_a_mean_lap_time_seconds).toBe('117.0939');
     expect(mean.envelope.rows[0].winner_driver_id).toBe('max-verstappen');
+    const medianQuestion = 'Compare the official median race lap time of Max Verstappen and Fernando Alonso over laps 3 to 10 at the 2022 Belgian Grand Prix';
     const median = await answerOfficialTimingQuestion(
-      'Compare the official median race lap time of Max Verstappen and Fernando Alonso over laps 3 to 10 at the 2022 Belgian Grand Prix',
+      medianQuestion,
       {
         ...base,
+        proposer: proposerFor(medianQuestion),
         driver_resolver: new AnswerDriverIdentityResolver(answerPool as Pool),
         event_resolver: new AnswerEventIdentityResolver(answerPool as Pool),
         request_id: 'answer-median',

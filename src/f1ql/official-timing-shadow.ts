@@ -15,6 +15,7 @@ import {
   OfficialTimingResolutionError
 } from './official-timing-resolution';
 import { readOfficialTimingCoverage } from './official-timing-coverage';
+import { admitOfficialTimingProviderProposal } from './official-timing-provider-admission';
 import { planOfficialTimingAnswer, OfficialTimingPlannerError } from './official-timing-plan';
 import { OfficialTimingCompilerError, runOfficialTimingPlannedPipeline } from './official-timing-compiler';
 import { OfficialTimingProofError, proveOfficialTimingPlan } from './official-timing-proof';
@@ -408,80 +409,29 @@ type ProviderAdmission =
       readonly candidate_counts: CandidateCounts;
     };
 
-// Mirrors the sealed provider schema v2 variant: strict closed properties, span refs carry
-// offsets only (text is proven by offset equality against the normalized question), and
-// lap-range evidence is required for window median and forbidden (null) for event mean.
-const wireSpanSchema = z.object({
-  start: z.number().int().min(0).max(1_000),
-  end: z.number().int().positive().max(1_000)
-}).strict().refine(span => span.end > span.start, 'span end must be after start');
-const wireEvidenceSchema = z.array(wireSpanSchema).min(1).max(8);
-const providerProposalSchema = z.object({
-  operation: z.literal('certified_official_timing_compare'),
-  driver_a_span: wireSpanSchema,
-  driver_b_span: wireSpanSchema,
-  event_span: wireSpanSchema,
-  operation_evidence: wireEvidenceSchema,
-  season_evidence: wireEvidenceSchema,
-  lap_range_evidence: z.union([
-    z.null(),
-    z.object({ start_span: wireSpanSchema, end_span: wireSpanSchema }).strict()
-  ])
-}).strict();
-
 function admitProviderProposal(
   input: unknown,
   question: OfficialTimingQuestionMatch
 ): ProviderAdmission {
-  const malformed = (providerHash?: string): ProviderAdmission => ({
-    type: 'rejected',
-    outcome: 'unavailable',
-    reason: 'provider_malformed',
-    ...(providerHash === undefined ? {} : { provider_hash: providerHash }),
-    candidate_counts: { enumerated: 1, proposed: 0, matched: 0, omitted: 0, extraneous: 0, comparison: 'not_comparable' }
-  });
-  const drift = (providerHash: string): ProviderAdmission => ({
+  const admission = admitOfficialTimingProviderProposal(input, question);
+  if (admission.type === 'admitted') {
+    return { type: 'admitted', provider_hash: admission.provider_candidate_set_sha256 };
+  }
+  if (admission.type === 'malformed') {
+    return {
+      type: 'rejected',
+      outcome: 'unavailable',
+      reason: 'provider_malformed',
+      candidate_counts: { enumerated: 1, proposed: 0, matched: 0, omitted: 0, extraneous: 0, comparison: 'not_comparable' }
+    };
+  }
+  return {
     type: 'rejected',
     outcome: 'abstain',
     reason: 'provider_candidate_not_enumerated',
-    provider_hash: providerHash,
+    provider_hash: admission.provider_candidate_set_sha256,
     candidate_counts: { enumerated: 1, proposed: 1, matched: 0, omitted: 0, extraneous: 1, comparison: 'extraneous' }
-  });
-  let proposal: z.infer<typeof providerProposalSchema>;
-  try {
-    proposal = providerProposalSchema.parse(input);
-  } catch {
-    return malformed();
-  }
-  const providerHash = hashValue(proposal);
-  if (!proposalSpansMatch(proposal, question)) {
-    return drift(providerHash);
-  }
-  return { type: 'admitted', provider_hash: providerHash };
-}
-
-function proposalSpansMatch(
-  proposal: z.infer<typeof providerProposalSchema>,
-  question: OfficialTimingQuestionMatch
-): boolean {
-  const spanMatch = (actual: { start: number; end: number }, expected: { start: number; end: number }) =>
-    actual.start === expected.start && actual.end === expected.end;
-  const coreMatch =
-    spanMatch(proposal.driver_a_span, question.driver_a) &&
-    spanMatch(proposal.driver_b_span, question.driver_b) &&
-    spanMatch(proposal.event_span, question.event_span) &&
-    proposal.operation_evidence.length === 1 && spanMatch(proposal.operation_evidence[0], question.operation_span) &&
-    proposal.season_evidence.length === 1 && spanMatch(proposal.season_evidence[0], question.season_span);
-  if (!coreMatch) {
-    return false;
-  }
-  if (question.lap_range === null) {
-    return proposal.lap_range_evidence === null;
-  }
-  const lapEvidence = proposal.lap_range_evidence;
-  return lapEvidence !== null &&
-    spanMatch(lapEvidence.start_span, question.lap_range.start_span) &&
-    spanMatch(lapEvidence.end_span, question.lap_range.end_span);
+  };
 }
 
 function countingResolutionDependencies(
