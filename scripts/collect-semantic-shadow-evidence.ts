@@ -199,6 +199,13 @@ async function main(): Promise<void> {
     const app = express();
     const provider = new SemanticCandidateProposalAdapter(createSemanticCandidateModel(routeEnvironment));
     const providerIdentity = getConfiguredSemanticCandidateModelIdentity(routeEnvironment);
+    // Warm the provider once before the corpus loop so cold-start latency does not
+    // count against the first reviewed attempt; the warmup emits no retained evidence.
+    await provider.propose({
+      question: corpus.cases[0].question,
+      semantic_query_version: 2,
+      max_candidates: 5
+    });
     app.disable('x-powered-by');
     app.use(express.json({ limit: '2kb' }));
     app.use('/', createProgramSemanticShadowRoutes(pool, {
@@ -325,10 +332,12 @@ async function seedDisposableDatabase(pool: Pool): Promise<void> {
   }
   await seedAnswerEvaluationFixture(pool);
   await pool.query(`INSERT INTO driver (id, name, full_name, first_name, last_name, abbreviation) VALUES
-    ('historical_norris', 'Historical Norris', 'Historical Norris', 'Historical', 'Norris', 'HNO')`);
+    ('historical_norris', 'Historical Norris', 'Historical Norris', 'Historical', 'Norris', 'HNO'),
+    ('george_russell', 'George Russell', 'George Russell', 'George', 'Russell', 'RUS')`);
   await pool.query(`INSERT INTO season_entrant_driver
     (year, entrant_id, constructor_id, driver_id, test_driver) VALUES
-    (2024, 'mclaren', 'mclaren', 'oscar_piastri', false)`);
+    (2024, 'mclaren', 'mclaren', 'oscar_piastri', false),
+    (2025, 'mercedes', 'mercedes', 'george_russell', false)`);
   await pool.query(`INSERT INTO race
     (id, year, round, circuit_id, grand_prix_id, official_name, date) VALUES
     (102, 2024, 2, 'fixture-2024-round-2', NULL, 'Formula 1 Fixture 2024 Round 2 Grand Prix', '2024-04-01')`);
@@ -407,7 +416,7 @@ function assertTerminalResponse(
     }
   }
   if (mismatches.length > 0) {
-    throw new Error(`Semantic shadow route returned an invalid terminal status: ${mismatches.join(',')}`);
+    throw new Error(`Semantic shadow route returned an invalid terminal status for case ${expected.id}: ${mismatches.join(',')}`);
   }
 }
 

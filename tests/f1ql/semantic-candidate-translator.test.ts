@@ -513,6 +513,30 @@ describe('semantic candidate translator foundation', () => {
     }
   });
 
+  it('accepts an explicitly configured resolved-model alias and rejects undeclared echoes', async () => {
+    const evidence = candidateEvidence(STANDINGS);
+    const body = { model: 'resolved-model', choices: [{ finish_reason: 'stop', message: { content: '{}' } }] };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })));
+    const withoutAlias = new OpenAICompatibleSemanticCandidateModel('https://strict.example/v1', 'key', 'model');
+    await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, withoutAlias)).resolves.toMatchObject({
+      type: 'provider_unavailable',
+      diagnostic_code: 'malformed'
+    });
+    const withAlias = new OpenAICompatibleSemanticCandidateModel('https://strict.example/v1', 'key', 'model', 10_000, 'resolved-model');
+    const admitted = await translateSemanticCandidateQuestion(STANDINGS, evidence, withAlias);
+    expect(admitted.type === 'provider_unavailable' ? admitted.diagnostic_code : 'schema_checked').not.toBe('malformed');
+    const withBadAlias = new OpenAICompatibleSemanticCandidateModel('https://strict.example/v1', 'key', 'model', 10_000, 'other-model');
+    await expect(translateSemanticCandidateQuestion(STANDINGS, evidence, withBadAlias)).resolves.toMatchObject({
+      type: 'provider_unavailable',
+      diagnostic_code: 'malformed'
+    });
+    const anthropicBody = { model: 'resolved-model', stop_reason: 'end_turn', content: [{ type: 'text', text: '{}' }] };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(anthropicBody), { status: 200 })));
+    const anthropicWithAlias = new AnthropicSemanticCandidateModel('https://api.anthropic.com/v1', 'key', 'model', 10_000, 'resolved-model');
+    const anthropicAdmitted = await translateSemanticCandidateQuestion(STANDINGS, evidence, anthropicWithAlias);
+    expect(anthropicAdmitted.type === 'provider_unavailable' ? anthropicAdmitted.diagnostic_code : 'schema_checked').not.toBe('malformed');
+  });
+
   it('requires one exact completed Anthropic text block and model identity', async () => {
     const evidence = candidateEvidence(STANDINGS);
     const outputs = [

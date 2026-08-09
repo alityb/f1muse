@@ -13,13 +13,13 @@ const implementationStatusSchema = z.literal('contract_expectations_only_not_run
 const WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256 =
   '1b06103fa99c9556484cbba46c1bf83a9fcfaaba2572eed1e012e391dcf053bc';
 const WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256 =
-  'a7fe473c2ca6a0b9a88f79e3f17e37847dcf892fe3ef4856608a5d2eb7e78713';
+  'ec33aa2ec7e2bdee332aeef309de7b541d9eb5616a0242aeeed80e6553e380e7';
 const WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 =
   'ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0';
 const WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES = Object.freeze({
   answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
   candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
-  provider_schema: '45bb9413506a8eb11502917ca83f5665f749f63e54e51c18460b70a3637f0e5c'
+  provider_schema: '14fbe6a31c018ac3b18c59dfa76382deabdf9e1d1289cd040375a6316d333f0a'
 });
 const WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES = Object.freeze({
   semantic_query: '3b5aa0ea84e1b2397f5768117a85161886ff58a82c5bd6b128686292152f8c0b',
@@ -132,8 +132,8 @@ const activeSourceHashes = {
   orchestrator_v6_source: '753bfd884e333fc71078a10042bdc3e2cfc2bf2088c49e903a7bd880269bd45b',
   retained_v2_source: 'd4d252bafaf6ab4c694580ded10efa4be72d98b912d53d38422f722082db23b7',
   report_v1_source: '826de5907d217c71ace161319f0f637b434152f747c358075e729dacc43f41a5',
-  semantic_shadow_route_source: 'ab5aa99349387335ac794a5647f4b159a7dc98e8f33b16ef732527510265f0bc',
-  localhost_collector_source: '1a1c77f4fd98b072f8d5e9712e715d3c1ccd20aad257c032a5c7aaaa2f45f62a',
+  semantic_shadow_route_source: 'fa4fd2a4bad988cb5a035fd052fce0bb666f2dc268e4aeea6021c316e7bc3d0a',
+  localhost_collector_source: '8772c9b139105f7cec8b880f894f12a24d9b92ae38e9956191dc26d26a8acba9',
   report_cli_source: '8824ee0415158e80c2e5d8618171945d9eec222b7f9f435b8ededf29d100f888',
   production_capture_source: 'd4921f5d4466c662aada2ff5001c81e6e40bdc134c34234219c206a50cad73a5',
   production_evidence_builder_source: '0bf04668aafe6fab3cb1e67e324bfdb073ea8bb6111aa0995e8b52e571da45a8',

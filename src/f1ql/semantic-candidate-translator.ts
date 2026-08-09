@@ -339,21 +339,29 @@ export class SemanticCandidateProviderConfigurationError extends Error {
 export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidateModel {
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly resolvedModel?: string;
 
   constructor(
     baseUrl: string,
     private readonly apiKey: string,
     model: string,
-    private readonly requestTimeoutMs = 10_000
+    private readonly requestTimeoutMs = 10_000,
+    resolvedModel?: string
   ) {
     this.baseUrl = validateEndpoint(baseUrl);
     this.model = validateModel(model);
+    this.resolvedModel = resolvedModel === undefined ? undefined : validateModel(resolvedModel);
     if (!apiKey.trim()) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider credentials are required');
     }
     if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 30_000) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
     }
+  }
+
+  private isReturnedModelIdentity(returned: string | undefined): boolean {
+    return returned === this.model ||
+      (this.resolvedModel !== undefined && returned === this.resolvedModel);
   }
 
   async complete(
@@ -396,7 +404,7 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
           message?: { content?: string | null; refusal?: string | null };
         }>;
       };
-      if (!body || typeof body !== 'object' || Array.isArray(body) || body.model !== this.model) {
+      if (!body || typeof body !== 'object' || Array.isArray(body) || !this.isReturnedModelIdentity(body.model)) {
         throw new SemanticCandidateProviderDiagnosticError('malformed');
       }
       const choices = body.choices ?? [];
@@ -414,21 +422,29 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
 export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
   private readonly baseUrl: string;
   private readonly model: string;
+  private readonly resolvedModel?: string;
 
   constructor(
     baseUrl: string,
     private readonly apiKey: string,
     model: string,
-    private readonly requestTimeoutMs = 10_000
+    private readonly requestTimeoutMs = 10_000,
+    resolvedModel?: string
   ) {
     this.baseUrl = validateAnthropicEndpoint(baseUrl);
     this.model = validateModel(model);
+    this.resolvedModel = resolvedModel === undefined ? undefined : validateModel(resolvedModel);
     if (!apiKey.trim()) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider credentials are required');
     }
     if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 30_000) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
     }
+  }
+
+  private isReturnedModelIdentity(returned: string | undefined): boolean {
+    return returned === this.model ||
+      (this.resolvedModel !== undefined && returned === this.resolvedModel);
   }
 
   async complete(
@@ -469,7 +485,7 @@ export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
         stop_reason?: string | null;
         content?: Array<{ type?: string; text?: string }>;
       };
-      if (!body || typeof body !== 'object' || Array.isArray(body) || body.model !== this.model) {
+      if (!body || typeof body !== 'object' || Array.isArray(body) || !this.isReturnedModelIdentity(body.model)) {
         throw new SemanticCandidateProviderDiagnosticError('malformed');
       }
       const content = body.content ?? [];
@@ -537,6 +553,7 @@ interface ConfiguredSemanticCandidateModel extends ConfiguredSemanticCandidateMo
   readonly base_url: string;
   readonly api_key: string;
   readonly model: string;
+  readonly resolved_model?: string;
   readonly request_timeout_ms: number;
 }
 
@@ -552,11 +569,8 @@ function readConfiguredModel(env: NodeJS.ProcessEnv): ConfiguredSemanticCandidat
     ? validateAnthropicEndpoint(baseUrl)
     : validateEndpoint(baseUrl);
   const validatedModel = validateModel(model);
-  const timeoutValue = env.F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS;
-  const timeout = timeoutValue === undefined ? 10_000 : Number(timeoutValue);
-  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 30_000) {
-    throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
-  }
+  const validatedResolvedModel = readOptionalResolvedModel(env.F1QL_SEMANTIC_CANDIDATE_LLM_RESOLVED_MODEL);
+  const timeout = readConfiguredTimeout(env.F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS);
   return {
     provider,
     endpoint_sha256: sha256(validatedBaseUrl),
@@ -589,6 +603,7 @@ function readConfiguredModel(env: NodeJS.ProcessEnv): ConfiguredSemanticCandidat
     base_url: validatedBaseUrl,
     api_key: apiKey,
     model: validatedModel,
+    ...(validatedResolvedModel === undefined ? {} : { resolved_model: validatedResolvedModel }),
     request_timeout_ms: timeout
   };
 }
@@ -626,7 +641,8 @@ export function createSemanticCandidateModel(
     configured.base_url,
     configured.api_key,
     configured.model,
-    configured.request_timeout_ms
+    configured.request_timeout_ms,
+    configured.resolved_model
   );
 }
 
@@ -1073,6 +1089,21 @@ function isPrivateEndpointHostname(hostname: string): boolean {
   return isIP(normalized) !== 0 || normalized === 'localhost' ||
     normalized.endsWith('.localhost') || normalized.endsWith('.local') ||
     normalized.endsWith('.internal') || normalized.endsWith('.home.arpa');
+}
+
+function readConfiguredTimeout(timeoutValue: string | undefined): number {
+  const timeout = timeoutValue === undefined ? 10_000 : Number(timeoutValue);
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 30_000) {
+    throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
+  }
+  return timeout;
+}
+
+function readOptionalResolvedModel(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === '') {
+    return undefined;
+  }
+  return validateModel(value);
 }
 
 function validateModel(model: string): string {

@@ -1,5 +1,8 @@
 # Session Work Log
 
+## 2026-08-08 - WP8/WP12 Provider Evidence Attempt (Baseten + Fireworks)
+- Wired the user's provider config (`.env`), verified the live round trip, and probed seven model/endpoint combinations with the real v1 schema through the production adapter. Baseten does not enforce deep schemas; Fireworks `kimi-k3-fast` conforms on simple questions but exceeds provider/route budgets on heavier classes. Reviewed supporting changes landed: resolved-model alias support in the translator (with tests), shadow route max request timeout 15s→60s (default unchanged), collector warmup + case-id diagnostics + the missing `george_russell` seed. All target pins re-cascaded; wrapped suite green (2,769 tests). The evidence run remains blocked pending an OpenAI or Anthropic provider; see PROGRESS.md for the exact rerun command.
+
 ## 2026-08-08 - Phase 11 WP12 Runtime M13: Provider v2 Admission Sharing
 - Added `official-timing-provider-admission.ts` as the single shared exact-admission implementation of the sealed provider schema v2; shadow delegates to it, and the production answer orchestrator now requires provider admission between enumeration and resolution with closed outcome mappings. Review: `No findings.`
 

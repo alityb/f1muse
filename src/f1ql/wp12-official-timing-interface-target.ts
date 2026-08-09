@@ -255,6 +255,7 @@ export const WP12_OFFICIAL_TIMING_PROVIDER_SCHEMA_TARGET = deepFreeze(componentS
     temperature: 0,
     timeout_ms: { min: 1, max: 30000 },
     exact_returned_model_identity_required: true,
+    resolved_model_alias_requires_explicit_configuration: true,
     exact_completed_non_refusal_results: 1,
     runtime_zod_validation_after_wire_transform: true,
     generated_hashes_required: [
