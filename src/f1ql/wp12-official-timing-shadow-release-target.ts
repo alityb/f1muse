@@ -133,7 +133,7 @@ const activeSourceHashes = {
   retained_v2_source: 'd4d252bafaf6ab4c694580ded10efa4be72d98b912d53d38422f722082db23b7',
   report_v1_source: '826de5907d217c71ace161319f0f637b434152f747c358075e729dacc43f41a5',
   semantic_shadow_route_source: 'bd32e5240700e3a37d00967c86baec10ab67ee714a01af3e1c2462a81cfd315d',
-  localhost_collector_source: '9e252a84b158bb60eeed05d6314ddc2aabf7b7005756558f22bc6cb7e278c6f8',
+  localhost_collector_source: '09cdd21cd7589a0d8e5300e7261bb9c27596cec8e798e5d27cc0394b6d9f9341',
   report_cli_source: '8824ee0415158e80c2e5d8618171945d9eec222b7f9f435b8ededf29d100f888',
   production_capture_source: 'd4921f5d4466c662aada2ff5001c81e6e40bdc134c34234219c206a50cad73a5',
   production_evidence_builder_source: '0bf04668aafe6fab3cb1e67e324bfdb073ea8bb6111aa0995e8b52e571da45a8',

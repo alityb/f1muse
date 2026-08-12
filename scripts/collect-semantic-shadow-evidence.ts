@@ -177,7 +177,8 @@ const TRANSIENT_PROVIDER_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set([
   'incomplete',
   'schema_invalid',
   'request_timeout',
-  'cancelled'
+  'cancelled',
+  'unknown'
 ]);
 
 export function isTransientSemanticShadowProviderDiagnostic(
