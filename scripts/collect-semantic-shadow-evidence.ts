@@ -157,6 +157,41 @@ export function formatSemanticShadowProviderFailureCode(
   return `provider_${code ?? 'unknown'}`;
 }
 
+// A transient provider blip (dropped/garbled response, connection reset, server-side
+// hiccup, or an elapsed request budget under relaxed latency ceilings) must not
+// destroy a long evidence run. Retry the same reviewed attempt a small bounded number
+// of times; the transient operational-failure observation is replaced by the retry's
+// terminal observation so the retained artifact still holds exactly one terminal event
+// per attempt. Deterministic provider non-compliance (schema_invalid, forbidden_output,
+// malformed, auth, quota, rate_limit, oversize, client) is never retried.
+const MAX_TRANSIENT_PROVIDER_RETRIES = 3;
+const TRANSIENT_PROVIDER_RETRY_BASE_DELAY_MS = 5_000;
+const MAX_TRANSIENT_PROVIDER_RETRY_DELAY_MS = 60_000;
+const TRANSIENT_PROVIDER_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set([
+  'transport',
+  'server',
+  'incomplete',
+  'request_timeout',
+  'cancelled'
+]);
+
+export function isTransientSemanticShadowProviderDiagnostic(
+  code: SemanticCandidateProposalError['code'] | 'unknown' | undefined
+): boolean {
+  return code !== undefined && TRANSIENT_PROVIDER_DIAGNOSTIC_CODES.has(code);
+}
+
+export function semanticShadowTransientRetryDelayMs(retryIndex: number): number {
+  if (!Number.isSafeInteger(retryIndex) || retryIndex < 1 || retryIndex > MAX_TRANSIENT_PROVIDER_RETRIES) {
+    throw new Error('Semantic shadow transient retry index must be an integer between 1 and 3');
+  }
+  return Math.min(TRANSIENT_PROVIDER_RETRY_BASE_DELAY_MS * retryIndex, MAX_TRANSIENT_PROVIDER_RETRY_DELAY_MS);
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise<void>(resolve => setTimeout(resolve, delayMs));
+}
+
 async function main(): Promise<void> {
   const databaseUrl = getTestDatabaseUrl();
   assertSemanticShadowCollectionGuards(process.env, databaseUrl);
@@ -201,11 +236,26 @@ async function main(): Promise<void> {
     const providerIdentity = getConfiguredSemanticCandidateModelIdentity(routeEnvironment);
     // Warm the provider once before the corpus loop so cold-start latency does not
     // count against the first reviewed attempt; the warmup emits no retained evidence.
-    await provider.propose({
-      question: corpus.cases[0].question,
-      semantic_query_version: 2,
-      max_candidates: 5
-    });
+    // The same bounded transient-retry policy as the corpus loop applies, since a
+    // transient warmup blip must not destroy the run before it starts.
+    let warmupRetries = 0;
+    for (;;) {
+      try {
+        await provider.propose({
+          question: corpus.cases[0].question,
+          semantic_query_version: 2,
+          max_candidates: 5
+        });
+        break;
+      } catch (error) {
+        const code = error instanceof SemanticCandidateProposalError ? error.code : 'unknown';
+        if (!isTransientSemanticShadowProviderDiagnostic(code) || warmupRetries >= MAX_TRANSIENT_PROVIDER_RETRIES) {
+          throw error;
+        }
+        warmupRetries += 1;
+        await sleep(semanticShadowTransientRetryDelayMs(warmupRetries));
+      }
+    }
     app.disable('x-powered-by');
     app.use(express.json({ limit: '2kb' }));
     app.use('/', createProgramSemanticShadowRoutes(pool, {
@@ -273,23 +323,42 @@ async function main(): Promise<void> {
         activeProviderDiagnosticCode = undefined;
         await configureDisposableResolverCase(pool, item.id);
         await beforeRequest();
-        const retainedBefore = retainedEvents.length;
-        const response = await fetch(`http://127.0.0.1:${port}/program/semantic-shadow`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Connection: 'close',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ question: item.question })
-        });
-        const body = await response.json() as unknown;
-        if (retainedEvents.length !== retainedBefore + 1) {
-          throw new Error('Semantic shadow route did not emit exactly one retained terminal event');
+        let transientRetries = 0;
+        for (;;) {
+          activeRawProviderCandidateSetSha256 = undefined;
+          activeProviderDiagnosticCode = undefined;
+          const retainedBefore = retainedEvents.length;
+          const response = await fetch(`http://127.0.0.1:${port}/program/semantic-shadow`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Connection: 'close',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question: item.question })
+          });
+          const body = await response.json() as unknown;
+          if (retainedEvents.length !== retainedBefore + 1) {
+            throw new Error('Semantic shadow route did not emit exactly one retained terminal event');
+          }
+          try {
+            assertTerminalResponse(
+              response.status, body, retainedEvents[retainedBefore], snapshot.cases[activeCaseIndex], activeProviderDiagnosticCode
+            );
+            break;
+          } catch (error) {
+            const retained = retainedEvents[retainedBefore] as { terminal?: unknown } | undefined;
+            const retryable = retained?.terminal === 'operational_failure' &&
+              isTransientSemanticShadowProviderDiagnostic(activeProviderDiagnosticCode) &&
+              transientRetries < MAX_TRANSIENT_PROVIDER_RETRIES;
+            if (!retryable) {
+              throw error;
+            }
+            transientRetries += 1;
+            retainedEvents.pop();
+            await sleep(semanticShadowTransientRetryDelayMs(transientRetries));
+          }
         }
-        assertTerminalResponse(
-          response.status, body, retainedEvents[retainedBefore], snapshot.cases[activeCaseIndex], activeProviderDiagnosticCode
-        );
         if (executionAttempts !== 0) {
           throw new Error('Semantic shadow collector reached the throwing executor');
         }

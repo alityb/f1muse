@@ -5,7 +5,9 @@ import {
   assertSemanticShadowCollectionGuards,
   createSemanticShadowProviderPacer,
   formatSemanticShadowProviderFailureCode,
-  parseSemanticShadowMinRequestIntervalMs
+  isTransientSemanticShadowProviderDiagnostic,
+  parseSemanticShadowMinRequestIntervalMs,
+  semanticShadowTransientRetryDelayMs
 } from '../../scripts/collect-semantic-shadow-evidence';
 import { compositionalRegressionCorpusInput } from '../fixtures/compositional-regression-corpus';
 
@@ -71,6 +73,26 @@ describe('WP8 semantic shadow evidence collector', () => {
     expect(formatSemanticShadowProviderFailureCode('unknown')).toBe('provider_unknown');
     expect(formatSemanticShadowProviderFailureCode('request_timeout')).toBe('provider_request_timeout');
     expect(formatSemanticShadowProviderFailureCode('rate_limit')).toBe('provider_rate_limit');
+  });
+
+  it('classifies only transient provider diagnostics as retryable', () => {
+    for (const code of ['transport', 'server', 'incomplete', 'request_timeout', 'cancelled'] as const) {
+      expect(isTransientSemanticShadowProviderDiagnostic(code)).toBe(true);
+    }
+    for (const code of ['malformed', 'schema_invalid', 'forbidden_output', 'auth', 'quota', 'rate_limit', 'oversize', 'client'] as const) {
+      expect(isTransientSemanticShadowProviderDiagnostic(code)).toBe(false);
+    }
+    expect(isTransientSemanticShadowProviderDiagnostic('unknown')).toBe(false);
+    expect(isTransientSemanticShadowProviderDiagnostic(undefined)).toBe(false);
+  });
+
+  it('bounds transient retry delays to three attempts and one minute', () => {
+    expect(semanticShadowTransientRetryDelayMs(1)).toBe(5_000);
+    expect(semanticShadowTransientRetryDelayMs(2)).toBe(10_000);
+    expect(semanticShadowTransientRetryDelayMs(3)).toBe(15_000);
+    for (const value of [0, 1.5, -1, 4, Number.POSITIVE_INFINITY]) {
+      expect(() => semanticShadowTransientRetryDelayMs(value)).toThrow('between 1 and 3');
+    }
   });
 
   it('paces sequential attempts against a monotonic clock without provider or database access', async () => {

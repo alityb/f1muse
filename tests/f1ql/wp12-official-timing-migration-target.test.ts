@@ -145,7 +145,7 @@ describe('WP12 detached official timing activation-migration target', () => {
     expect(WP12_OFFICIAL_TIMING_MIGRATION_TARGET.interface_target_sha256)
       .toBe('f8a3b579d15e36c674e1961d18456491489ca6f7a95624aaedce8e7d28ac729d');
     expect(WP12_OFFICIAL_TIMING_MIGRATION_TARGET.shadow_release_target_sha256)
-      .toBe('063edb3c5c9e16dec6fa986779598c46ea2cee2e6df0daca255a326d5de8105b');
+      .toBe('5c78db61730328304d397925fb9692a6b450382962830fed5d5199f5543d2c35');
   });
 
   it('is detached from execution code and deeply frozen', () => {
@@ -162,7 +162,7 @@ describe('WP12 detached official timing activation-migration target', () => {
     expect(parseWP12OfficialTimingMigrationTarget(cloneTarget()))
       .toEqual(WP12_OFFICIAL_TIMING_MIGRATION_TARGET);
     expect(WP12_OFFICIAL_TIMING_MIGRATION_TARGET_SHA256)
-      .toBe('1b7d1ce17a0fbb9272aebbd4d69adea9497d77c63ab315a74645fb73b350325f');
+      .toBe('cf408084b71bb5f5e970e0073cb858cbf320d8b55da54eec93767245e3e3b3ca');
   });
 
   it.each([
