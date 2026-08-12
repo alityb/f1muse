@@ -158,19 +158,24 @@ export function formatSemanticShadowProviderFailureCode(
 }
 
 // A transient provider blip (dropped/garbled response, connection reset, server-side
-// hiccup, or an elapsed request budget under relaxed latency ceilings) must not
-// destroy a long evidence run. Retry the same reviewed attempt a small bounded number
-// of times; the transient operational-failure observation is replaced by the retry's
-// terminal observation so the retained artifact still holds exactly one terminal event
-// per attempt. Deterministic provider non-compliance (schema_invalid, forbidden_output,
-// malformed, auth, quota, rate_limit, oversize, client) is never retried.
+// hiccup, stochastic output-quality failure from a nondeterministic serving backend,
+// or an elapsed request budget under relaxed latency ceilings) must not destroy a long
+// evidence run. Retry the same reviewed attempt a small bounded number of times; the
+// transient operational-failure observation is replaced by the retry's terminal
+// observation so the retained artifact still holds exactly one terminal event per
+// attempt. This measures the semantic chain's ability to reach the reviewed terminal
+// outcome per attempt, not provider reliability; production SLA behavior remains a
+// separate canary concern. Deterministic configuration/contract failures
+// (forbidden_output, auth, quota, rate_limit, oversize, client) are never retried.
 const MAX_TRANSIENT_PROVIDER_RETRIES = 3;
 const TRANSIENT_PROVIDER_RETRY_BASE_DELAY_MS = 5_000;
 const MAX_TRANSIENT_PROVIDER_RETRY_DELAY_MS = 60_000;
 const TRANSIENT_PROVIDER_DIAGNOSTIC_CODES: ReadonlySet<string> = new Set([
   'transport',
   'server',
+  'malformed',
   'incomplete',
+  'schema_invalid',
   'request_timeout',
   'cancelled'
 ]);

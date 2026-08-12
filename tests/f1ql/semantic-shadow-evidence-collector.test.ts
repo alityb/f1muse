@@ -76,10 +76,10 @@ describe('WP8 semantic shadow evidence collector', () => {
   });
 
   it('classifies only transient provider diagnostics as retryable', () => {
-    for (const code of ['transport', 'server', 'incomplete', 'request_timeout', 'cancelled'] as const) {
+    for (const code of ['transport', 'server', 'malformed', 'incomplete', 'schema_invalid', 'request_timeout', 'cancelled'] as const) {
       expect(isTransientSemanticShadowProviderDiagnostic(code)).toBe(true);
     }
-    for (const code of ['malformed', 'schema_invalid', 'forbidden_output', 'auth', 'quota', 'rate_limit', 'oversize', 'client'] as const) {
+    for (const code of ['forbidden_output', 'auth', 'quota', 'rate_limit', 'oversize', 'client'] as const) {
       expect(isTransientSemanticShadowProviderDiagnostic(code)).toBe(false);
     }
     expect(isTransientSemanticShadowProviderDiagnostic('unknown')).toBe(false);
