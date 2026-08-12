@@ -354,7 +354,7 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
     if (!apiKey.trim()) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider credentials are required');
     }
-    if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 30_000) {
+    if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 300_000) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
     }
   }
@@ -437,7 +437,7 @@ export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
     if (!apiKey.trim()) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider credentials are required');
     }
-    if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 30_000) {
+    if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs < 1 || requestTimeoutMs > 300_000) {
       throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
     }
   }
@@ -1093,7 +1093,7 @@ function isPrivateEndpointHostname(hostname: string): boolean {
 
 function readConfiguredTimeout(timeoutValue: string | undefined): number {
   const timeout = timeoutValue === undefined ? 10_000 : Number(timeoutValue);
-  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 30_000) {
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > 300_000) {
     throw new SemanticCandidateProviderConfigurationError('Semantic candidate provider timeout is invalid');
   }
   return timeout;

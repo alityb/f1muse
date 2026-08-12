@@ -38,7 +38,7 @@ import { AnswerAdmissionController, AnswerAdmissionError } from '../../f1ql/answ
 
 const DEFAULT_METADATA_STATEMENT_TIMEOUT_MS = 5_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
-const MAX_REQUEST_TIMEOUT_MS = 60_000;
+const MAX_REQUEST_TIMEOUT_MS = 300_000;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const COMMIT_SHA_PATTERN = /^[a-f0-9]{40}$/u;
 const CONTEXT_IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;

@@ -13,13 +13,13 @@ const implementationStatusSchema = z.literal('contract_expectations_only_not_run
 const WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256 =
   '1b06103fa99c9556484cbba46c1bf83a9fcfaaba2572eed1e012e391dcf053bc';
 const WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256 =
-  'ec33aa2ec7e2bdee332aeef309de7b541d9eb5616a0242aeeed80e6553e380e7';
+  'f8a3b579d15e36c674e1961d18456491489ca6f7a95624aaedce8e7d28ac729d';
 const WP12_OFFICIAL_TIMING_PUBLIC_WIRE_TARGET_SHA256 =
   'ffe01b5cd6d3e6e9666cd663909b8b1960a9a2356d73c24fa6f58cde03c38bf0';
 const WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES = Object.freeze({
   answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
   candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
-  provider_schema: '14fbe6a31c018ac3b18c59dfa76382deabdf9e1d1289cd040375a6316d333f0a'
+  provider_schema: '1693ba4695f15abe8d6e4a7e279d9ce7c0404c21b65c964988dd643433ca9c08'
 });
 const WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES = Object.freeze({
   semantic_query: '3b5aa0ea84e1b2397f5768117a85161886ff58a82c5bd6b128686292152f8c0b',
@@ -132,7 +132,7 @@ const activeSourceHashes = {
   orchestrator_v6_source: '753bfd884e333fc71078a10042bdc3e2cfc2bf2088c49e903a7bd880269bd45b',
   retained_v2_source: 'd4d252bafaf6ab4c694580ded10efa4be72d98b912d53d38422f722082db23b7',
   report_v1_source: '826de5907d217c71ace161319f0f637b434152f747c358075e729dacc43f41a5',
-  semantic_shadow_route_source: 'fa4fd2a4bad988cb5a035fd052fce0bb666f2dc268e4aeea6021c316e7bc3d0a',
+  semantic_shadow_route_source: 'bd32e5240700e3a37d00967c86baec10ab67ee714a01af3e1c2462a81cfd315d',
   localhost_collector_source: '8772c9b139105f7cec8b880f894f12a24d9b92ae38e9956191dc26d26a8acba9',
   report_cli_source: '8824ee0415158e80c2e5d8618171945d9eec222b7f9f435b8ededf29d100f888',
   production_capture_source: 'd4921f5d4466c662aada2ff5001c81e6e40bdc134c34234219c206a50cad73a5',

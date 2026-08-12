@@ -253,7 +253,7 @@ export const WP12_OFFICIAL_TIMING_PROVIDER_SCHEMA_TARGET = deepFreeze(componentS
     maximum_response_bytes: 65536,
     maximum_tokens: 8192,
     temperature: 0,
-    timeout_ms: { min: 1, max: 30000 },
+    timeout_ms: { min: 1, max: 300000 },
     exact_returned_model_identity_required: true,
     resolved_model_alias_requires_explicit_configuration: true,
     exact_completed_non_refusal_results: 1,

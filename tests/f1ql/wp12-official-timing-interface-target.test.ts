@@ -218,12 +218,12 @@ describe('WP12 detached official timing interface target', () => {
     expect(WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES).toEqual({
       answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
       candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
-      provider_schema: '14fbe6a31c018ac3b18c59dfa76382deabdf9e1d1289cd040375a6316d333f0a',
+      provider_schema: '1693ba4695f15abe8d6e4a7e279d9ce7c0404c21b65c964988dd643433ca9c08',
       fact_space: '16963ad9e58b984bc09dcb0dae4f82cd27b4c3ba0b15864d2f47784af2886398',
       semantic_response_equivalence: 'd52d83236baa73c786aadb367093bc34d9f0d923ec8015629e706ef65f4d83d5',
       semantic_answer_compatibility: 'a7d726f4e90cf2150449a0d03d3e37018abd4a6b6ed1b2e68faffb0b123018a5',
       semantic_template_equivalence: 'a3105b169dde9f72c9c8f1b878ced9da508d215e897f520d697d5bde2137925c',
-      answer_authorization_code: '0c37eed89140275eeba4e25c3c50e7157399878b2c0007bd012675daadaeeeff'
+      answer_authorization_code: '3d8bd8e7622c66912d0e0be0c85c511953f4588f8bd10543aee9feac4a81ddba'
     });
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET.semantic_target_sha256)
       .toBe(WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256);
@@ -236,7 +236,7 @@ describe('WP12 detached official timing interface target', () => {
         result_formatter: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.result_formatter
       }));
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256)
-      .toBe('ec33aa2ec7e2bdee332aeef309de7b541d9eb5616a0242aeeed80e6553e380e7');
+      .toBe('f8a3b579d15e36c674e1961d18456491489ca6f7a95624aaedce8e7d28ac729d');
     expect(parseWP12OfficialTimingInterfaceTarget(cloneTarget())).toEqual(WP12_OFFICIAL_TIMING_INTERFACE_TARGET);
   });
 
