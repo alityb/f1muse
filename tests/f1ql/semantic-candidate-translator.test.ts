@@ -105,6 +105,8 @@ describe('semantic candidate translator foundation', () => {
     expect(providerSchema).toContain('"$ref":"#/$defs/evidence_ref"');
     expect(() => assertStrictProviderSchema(SEMANTIC_CANDIDATE_JSON_SCHEMA)).not.toThrow();
     expect(countProviderSchemaProperties(SEMANTIC_CANDIDATE_JSON_SCHEMA)).toBeLessThanOrEqual(100);
+    expect(countProviderSchemaObjectNestingLevels(SEMANTIC_CANDIDATE_JSON_SCHEMA)).toBeLessThanOrEqual(10);
+    expect(countProviderSchemaStringCharacters(SEMANTIC_CANDIDATE_JSON_SCHEMA)).toBeLessThanOrEqual(120_000);
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('pair each concept_ref only with the source_ref that contains it');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('one source-qualified session scope for every referenced source');
     expect(SEMANTIC_CANDIDATE_SYSTEM_PROMPT).toContain('use null, never an empty array or object');
@@ -746,6 +748,51 @@ function countProviderSchemaProperties(input: unknown): number {
     return properties.length + properties.reduce((total, child) => total + count(child), 0) +
       definitions.reduce((total, child) => total + count(child), 0) +
       anyOf.reduce((total, child) => total + count(child), 0) + count(value.items);
+  };
+  return count(input);
+}
+
+function countProviderSchemaObjectNestingLevels(input: unknown): number {
+  if (!isRecord(input) || !isRecord(input.$defs)) {return 0;}
+  const definitions = input.$defs;
+  const count = (value: unknown, depth: number, references: ReadonlySet<string>): number => {
+    if (!isRecord(value)) {return depth;}
+    if (typeof value.$ref === 'string' && value.$ref.startsWith('#/$defs/')) {
+      if (references.has(value.$ref)) {return depth;}
+      const definition = definitions[value.$ref.slice('#/$defs/'.length)];
+      return count(definition, depth, new Set([...references, value.$ref]));
+    }
+    const nextDepth = value.type === 'object' ? depth + 1 : depth;
+    const children = [
+      ...(isRecord(value.properties) ? Object.values(value.properties) : []),
+      ...(Array.isArray(value.anyOf) ? value.anyOf : []),
+      ...('items' in value ? [value.items] : [])
+    ];
+    return children.reduce(
+      (maximum, child) => Math.max(maximum, count(child, nextDepth, references)),
+      nextDepth
+    );
+  };
+  return count(input, 0, new Set());
+}
+
+function countProviderSchemaStringCharacters(input: unknown): number {
+  const count = (value: unknown, key?: string): number => {
+    if (typeof value === 'string') {
+      return key === '$ref' ? 0 : value.length;
+    }
+    if (!value || typeof value !== 'object') {return 0;}
+    if (Array.isArray(value)) {
+      return value.reduce((total, child) => total + count(child, key), 0);
+    }
+    return Object.entries(value).reduce((total, [childKey, child]) =>
+      total + (childKey === 'properties' && isRecord(child)
+        ? Object.entries(child).reduce((propertyTotal, [propertyName, property]) =>
+            propertyTotal + propertyName.length + count(property, propertyName), 0)
+        : childKey === '$defs' && isRecord(child)
+          ? Object.entries(child).reduce((definitionTotal, [definitionName, definition]) =>
+              definitionTotal + definitionName.length + count(definition, definitionName), 0)
+          : count(child, childKey)), 0);
   };
   return count(input);
 }
