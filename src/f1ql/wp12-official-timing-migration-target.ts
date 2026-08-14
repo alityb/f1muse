@@ -16,9 +16,9 @@ const implementationStatusSchema = z.literal('contract_expectations_only_not_run
 const WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256 =
   '1b06103fa99c9556484cbba46c1bf83a9fcfaaba2572eed1e012e391dcf053bc';
 const WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256 =
-  'f8a3b579d15e36c674e1961d18456491489ca6f7a95624aaedce8e7d28ac729d';
+  '9d416a60f46520896a9173669d80ba5e4a0777f99d085d1d4cb52bee28b51d28';
 const WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET_SHA256 =
-  'bb4c0c36ee74bf479164f07b485249f1be0d88ab1c6c29a8b2add5a61c071ae9';
+  '9944df93551cdaacb527028c790db4eddd451d8d4388085706f22c92bf702912';
 
 const activationMigrationSchema = z.object({
   name: migrationNameSchema,

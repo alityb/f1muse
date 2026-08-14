@@ -40,7 +40,6 @@ import {
 } from './semantic-resolution-evidence';
 import {
   SEMANTIC_EVIDENCE_VERSION,
-  SEMANTIC_QUERY_MAX_CANDIDATES,
   SEMANTIC_QUERY_VERSION,
   SemanticAbstentionReason,
   SemanticAmbiguityReason,
@@ -67,7 +66,9 @@ export const SEMANTIC_SHADOW_RESOLVER_MAX_TOTAL_CANDIDATES = 200;
 export interface SemanticShadowProposalRequest {
   readonly question: string;
   readonly semantic_query_version: typeof SEMANTIC_QUERY_VERSION;
-  readonly max_candidates: typeof SEMANTIC_QUERY_MAX_CANDIDATES;
+  readonly candidate_set_hash: string;
+  readonly catalog_hash: string;
+  readonly candidates: readonly SemanticQuery[];
 }
 
 export interface SemanticShadowProposer {
@@ -211,13 +212,24 @@ export async function orchestrateSemanticShadow(
   }
   comparison = { ...emptyComparison(), enumerated: evidence.candidates.length };
   hashes = { ...hashes, candidate_set_sha256: evidence.candidate_set_hash };
+  if (evidence.candidates.length !== 1 || evidence.ambiguity_reason) {
+    return finish(baseFailure(
+      evidence.ambiguity_reason ?? 'metric_ambiguous',
+      comparison,
+      hashes,
+      incompleteDual(templateLane),
+      'clarify'
+    ));
+  }
 
   let providerInput: unknown;
   try {
     providerInput = await timed('proposal_ms', latencies, now, () => dependencies.proposer.propose(deepFreeze({
       question: contract.normalized_question,
       semantic_query_version: SEMANTIC_QUERY_VERSION,
-      max_candidates: SEMANTIC_QUERY_MAX_CANDIDATES
+      candidate_set_hash: evidence.candidate_set_hash,
+      catalog_hash: evidence.catalog_hash,
+      candidates: evidence.candidates
     })));
   } catch (error) {
     const reason = error instanceof SemanticShadowProposalError ? error.reason : 'provider_unavailable';

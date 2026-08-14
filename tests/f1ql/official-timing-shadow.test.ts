@@ -7,7 +7,6 @@ import {
   sanitizeOfficialTimingShadowObservation,
   sanitizeOfficialTimingShadowRetainedObservation
 } from '../../src/f1ql/official-timing-shadow';
-import { parseOfficialTimingQuestion } from '../../src/f1ql/official-timing-question';
 import { OfficialTimingResolutionDependencies } from '../../src/f1ql/official-timing-resolution';
 import {
   WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE,
@@ -22,20 +21,10 @@ const DRIVERS: Readonly<Record<string, string>> = {
 };
 const EVENT_MEAN_QUESTION = 'Who was faster between Max Verstappen and Fernando Alonso at the 2022 Belgian Grand Prix?';
 
-function providerResponseFor(question: string) {
-  const parsed = parseOfficialTimingQuestion(question);
-  if (parsed.type !== 'matched') {throw new Error('question must match');}
-  const span = ({ start, end }: { start: number; end: number }) => ({ start, end });
+function providerResponseFor(request: { readonly candidates: readonly [{ readonly candidate_id: string }] }) {
   return {
-    operation: 'certified_official_timing_compare',
-    driver_a_span: span(parsed.driver_a),
-    driver_b_span: span(parsed.driver_b),
-    event_span: span(parsed.event_span),
-    operation_evidence: [span(parsed.operation_span)],
-    season_evidence: [span(parsed.season_span)],
-    lap_range_evidence: parsed.lap_range === null
-      ? null
-      : { start_span: span(parsed.lap_range.start_span), end_span: span(parsed.lap_range.end_span) }
+    version: 2,
+    candidate_id: request.candidates[0].candidate_id
   };
 }
 
@@ -73,7 +62,7 @@ function resolutionDeps(overrides: Partial<OfficialTimingResolutionDependencies>
 
 function shadowDeps(overrides: Record<string, unknown> = {}) {
   return {
-    proposer: { propose: async (request: { question: string }) => providerResponseFor(request.question) },
+    proposer: { propose: async (request: Parameters<typeof providerResponseFor>[0]) => providerResponseFor(request) },
     resolution: resolutionDeps(),
     now: (() => { let t = 1000; return () => (t += 10); })(),
     ...overrides
@@ -140,10 +129,7 @@ describe('official timing shadow orchestrator v7', () => {
     expect(malformed.reason).toBe('provider_malformed');
     const drifted = await orchestrateOfficialTimingShadow(EVENT_MEAN_QUESTION, shadowDeps({
       proposer: {
-        propose: async () => {
-          const response = providerResponseFor(EVENT_MEAN_QUESTION);
-          return { ...response, driver_a_span: { start: response.driver_a_span.start + 1, end: response.driver_a_span.end } };
-        }
+        propose: async () => ({ version: 2, candidate_id: 'f'.repeat(64) })
       }
     }));
     expect(drifted.outcome).toBe('abstain');
@@ -153,23 +139,28 @@ describe('official timing shadow orchestrator v7', () => {
     expect(drifted.hashes.answer_plan_sha256).toBeUndefined();
   });
 
-  it('rejects padded evidence arrays as drift', async () => {
+  it('rejects extra response properties as malformed', async () => {
     const padded = await orchestrateOfficialTimingShadow(EVENT_MEAN_QUESTION, shadowDeps({
       proposer: {
-        propose: async () => {
-          const response = providerResponseFor(EVENT_MEAN_QUESTION);
-          return { ...response, operation_evidence: [{ start: 0, end: 1 }, ...response.operation_evidence] };
-        }
+        propose: async (request: Parameters<typeof providerResponseFor>[0]) =>
+          ({ ...providerResponseFor(request), extra: true })
       }
     }));
-    expect(padded.outcome).toBe('abstain');
-    expect(padded.reason).toBe('provider_candidate_not_enumerated');
-    expect(padded.candidate_counts.comparison).toBe('extraneous');
+    expect(padded.outcome).toBe('unavailable');
+    expect(padded.reason).toBe('provider_malformed');
+    expect(padded.candidate_counts.comparison).toBe('not_comparable');
   });
 
-  it('enforces lap-range evidence presence by metric', async () => {
+  it('server-enumerates lap-range semantics before candidate selection', async () => {
     const medianQuestion = 'Compare the official median race lap time of Max Verstappen and Fernando Alonso over laps 3 to 10 at the 2022 Belgian Grand Prix';
+    let providerRequest: unknown;
     const medianDeps = shadowDeps({
+      proposer: {
+        propose: async (request: Parameters<typeof providerResponseFor>[0]) => {
+          providerRequest = request;
+          return providerResponseFor(request);
+        }
+      },
       resolution: resolutionDeps({
         coverage_reader: async () => ({
           type: 'eligible',
@@ -188,23 +179,11 @@ describe('official timing shadow orchestrator v7', () => {
     const admitted = await orchestrateOfficialTimingShadow(medianQuestion, medianDeps);
     expect(admitted.outcome).toBe('answer');
     expect(admitted.hashes.coverage_query_id).toBe('official_window_coverage_v1');
-    const missingRange = await orchestrateOfficialTimingShadow(medianQuestion, shadowDeps({
-      proposer: {
-        propose: async () => ({ ...providerResponseFor(medianQuestion), lap_range_evidence: null })
-      }
-    }));
-    expect(missingRange.outcome).toBe('abstain');
-    expect(missingRange.reason).toBe('provider_candidate_not_enumerated');
-    const forbiddenRange = await orchestrateOfficialTimingShadow(EVENT_MEAN_QUESTION, shadowDeps({
-      proposer: {
-        propose: async () => ({
-          ...providerResponseFor(EVENT_MEAN_QUESTION),
-          lap_range_evidence: { start_span: { start: 0, end: 1 }, end_span: { start: 1, end: 2 } }
-        })
-      }
-    }));
-    expect(forbiddenRange.outcome).toBe('abstain');
-    expect(forbiddenRange.reason).toBe('provider_candidate_not_enumerated');
+    expect(providerRequest).toMatchObject({
+      version: 2,
+      semantic_query_version: 3,
+      candidates: [{ semantic_query: { metric_id: 'official_non_deleted_non_pit_window_median_v1' } }]
+    });
   });
 
   it('retains coverage abstention hashes without plan hashes', async () => {

@@ -6,6 +6,7 @@ import {
   parseOfficialTimingQuestion
 } from './official-timing-question';
 import {
+  computeOfficialTimingQueryHash,
   enumerateOfficialTimingEvidence,
   OfficialTimingSemanticEvidence
 } from './official-timing-semantic-query';
@@ -15,7 +16,10 @@ import {
   OfficialTimingResolutionError
 } from './official-timing-resolution';
 import { readOfficialTimingCoverage } from './official-timing-coverage';
-import { admitOfficialTimingProviderProposal } from './official-timing-provider-admission';
+import {
+  admitOfficialTimingProviderSelection,
+  OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION
+} from './official-timing-provider-admission';
 import { planOfficialTimingAnswer, OfficialTimingPlannerError } from './official-timing-plan';
 import { OfficialTimingCompilerError, runOfficialTimingPlannedPipeline } from './official-timing-compiler';
 import { OfficialTimingProofError, proveOfficialTimingPlan } from './official-timing-proof';
@@ -173,9 +177,15 @@ export type OfficialTimingShadowObservation = z.infer<typeof observationSchema>;
 
 export interface OfficialTimingShadowProposer {
   propose(request: {
+    readonly version: typeof OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION;
     readonly question: string;
     readonly semantic_query_version: 3;
-    readonly max_candidates: 2;
+    readonly candidate_set_hash: string;
+    readonly catalog_hash: string;
+    readonly candidates: readonly [{
+      readonly candidate_id: string;
+      readonly semantic_query: OfficialTimingSemanticEvidence['candidates'][0];
+    }];
   }): Promise<unknown>;
 }
 
@@ -238,7 +248,7 @@ export async function orchestrateOfficialTimingShadow(
     semantic_query_sha256: computeQueryHashForObservation(evidence)
   };
 
-  const proposal = await proposalStage(dependencies.proposer, question, hashes, finish);
+  const proposal = await proposalStage(dependencies.proposer, question, evidence, hashes, finish);
   if (proposal.type === 'observation') {
     return proposal.observation;
   }
@@ -301,15 +311,22 @@ type ProposalStageResult =
 async function proposalStage(
   proposer: OfficialTimingShadowProposer,
   question: OfficialTimingQuestionMatch,
+  evidence: OfficialTimingSemanticEvidence,
   hashes: ObservationHashes,
   finish: Finish
 ): Promise<ProposalStageResult> {
   let providerInput: unknown;
   try {
     providerInput = await proposer.propose(deepFreeze({
+      version: OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION,
       question: question.normalized_question,
       semantic_query_version: 3,
-      max_candidates: 2
+      candidate_set_hash: evidence.candidate_set_hash,
+      catalog_hash: evidence.catalog_hash,
+      candidates: [{
+        candidate_id: computeOfficialTimingQueryHash(evidence.candidates[0]),
+        semantic_query: evidence.candidates[0]
+      }]
     }));
   } catch {
     return {
@@ -317,7 +334,7 @@ async function proposalStage(
       observation: finish({ ...baseOutcome('unavailable', 'provider_unavailable', hashes), candidate_counts: { enumerated: 1, proposed: 0, matched: 0, omitted: 0, extraneous: 0, comparison: 'not_comparable' } })
     };
   }
-  const admission = admitProviderProposal(providerInput, question);
+  const admission = admitProviderSelection(providerInput, evidence);
   if (admission.type !== 'admitted') {
     return {
       type: 'observation',
@@ -409,11 +426,11 @@ type ProviderAdmission =
       readonly candidate_counts: CandidateCounts;
     };
 
-function admitProviderProposal(
+function admitProviderSelection(
   input: unknown,
-  question: OfficialTimingQuestionMatch
+  evidence: OfficialTimingSemanticEvidence
 ): ProviderAdmission {
-  const admission = admitOfficialTimingProviderProposal(input, question);
+  const admission = admitOfficialTimingProviderSelection(input, evidence);
   if (admission.type === 'admitted') {
     return { type: 'admitted', provider_hash: admission.provider_candidate_set_sha256 };
   }

@@ -304,9 +304,33 @@ export type SemanticCandidateProposalRequest = Omit<SemanticCandidateProviderReq
 export interface SemanticCandidateModel {
   complete(
     systemPrompt: string,
-    request: SemanticCandidateProviderRequest,
-    signal?: AbortSignal
+    request: unknown,
+    signal?: AbortSignal,
+    outputContract?: SemanticCandidateStructuredOutputContract
   ): Promise<string>;
+}
+
+export interface SemanticCandidateStructuredOutputContract {
+  readonly schema_name: string;
+  readonly openai_schema: Readonly<Record<string, unknown>>;
+  readonly anthropic_schema: Readonly<Record<string, unknown>>;
+  readonly max_tokens: number;
+}
+
+const LEGACY_PROPOSAL_OUTPUT_CONTRACT: SemanticCandidateStructuredOutputContract = Object.freeze({
+  schema_name: SEMANTIC_CANDIDATE_SCHEMA_NAME,
+  openai_schema: SEMANTIC_CANDIDATE_JSON_SCHEMA,
+  anthropic_schema: SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA as Readonly<Record<string, unknown>>,
+  max_tokens: OPENAI_COMPATIBLE_MAX_TOKENS
+});
+
+function validateStructuredOutputContract(contract: SemanticCandidateStructuredOutputContract): void {
+  if (!/^[a-z][a-z0-9_]{0,63}$/u.test(contract.schema_name) ||
+      !Number.isSafeInteger(contract.max_tokens) || contract.max_tokens < 1 || contract.max_tokens > 8_192 ||
+      !contract.openai_schema || typeof contract.openai_schema !== 'object' || Array.isArray(contract.openai_schema) ||
+      !contract.anthropic_schema || typeof contract.anthropic_schema !== 'object' || Array.isArray(contract.anthropic_schema)) {
+    throw new SemanticCandidateProviderConfigurationError('Semantic candidate structured output contract is invalid');
+  }
 }
 
 export type SemanticCandidateTranslationResult = SemanticCandidateAdmission | {
@@ -366,9 +390,11 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
 
   async complete(
     systemPrompt: string,
-    request: SemanticCandidateProviderRequest,
-    signal?: AbortSignal
+    request: unknown,
+    signal?: AbortSignal,
+    outputContract: SemanticCandidateStructuredOutputContract = LEGACY_PROPOSAL_OUTPUT_CONTRACT
   ): Promise<string> {
+    validateStructuredOutputContract(outputContract);
     return completeProviderRequest(this.requestTimeoutMs, signal, async providerSignal => {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -377,7 +403,7 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
         headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: OPENAI_COMPATIBLE_MAX_TOKENS,
+          max_tokens: outputContract.max_tokens,
           temperature: OPENAI_COMPATIBLE_TEMPERATURE,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -386,9 +412,9 @@ export class OpenAICompatibleSemanticCandidateModel implements SemanticCandidate
           response_format: {
             type: OPENAI_COMPATIBLE_RESPONSE_FORMAT,
             json_schema: {
-              name: SEMANTIC_CANDIDATE_SCHEMA_NAME,
+              name: outputContract.schema_name,
               strict: OPENAI_COMPATIBLE_STRICT_SCHEMA,
-              schema: SEMANTIC_CANDIDATE_JSON_SCHEMA
+              schema: outputContract.openai_schema
             }
           }
         })
@@ -449,9 +475,11 @@ export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
 
   async complete(
     systemPrompt: string,
-    request: SemanticCandidateProviderRequest,
-    signal?: AbortSignal
+    request: unknown,
+    signal?: AbortSignal,
+    outputContract: SemanticCandidateStructuredOutputContract = LEGACY_PROPOSAL_OUTPUT_CONTRACT
   ): Promise<string> {
+    validateStructuredOutputContract(outputContract);
     return completeProviderRequest(this.requestTimeoutMs, signal, async providerSignal => {
       const response = await fetch(`${this.baseUrl}/messages`, {
         method: 'POST',
@@ -464,14 +492,14 @@ export class AnthropicSemanticCandidateModel implements SemanticCandidateModel {
         },
         body: JSON.stringify({
           model: this.model,
-          max_tokens: 8_192,
+          max_tokens: outputContract.max_tokens,
           temperature: 0,
           system: systemPrompt,
           messages: [{ role: 'user', content: JSON.stringify(request) }],
           output_config: {
             format: {
               type: 'json_schema',
-              schema: SEMANTIC_CANDIDATE_ANTHROPIC_JSON_SCHEMA
+              schema: outputContract.anthropic_schema
             }
           }
         })
@@ -547,6 +575,14 @@ export interface ConfiguredSemanticCandidateModelIdentity {
   readonly prompt_sha256: string;
   readonly schema_sha256: string;
   readonly request_config_sha256: string;
+}
+
+export interface SemanticCandidateOutputIdentityContract {
+  readonly catalog_projection_sha256: string;
+  readonly prompt_sha256: string;
+  readonly schema_sha256: string;
+  readonly schema_name: string;
+  readonly max_tokens: number;
 }
 
 interface ConfiguredSemanticCandidateModel extends ConfiguredSemanticCandidateModelIdentity {
@@ -627,6 +663,48 @@ export function getConfiguredSemanticCandidateModelIdentity(
     prompt_sha256: configured.prompt_sha256,
     schema_sha256: configured.schema_sha256,
     request_config_sha256: configured.request_config_sha256
+  });
+}
+
+export function getConfiguredSemanticCandidateModelIdentityForOutputContract(
+  contract: SemanticCandidateOutputIdentityContract,
+  env: NodeJS.ProcessEnv = process.env
+): ConfiguredSemanticCandidateModelIdentity {
+  const configured = readConfiguredModel(env);
+  if (!/^[a-f0-9]{64}$/u.test(contract.catalog_projection_sha256) ||
+      !/^[a-f0-9]{64}$/u.test(contract.prompt_sha256) ||
+      !/^[a-f0-9]{64}$/u.test(contract.schema_sha256) ||
+      !/^[A-Za-z0-9_-]{1,64}$/u.test(contract.schema_name) ||
+      !Number.isInteger(contract.max_tokens) || contract.max_tokens < 1) {
+    throw new SemanticCandidateProviderConfigurationError('Semantic candidate output identity contract is invalid');
+  }
+  return Object.freeze({
+    provider: configured.provider,
+    endpoint_sha256: configured.endpoint_sha256,
+    model_sha256: configured.model_sha256,
+    catalog_projection_sha256: contract.catalog_projection_sha256,
+    prompt_sha256: contract.prompt_sha256,
+    schema_sha256: contract.schema_sha256,
+    request_config_sha256: sha256(stableSerialize(configured.provider === 'anthropic'
+      ? {
+          anthropic_version: ANTHROPIC_API_VERSION,
+          max_tokens: contract.max_tokens,
+          output_format: 'json_schema',
+          temperature: 0,
+          timeout_ms: configured.request_timeout_ms
+        }
+      : {
+          max_tokens: contract.max_tokens,
+          response_format: {
+            type: OPENAI_COMPATIBLE_RESPONSE_FORMAT,
+            json_schema: {
+              name: contract.schema_name,
+              strict: OPENAI_COMPATIBLE_STRICT_SCHEMA
+            }
+          },
+          temperature: OPENAI_COMPATIBLE_TEMPERATURE,
+          timeout_ms: configured.request_timeout_ms
+        }))
   });
 }
 

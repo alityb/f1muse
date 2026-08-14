@@ -15,6 +15,12 @@ import {
   SEMANTIC_CANDIDATE_SCHEMA_NAME,
   SEMANTIC_CANDIDATE_SCHEMA_SHA256
 } from '../../src/f1ql/semantic-candidate-translator';
+import {
+  SEMANTIC_CANDIDATE_SELECTION_MAX_TOKENS,
+  SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_NAME,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256
+} from '../../src/f1ql/semantic-candidate-selector';
 import { SEMANTIC_RESPONSE_EQUIVALENCE_VERSION } from '../../src/f1ql/semantic-response-equivalence';
 import { SEMANTIC_TEMPLATE_EQUIVALENCE, SEMANTIC_TEMPLATE_EQUIVALENCE_VERSION } from '../../src/f1ql/semantic-template-equivalence';
 import { WP12_OFFICIAL_TIMING_ACTIVATION_BUNDLE } from '../../src/f1ql/wp12-official-timing-activation-bundle';
@@ -51,7 +57,7 @@ describe('WP12 detached official timing interface target', () => {
       .toMatchObject({
         independent_provider_schema_version_in_activation_bundle: false,
         current_schema_name: 'f1_semantic_candidate_proposals_v1',
-        target_schema_name: 'f1_semantic_candidate_proposals_v2'
+        target_schema_name: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_NAME
       });
   });
 
@@ -75,59 +81,56 @@ describe('WP12 detached official timing interface target', () => {
         pattern.includes('<driver_b>') && pattern.includes('2022 belgian grand prix')))).toBe(true);
   });
 
-  it('uses a named provider proposal with no generic aggregation or server-owned semantics', () => {
+  it('gives the provider selection authority only over server-enumerated candidate IDs', () => {
     const proposal: any = WP12_OFFICIAL_TIMING_INTERFACE_TARGET.components.candidate_proposal.contract;
-    expect(proposal.added_variant).toMatchObject({
-      operation: 'certified_official_timing_compare', exact_driver_entity_refs: 2, exact_event_entity_refs: 1
-    });
+    expect(proposal.authority_model).toBe('server_enumerates_canonical_candidates_provider_selects_opaque_id');
+    expect(proposal.provider_may_supply).toEqual(['candidate_id']);
+    expect(proposal.provider_response_fields).toEqual(['version', 'candidate_id']);
+    expect(proposal.provider_response_free_text).toBe(false);
     expect(proposal.server_derived_only).toEqual(expect.arrayContaining([
-      'aggregation', 'canonical_ids', 'coverage', 'exclusions', 'integrity_checks', 'sql', 'topology'
-    ]));
-    expect(proposal.provider_may_supply).toEqual(['exact_literal_spans', 'fixed_operation_discriminator']);
-    expect(proposal.server_derived_only).toEqual(expect.arrayContaining([
-      'aggregation', 'metric_id', 'source_ref', 'comparison', 'exclusions'
+      'aggregation', 'canonical_candidate', 'canonical_ids', 'coverage', 'evidence_spans',
+      'exclusions', 'integrity_checks', 'operation', 'sql', 'topology'
     ]));
     expect(proposal.metric_derived_only_from_verified_question_grammar).toBe(true);
-    expect(proposal.added_variant.evidence_only_fields).not.toContain('session_span');
     expect(proposal).toMatchObject({
       maximum_official_timing_candidates: 2, duplicate_candidates: 'reject',
-      exact_admitted_candidates: 1, unknown_or_extra_semantics: 'reject'
+      exact_official_timing_candidates: 1, exact_admitted_candidates: 1,
+      unknown_or_extra_candidate_ids: 'reject', candidate_set_hash_admission_preserved: true
     });
   });
 
-  it('keeps provider projection language-only and requires generated provider hashes', () => {
+  it('seals the strict ID-only response schema and generated provider hashes', () => {
     const provider: any = WP12_OFFICIAL_TIMING_INTERFACE_TARGET.components.provider_schema.contract;
     expect(provider).toMatchObject({
-      strict_schema: true, maximum_response_bytes: 65536, maximum_tokens: 8192, temperature: 0,
+      strict_schema: true, maximum_response_bytes: 65536,
+      maximum_tokens: SEMANTIC_CANDIDATE_SELECTION_MAX_TOKENS, temperature: 0,
       exact_returned_model_identity_required: true, exact_completed_non_refusal_results: 1,
       runtime_zod_validation_after_wire_transform: true,
       provider_controls_no_sql_f1ql_core_or_authorization: true,
       endpoint_credential_and_private_host_guards_preserved: true
     });
     expect(provider.generated_hashes_required).toHaveLength(5);
-    expect(provider.official_variant_schema).toMatchObject({
-      type: 'object', additionalProperties: false,
-      properties: { operation: { const: 'certified_official_timing_compare' } }
+    expect(provider.selection_schema_template).toMatchObject({
+      type: 'object', additionalProperties: false, required: ['version', 'candidate_id'],
+      properties: { candidate_id: { enum: ['<server-enumerated-candidate-id>'] } }
     });
-    expect(provider.official_variant_schema_sha256).toMatch(/^[a-f0-9]{64}$/);
-    expect(provider.official_variant_schema.required).not.toContain('session_evidence');
-    expect(JSON.stringify(provider.official_variant_schema)).not.toContain('session_evidence');
+    expect(provider.selection_schema_template_sha256).toBe(SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256);
+    expect(provider.candidate_projection_sha256).toBe(SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256);
+    expect(JSON.stringify(provider.selection_schema_template)).not.toMatch(/span|operation|aggregate|filter/iu);
     expect(provider.generated_artifacts).toEqual({
       status: 'generated',
-      generator: 'wp12-official-timing-provider-artifacts-v1',
+      generator: 'wp12-official-timing-provider-selection-artifacts-v2',
       artifact_file: 'tests/fixtures/wp12-official-timing-provider-artifacts.json',
-      catalog_language_projection_sha256: '721dd6db8fbf431a8d5c7ac792312add1eec0596a24e99f9d2e929d3e2523432',
-      effective_prompt_sha256: 'd4d70a803f00fc80b9876e02ef75e7fc2293da9c382f680b582263aa25bdfedb',
-      openai_compatible_schema_sha256: 'a3ca023d9a8bc3121857e85694d7b02a24f3a97c9f9fe32b98e99245e00c2bda',
-      anthropic_wire_schema_sha256: '4af30061acef2a1a6b6ad57c7ca5dc30ddd8a83885c57ff09e1650b52e141cb8',
-      provider_request_config_sha256: '9f473f045639cc2ca04d9e1bc403171462fbf761c8fa263d4d9edda01daac58d'
+      candidate_projection_sha256: '06250ef859db784f5086b503a0e09ed6401f09361d753cd8d73d24b1b26e48d0',
+      effective_prompt_sha256: '4275c2ef0f3770f3b3dd49a6f7462dd6e593ca3c0333f19e1a2b6918388bddb2',
+      openai_compatible_schema_template_sha256: 'aae909b007c03be594bb3b503c303f00400f41a2a9bc7768b6c8282605bf260d',
+      anthropic_wire_schema_template_sha256: 'aae909b007c03be594bb3b503c303f00400f41a2a9bc7768b6c8282605bf260d',
+      provider_request_config_sha256: '70771e14a13ab392db5cf908980149040f5a1fdeceb776b79d8b8ea7d629c03e'
     });
     expect(provider.activation_requires_real_generated_hashes).toBe(true);
     expect(provider.predecessor_schema_sha256).toBe(SEMANTIC_CANDIDATE_SCHEMA_SHA256);
-    expect(provider.language_projection_excludes).toEqual(expect.arrayContaining([
-      'canonical_ids', 'coverage_decisions', 'database_details', 'dataset_pins',
-      'integrity_checks', 'physical_fields', 'relationships', 'view_names'
-    ]));
+    expect(provider.provider_request_contains_server_enumerated_canonical_candidates).toBe(true);
+    expect(provider.response_schema_candidate_id_enum_is_request_specific).toBe(true);
   });
 
   it('binds fact space v4 to the expectations-only database and principal targets', () => {
@@ -217,13 +220,13 @@ describe('WP12 detached official timing interface target', () => {
       .toEqual(Object.keys(WP12_OFFICIAL_TIMING_INTERFACE_TARGET.components).sort());
     expect(WP12_OFFICIAL_TIMING_INTERFACE_COMPONENT_HASHES).toEqual({
       answer_question: '82ad5692b643ec161da15e4581c47c96487ffd9ba60084db18658dc27c62390d',
-      candidate_proposal: '2dc8438501d701f29e84914766c332dfaaf6caf8c17303e1e8a498c7818792d7',
-      provider_schema: '1693ba4695f15abe8d6e4a7e279d9ce7c0404c21b65c964988dd643433ca9c08',
+      candidate_proposal: '12c61de7f9724bf263ae1bda745afe7f053f61856c7969c47812f6083f54c15c',
+      provider_schema: '42a147fa6310c2f6dfd7f591b90b2c94ecaea734d3a8c8a47e20c9a2625de828',
       fact_space: '16963ad9e58b984bc09dcb0dae4f82cd27b4c3ba0b15864d2f47784af2886398',
       semantic_response_equivalence: 'd52d83236baa73c786aadb367093bc34d9f0d923ec8015629e706ef65f4d83d5',
       semantic_answer_compatibility: 'a7d726f4e90cf2150449a0d03d3e37018abd4a6b6ed1b2e68faffb0b123018a5',
       semantic_template_equivalence: 'a3105b169dde9f72c9c8f1b878ced9da508d215e897f520d697d5bde2137925c',
-      answer_authorization_code: '3d8bd8e7622c66912d0e0be0c85c511953f4588f8bd10543aee9feac4a81ddba'
+      answer_authorization_code: '2836f3f2834b0b71b1650458622c6b8c174a579a4d131e817ae04170c5c9a29c'
     });
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET.semantic_target_sha256)
       .toBe(WP12_OFFICIAL_TIMING_SEMANTIC_TARGET_SHA256);
@@ -236,15 +239,15 @@ describe('WP12 detached official timing interface target', () => {
         result_formatter: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.result_formatter
       }));
     expect(WP12_OFFICIAL_TIMING_INTERFACE_TARGET_SHA256)
-      .toBe('f8a3b579d15e36c674e1961d18456491489ca6f7a95624aaedce8e7d28ac729d');
+      .toBe('9d416a60f46520896a9173669d80ba5e4a0777f99d085d1d4cb52bee28b51d28');
     expect(parseWP12OfficialTimingInterfaceTarget(cloneTarget())).toEqual(WP12_OFFICIAL_TIMING_INTERFACE_TARGET);
   });
 
   it.each([
     ['unknown field', (target: any) => { target.extra = true; }],
     ['question event', (target: any) => { target.components.answer_question.contract.operations[0].exact_round = 15; }],
-    ['proposal operation', (target: any) => { target.components.candidate_proposal.contract.added_variant.operation = 'aggregate'; }],
-    ['provider generic control', (target: any) => { target.components.provider_schema.contract.language_projection_includes.push('generic_mean'); }],
+    ['proposal authority', (target: any) => { target.components.candidate_proposal.contract.provider_may_supply.push('operation'); }],
+    ['provider generic control', (target: any) => { target.components.provider_schema.contract.selection_schema_template.required.push('operation'); }],
     ['fact relation', (target: any) => { target.components.fact_space.contract.exact_select_relations.pop(); }],
     ['fixture hash', (target: any) => { target.components.semantic_response_equivalence.contract.official_timing_overlaps[0].legacy_regression_oracle_sha256 = '0'.repeat(64); }],
     ['legacy compatibility', (target: any) => { target.components.semantic_answer_compatibility.contract.official_timing[0].legacy_template_id = 'final_standings_points'; }],
@@ -297,10 +300,11 @@ describe('WP12 detached official timing interface target', () => {
     expect(() => parseWP12OfficialTimingInterfaceTarget(target)).toThrow(/FAIL_CLOSED/);
   });
 
-  it('leaves active question, provider, fact space, compatibility, policy, and templates unchanged', () => {
+  it('retains legacy proposal definitions while activating the reduced selector contract', () => {
     expect(ANSWER_QUESTION_CONTRACT_VERSION).toBe('answer-question-v27');
     expect(SEMANTIC_CANDIDATE_PROPOSAL_VERSION).toBe(1);
     expect(SEMANTIC_CANDIDATE_SCHEMA_NAME).toBe('f1_semantic_candidate_proposals_v1');
+    expect(SEMANTIC_CANDIDATE_SELECTION_SCHEMA_NAME).toBe('f1_semantic_candidate_selection_v2');
     expect(SEMANTIC_CANDIDATE_CATALOG_PROJECTION_SHA256)
       .toBe('8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b');
     expect(F1QL_FACT_SPACE_VERSION).toBe('source-views-v3');

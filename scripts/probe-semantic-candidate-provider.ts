@@ -1,10 +1,15 @@
 import { createHash } from 'node:crypto';
 import {
   createSemanticCandidateModel,
-  getConfiguredSemanticCandidateModelIdentity,
-  SemanticCandidateProposalAdapter,
   SemanticCandidateProposalError
 } from '../src/f1ql/semantic-candidate-translator';
+import {
+  getConfiguredSemanticCandidateSelectionIdentity,
+  SEMANTIC_CANDIDATE_SELECTION_PROMPT_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256,
+  SemanticCandidateSelectionAdapter
+} from '../src/f1ql/semantic-candidate-selector';
 import { SEMANTIC_CATALOG_HASH } from '../src/f1ql/semantic-catalog';
 import {
   computeSemanticCandidateSetHash,
@@ -23,22 +28,10 @@ const PROBE_SNAPSHOT_INPUT_SHA256 = 'd46ffe3c33fde11cdeffdc280e18a8be3fc0fbed555
 const PROBE_CASE_ID = 'promoted-single-source-rows';
 const PROBE_QUESTION_SHA256 = '9f14e18e0da9cec009af8f7c7ed325d3d59ed27122f709058e109a60a45aa11c';
 const PROBE_CANDIDATE_SET_SHA256 = 'f50a8c65dad09ef2ef11ff6279e919a51651f8935e9463e56ec9f1b265b14b58';
-const PROBE_PROVIDER_IDENTITY = Object.freeze({
-  provider: 'openai-compatible',
-  endpoint_sha256: 'bfbe26f9a530c9f1790ba4e42a7f34d93faf36026a3a32ca0c29a10b9f8e9fce',
-  model_sha256: 'b22b20cb72f9142c9421d39583807b09bb1ab873708a80eb4d5cf7995f76f51a',
-  catalog_projection_sha256: '8443b0250dec2e1a08d926a0e90aac98cdae1b247f7abebcc1accd0d8ce11a0b',
-  prompt_sha256: '4ac425d9c584ec97fa21eedfe3622767d8b0e4a02526a016ebd04cb9ff31e0e6',
-  schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
-  request_config_sha256: 'a3c3f1e5ac7359e9b0792949181721f074081f117de79cbd109185ed3d363277'
-} as const);
-const PROBE_PROVIDER_IDENTITY_STATUS = 'retired' as const;
-
 type ProbeFailureReason =
   | 'guard_refused'
   | 'reviewed_fixture_invalid'
   | 'provider_not_configured'
-  | 'provider_identity_retired'
   | 'provider_unavailable'
   | 'empty_candidate_set'
   | 'invalid_candidate_set'
@@ -82,7 +75,7 @@ export type SemanticCandidateProviderProbeResult = {
 };
 
 interface ProbeDependencies {
-  readonly proposer?: Pick<SemanticCandidateProposalAdapter, 'propose'>;
+  readonly proposer?: Pick<SemanticCandidateSelectionAdapter, 'propose'>;
   readonly corpusInput?: unknown;
   readonly snapshotInput?: unknown;
 }
@@ -95,10 +88,10 @@ interface ReviewedProbeCase {
 
 interface ConfiguredProbe {
   readonly provider: 'openai-compatible';
-  readonly proposer: Pick<SemanticCandidateProposalAdapter, 'propose'>;
+  readonly proposer: Pick<SemanticCandidateSelectionAdapter, 'propose'>;
 }
 
-type ProbeConfiguration = ConfiguredProbe | typeof PROBE_PROVIDER_IDENTITY_STATUS;
+type ProbeConfiguration = ConfiguredProbe;
 
 export async function probeSemanticCandidateProvider(
   environment: NodeJS.ProcessEnv,
@@ -120,9 +113,6 @@ export async function probeSemanticCandidateProvider(
   if (!configured) {
     return { status: 'failed', reason: 'provider_not_configured', case_id: reviewed.caseId };
   }
-  if (configured === 'retired') {
-    return { status: 'failed', reason: 'provider_identity_retired', case_id: reviewed.caseId };
-  }
   return executeProbe(configured, reviewed);
 }
 
@@ -136,7 +126,9 @@ async function executeProbe(
     actualInput = await proposer.propose({
       question: reviewed.question,
       semantic_query_version: 2,
-      max_candidates: 5
+      candidate_set_hash: PROBE_CANDIDATE_SET_SHA256,
+      catalog_hash: SEMANTIC_CATALOG_HASH,
+      candidates: reviewed.candidates
     });
   } catch (error) {
     return error instanceof SemanticCandidateProposalError
@@ -174,15 +166,14 @@ async function executeProbe(
 
 function readConfiguredProbe(
   environment: NodeJS.ProcessEnv,
-  injected: Pick<SemanticCandidateProposalAdapter, 'propose'> | undefined
+  injected: Pick<SemanticCandidateSelectionAdapter, 'propose'> | undefined
 ): ProbeConfiguration | undefined {
   try {
-    const identity = getConfiguredSemanticCandidateModelIdentity(environment);
+    const identity = getConfiguredSemanticCandidateSelectionIdentity(environment);
     if (!matchesProbeProviderIdentity(identity)) {return undefined;}
-    if (PROBE_PROVIDER_IDENTITY_STATUS === 'retired') {return PROBE_PROVIDER_IDENTITY_STATUS;}
     return {
       provider: identity.provider,
-      proposer: injected ?? new SemanticCandidateProposalAdapter(createSemanticCandidateModel(environment))
+      proposer: injected ?? new SemanticCandidateSelectionAdapter(createSemanticCandidateModel(environment))
     };
   } catch {
     return undefined;
@@ -373,11 +364,12 @@ function compareText(left: string, right: string): number {
 }
 
 function matchesProbeProviderIdentity(
-  identity: ReturnType<typeof getConfiguredSemanticCandidateModelIdentity>
-): identity is typeof PROBE_PROVIDER_IDENTITY {
-  return Object.entries(PROBE_PROVIDER_IDENTITY).every(
-    ([key, value]) => identity[key as keyof typeof identity] === value
-  );
+  identity: ReturnType<typeof getConfiguredSemanticCandidateSelectionIdentity>
+): identity is ReturnType<typeof getConfiguredSemanticCandidateSelectionIdentity> & { provider: 'openai-compatible' } {
+  return identity.provider === 'openai-compatible' &&
+    identity.catalog_projection_sha256 === SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256 &&
+    identity.prompt_sha256 === SEMANTIC_CANDIDATE_SELECTION_PROMPT_SHA256 &&
+    identity.schema_sha256 === SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256;
 }
 
 if (require.main === module) {

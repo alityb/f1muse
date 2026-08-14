@@ -7,7 +7,6 @@ import {
 import { OFFICIAL_TIMING_CAPABILITY_PROFILE_ID, OFFICIAL_TIMING_CATALOG_V2_SHA256 } from '../../src/f1ql/official-timing-capability';
 import { prepareOfficialTimingTestDatabase } from '../../scripts/prepare-official-timing-test-db';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
-import { parseOfficialTimingQuestion } from '../../src/f1ql/official-timing-question';
 import { getTestDatabaseUrl } from '../../src/test/setup';
 import { WP12_OFFICIAL_TIMING_CATALOG_TARGET } from '../../src/f1ql/wp12-official-timing-catalog-target';
 
@@ -15,21 +14,11 @@ const CATALOG_V2 = WP12_OFFICIAL_TIMING_CATALOG_TARGET.catalog;
 const NOW = Date.parse('2026-08-07T12:00:00.000Z');
 const EVENT_MEAN_QUESTION = 'Who was faster between Max Verstappen and Fernando Alonso at the 2022 Belgian Grand Prix?';
 
-function proposerFor(question: string) {
-  const parsed = parseOfficialTimingQuestion(question);
-  if (parsed.type !== 'matched') {throw new Error('question must match');}
-  const span = ({ start, end }: { start: number; end: number }) => ({ start, end });
+function proposerFor(_question: string) {
   return {
-    propose: async () => ({
-      operation: 'certified_official_timing_compare',
-      driver_a_span: span(parsed.driver_a),
-      driver_b_span: span(parsed.driver_b),
-      event_span: span(parsed.event_span),
-      operation_evidence: [span(parsed.operation_span)],
-      season_evidence: [span(parsed.season_span)],
-      lap_range_evidence: parsed.lap_range === null
-        ? null
-        : { start_span: span(parsed.lap_range.start_span), end_span: span(parsed.lap_range.end_span) }
+    propose: async (request: { readonly candidates: readonly [{ readonly candidate_id: string }] }) => ({
+      version: 2,
+      candidate_id: request.candidates[0].candidate_id
     })
   };
 }
@@ -184,10 +173,7 @@ describe('official timing answer orchestrator (unit)', () => {
     expect(malformed).toEqual({ type: 'unavailable', reason: 'provider_malformed' });
     const drifted = await answerOfficialTimingQuestion(EVENT_MEAN_QUESTION, unitDependencies({
       proposer: {
-        propose: async () => {
-          const response = await proposerFor(EVENT_MEAN_QUESTION).propose();
-          return { ...response, driver_a_span: { start: response.driver_a_span.start + 1, end: response.driver_a_span.end } };
-        }
+        propose: async () => ({ version: 2, candidate_id: 'f'.repeat(64) })
       }
     }));
     expect(drifted).toEqual({ type: 'abstained', reason: 'provider_candidate_not_enumerated' });

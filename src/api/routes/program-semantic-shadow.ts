@@ -6,10 +6,12 @@ import { AnswerQuestionContract, AnswerQuestionError, createAnswerQuestionContra
 import {
   ConfiguredSemanticCandidateModelIdentity,
   createSemanticCandidateModel,
-  getConfiguredSemanticCandidateModelIdentity,
-  SemanticCandidateProposalAdapter,
   SemanticCandidateProposalError
 } from '../../f1ql/semantic-candidate-translator';
+import {
+  getConfiguredSemanticCandidateSelectionIdentity,
+  SemanticCandidateSelectionAdapter
+} from '../../f1ql/semantic-candidate-selector';
 import { sanitizeSemanticShadowObservation } from '../../f1ql/semantic-shadow-observations';
 import {
   orchestrateSemanticShadow,
@@ -334,12 +336,12 @@ function resolveProvider(
   if ((dependencies.proposer === undefined) !== (dependencies.providerIdentity === undefined)) {
     throw new Error('semantic shadow provider dependencies are incomplete');
   }
-  const proposer = dependencies.proposer ?? new SemanticCandidateProposalAdapter(createSemanticCandidateModel(environment));
+  const proposer = dependencies.proposer ?? new SemanticCandidateSelectionAdapter(createSemanticCandidateModel(environment));
   if (!proposer || typeof proposer.propose !== 'function') {
     throw new Error('semantic shadow proposer is invalid');
   }
   const identity = parseProviderIdentity(
-    dependencies.providerIdentity ?? getConfiguredSemanticCandidateModelIdentity(environment)
+    dependencies.providerIdentity ?? getConfiguredSemanticCandidateSelectionIdentity(environment)
   );
   return Object.freeze({ proposer, identity });
 }

@@ -18,12 +18,15 @@ import { Pool } from 'pg';
 import { createProgramSemanticShadowRoutes } from '../src/api/routes/program-semantic-shadow';
 import {
   createSemanticCandidateModel,
-  getConfiguredSemanticCandidateModelIdentity,
-  SemanticCandidateProposalError,
-  SemanticCandidateProposalAdapter
+  SemanticCandidateProposalError
 } from '../src/f1ql/semantic-candidate-translator';
+import {
+  buildSemanticCandidateSelectionRequest,
+  getConfiguredSemanticCandidateSelectionIdentity,
+  SemanticCandidateSelectionAdapter
+} from '../src/f1ql/semantic-candidate-selector';
 import { SEMANTIC_CATALOG_HASH } from '../src/f1ql/semantic-catalog';
-import { computeSemanticCandidateSetHash } from '../src/f1ql/semantic-query';
+import { computeSemanticCandidateSetHash, enumerateSemanticQueries } from '../src/f1ql/semantic-query';
 import { buildSemanticShadowReport } from '../src/f1ql/semantic-shadow-report';
 import {
   computeSemanticShadowAttemptSha256,
@@ -238,8 +241,8 @@ async function main(): Promise<void> {
       F1QL_SEMANTIC_SHADOW_INTERNAL_TOKEN: token
     };
     const app = express();
-    const provider = new SemanticCandidateProposalAdapter(createSemanticCandidateModel(routeEnvironment));
-    const providerIdentity = getConfiguredSemanticCandidateModelIdentity(routeEnvironment);
+    const provider = new SemanticCandidateSelectionAdapter(createSemanticCandidateModel(routeEnvironment));
+    const providerIdentity = getConfiguredSemanticCandidateSelectionIdentity(routeEnvironment);
     // Warm the provider once before the corpus loop so cold-start latency does not
     // count against the first reviewed attempt; the warmup emits no retained evidence.
     // The same bounded transient-retry policy as the corpus loop applies, since a
@@ -247,11 +250,12 @@ async function main(): Promise<void> {
     let warmupRetries = 0;
     for (;;) {
       try {
-        await provider.propose({
-          question: corpus.cases[0].question,
-          semantic_query_version: 2,
-          max_candidates: 5
-        });
+        const warmupEvidence = enumerateSemanticQueries(corpus.cases[0].question, []);
+        if (warmupEvidence.type !== 'candidate_set' || warmupEvidence.candidates.length !== 1 ||
+            warmupEvidence.ambiguity_reason) {
+          throw new Error('Semantic shadow warmup requires one independently enumerated candidate');
+        }
+        await provider.propose(buildSemanticCandidateSelectionRequest(corpus.cases[0].question, warmupEvidence));
         break;
       } catch (error) {
         const code = error instanceof SemanticCandidateProposalError ? error.code : 'unknown';

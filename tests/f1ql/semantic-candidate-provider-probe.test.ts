@@ -40,15 +40,22 @@ describe('semantic candidate provider probe', () => {
     expect(propose).not.toHaveBeenCalled();
   });
 
-  it('refuses the retired V4 Flash identity before a request', async () => {
-    const propose = vi.fn();
+  it('runs the reviewed probe through the active server-enumerated selection contract', async () => {
+    const propose = vi.fn(async request => ({ version: 2 as const, candidates: [request.candidates[0]] }));
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, { proposer: { propose } })).resolves.toEqual({
-      status: 'failed', reason: 'provider_identity_retired', case_id: 'promoted-single-source-rows'
+      status: 'passed', case_id: 'promoted-single-source-rows', provider: 'openai-compatible',
+      candidate_count: 1, oracle_match: true
     });
-    expect(propose).not.toHaveBeenCalled();
+    expect(propose).toHaveBeenCalledWith(expect.objectContaining({
+      question: 'List driver and championship points from final 2025 driver standings.',
+      semantic_query_version: 2,
+      candidate_set_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      catalog_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      candidates: [expect.objectContaining({ version: 2 })]
+    }));
   });
 
-  it('fails closed on fixture drift before checking the retired identity', async () => {
+  it('fails closed on fixture drift before checking the active identity', async () => {
     await expect(probeSemanticCandidateProvider(ENABLED_ENVIRONMENT, {
       corpusInput: {}, proposer: { propose: vi.fn() }
     })).resolves.toEqual({ status: 'failed', reason: 'reviewed_fixture_invalid' });
@@ -84,13 +91,13 @@ describe('semantic candidate provider probe', () => {
     })).resolves.toEqual({ status: 'failed', reason: 'reviewed_fixture_invalid' });
   });
 
-  it('rejects provider identity drift before a request', async () => {
+  it('rejects unsupported or invalid provider configuration before a request', async () => {
     const propose = vi.fn();
     for (const environment of [
       { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_PROVIDER: 'anthropic' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'https://proxy.example/v1' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'accounts/fireworks/models/deepseek-v4-pro' },
-      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '10000' }
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_LLM_BASE_URL: 'http://proxy.example/v1' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_MODEL: 'bad model' },
+      { ...ENABLED_ENVIRONMENT, F1QL_SEMANTIC_CANDIDATE_TIMEOUT_MS: '0' }
     ]) {
       await expect(probeSemanticCandidateProvider(environment, { proposer: { propose } })).resolves.toMatchObject({
         status: 'failed', reason: 'provider_not_configured'

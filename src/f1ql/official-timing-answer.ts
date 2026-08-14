@@ -5,7 +5,11 @@ import {
   parseOfficialTimingQuestion
 } from './official-timing-question';
 import { AnswerQuestionError } from './answer-question';
-import { enumerateOfficialTimingEvidence } from './official-timing-semantic-query';
+import {
+  computeOfficialTimingQueryHash,
+  enumerateOfficialTimingEvidence,
+  OfficialTimingSemanticEvidence
+} from './official-timing-semantic-query';
 import {
   collectOfficialTimingResolution,
   OfficialTimingResolutionDependencies
@@ -27,7 +31,10 @@ import {
   formatOfficialTimingResult,
   OfficialTimingSemanticEnvelope
 } from './official-timing-format';
-import { admitOfficialTimingProviderProposal } from './official-timing-provider-admission';
+import {
+  admitOfficialTimingProviderSelection,
+  OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION
+} from './official-timing-provider-admission';
 
 export const OFFICIAL_TIMING_ANSWER_ORCHESTRATOR_VERSION = 'official-timing-answer-v1' as const;
 
@@ -38,9 +45,15 @@ export interface OfficialTimingAnswerDependencies {
   readonly event_resolver: OfficialTimingResolutionDependencies['event_resolver'];
   readonly proposer: {
     propose(request: {
+      readonly version: typeof OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION;
       readonly question: string;
       readonly semantic_query_version: 3;
-      readonly max_candidates: 2;
+      readonly candidate_set_hash: string;
+      readonly catalog_hash: string;
+      readonly candidates: readonly [{
+        readonly candidate_id: string;
+        readonly semantic_query: OfficialTimingSemanticEvidence['candidates'][0];
+      }];
     }): Promise<unknown>;
   };
   readonly release: OfficialTimingReleaseBinding;
@@ -84,7 +97,7 @@ export async function answerOfficialTimingQuestion(
   } catch {
     return deepFreeze({ type: 'unavailable', reason: 'internal_failure' });
   }
-  const providerAdmission = await admitProvider(dependencies.proposer, question);
+  const providerAdmission = await admitProvider(dependencies.proposer, question, evidence);
   if (providerAdmission !== null) {
     return providerAdmission;
   }
@@ -146,19 +159,26 @@ function preAnswerGate(
 
 async function admitProvider(
   proposer: OfficialTimingAnswerDependencies['proposer'],
-  question: OfficialTimingQuestionMatch
+  question: OfficialTimingQuestionMatch,
+  evidence: OfficialTimingSemanticEvidence
 ): Promise<OfficialTimingAnswerOutcome | null> {
   let proposal: unknown;
   try {
     proposal = await proposer.propose(deepFreeze({
+      version: OFFICIAL_TIMING_PROVIDER_SELECTION_VERSION,
       question: question.normalized_question,
       semantic_query_version: 3,
-      max_candidates: 2
+      candidate_set_hash: evidence.candidate_set_hash,
+      catalog_hash: evidence.catalog_hash,
+      candidates: [{
+        candidate_id: computeOfficialTimingQueryHash(evidence.candidates[0]),
+        semantic_query: evidence.candidates[0]
+      }]
     }));
   } catch {
     return deepFreeze({ type: 'unavailable', reason: 'provider_unavailable' });
   }
-  const admission = admitOfficialTimingProviderProposal(proposal, question);
+  const admission = admitOfficialTimingProviderSelection(proposal, evidence);
   if (admission.type === 'malformed') {
     return deepFreeze({ type: 'unavailable', reason: 'provider_malformed' });
   }

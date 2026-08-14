@@ -10,6 +10,14 @@ import {
   WP12_OFFICIAL_TIMING_PRINCIPAL_V5_TARGET_SHA256,
   WP12_OFFICIAL_TIMING_SEMANTIC_CATALOG_TARGET_SHA256
 } from './wp12-official-timing-catalog-target';
+import {
+  SEMANTIC_CANDIDATE_SELECTION_MAX_TOKENS,
+  SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_PROMPT_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_NAME,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256,
+  SEMANTIC_CANDIDATE_SELECTION_SCHEMA_TEMPLATE
+} from './semantic-candidate-selector';
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const idSchema = z.string().regex(/^[a-z][a-z0-9_]*$/);
 const statusSchema = z.literal('detached_inactive_target');
@@ -111,36 +119,6 @@ const activeTemplateIds = [
   'race_date', 'race_event_finishing_position_comparison', 'race_season_finishing_position_h2h',
   'season_qualifying_top_ten_ranking'
 ] as const;
-const providerVariantSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'operation', 'driver_a_span', 'driver_b_span', 'event_span', 'operation_evidence',
-    'season_evidence', 'lap_range_evidence'
-  ],
-  properties: {
-    operation: { const: 'certified_official_timing_compare' },
-    driver_a_span: { $ref: '#/$defs/span_ref' },
-    driver_b_span: { $ref: '#/$defs/span_ref' },
-    event_span: { $ref: '#/$defs/span_ref' },
-    operation_evidence: { $ref: '#/$defs/evidence_ref' },
-    season_evidence: { $ref: '#/$defs/evidence_ref' },
-    lap_range_evidence: {
-      anyOf: [
-        { type: 'null' },
-        {
-          type: 'object', additionalProperties: false, required: ['start_span', 'end_span'],
-          properties: {
-            start_span: { $ref: '#/$defs/span_ref' },
-            end_span: { $ref: '#/$defs/span_ref' }
-          }
-        }
-      ]
-    }
-  }
-} as const;
-const providerPromptExtension = 'For the exact reviewed official timing grammar only, emit certified_official_timing_compare with two ordered driver spans, one event span, operation and season evidence, and nullable lap-range evidence. Session is server-derived from the verified grammar. Never emit a metric, aggregate, exclusion, identifier, topology, output, integrity rule, SQL, F1QL, or Core.';
-
 export const WP12_OFFICIAL_TIMING_ANSWER_QUESTION_TARGET = component('answer_question', {
   normalization: 'unicode_nfkc_trimmed',
   maximum_unicode_code_points: 1000,
@@ -205,30 +183,25 @@ export const WP12_OFFICIAL_TIMING_ANSWER_QUESTION_TARGET = component('answer_que
 export const WP12_OFFICIAL_TIMING_CANDIDATE_PROPOSAL_TARGET = component('candidate_proposal', {
   question_target_sha256: hash(WP12_OFFICIAL_TIMING_ANSWER_QUESTION_TARGET),
   catalog_sha256: WP12_OFFICIAL_TIMING_SEMANTIC_CATALOG_TARGET_SHA256,
-  preserve_existing_v1_variants: true,
-  added_variant: {
-    operation: 'certified_official_timing_compare',
-    exact_driver_entity_refs: 2,
-    exact_event_entity_refs: 1,
-    event_mean_lap_range: 'forbidden',
-    window_median_lap_range: 'required_inclusive_max_50',
-    evidence_only_fields: [
-      'driver_spans', 'event_span', 'lap_range_spans', 'operation_span', 'season_span'
-    ]
-  },
-  provider_may_supply: [
-    'exact_literal_spans', 'fixed_operation_discriminator'
-  ],
+  authority_model: 'server_enumerates_canonical_candidates_provider_selects_opaque_id',
+  deterministic_enumeration_precedes_provider: true,
+  provider_may_supply: ['candidate_id'],
+  provider_response_fields: ['version', 'candidate_id'],
+  provider_response_free_text: false,
+  candidate_id_definition: 'sha256_of_canonical_semantic_query',
+  candidate_set_hash_admission_preserved: true,
   server_derived_only: [
-    'aggregation', 'canonical_ids', 'catalog_pins', 'comparison', 'coverage', 'exclusions',
-    'integrity_checks', 'metric_id', 'output_fields', 'relationships', 'session_scope', 'source_ref',
-    'sql', 'topology'
+    'aggregation', 'canonical_candidate', 'canonical_ids', 'catalog_pins', 'comparison', 'coverage',
+    'evidence_spans', 'exclusions', 'filters', 'integrity_checks', 'metric_id', 'operation',
+    'output_fields', 'relationships', 'session_scope', 'source_ref', 'sql', 'topology'
   ],
   metric_derived_only_from_verified_question_grammar: true,
   maximum_official_timing_candidates: 2,
+  exact_official_timing_candidates: 1,
+  ambiguous_or_empty_sets: 'pre_provider_abstain_or_clarify',
   duplicate_candidates: 'reject',
   exact_admitted_candidates: 1,
-  unknown_or_extra_semantics: 'reject',
+  unknown_or_extra_candidate_ids: 'reject',
   semantic_query_target_sha256: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.semantic_query,
   semantic_evidence_target_sha256: WP12_OFFICIAL_TIMING_SEMANTIC_COMPONENT_HASHES.semantic_evidence
 });
@@ -245,13 +218,13 @@ export const WP12_OFFICIAL_TIMING_PROVIDER_SCHEMA_TARGET = deepFreeze(componentS
   contract: {
     independent_provider_schema_version_in_activation_bundle: false,
     current_schema_name: 'f1_semantic_candidate_proposals_v1',
-    target_schema_name: 'f1_semantic_candidate_proposals_v2',
+    target_schema_name: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_NAME,
     candidate_proposal_target_sha256: hash(WP12_OFFICIAL_TIMING_CANDIDATE_PROPOSAL_TARGET),
     question_target_sha256: hash(WP12_OFFICIAL_TIMING_ANSWER_QUESTION_TARGET),
     catalog_sha256: WP12_OFFICIAL_TIMING_SEMANTIC_CATALOG_TARGET_SHA256,
     strict_schema: true,
     maximum_response_bytes: 65536,
-    maximum_tokens: 8192,
+    maximum_tokens: SEMANTIC_CANDIDATE_SELECTION_MAX_TOKENS,
     temperature: 0,
     timeout_ms: { min: 1, max: 300000 },
     exact_returned_model_identity_required: true,
@@ -259,32 +232,28 @@ export const WP12_OFFICIAL_TIMING_PROVIDER_SCHEMA_TARGET = deepFreeze(componentS
     exact_completed_non_refusal_results: 1,
     runtime_zod_validation_after_wire_transform: true,
     generated_hashes_required: [
-      'anthropic_wire_schema', 'catalog_language_projection', 'effective_prompt',
-      'openai_compatible_schema', 'provider_request_config'
+      'anthropic_wire_schema_template', 'candidate_projection', 'effective_prompt',
+      'openai_compatible_schema_template', 'provider_request_config'
     ],
-    language_projection_excludes: [
-      'canonical_ids', 'coverage_decisions', 'database_details', 'dataset_pins', 'identity_inventory',
-      'integrity_checks', 'physical_fields', 'physical_types', 'relationships', 'view_names'
-    ],
+    provider_request_contains_server_enumerated_canonical_candidates: true,
+    response_schema_candidate_id_enum_is_request_specific: true,
     provider_controls_no_sql_f1ql_core_or_authorization: true,
     endpoint_credential_and_private_host_guards_preserved: true,
     diagnostics_are_closed_finite_and_sanitized: true,
     predecessor_schema_sha256: '013596a11660433746a889f2c692b3d25e324786f1d3817e475c9d3aa82a8ffa',
-    extension_construction: 'append_exact_official_variant_to_canonical_v1_candidate_union',
-    official_variant_schema: providerVariantSchema,
-    official_variant_schema_sha256: hash(providerVariantSchema),
-    prompt_extension: providerPromptExtension,
-    prompt_extension_sha256: hash(providerPromptExtension),
-    language_projection_includes: ['concept_language', 'source_language'],
+    selection_schema_template: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_TEMPLATE,
+    selection_schema_template_sha256: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256,
+    selection_prompt_sha256: SEMANTIC_CANDIDATE_SELECTION_PROMPT_SHA256,
+    candidate_projection_sha256: SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256,
     generated_artifacts: {
       status: 'generated',
-      generator: 'wp12-official-timing-provider-artifacts-v1',
+      generator: 'wp12-official-timing-provider-selection-artifacts-v2',
       artifact_file: 'tests/fixtures/wp12-official-timing-provider-artifacts.json',
-      catalog_language_projection_sha256: '721dd6db8fbf431a8d5c7ac792312add1eec0596a24e99f9d2e929d3e2523432',
-      effective_prompt_sha256: 'd4d70a803f00fc80b9876e02ef75e7fc2293da9c382f680b582263aa25bdfedb',
-      openai_compatible_schema_sha256: 'a3ca023d9a8bc3121857e85694d7b02a24f3a97c9f9fe32b98e99245e00c2bda',
-      anthropic_wire_schema_sha256: '4af30061acef2a1a6b6ad57c7ca5dc30ddd8a83885c57ff09e1650b52e141cb8',
-      provider_request_config_sha256: '9f473f045639cc2ca04d9e1bc403171462fbf761c8fa263d4d9edda01daac58d'
+      candidate_projection_sha256: SEMANTIC_CANDIDATE_SELECTION_PROJECTION_SHA256,
+      effective_prompt_sha256: SEMANTIC_CANDIDATE_SELECTION_PROMPT_SHA256,
+      openai_compatible_schema_template_sha256: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256,
+      anthropic_wire_schema_template_sha256: SEMANTIC_CANDIDATE_SELECTION_SCHEMA_SHA256,
+      provider_request_config_sha256: '70771e14a13ab392db5cf908980149040f5a1fdeceb776b79d8b8ea7d629c03e'
     },
     activation_requires_real_generated_hashes: true
   },

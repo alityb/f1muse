@@ -166,7 +166,7 @@ describe('WP12 detached official timing shadow/release target', () => {
     expect(parseWP12OfficialTimingShadowReleaseTarget(cloneTarget()))
       .toEqual(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET);
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_TARGET_SHA256)
-      .toBe('bb4c0c36ee74bf479164f07b485249f1be0d88ab1c6c29a8b2add5a61c071ae9');
+      .toBe('9944df93551cdaacb527028c790db4eddd451d8d4388085706f22c92bf702912');
     expect(WP12_OFFICIAL_TIMING_SHADOW_RELEASE_COMPONENT_HASHES).toEqual({
       shadow_observation: 'a5c55ed458be04674052f6f9e20b8dc28783502b4dc25dbd3c2bebe84960af7e',
       shadow_orchestrator: '8040dbbfb1aa7d3c1d74c854e780bd509a508e918385918310e57ef6b72a4d7b',

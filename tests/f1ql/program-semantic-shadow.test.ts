@@ -394,11 +394,13 @@ describe('WP8 stage-zero semantic shadow route', () => {
         result_query_calls: 0
       })
     });
-    expect(providerRequests).toEqual([{
+    expect(providerRequests).toEqual([expect.objectContaining({
       question: QUESTION,
       semantic_query_version: 2,
-      max_candidates: 5
-    }]);
+      candidate_set_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      catalog_hash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      candidates: [expect.objectContaining({ version: 2 })]
+    })]);
     expect(JSON.stringify(providerRequests)).not.toMatch(/entity_inventory|LEAK_ENTITY/u);
     expect(fake.calls).toEqual([
       { sql: 'BEGIN READ ONLY', parameters: undefined },
@@ -1149,7 +1151,7 @@ describe('WP8 stage-zero semantic shadow route', () => {
   });
 
   it.each([
-    [OUTPUT_ALTERNATIVE_POINTS_QUESTION, 'clarify', 'output_shape_ambiguous', 1, false],
+    [OUTPUT_ALTERNATIVE_POINTS_QUESTION, 'clarify', 'output_shape_ambiguous', 0, false],
     [ALL_NAMED_DRIVER_POINTS_QUESTION, 'abstain', 'unsupported_concept', 0, false],
     [DANGLING_ALTERNATIVE_POINTS_QUESTION, 'abstain', 'unsupported_concept', 0, false],
     [MIXED_ENTITY_ALTERNATIVE_QUESTION, 'abstain', 'unsupported_concept', 0, true]

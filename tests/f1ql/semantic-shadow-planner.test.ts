@@ -157,16 +157,17 @@ describe('pure non-executing semantic shadow orchestrator', () => {
     expect(answer).toMatchObject({ outcome: 'answer', reason: 'plan_proven' });
 
     const ambiguous = 'Show final 2025 driver standings.';
-    const omission = await orchestrateSemanticShadow(ambiguous, dependencies([], { type: 'missing' }, async request => {
-      const evidence = enumerateSemanticQueries(request.question, []);
-      if (evidence.type !== 'candidate_set') throw new Error('missing fixture candidates');
-      return { version: 2, candidates: [evidence.candidates[0]] };
+    let ambiguousProposalCalls = 0;
+    const omission = await orchestrateSemanticShadow(ambiguous, dependencies([], { type: 'missing' }, async () => {
+      ambiguousProposalCalls += 1;
+      throw new Error('ambiguous evidence must not reach the provider');
     }));
     expect(omission).toMatchObject({
       outcome: 'clarify', reason: 'output_shape_ambiguous',
-      candidate_counts: { proposed: 1, matched: 1, omitted: 1, extraneous: 0, comparison: 'omission' },
+      candidate_counts: { enumerated: 2, proposed: 0, matched: 0, omitted: 0, extraneous: 0, comparison: 'not_comparable' },
       result_query_calls: 0
     });
+    expect(ambiguousProposalCalls).toBe(0);
 
     let abstentionProposalCalls = 0;
     const abstention = await orchestrateSemanticShadow(
