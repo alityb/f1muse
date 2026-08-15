@@ -297,7 +297,11 @@ export function loadDeterministicAnswerReleaseVerificationInput(
   const raw = env.F1QL_ANSWER_RELEASE_ATTESTATION;
   const publicKeyBase64 = env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64;
   const keyId = env.F1QL_ANSWER_RELEASE_KEY_ID;
-  const commitSha = env.RAILWAY_GIT_COMMIT_SHA ?? env.GIT_COMMIT_SHA;
+  // `railway up` deploys a local snapshot but Railway can retain the automatic
+  // SHA from the last GitHub-triggered build. An explicit deployment SHA is the
+  // authoritative binding for that workflow; Git-triggered deploys naturally
+  // fall back to Railway's value when no explicit override is configured.
+  const commitSha = env.GIT_COMMIT_SHA ?? env.RAILWAY_GIT_COMMIT_SHA;
   const audience = env.F1QL_ANSWER_AUTHORIZATION_AUDIENCE;
   const deploymentId = env.F1QL_ANSWER_DEPLOYMENT_ID;
   const releaseId = env.F1QL_ANSWER_RELEASE_ID;

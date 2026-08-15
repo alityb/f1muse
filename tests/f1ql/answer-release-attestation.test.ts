@@ -272,6 +272,17 @@ describe('cryptographically rooted answer release attestation', () => {
     const loaded = loadDeterministicAnswerReleaseVerificationInput(config, env, RELEASE_NOW_MS);
     expect(loaded.active_context).not.toHaveProperty('provider');
     expect(verifyAnswerReleaseAttestation(loaded.raw_attestation, loaded.trusted_key, loaded.active_context, loaded.temporal_policy).derivation_version).toBe(ANSWER_INTENT_DERIVATION_VERSION);
+    const loadedAfterCliDeploy = loadDeterministicAnswerReleaseVerificationInput(config, {
+      ...env,
+      RAILWAY_GIT_COMMIT_SHA: 'f'.repeat(40)
+    }, RELEASE_NOW_MS);
+    expect(loadedAfterCliDeploy.active_context.commit_sha).toBe(productionContext.commit_sha);
+    expect(verifyAnswerReleaseAttestation(
+      loadedAfterCliDeploy.raw_attestation,
+      loadedAfterCliDeploy.trusted_key,
+      loadedAfterCliDeploy.active_context,
+      loadedAfterCliDeploy.temporal_policy
+    ).commit_sha).toBe(productionContext.commit_sha);
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64: `${env.F1QL_ANSWER_RELEASE_PUBLIC_KEY_BASE64}\n` })).toThrow();
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '10' })).toThrow();
     expect(() => loadDeterministicAnswerReleaseVerificationInput(config, { ...env, F1QL_ANSWER_CANARY_MAXIMUM_STAGE: '050' })).toThrow();

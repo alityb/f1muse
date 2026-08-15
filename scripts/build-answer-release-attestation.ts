@@ -119,7 +119,7 @@ export function buildAnswerReleaseAttestationFile(
   requireEvidenceBackedTemplates(allowedTemplateIds, observedTemplates);
 
   const requestedCommitSha = env.F1QL_ANSWER_RELEASE_COMMIT_SHA;
-  const currentCommitSha = env.RAILWAY_GIT_COMMIT_SHA ?? env.GIT_COMMIT_SHA;
+  const currentCommitSha = env.GIT_COMMIT_SHA ?? env.RAILWAY_GIT_COMMIT_SHA;
   if (!requestedCommitSha || !currentCommitSha || requestedCommitSha !== currentCommitSha) {
     throw new Error('answer_release_commit_mismatch');
   }
