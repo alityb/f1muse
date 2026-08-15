@@ -21,7 +21,11 @@ export const ANSWER_PRINCIPAL_CLASSES = ['internal', 'internal_canary', 'public'
 export type AnswerPrincipalClass = (typeof ANSWER_PRINCIPAL_CLASSES)[number];
 export const ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS = 10 * 60 * 1000;
 export const ANSWER_RELEASE_DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
-const ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS = 60 * 60 * 1000;
+// Public releases remain bound to an exact commit, evidence package, runtime
+// configuration, principal set, template set, expiry, and kill switch. Allow a
+// deliberately configured release to survive process restarts between routine
+// monthly rotations; the conservative canary defaults above stay unchanged.
+export const ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const COMMIT_SHA = /^[a-f0-9]{40}$/;

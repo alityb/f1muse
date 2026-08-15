@@ -15,8 +15,12 @@ import {
 } from '../../src/f1ql/answer-derivation-evidence';
 import {
   ActiveAnswerReleaseContext,
+  ANSWER_RELEASE_DEFAULT_MAX_AGE_MS,
+  ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS,
   ANSWER_RELEASE_EVIDENCE_HASH_KEYS,
+  ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS,
   AnswerReleaseAttestationError,
+  answerReleaseTemporalPolicy,
   buildActiveAnswerReleaseBindings,
   getAnswerReleaseAttestationHash,
   getAnswerReleaseAttestationSigningPayload,
@@ -84,6 +88,25 @@ function signedFixture(active = context(), privateKey = trusted.privateKey, keyI
 }
 
 describe('cryptographically rooted answer release attestation', () => {
+  it('keeps conservative defaults while permitting bounded restart-safe public releases', () => {
+    expect(answerReleaseTemporalPolicy({}, RELEASE_NOW_MS)).toEqual({
+      now_ms: RELEASE_NOW_MS,
+      max_validity_ms: ANSWER_RELEASE_DEFAULT_MAX_VALIDITY_MS,
+      max_age_ms: ANSWER_RELEASE_DEFAULT_MAX_AGE_MS
+    });
+    expect(answerReleaseTemporalPolicy({
+      F1QL_ANSWER_RELEASE_MAX_VALIDITY_MS: String(ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS),
+      F1QL_ANSWER_RELEASE_MAX_AGE_MS: String(ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS)
+    }, RELEASE_NOW_MS)).toEqual({
+      now_ms: RELEASE_NOW_MS,
+      max_validity_ms: ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS,
+      max_age_ms: ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS
+    });
+    expect(() => answerReleaseTemporalPolicy({
+      F1QL_ANSWER_RELEASE_MAX_VALIDITY_MS: String(ANSWER_RELEASE_MAX_CONFIGURABLE_TIME_MS + 1)
+    }, RELEASE_NOW_MS)).toThrowError(expect.objectContaining({ code: 'release_not_configured' }));
+  });
+
   it('verifies a trusted Ed25519 signature and exact active bindings, then deeply freezes', () => {
     const raw = signedFixture();
     const parsed = parseAnswerReleaseAttestation(raw);
