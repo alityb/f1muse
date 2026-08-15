@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { AnswerDriverIdentityResolver, AnswerEventIdentityResolver } from '../../src/identity/answer-identity-resolvers';
 import { acceptedEventNames } from '../../src/identity/event-resolver';
+import { createAnswerQuestionContract } from '../../src/f1ql/answer-question';
+import { deriveAnswerIntent } from '../../src/f1ql/answer-intent-derivation';
 
 describe('answer event identity resolution', () => {
   it('scopes the Silverstone to British Grand Prix alias to the contracted 2025 season', async () => {
@@ -54,5 +56,34 @@ describe('answer driver identity inventory', () => {
     ]);
     expect(sql).toContain('FROM f1ql.answer_driver_identity');
     expect(sql).not.toContain('answer_season_participation');
+  });
+
+  it('ignores historical-driver collisions in the exact public career and comparison questions', async () => {
+    const database = {
+      query: async (statement: string) => ({ rows: statement.includes('answer_season_participation')
+        ? [
+            { driver_id: 'bob-anderson', identity: 'and', participation_source: null },
+            { driver_id: 'conny-andersson', identity: 'and', participation_source: null },
+            { driver_id: 'lando-norris', identity: 'Norris', participation_source: 'entrant' },
+            { driver_id: 'oscar-piastri', identity: 'Piastri', participation_source: 'entrant' }
+          ]
+        : [
+            { driver_id: 'masahiro-hasemi', identity: 'has' },
+            { driver_id: 'lewis-hamilton', identity: 'Lewis Hamilton' }
+          ] })
+    };
+    const resolver = new AnswerDriverIdentityResolver(database as never);
+    const career = createAnswerQuestionContract('At which circuits has Lewis Hamilton won races?');
+    const comparison = createAnswerQuestionContract('Compare the official 2025 results of Norris and Piastri.');
+
+    await expect(resolver.inventoryMentions(career.normalized_question)).resolves.toEqual([
+      { text: 'Lewis Hamilton', start: 22, end: 36, candidates: ['lewis-hamilton'], active_candidates: ['lewis-hamilton'] }
+    ]);
+    await expect(deriveAnswerIntent(career, resolver)).resolves.toMatchObject({ type: 'driver_career_wins_by_circuit' });
+    await expect(resolver.inventoryMentions(comparison.normalized_question, 2025)).resolves.toEqual([
+      { text: 'Norris', start: 37, end: 43, candidates: ['lando-norris'], active_candidates: ['lando-norris'] },
+      { text: 'Piastri', start: 48, end: 55, candidates: ['oscar-piastri'], active_candidates: ['oscar-piastri'] }
+    ]);
+    await expect(deriveAnswerIntent(comparison, resolver)).resolves.toMatchObject({ type: 'official_driver_results_comparison' });
   });
 });

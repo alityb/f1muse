@@ -24,8 +24,9 @@ interface ParticipationRow {
 export const ANSWER_EVENT_IDENTITY_MAX_ROWS = 500;
 export const ANSWER_DRIVER_IDENTITY_MAX_ROWS = 10_000;
 const INACTIVE_NON_DRIVER_LITERALS = new Set([
-  'all', 'date', 'did', 'driver', 'drivers', 'final', 'for', 'give', 'points', 'qualifying',
-  'race', 'result', 'results', 'round', 'show', 'the', 'was', 'what', 'when', 'where', 'who'
+  'all', 'and', 'date', 'did', 'driver', 'drivers', 'final', 'for', 'give', 'has', 'points',
+  'qualifying', 'race', 'result', 'results', 'round', 'show', 'the', 'was', 'what', 'when',
+  'where', 'who'
 ]);
 
 export interface AnswerDriverLiteralMention {
