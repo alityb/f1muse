@@ -101,6 +101,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('iid-race-status', 'iid_holdout', 'Show all DNFs in the 2025 Australian Grand Prix race results.', 'race_classification_status', programs.raceDnf, ['status_filter']),
   answer('holdout-race-status', 'temporal_entity_holdout', 'Which drivers did not finish the race at round 1 in 2025?', 'race_classification_status', programs.raceDnf, ['session_synonym']),
   answer('iid-qual-all', 'iid_holdout', 'Give the full qualifying classification for the 2025 Australian Grand Prix.', 'qualifying_classification_all', programs.qualifyingAll, ['truncation']),
+  answer('launch-qualifying-shorthand', 'iid_holdout', '2025 australian grand prix qualifying', 'qualifying_classification_all', programs.qualifyingAll, ['event_session_shorthand', 'exact_wording', 'truncation']),
   answer('holdout-qual-all', 'temporal_entity_holdout', 'All qualifying results at 2025 round 1.', 'qualifying_classification_all', programs.qualifyingAll, ['session_synonym']),
   answer('iid-qual-driver', 'iid_holdout', 'What was Max Verstappen qualifying result at the Australian Grand Prix in 2025?', 'qualifying_classification_driver', programs.qualifyingMax, ['entity_alias']),
   answer('holdout-qual-driver', 'temporal_entity_holdout', 'Max qualifying result, 2025 round 1.', 'qualifying_classification_driver', programs.qualifyingMax, ['punctuation_whitespace']),

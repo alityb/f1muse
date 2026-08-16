@@ -102,7 +102,11 @@ const fakeClient = {
     databaseStatements.push(sql.trim());
     if (sql.includes('f1ql.answer_event_identity')) {
       resolutionAttempts++;
-      return { rows: [{ season: 2025, round: 8, identity: 'Monaco' }, { season: 2025, round: 12, identity: 'British Grand Prix' }] };
+      return { rows: [
+        { season: 2025, round: 1, identity: 'Australian Grand Prix' },
+        { season: 2025, round: 8, identity: 'Monaco' },
+        { season: 2025, round: 12, identity: 'British Grand Prix' }
+      ] };
     }
     if (sql.includes('f1ql.answer_driver_identity')) {
       resolutionAttempts++;
@@ -161,6 +165,12 @@ const fakeClient = {
         driver_id: qualifyingMetric.includes('1950_2025') ? 'lewis-hamilton' : 'lando-norris',
         [qualifyingMetric.includes('top_ten') ? 'qualifying_top_ten_count' : 'qualifying_p1_count']: qualifyingMetric.includes('1950_2025') ? 2 : qualifyingMetric.includes('top_ten') ? 5 : 3,
         ...(qualifyingMetric.includes('1950_2025') ? { qualifying_source_rows: 2, distinct_qualifying_keys: 2 } : {})
+      }] };
+    }
+    if (sql.includes('FROM f1ql.qualifying_classification')) {
+      return { rows: [{
+        driver_id: 'lando-norris', qualifying_position: 1, best_time_ms: 75096,
+        best_session: 'Q3', eliminated_in_round: null, classification_status: 'classified'
       }] };
     }
     if (sql.startsWith('SELECT * FROM')) {
@@ -370,6 +380,26 @@ describe('gated answer route', () => {
       answer: {
         headline: `Final ${season} driver standings result.`,
         facts: [{ subject: 'lando-norris', values: { championship_position: '1', points: '357' } }]
+      }
+    });
+    expect({ derivationAttempts, executionAttempts }).toEqual({ derivationAttempts: 1, executionAttempts: 1 });
+    expect(executedPrincipalClasses).toEqual(['public']);
+  });
+
+  it('serves the exact complete Australian qualifying shorthand on the public route', async () => {
+    const response = await askPublic('2025 australian grand prix qualifying');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      mode: 'gated_execution',
+      answer: {
+        headline: 'Qualifying classification for 2025 round 1.',
+        facts: [{
+          subject: 'lando-norris',
+          values: {
+            qualifying_position: '1', best_time_ms: '75096', best_session: 'Q3',
+            eliminated_in_round: null, classification_status: 'classified'
+          }
+        }]
       }
     });
     expect({ derivationAttempts, executionAttempts }).toEqual({ derivationAttempts: 1, executionAttempts: 1 });

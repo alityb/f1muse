@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v16' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v17' as const;
 
 const COMPLETED_STANDINGS_MIN_SEASON = 1950;
 const COMPLETED_STANDINGS_MAX_SEASON = 2025;
@@ -386,13 +386,28 @@ function classificationIntent(
       status: status.value, status_reference: copyReference(status)
     } : unsupported;
   }
-  if (isAllSelection(statuses.length, drivers.length, actions.length)) {
+  if (isAllSelection(statuses.length, drivers.length, actions.length) ||
+      (session === 'qualifying' && matchesBareQualifyingClassificationQuestion(contract, seasonFields.season_reference, event))) {
     return { type: `${prefix}_all`, ...seasonFields, event_reference: event };
   }
   if (isDriverSelection(statuses.length, drivers.length, actions.length)) {
     return { type: `${prefix}_driver`, ...seasonFields, event_reference: event, driver_reference: drivers[0] };
   }
   return unsupported;
+}
+
+function matchesBareQualifyingClassificationQuestion(
+  contract: AnswerQuestionContract,
+  season: LiteralMentionReference,
+  event: LiteralMentionReference
+): boolean {
+  if (contract.action_cues.length !== 0 || contract.status_cues.length !== 0 ||
+      contract.result_cues.length !== 0 || contract.metric_cues.length !== 0) {
+    return false;
+  }
+  const expected = `${season.text} ${event.text} qualifying`;
+  const question = contract.normalized_question.toLowerCase();
+  return question === expected.toLowerCase() || question === `${expected}.`.toLowerCase();
 }
 
 function isStatusSelection(statuses: number, drivers: number, actions: number): boolean {

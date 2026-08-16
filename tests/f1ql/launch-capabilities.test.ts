@@ -34,6 +34,7 @@ describe('F1QL launch capability migration', () => {
       ['race-top-five', 'Show the top five finishers at the 2025 Australian Grand Prix.', 'race_result_selection'],
       ['race-second', 'Who finished second at the 2025 Australian Grand Prix?', 'race_result_selection'],
       ['qualifying-pole', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_result_selection'],
+      ['qualifying-complete-shorthand', '2025 australian grand prix qualifying', 'qualifying_result_selection'],
       ['qualifying-top-five', 'Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_result_selection'],
       ['qualifying-third', 'Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_result_selection']
       ,['season-poles', 'How many poles did Lando Norris take in 2025?', 'driver_season_poles']
@@ -102,7 +103,7 @@ describe('F1QL launch capability migration', () => {
       const intent = await deriveAnswerIntent(contract, inventory);
       expect(intent.type).not.toMatch(/clarification|unsupported/u);
       const proof = await proveAnswerIntent(contract, intent, {
-        resolve: async (season, name) => name === 'Australian Grand Prix' ? { type: 'resolved', season, round: 1 } : name === 'Silverstone' ? { type: 'resolved', season, round: 12 } : { type: 'missing' },
+        resolve: async (season, name) => name.toLocaleLowerCase('en-US') === 'australian grand prix' ? { type: 'resolved', season, round: 1 } : name === 'Silverstone' ? { type: 'resolved', season, round: 12 } : { type: 'missing' },
         resolveRound: async (season, round) => ({ type: 'resolved', season, round })
       }, inventory);
       expect(getF1QLProgramHash(proof.program)).toBe(getF1QLProgramHash(evaluation!.expected.acceptable_programs![0]));

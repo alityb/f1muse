@@ -40,6 +40,7 @@ export const launchParityManifest: readonly LaunchParityCase[] = [
   contracted('qualifying-h2h-teammates', 'qualifying_gap_teammates', 'Who outqualified whom more often in 2025, Norris or Piastri?', 'qualifying_season_position_h2h'),
   contracted('qualifying-h2h-drivers', 'qualifying_gap_drivers', 'Who qualified ahead more often in 2025, Norris or Verstappen?', 'qualifying_season_position_h2h'),
   contracted('qualifying-pole', 'qualifying_results_summary', 'Who took pole at the 2025 Australian Grand Prix?', 'qualifying_result_selection'),
+  contracted('qualifying-complete-shorthand', 'qualifying_results_summary', '2025 australian grand prix qualifying', 'qualifying_result_selection'),
   contracted('qualifying-top-five', 'qualifying_results_summary', 'Show the top five qualifiers at the 2025 Australian Grand Prix.', 'qualifying_result_selection'),
   contracted('qualifying-third', 'qualifying_results_summary', 'Who qualified third at the 2025 Australian Grand Prix?', 'qualifying_result_selection')
 ];

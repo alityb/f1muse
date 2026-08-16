@@ -40,6 +40,7 @@ describe('provider-free answer intent derivation', () => {
     ['Where did Max Verstappen finish in the 2025 Monaco race?', inventory('Max Verstappen'), 'race_classification_driver'],
     ['Show DNFs in the 2025 Monaco race results.', inventory(), 'race_classification_status'],
     ['Show all 2025 Monaco qualifying results.', inventory(), 'qualifying_classification_all'],
+    ['2025 australian grand prix qualifying', inventory(), 'qualifying_classification_all'],
     ['Where did Max Verstappen qualify in 2025 Monaco qualifying?', inventory('Max Verstappen'), 'qualifying_classification_driver'],
     ['Show DNSs in the 2025 Monaco qualifying results.', inventory(), 'qualifying_classification_status'],
     ['When was the 2025 Monaco race?', inventory(), 'race_date'],
@@ -77,7 +78,18 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v16');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v17');
+  });
+
+  it.each([
+    'Australian Grand Prix 2025 qualifying',
+    '2025 Australian Grand Prix qualifying?',
+    '2025 Australian Grand Prix qualifying results',
+    '2025 Australian Grand Prix race',
+    'Show 2025 Australian Grand Prix qualifying'
+  ])('does not broaden the complete qualifying shorthand: %s', async question => {
+    const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory());
+    expect(intent.type).not.toBe('qualifying_classification_all');
   });
 
   it.each([

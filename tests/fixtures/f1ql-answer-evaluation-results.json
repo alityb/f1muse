@@ -1587,6 +1587,167 @@
     }
   },
   {
+    "id": "launch-qualifying-shorthand",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "qualifying_classification",
+          "season": 2025,
+          "round": 1,
+          "limit": 30
+        }
+      },
+      "program_hash": "729b378d5ca768ac5c50cc4ceac49e90bb8cf6a36c5ded51fc42d17098743afc",
+      "answer": {
+        "headline": "Qualifying classification for 2025 round 1.",
+        "facts": [
+          {
+            "subject": "lando-norris",
+            "values": {
+              "qualifying_position": "1",
+              "best_time_ms": "80000",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "qualifying_position": "2",
+              "best_time_ms": "80100",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "qualifying_position": "3",
+              "best_time_ms": "80200",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "charles-leclerc",
+            "values": {
+              "qualifying_position": "4",
+              "best_time_ms": "80300",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "qualifying_position": "5",
+              "best_time_ms": "80400",
+              "best_session": "Q3",
+              "eliminated_in_round": null,
+              "classification_status": "classified"
+            }
+          },
+          {
+            "subject": "status-qual-dnf",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": "Q1",
+              "eliminated_in_round": null,
+              "classification_status": "dnf"
+            }
+          },
+          {
+            "subject": "status-qual-dns",
+            "values": {
+              "qualifying_position": null,
+              "best_time_ms": null,
+              "best_session": null,
+              "eliminated_in_round": null,
+              "classification_status": "dns"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "lando-norris",
+          "qualifying_position": 1,
+          "best_time_ms": 80000,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "oscar-piastri",
+          "qualifying_position": 2,
+          "best_time_ms": 80100,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "qualifying_position": 3,
+          "best_time_ms": 80200,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "charles-leclerc",
+          "qualifying_position": 4,
+          "best_time_ms": 80300,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "qualifying_position": 5,
+          "best_time_ms": 80400,
+          "best_session": "Q3",
+          "eliminated_in_round": null,
+          "classification_status": "classified"
+        },
+        {
+          "driver_id": "status-qual-dnf",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": "Q1",
+          "eliminated_in_round": null,
+          "classification_status": "dnf"
+        },
+        {
+          "driver_id": "status-qual-dns",
+          "qualifying_position": null,
+          "best_time_ms": null,
+          "best_session": null,
+          "eliminated_in_round": null,
+          "classification_status": "dns"
+        }
+      ],
+      "rendering": "Official qualifying classification; season 2025; round 1; top 30.",
+      "metadata": {
+        "source": "qualifying_classification",
+        "definitions_version": "v10",
+        "compiler_version": "core-v11",
+        "fact_space_version": "source-views-v3",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 7
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
     "id": "holdout-qual-all",
     "envelope": {
       "mode": "gated_execution",

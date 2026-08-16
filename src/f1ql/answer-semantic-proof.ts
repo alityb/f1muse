@@ -6,7 +6,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './linking-error';
 import { getF1QLProgramHash } from './program-normalization';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v21' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v22' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 type EventResolution =
@@ -418,7 +418,10 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   }
   const statusSelectsClassification = contract.status_cues.length > 0
     && (source === 'race_classification' || source === 'qualifying_classification');
-  if (explicitSources.size === 0 && metrics.size === 0 && intent.type !== 'final_standings' && !statusSelectsClassification && !('selection_reference' in intent)) {
+  const bareQualifyingClassification = intent.type === 'qualifying_classification_all' &&
+    matchesBareQualifyingClassificationQuestion(contract, intent.season_reference, intent.event_reference);
+  if (explicitSources.size === 0 && metrics.size === 0 && intent.type !== 'final_standings' && !statusSelectsClassification &&
+      !('selection_reference' in intent) && !bareQualifyingClassification) {
     throw new AnswerSemanticProofError('template_mismatch');
   }
 }
@@ -440,7 +443,9 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
   } else if (statuses.size > 0) {
     throw new AnswerSemanticProofError('status_mismatch');
   }
-  const allRequested = contract.action_cues.some(cue => cue.value === 'all');
+  const bareQualifyingClassification = intent.type === 'qualifying_classification_all' &&
+    matchesBareQualifyingClassificationQuestion(contract, intent.season_reference, intent.event_reference);
+  const allRequested = contract.action_cues.some(cue => cue.value === 'all') || bareQualifyingClassification;
   const classificationIntent = intent.type.includes('_classification_');
   const allIntent = intent.type === 'race_classification_all' || intent.type === 'qualifying_classification_all';
   if (classificationIntent && allRequested !== allIntent) {
@@ -459,6 +464,20 @@ function proveStatusAndCardinality(contract: AnswerQuestionContract, intent: Exe
   } else if (contract.result_cues.length > 0) {
     throw new AnswerSemanticProofError('entity_cardinality_mismatch');
   }
+}
+
+function matchesBareQualifyingClassificationQuestion(
+  contract: AnswerQuestionContract,
+  season: LiteralMentionReference,
+  event: LiteralMentionReference
+): boolean {
+  if (contract.action_cues.length !== 0 || contract.status_cues.length !== 0 ||
+      contract.result_cues.length !== 0 || contract.metric_cues.length !== 0) {
+    return false;
+  }
+  const expected = `${season.text} ${event.text} qualifying`;
+  const question = contract.normalized_question.toLowerCase();
+  return question === expected.toLowerCase() || question === `${expected}.`.toLowerCase();
 }
 
 function sourceForIntent(intent: ExecutableAnswerIntent): 'standings' | 'race_classification' | 'race_classification_event_metadata' | 'qualifying_classification' | 'official_driver_results_comparison' | 'race_date' {

@@ -31,7 +31,7 @@ describe('independent answer semantic proof', () => {
       type: 'race_classification_driver', season: 2025, season_reference: span(question, '2025'), event_reference: span(question, 'Monaco'), driver_reference: span(question, 'Max')
     }, events, drivers);
     expect(proof.program.root).toMatchObject({ op: 'event_classification', season: 2025, round: 8, filters: { driver_id: 'max-verstappen' } });
-    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v21', template_id: 'race_classification_driver' });
+    expect(proof).toMatchObject({ version: 'answer-semantic-proof-v22', template_id: 'race_classification_driver' });
     expect(proof.question_hash).toHaveLength(64);
     expect(proof.intent_hash).toHaveLength(64);
     expect(proof.template_registry_hash).toHaveLength(64);
@@ -82,12 +82,39 @@ describe('independent answer semantic proof', () => {
     }, contract);
     const proof = await proveAnswerIntent(contract, intent, events, drivers);
     expect(proof).toMatchObject({
-      version: 'answer-semantic-proof-v21',
+      version: 'answer-semantic-proof-v22',
       template_id: 'final_standings_points',
       template_variables: { season: 2025 },
       program: { root: { op: 'aggregate', input: { op: 'filter', where: { season: 2025 } } } }
     });
     expect(proof.program.root).not.toMatchObject({ input: { where: { driver_id: expect.anything() } } });
+  });
+
+  it('independently proves only the exact complete qualifying shorthand', async () => {
+    const question = '2025 australian grand prix qualifying';
+    const contract = createAnswerQuestionContract(question);
+    const proof = await proveAnswerIntent(contract, {
+      type: 'qualifying_classification_all', season: 2025,
+      season_reference: span(question, '2025'), event_reference: span(question, 'australian grand prix')
+    }, {
+      resolve: async (season, name) => name === 'australian grand prix' ? { type: 'resolved', season, round: 1 } : { type: 'missing' },
+      resolveRound: async () => ({ type: 'missing' })
+    }, drivers);
+    expect(proof).toMatchObject({
+      version: 'answer-semantic-proof-v22',
+      template_id: 'qualifying_classification_all',
+      template_variables: { season: 2025, round: 1 },
+      program: { root: { op: 'qualifying_classification', season: 2025, round: 1 } }
+    });
+
+    const broader = '2025 australian grand prix qualifying results';
+    await expect(proveAnswerIntent(createAnswerQuestionContract(broader), {
+      type: 'qualifying_classification_all', season: 2025,
+      season_reference: span(broader, '2025'), event_reference: span(broader, 'australian grand prix')
+    }, {
+      resolve: async (season, name) => name === 'australian grand prix' ? { type: 'resolved', season, round: 1 } : { type: 'missing' },
+      resolveRound: async () => ({ type: 'missing' })
+    }, drivers)).rejects.toMatchObject({ reason: 'entity_cardinality_mismatch' });
   });
 
   it('keeps question-ordered pair mentions while canonicalizing final-standings template variables', async () => {

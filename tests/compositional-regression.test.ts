@@ -86,9 +86,9 @@ describe('Phase 11 compositional regression corpus', () => {
     expect(() => parseCompositionalRegressionSnapshot(contradictoryEntity)).toThrow();
   });
 
-  it('preserves the existing 113-case exact-template evaluation as a separate suite', async () => {
+  it('preserves the existing 114-case exact-template evaluation as a separate suite', async () => {
     const compositional = await runCompositionalRegressionCorpus(compositionalRegressionCorpusInput);
-    expect(answerEvaluationManifest).toHaveLength(113);
+    expect(answerEvaluationManifest).toHaveLength(114);
     expect(compositional.cases).toHaveLength(50);
     const legacyIds = new Set(answerEvaluationManifest.map(item => item.id));
     expect(compositional.cases.every(item => !legacyIds.has(item.id))).toBe(true);

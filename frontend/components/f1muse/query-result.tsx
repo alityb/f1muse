@@ -3,6 +3,13 @@
 import { useState } from "react"
 import { ChevronDown, Database, FileCheck2, ShieldCheck } from "lucide-react"
 import { type AnswerEnvelope, type AnswerFact } from "@/lib/api-client"
+import {
+  formatColumnLabel,
+  formatFactValue,
+  formatHeadline,
+  formatSubject,
+  humanizeIdentifier,
+} from "@/lib/answer-presentation"
 
 interface QueryResultViewProps {
   response: AnswerEnvelope
@@ -19,26 +26,26 @@ export function QueryResultView({ response }: QueryResultViewProps) {
             F1QL answer
           </h2>
           <p className="text-xs text-muted-foreground mt-1 font-mono">
-            {humanize(metadata.source)}
+            {humanizeIdentifier(metadata.source)}
           </p>
         </div>
         <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground/50 flex-shrink-0">
           <span title={response.program_hash}>{response.program_hash.slice(0, 8)}</span>
           <span className="w-px h-3 bg-border/50" />
-          <span>{metadata.coverage.rows_returned} rows</span>
+          <span>{metadata.coverage.rows_returned} {metadata.coverage.rows_returned === 1 ? "row" : "rows"}</span>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-3 border-b border-border/30">
-        <TrustBadge icon={<Database className="w-3 h-3" />} label="Source" value={humanize(metadata.source)} />
-        <TrustBadge icon={<ShieldCheck className="w-3 h-3" />} label="Coverage" value={humanize(metadata.coverage.status)} />
-        <TrustBadge icon={<FileCheck2 className="w-3 h-3" />} label="Program" value={humanize(response.program.root.op)} />
+        <TrustBadge icon={<Database className="w-3 h-3" />} label="Source" value={humanizeIdentifier(metadata.source)} />
+        <TrustBadge icon={<ShieldCheck className="w-3 h-3" />} label="Coverage" value={humanizeIdentifier(metadata.coverage.status)} />
+        <TrustBadge icon={<FileCheck2 className="w-3 h-3" />} label="Program" value={humanizeIdentifier(response.program.root.op)} />
       </div>
 
       <section className="space-y-4" aria-labelledby="answer-headline">
         <div className="p-4 bg-surface/50 border border-border/30">
           <p id="answer-headline" className="text-sm text-foreground leading-relaxed">
-            {answer.headline}
+            {formatHeadline(answer.headline, answer.facts.map((fact) => fact.subject))}
           </p>
         </div>
 
@@ -50,7 +57,7 @@ export function QueryResultView({ response }: QueryResultViewProps) {
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Coverage notes</p>
           {metadata.caveats.map((caveat) => (
             <p key={caveat} className="text-xs text-muted-foreground leading-relaxed">
-              {humanize(caveat)}
+              {humanizeIdentifier(caveat)}
             </p>
           ))}
         </div>
@@ -63,6 +70,9 @@ export function QueryResultView({ response }: QueryResultViewProps) {
 
 function FactsTable({ facts }: { facts: AnswerFact[] }) {
   const keys = Array.from(new Set(facts.flatMap((fact) => Object.keys(fact.values))))
+  const subjectLabel = keys.some((key) => key === "qualifying_position" || key === "finishing_position" || key === "championship_position")
+    ? "Driver"
+    : "Subject"
 
   return (
     <div className="overflow-x-auto">
@@ -70,11 +80,11 @@ function FactsTable({ facts }: { facts: AnswerFact[] }) {
         <thead>
           <tr className="border-b border-border/60">
             <th className="text-left text-[11px] font-normal text-muted-foreground pb-2 pr-4 uppercase tracking-wider">
-              Subject
+              {subjectLabel}
             </th>
             {keys.map((key) => (
               <th key={key} className="text-right text-[11px] font-normal text-muted-foreground pb-2 px-4 last:pr-0 uppercase tracking-wider whitespace-nowrap">
-                {humanize(key)}
+                {formatColumnLabel(key)}
               </th>
             ))}
           </tr>
@@ -82,10 +92,10 @@ function FactsTable({ facts }: { facts: AnswerFact[] }) {
         <tbody>
           {facts.map((fact, index) => (
             <tr key={`${fact.subject}-${index}`} className={`border-b border-border/20 ${index % 2 === 1 ? "bg-surface/30" : ""}`}>
-              <td className="py-2.5 pr-4 text-xs font-mono text-foreground/90 whitespace-nowrap">{humanize(fact.subject)}</td>
+              <td className="py-2.5 pr-4 text-xs font-medium text-foreground/90 whitespace-nowrap">{formatSubject(fact.subject)}</td>
               {keys.map((key) => (
                 <td key={key} className="py-2.5 px-4 last:pr-0 text-right text-xs font-mono text-muted-foreground whitespace-nowrap">
-                  {fact.values[key] ?? "-"}
+                  {formatFactValue(key, fact.values[key] ?? null)}
                 </td>
               ))}
             </tr>
@@ -145,8 +155,4 @@ function AnswerProvenance({ response }: { response: AnswerEnvelope }) {
       )}
     </div>
   )
-}
-
-function humanize(value: string): string {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
