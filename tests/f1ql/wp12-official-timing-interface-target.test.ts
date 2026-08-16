@@ -181,7 +181,7 @@ describe('WP12 detached official timing interface target', () => {
       predecessor_template_registry_sha256: 'd6923cd57538c57699de38764382ff42fa4d173955cd1e0a40f7e62fca577cbe',
       template_registry_transition_declared: false
     });
-    expect(Object.keys(target.exact_existing_template_statuses).sort()).toEqual([...ANSWER_TEMPLATE_IDS].sort());
+    expect(Object.keys(target.exact_existing_template_statuses).sort()).toEqual(ANSWER_TEMPLATE_IDS.filter(id => id !== 'final_standings'));
     expect(Object.entries(target.exact_existing_template_statuses).filter(([, status]) => status === 'equivalent'))
       .toEqual([['final_standings_points', 'equivalent']]);
     expect(target.official_timing.every((operation: any) =>
@@ -315,8 +315,8 @@ describe('WP12 detached official timing interface target', () => {
     expect(ANSWER_AUTHORIZATION_CODE_VERSION).toBe('answer-authorization-v27');
     expect(ANSWER_AUTHORIZATION_VERSION).toBe(14);
     expect(ANSWER_RELEASE_ATTESTATION_VERSION).toBe(8);
-    expect(ANSWER_TEMPLATE_REGISTRY_VERSION).toBe('answer-templates-v13');
-    expect(ANSWER_TEMPLATE_REGISTRY_HASH).toBe('d6923cd57538c57699de38764382ff42fa4d173955cd1e0a40f7e62fca577cbe');
+    expect(ANSWER_TEMPLATE_REGISTRY_VERSION).toBe('answer-templates-v14');
+    expect(ANSWER_TEMPLATE_REGISTRY_HASH).toBe('04df7e71f1d80aafa6bc524c55e4e6b410ff7da585a26d429806179b3e34480c');
     const eventMean = authorizeAnswerProgram({
       version: 1,
       root: {
@@ -348,7 +348,7 @@ describe('WP12 detached official timing interface target', () => {
       }
     })).toEqual({ type: 'rejected', reason: 'classification_filter_combination_unsupported' });
     expect(createHash('sha256').update(readFileSync('src/f1ql/answer-policy.ts')).digest('hex'))
-      .toBe('4e580f6faf80d5b6bfa61028aa70787ae3676959b9c2e553ba403f6b6611061d');
+      .toBe('36d087fc494859117fc9874bdcec91540592071890db255a4d127814f60e5e68');
   });
 
   it('has no execution/provider implementation imports or inbound production imports', () => {

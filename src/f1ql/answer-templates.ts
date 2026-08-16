@@ -9,7 +9,7 @@ import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-
 import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 import { COMPLETED_QUALIFYING_SEASONS, DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID, SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID } from './qualifying-counts';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v13' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v14' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -25,7 +25,7 @@ const RACE_STATUSES = ['classified', 'dnf', 'dns', 'dsq', 'not_classified', 'wit
 const QUALIFYING_STATUSES = ['classified', 'dnf', 'dns'] as const;
 
 export type AnswerTemplateId =
-  | 'final_standings_points' | 'final_standings_leader' | 'current_standings'
+  | 'final_standings' | 'final_standings_points' | 'final_standings_leader' | 'current_standings'
   | 'final_standings_driver_ranking'
   | 'driver_season_official_summary'
   | 'driver_career_official_summary'
@@ -63,6 +63,10 @@ const roundConstraint = { type: 'integer', minimum: ROUND_MIN, maximum: ROUND_MA
 const driverIdConstraint = { type: 'string', pattern: DRIVER_ID_PATTERN, max_length: DRIVER_ID_MAX_LENGTH } as const;
 
 export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
+  final_standings: {
+    variables: { season: finalSeasonConstraint },
+    semantic: 'complete official final driver standings for the exact reviewed 2025 shorthand; official championship position and points ordered by position, limit 30'
+  },
   final_standings_points: {
     variables: { season: finalSeasonConstraint, driver_ids: { type: 'array', item: driverIdConstraint, minimum_items: 1, maximum_items: 4, unique: true, optional: true } },
     semantic: 'standings filtered to one final season and optional driver set; max points grouped by driver_id'
@@ -162,6 +166,7 @@ export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
 } satisfies Record<AnswerTemplateId, { variables: object; semantic: string }>);
 
 const variableSchemas = {
+  final_standings: z.object({ season: finalSeason }).strict(),
   final_standings_points: z.object({ season: finalSeason, driver_ids: z.array(resolvedDriverId).min(1).max(4).refine(ids => new Set(ids).size === ids.length, 'Resolved driver IDs must be unique').optional() }).strict(),
   final_standings_leader: z.object({ season: finalSeason }).strict(),
   final_standings_driver_ranking: z.object({ season: finalSeason, driver_ids: z.array(resolvedDriverId).length(3).refine(ids => new Set(ids).size === ids.length, 'Resolved driver IDs must be unique') }).strict(),
@@ -291,14 +296,14 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
       },
       by: 'championship_position', direction: 'asc', limit: 3
     };
-  } else if (templateId === 'final_standings_leader' || templateId === 'current_standings') {
+  } else if (templateId === 'final_standings' || templateId === 'final_standings_leader' || templateId === 'current_standings') {
     root = {
       op: 'rank',
       input: {
         op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: scoped.season } }, group_by: ['driver_id'],
         measures: [{ as: 'championship_position', function: 'min', field: 'championship_position' }, { as: 'points', function: 'max', field: 'points' }]
       },
-      by: 'championship_position', direction: 'asc', limit: templateId === 'current_standings' ? 30 : 1
+      by: 'championship_position', direction: 'asc', limit: templateId === 'final_standings_leader' ? 1 : 30
     };
   } else if (templateId === 'race_date') {
     root = { op: 'event_metadata', season: scoped.season, round: scoped.round as number, session_scope: 'race' };
@@ -325,6 +330,7 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
 type AnswerTemplateMaterializer = (templateId: AnswerTemplateId, variables: unknown) => F1QLProgram;
 
 const templateSentinels: Readonly<Record<AnswerTemplateId, readonly unknown[]>> = Object.freeze({
+  final_standings: [{ season: 2025 }],
   final_standings_points: [{ season: 2025 }, { season: 2025, driver_ids: ['sentinel-driver', 'second-driver'] }],
   final_standings_leader: [{ season: 2025 }],
   final_standings_driver_ranking: [{ season: 2025, driver_ids: ['sentinel-driver', 'second-driver', 'third-driver'] }],

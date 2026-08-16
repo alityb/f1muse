@@ -11,6 +11,7 @@ export interface LaunchParityCase {
 
 export const launchParityManifest: readonly LaunchParityCase[] = [
   contracted('season-summary', 'driver_season_summary', 'Show Max Verstappen official 2025 season summary.', 'driver_season_official_summary'),
+  contracted('complete-final-standings', 'driver_season_summary', '2025 driver standings.', 'final_standings'),
   contracted('current-standings', 'driver_season_summary', 'Show the latest recorded 2026 driver standings.', 'current_standings'),
   contracted('career-summary', 'driver_career_summary', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary'),
   contracted('profile-replacement', 'driver_profile_summary', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'),

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v12' as const;
+export const ANSWER_INTENT_SCHEMA_VERSION = 'answer-intent-schema-v13' as const;
 
 const literalReferenceSchema = z.object({
   text: z.string().min(1).max(200),
@@ -42,6 +42,7 @@ const selectionFields = { selection_reference: literalReferenceSchema };
 const untrustedSelectionFields = { selection_reference: untrustedLiteralReferenceSchema };
 
 export const answerIntentSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('final_standings'), ...finalSeasonFields }).strict(),
   z.object({ type: z.literal('final_standings_points'), ...seasonFields, driver_references: z.array(literalReferenceSchema).max(4) }).strict(),
   z.object({ type: z.literal('final_standings_leader'), ...seasonFields }).strict(),
   z.object({ type: z.literal('final_standings_driver_ranking'), ...finalSeasonFields, driver_references: z.array(literalReferenceSchema).length(3) }).strict(),
@@ -76,6 +77,7 @@ export const answerIntentSchema = z.discriminatedUnion('type', [
 ]);
 
 export const untrustedAnswerIntentCandidateSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('final_standings'), ...untrustedFinalSeasonFields }).strict(),
   z.object({ type: z.literal('final_standings_points'), ...untrustedSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).max(4) }).strict(),
   z.object({ type: z.literal('final_standings_leader'), ...untrustedSeasonFields }).strict(),
   z.object({ type: z.literal('final_standings_driver_ranking'), ...untrustedFinalSeasonFields, driver_references: z.array(untrustedLiteralReferenceSchema).length(3) }).strict(),

@@ -1,7 +1,7 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v14' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v15' as const;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -50,7 +50,7 @@ export async function deriveAnswerIntent(
   }
   const seasonFields = { season: seasonMention.value, season_reference: copyReference(seasonMention) };
   const inventory = await resolver.inventoryMentions(contract.normalized_question, seasonMention.value);
-  const drivers = inventory.filter(mention => !isSummaryStructureMention(contract, mention)).map(copyReference).sort(compareReferenceSpans);
+  const drivers = inventory.filter(mention => !isStructuralDriverMention(contract, mention)).map(copyReference).sort(compareReferenceSpans);
   return parseAnswerIntent(selectIntent(contract, seasonFields, drivers), contract);
 }
 
@@ -282,6 +282,12 @@ function standingsIntent(
       && contract.result_cues.length === 0 && matchesPinnedDriverRankingQuestion(contract.normalized_question);
     return valid ? { type: 'final_standings_driver_ranking', ...seasonFields, driver_references: drivers } : unsupported;
   }
+  const completeFinal = seasonFields.season === 2025 && drivers.length === 0 && metrics.size === 0
+    && contract.status_cues.length === 0 && contract.action_cues.length === 0 && contract.result_cues.length === 0
+    && /^2025 driver standings\.?$/iu.test(contract.normalized_question);
+  if (completeFinal) {
+    return { type: 'final_standings', ...seasonFields };
+  }
   if (isPointsSelection(contract, drivers, metrics)) {
     return { type: 'final_standings_points', ...seasonFields, driver_references: drivers };
   }
@@ -447,9 +453,12 @@ function compareReferenceSpans(left: LiteralMentionReference, right: LiteralMent
   return left.start - right.start || left.end - right.end;
 }
 
-function isSummaryStructureMention(contract: AnswerQuestionContract, mention: DriverInventoryMention): boolean {
-  return mention.text.toLocaleLowerCase('en-US') === 'driver' && contract.metric_cues.some(cue =>
-    cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end);
+function isStructuralDriverMention(contract: AnswerQuestionContract, mention: DriverInventoryMention): boolean {
+  if (mention.text.toLocaleLowerCase('en-US') !== 'driver') {
+    return false;
+  }
+  return contract.metric_cues.some(cue => cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end)
+    || contract.source_cues.some(cue => cue.value === 'standings' && mention.start >= cue.start && mention.end <= cue.end);
 }
 
 function matchesSeasonSummaryQuestion(question: string, driver: LiteralMentionReference): boolean {

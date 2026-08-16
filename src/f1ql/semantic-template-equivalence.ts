@@ -40,6 +40,7 @@ export const SEMANTIC_TEMPLATE_EQUIVALENCE = deepFreeze({
   driver_season_official_summary: unmapped(),
   driver_season_qualifying_p1_count: unmapped(),
   driver_season_qualifying_top_ten_count: unmapped(),
+  final_standings: unmapped(),
   final_standings_driver_ranking: unmapped(),
   final_standings_leader: unmapped(),
   final_standings_points: {

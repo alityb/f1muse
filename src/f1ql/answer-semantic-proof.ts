@@ -6,7 +6,7 @@ import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './linking-error';
 import { getF1QLProgramHash } from './program-normalization';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v19' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v20' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 type EventResolution =
@@ -122,7 +122,7 @@ export async function proveAnswerIntent(
     driverReferences = intent.driver_references;
   }
   const rawInventory = await driverResolver.inventoryMentions(contract.normalized_question, 'season' in intent ? intent.season : undefined);
-  const inventory = rawInventory.filter(mention => !isSummaryStructureMention(contract, mention)).sort(compareReferences);
+  const inventory = rawInventory.filter(mention => !isStructuralDriverMention(contract, mention)).sort(compareReferences);
   proveDriverReferenceInventory(driverReferences, inventory);
   const driverIds: string[] = [];
   const resolvedDriverIds = new Map<string, string>();
@@ -373,6 +373,9 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (intent.type === 'final_standings_points' && !metrics.has('points')) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
+  if (intent.type === 'final_standings' && (!/^2025 driver standings\.?$/iu.test(contract.normalized_question) || intent.season !== 2025 || metrics.size !== 0)) {
+    throw new AnswerSemanticProofError('metric_mismatch');
+  }
   if (intent.type === 'final_standings_leader' && (!metrics.has('official_leader') || !matchesSupportedLeaderQuestion(contract.normalized_question))) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
@@ -414,7 +417,7 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   }
   const statusSelectsClassification = contract.status_cues.length > 0
     && (source === 'race_classification' || source === 'qualifying_classification');
-  if (explicitSources.size === 0 && metrics.size === 0 && !statusSelectsClassification && !('selection_reference' in intent)) {
+  if (explicitSources.size === 0 && metrics.size === 0 && intent.type !== 'final_standings' && !statusSelectsClassification && !('selection_reference' in intent)) {
     throw new AnswerSemanticProofError('template_mismatch');
   }
 }
@@ -592,9 +595,12 @@ function referenceValue(reference: LiteralMentionReference): Record<string, unkn
   return { end: reference.end, start: reference.start, text: reference.text };
 }
 
-function isSummaryStructureMention(contract: AnswerQuestionContract, mention: LiteralMentionReference): boolean {
-  return mention.text.toLocaleLowerCase('en-US') === 'driver' && contract.metric_cues.some(cue =>
-    cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end);
+function isStructuralDriverMention(contract: AnswerQuestionContract, mention: LiteralMentionReference): boolean {
+  if (mention.text.toLocaleLowerCase('en-US') !== 'driver') {
+    return false;
+  }
+  return contract.metric_cues.some(cue => cue.value === 'official_season_summary' && mention.start >= cue.start && mention.end <= cue.end)
+    || contract.source_cues.some(cue => cue.value === 'standings' && mention.start >= cue.start && mention.end <= cue.end);
 }
 
 function canonicalDriverId(value: string): string {

@@ -392,6 +392,27 @@ describe('deterministic answer formatting', () => {
     });
   });
 
+  it('formats complete final standings in official position order', () => {
+    const final = materializeAnswerTemplate('final_standings', { season: 2025 });
+    const formatted = formatAnswerRows(final, approved(final), [
+      { driver_id: 'lando-norris', championship_position: 1, points: '423.000' },
+      { driver_id: 'oscar-piastri', championship_position: 2, points: '410.000' }
+    ]);
+    expect(formatted).toEqual({
+      answer: {
+        headline: 'Final 2025 driver standings result.',
+        facts: [
+          { subject: 'lando-norris', values: { championship_position: '1', points: '423' } },
+          { subject: 'oscar-piastri', values: { championship_position: '2', points: '410' } }
+        ]
+      },
+      coverage: 'sufficient', caveats: []
+    });
+    expect(() => formatAnswerRows(final, approved(final), [
+      { driver_id: 'oscar-piastri', championship_position: 2, points: 410 }
+    ])).toThrow(AnswerFormatError);
+  });
+
   it('fails closed for missing, duplicate, or non-increasing current positions', () => {
     const current = materializeAnswerTemplate('current_standings', { season: 2026 });
     const row = (driver_id: string, championship_position?: unknown) => ({ driver_id, championship_position, points: 1 });

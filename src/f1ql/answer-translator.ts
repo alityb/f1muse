@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import { AnswerIntent, hydrateAndParseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract } from './answer-question';
 
-export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v13';
-export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v16' as const;
+export const ANSWER_TRANSLATOR_SCHEMA_NAME = 'f1_answer_intent_v14';
+export const ANSWER_INTENT_CONTRACT_VERSION = 'answer-intent-v17' as const;
 export const ANSWER_PROVIDER_DIAGNOSTIC_CODES = [
   'transport',
   'auth',
@@ -56,6 +56,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
   properties: {
     intent: {
       anyOf: [
+        closedIntent('final_standings', finalSeasonProperties, ['season', 'season_reference']),
         closedIntent('final_standings_points', { ...seasonProperties, driver_references: { type: 'array', maxItems: 4, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
         closedIntent('final_standings_leader', seasonProperties, ['season', 'season_reference']),
         closedIntent('final_standings_driver_ranking', { ...finalSeasonProperties, driver_references: { type: 'array', minItems: 3, maxItems: 3, items: referenceSchema } }, ['season', 'season_reference', 'driver_references']),
@@ -95,6 +96,7 @@ export const ANSWER_INTENT_JSON_SCHEMA = Object.freeze({
 export const ANSWER_TRANSLATOR_SYSTEM_PROMPT = `Return exactly { "intent": <AnswerIntent> } matching the strict JSON schema. Never emit IDs or F1QL. Every reference must copy an exact case-sensitive text sequence from the normalized question; emit text only, never offsets.
 
 Decision table (follow literal wording):
+- final_standings: only the exact reviewed shorthand "2025 driver standings." (final period optional); return the complete official final table ordered by championship position with points, never current/interim standings or a caller-selected subset.
 - final_standings_points: final driver standings points for zero to four explicitly named drivers; zero means the literal wording requests all standings.
 - final_standings_leader: final driver standings champion/leader.
 - final_standings_driver_ranking: only the exact pinned wording "Rank Verstappen, Norris, and Piastri by final 2025 championship position." or the exact holdout wording "Rank Verstappen, Norris, and Piastri by championship position in the final 2025 standings." with those three literal driver references in that order; this uses official final championship positions, never points, pace, race results, current standings, another season, another driver set, or a caller-selected limit.
@@ -123,6 +125,8 @@ Decision table (follow literal wording):
 Rules: final standings are supported. Literal latest-recorded standings are also supported. An explicit 4-digit year is never season_missing. The driver career summary, career circuit-wins, and career qualifying-P1-count intents are the only supported intents that do not require a year. Session, event, driver, status, and all/single cardinality must follow literal wording; do not infer them. A unique literal status cue selects the status-filter intent even with wording such as "show all classified drivers". Map DNF/DNFs/did not finish to dnf and DNS/DNSs/did not start to dns. A status_reference must copy the complete literal status phrase. The server normalizes the candidate status enum and full status_reference from the single trusted literal status cue. For driver_references, emit one reference object per literal driver occurrence, including repeated identical text. Use clarification only for: season_missing when a year-required intent has no year; event_ambiguous, entity_ambiguous, session_ambiguous, or metric_ambiguous when the wording itself has that ambiguity. Use unsupported only for: sprint_source_unsupported, grid_source_unsupported, constructor_source_unsupported, pace_source_disabled, team_filter_unsupported, interim_standings_unsupported, temporal_scope_unsupported, or capability_unsupported. Never relabel a supported final or literal latest-recorded standings request as unsupported.
 
 Valid examples:
+Question: 2025 driver standings.
+{"intent":{"type":"final_standings","season":2025,"season_reference":{"text":"2025"}}}
 Question: Who led the 2025 standings?
 {"intent":{"type":"final_standings_leader","season":2025,"season_reference":{"text":"2025"}}}
 Question: Rank Verstappen, Norris, and Piastri by final 2025 championship position.

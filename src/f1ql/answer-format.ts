@@ -537,10 +537,13 @@ function formatStandings(
       throw new AnswerFormatError('Filtered final standings drivers were invalid');
     }
   }
-  if (current) {
+  const completeStandings = current || (program.root.op === 'rank' && program.root.limit === 30 &&
+    program.root.input.op === 'aggregate' && program.root.input.input.op === 'filter' &&
+    program.root.input.input.where.driver_id === undefined);
+  if (completeStandings) {
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
     if (positions.some((position, index) => position !== index + 1)) {
-      throw new AnswerFormatError('Current standings positions were invalid');
+      throw new AnswerFormatError('Complete standings positions were invalid');
     }
   }
   const facts = ordered.map(row => ({

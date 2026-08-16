@@ -32,7 +32,7 @@ export async function emitAnswerEvaluationResults(pool: Pool) {
 
 function templateVariables(templateId: AnswerTemplateId, program: F1QLProgram): Record<string, unknown> {
   const root = program.root;
-  if ((templateId === 'final_standings_leader' || templateId === 'current_standings') && root.op === 'rank' && root.input.input.op === 'filter') {
+  if ((templateId === 'final_standings' || templateId === 'final_standings_leader' || templateId === 'current_standings') && root.op === 'rank' && root.input.input.op === 'filter') {
     return { season: root.input.input.where.season };
   }
   if (templateId === 'final_standings_driver_ranking' && root.op === 'rank' && root.input.input.op === 'filter' && Array.isArray(root.input.input.where.driver_id)) {

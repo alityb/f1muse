@@ -165,6 +165,7 @@ function executableIntent(contract: AnswerQuestionContract, template: string, in
   const season_reference = { text: seasonMention.text, start: seasonMention.start, end: seasonMention.end };
   const event = contract.event_cues[0] ?? contract.rounds[0];
   const event_reference = event ? { text: event.text, start: event.start, end: event.end } : undefined;
+  if (template === 'final_standings') return { type: template, season, season_reference };
   if (template === 'final_standings_points') return { type: template, season, season_reference, driver_references: references };
   if (template === 'final_standings_driver_ranking') return { type: template, season, season_reference, driver_references: references };
   if (template === 'final_standings_leader') return { type: template, season, season_reference };

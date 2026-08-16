@@ -18,6 +18,11 @@ const standingsAggregate = (season: number | number[] | undefined, driver_id?: s
 describe('Phase 7 answer capability policy', () => {
   it.each([
     {
+      name: 'complete final 2025 standings',
+      program: materializeAnswerTemplate('final_standings', { season: 2025 }),
+      source: 'final_driver_standings'
+    },
+    {
       name: 'latest-recorded current standings',
       program: materializeAnswerTemplate('current_standings', { season: 2026 }),
       source: 'current_driver_standings'

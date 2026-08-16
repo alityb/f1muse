@@ -31,7 +31,7 @@ describe('Phase 11 current-template equivalence accounting', () => {
       .toHaveLength(ANSWER_TEMPLATE_IDS.length - 1);
   });
 
-  it('accounts for all 75 cases without claiming routing or broader wire equivalence', () => {
+  it('accounts for all 77 cases without claiming routing or broader wire equivalence', () => {
     const answerCases = answerEvaluationManifest.filter(item => item.expected.action === 'answer');
     const programDispositions = answerCases.map(item => ({ id: item.id, disposition: dispositionFor(item) }));
     const caseDispositions = programDispositions.map(item => {
@@ -48,8 +48,8 @@ describe('Phase 11 current-template equivalence accounting', () => {
       };
     });
 
-    expect(answerEvaluationManifest).toHaveLength(110);
-    expect(answerCases).toHaveLength(75);
+    expect(answerEvaluationManifest).toHaveLength(112);
+    expect(answerCases).toHaveLength(77);
     expect(caseDispositions).toHaveLength(answerCases.length);
     expect(new Set(caseDispositions.map(item => item.id)).size).toBe(answerCases.length);
     expect(programDispositions.filter(item => item.disposition === 'program_shape_overlap').map(item => item.id))
@@ -57,10 +57,10 @@ describe('Phase 11 current-template equivalence accounting', () => {
         'dev-points', 'iid-points-pair', 'iid-points-all', 'iid-tie', 'holdout-historical-points',
         'unicode-astral', 'meta-pair-order'
       ]);
-    expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(68);
+    expect(programDispositions.filter(item => item.disposition === 'unmapped')).toHaveLength(70);
     expect(caseDispositions.filter(item => item.disposition === 'wire_envelope_contract_equivalent').map(item => item.id))
       .toEqual(['dev-points', 'iid-points-pair', 'iid-points-all', 'iid-tie', 'holdout-historical-points', 'meta-pair-order']);
-    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(69);
+    expect(caseDispositions.filter(item => item.disposition.endsWith('_unmapped'))).toHaveLength(71);
 
     expect(enumerateSemanticQueries(answerCases.find(item => item.id === 'dev-points')!.question))
       .toMatchObject({ type: 'candidate_set', candidates: [expect.any(Object)] });

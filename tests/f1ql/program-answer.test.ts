@@ -362,6 +362,20 @@ describe('gated answer route', () => {
     expect(executedPrincipalClasses).toEqual(['public']);
   });
 
+  it('serves the exact complete 2025 driver standings shorthand on the public route', async () => {
+    const response = await askPublic('2025 driver standings.');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      mode: 'gated_execution',
+      answer: {
+        headline: 'Final 2025 driver standings result.',
+        facts: [{ subject: 'lando-norris', values: { championship_position: '1', points: '357' } }]
+      }
+    });
+    expect({ derivationAttempts, executionAttempts }).toEqual({ derivationAttempts: 1, executionAttempts: 1 });
+    expect(executedPrincipalClasses).toEqual(['public']);
+  });
+
   it('keeps evaluation and observation entrypoints structurally non-executing', () => {
     assertNoReachableExecution([
       'scripts/collect-answer-evaluation-observations.ts',

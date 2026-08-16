@@ -4,6 +4,7 @@ import { normalizeF1QLProgram } from '../../src/f1ql/verified-programs';
 
 describe('answer template registry', () => {
   const cases = [
+    ['final_standings', { season: 2025 }, 'rank'],
     ['final_standings_points', { season: 2025, driver_ids: ['lando-norris'] }, 'aggregate'],
     ['final_standings_leader', { season: 2025 }, 'rank'],
     ['final_standings_driver_ranking', { season: 2025, driver_ids: ['max-verstappen', 'lando-norris', 'oscar-piastri'] }, 'rank'],
@@ -31,8 +32,8 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v13', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
-    expect(ANSWER_TEMPLATE_IDS).toHaveLength(24);
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v14', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_IDS).toHaveLength(25);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY_CONTRACT)).toBe(true);

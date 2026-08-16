@@ -427,8 +427,8 @@ describe('answer observation artifacts', () => {
     expect(command).toContain("'BEGIN READ ONLY'");
     expect(command).toContain('proveAnswerIntent');
     expect(command).toContain('createAnswerIntentModel');
-    expect(answerEvaluationManifest).toHaveLength(110);
-    expect(command.match(/!== 110/g)).toHaveLength(2);
+    expect(answerEvaluationManifest).toHaveLength(112);
+    expect(command.match(/!== 112/g)).toHaveLength(2);
   });
 });
 

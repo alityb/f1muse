@@ -287,6 +287,204 @@
     }
   },
   {
+    "id": "launch-final-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 30
+        }
+      },
+      "program_hash": "651cd577da64d9b4155bbd71224821215e7fb3ace10d5f96919f267eff8d2c96",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1",
+              "points": "300"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2",
+              "points": "300"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "25"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "points": "300"
+        },
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "points": "300"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "25"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 30.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v10",
+        "compiler_version": "core-v11",
+        "fact_space_version": "source-views-v3",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "holdout-final-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2025
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 30
+        }
+      },
+      "program_hash": "651cd577da64d9b4155bbd71224821215e7fb3ace10d5f96919f267eff8d2c96",
+      "answer": {
+        "headline": "Final 2025 driver standings result.",
+        "facts": [
+          {
+            "subject": "oscar-piastri",
+            "values": {
+              "championship_position": "1",
+              "points": "300"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2",
+              "points": "300"
+            }
+          },
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "3",
+              "points": "25"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "oscar-piastri",
+          "championship_position": 1,
+          "points": "300"
+        },
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "points": "300"
+        },
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 3,
+          "points": "25"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 30.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v10",
+        "compiler_version": "core-v11",
+        "fact_space_version": "source-views-v3",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
     "id": "iid-points-all",
     "envelope": {
       "mode": "gated_execution",
