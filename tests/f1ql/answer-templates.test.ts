@@ -32,7 +32,7 @@ describe('answer template registry', () => {
   ] as const;
 
   it('has an exact immutable versioned registry', () => {
-    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v14', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
+    expect(ANSWER_TEMPLATE_REGISTRY).toEqual({ version: 'answer-templates-v15', template_ids: [...ANSWER_TEMPLATE_IDS], contracts: ANSWER_TEMPLATE_REGISTRY_CONTRACT });
     expect(ANSWER_TEMPLATE_IDS).toHaveLength(25);
     expect(Object.isFrozen(ANSWER_TEMPLATE_REGISTRY)).toBe(true);
     expect(Object.isFrozen(ANSWER_TEMPLATE_IDS)).toBe(true);
@@ -72,6 +72,17 @@ describe('answer template registry', () => {
     expect(materializeAnswerTemplate('race_classification_all', { season: 2025, round: 1 }).root).toMatchObject({ limit: 30 });
     expect(materializeAnswerTemplate('qualifying_classification_all', { season: 2025, round: 1 }).root).toMatchObject({ limit: 30 });
     expect(materializeAnswerTemplate('race_date', { season: 2025, round: 1 }).root).toMatchObject({ session_scope: 'race' });
+  });
+
+  it('owns complete final standings for every completed season with a non-truncating row bound', () => {
+    for (const season of [1950, 1997, 2023, 2025]) {
+      expect(materializeAnswerTemplate('final_standings', { season }).root).toMatchObject({
+        by: 'championship_position', direction: 'asc', limit: 50,
+        input: { input: { where: { season } } }
+      });
+    }
+    expect(() => materializeAnswerTemplate('final_standings', { season: 1949 })).toThrow();
+    expect(() => materializeAnswerTemplate('final_standings', { season: 2026 })).toThrow();
   });
 
   it('owns latest-recorded official ordering and exact reviewed season', () => {

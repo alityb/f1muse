@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, parseRoundReference } from './answer-question';
-import { ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION, AnswerTemplateId, AnswerTemplateVariables, computeAnswerTemplateRegistryHash, materializeAnswerTemplate, validateAnswerTemplateVariables } from './answer-templates';
+import { ANSWER_FINAL_STANDINGS_SEASONS, ANSWER_TEMPLATE_REGISTRY_HASH, ANSWER_TEMPLATE_REGISTRY_VERSION, AnswerTemplateId, AnswerTemplateVariables, computeAnswerTemplateRegistryHash, materializeAnswerTemplate, validateAnswerTemplateVariables } from './answer-templates';
 import { F1QLProgram } from './ast';
 import { F1QLLinkingError } from './linking-error';
 import { getF1QLProgramHash } from './program-normalization';
 
-export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v20' as const;
+export const ANSWER_SEMANTIC_PROOF_VERSION = 'answer-semantic-proof-v21' as const;
 export const ANSWER_AMBIGUITY_MAX_OPTIONS = 5;
 
 type EventResolution =
@@ -373,7 +373,8 @@ function proveSourceSessionAndMetric(contract: AnswerQuestionContract, intent: E
   if (intent.type === 'final_standings_points' && !metrics.has('points')) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
-  if (intent.type === 'final_standings' && (!/^2025 driver standings\.?$/iu.test(contract.normalized_question) || intent.season !== 2025 || metrics.size !== 0)) {
+  if (intent.type === 'final_standings' && (!/^(?:19[5-9]\d|20(?:0\d|1\d|2[0-5])) driver standings\.?$/iu.test(contract.normalized_question) ||
+      !ANSWER_FINAL_STANDINGS_SEASONS.includes(intent.season) || metrics.size !== 0)) {
     throw new AnswerSemanticProofError('metric_mismatch');
   }
   if (intent.type === 'final_standings_leader' && (!metrics.has('official_leader') || !matchesSupportedLeaderQuestion(contract.normalized_question))) {

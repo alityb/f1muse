@@ -392,18 +392,22 @@ describe('deterministic answer formatting', () => {
     });
   });
 
-  it('formats complete final standings in official position order', () => {
-    const final = materializeAnswerTemplate('final_standings', { season: 2025 });
+  it('formats complete historical standings while preserving official ties and gaps', () => {
+    const final = materializeAnswerTemplate('final_standings', { season: 2023 });
     const formatted = formatAnswerRows(final, approved(final), [
-      { driver_id: 'lando-norris', championship_position: 1, points: '423.000' },
-      { driver_id: 'oscar-piastri', championship_position: 2, points: '410.000' }
+      { driver_id: 'max-verstappen', championship_position: 1, points: '575.000' },
+      { driver_id: 'sergio-perez', championship_position: 2, points: '285.000' },
+      { driver_id: 'fixture-tied', championship_position: 2, points: '285.000' },
+      { driver_id: 'lewis-hamilton', championship_position: 4, points: '234.000' }
     ]);
     expect(formatted).toEqual({
       answer: {
-        headline: 'Final 2025 driver standings result.',
+        headline: 'Final 2023 driver standings result.',
         facts: [
-          { subject: 'lando-norris', values: { championship_position: '1', points: '423' } },
-          { subject: 'oscar-piastri', values: { championship_position: '2', points: '410' } }
+          { subject: 'max-verstappen', values: { championship_position: '1', points: '575' } },
+          { subject: 'sergio-perez', values: { championship_position: '2', points: '285' } },
+          { subject: 'fixture-tied', values: { championship_position: '2', points: '285' } },
+          { subject: 'lewis-hamilton', values: { championship_position: '4', points: '234' } }
         ]
       },
       coverage: 'sufficient', caveats: []
@@ -411,6 +415,13 @@ describe('deterministic answer formatting', () => {
     expect(() => formatAnswerRows(final, approved(final), [
       { driver_id: 'oscar-piastri', championship_position: 2, points: 410 }
     ])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(final, approved(final), [
+      { driver_id: 'max-verstappen', championship_position: 1, points: 575 },
+      { driver_id: 'max-verstappen', championship_position: 2, points: 285 }
+    ])).toThrow(AnswerFormatError);
+    expect(() => formatAnswerRows(final, approved(final), [
+      { driver_id: 'max-verstappen', championship_position: 1, points: 575 }
+    ], { row_limit: 100, has_more_rows: true })).toThrow(AnswerFormatError);
   });
 
   it('fails closed for missing, duplicate, or non-increasing current positions', () => {

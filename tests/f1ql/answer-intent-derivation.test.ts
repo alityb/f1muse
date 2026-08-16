@@ -29,6 +29,8 @@ function inventory(...literals: string[]): AnswerIntentInventoryResolver {
 describe('provider-free answer intent derivation', () => {
   const templates = [
     ['2025 driver standings.', inventory('driver'), 'final_standings'],
+    ['2023 driver standings.', inventory('driver'), 'final_standings'],
+    ['1950 driver standings', inventory('driver'), 'final_standings'],
     ['Final 2025 standings points for Lando Norris.', inventory('Lando Norris'), 'final_standings_points'],
     ['Who was the final 2025 standings leader?', inventory(), 'final_standings_leader'],
     ['Who won the 2021 FIA Formula 1 World Drivers Championship?', inventory(), 'final_standings_leader'],
@@ -75,16 +77,16 @@ describe('provider-free answer intent derivation', () => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), resolver);
     expect(intent.type).toBe(type);
     expect(Object.isFrozen(intent)).toBe(true);
-    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v15');
+    expect(ANSWER_INTENT_DERIVATION_VERSION).toBe('answer-intent-derivation-v16');
   });
 
   it.each([
-    '2024 driver standings.',
+    '1949 driver standings.',
     '2026 driver standings.',
     '2025 constructor standings.',
     '2025 driver standings points.',
     'Show 2025 driver standings.'
-  ])('does not broaden the reviewed complete final-standings shorthand: %s', async question => {
+  ])('keeps complete final-standings shorthand inside the completed-season and exact-wording contract: %s', async question => {
     const intent = await deriveAnswerIntent(createAnswerQuestionContract(question), inventory());
     expect(intent.type).not.toBe('final_standings');
   });

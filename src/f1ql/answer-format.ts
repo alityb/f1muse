@@ -537,12 +537,19 @@ function formatStandings(
       throw new AnswerFormatError('Filtered final standings drivers were invalid');
     }
   }
-  const completeStandings = current || (program.root.op === 'rank' && program.root.limit === 30 &&
+  const completeStandings = current || (program.root.op === 'rank' && program.root.limit === 50 &&
     program.root.input.op === 'aggregate' && program.root.input.input.op === 'filter' &&
     program.root.input.input.where.driver_id === undefined);
   if (completeStandings) {
+    if (ordered.length === 0 || collection.has_more_rows) {
+      throw new AnswerFormatError('Complete standings collection evidence was invalid');
+    }
     const positions = ordered.map(row => requiredPosition(row.championship_position, 'championship_position'));
-    if (positions.some((position, index) => position !== index + 1)) {
+    const driverIds = ordered.map(row => requiredString(row.driver_id, 'driver_id'));
+    const positionsInvalid = current
+      ? positions.some((position, index) => position !== index + 1)
+      : positions[0] !== 1 || positions.some((position, index) => index > 0 && position < positions[index - 1]);
+    if (new Set(driverIds).size !== driverIds.length || positionsInvalid) {
       throw new AnswerFormatError('Complete standings positions were invalid');
     }
   }

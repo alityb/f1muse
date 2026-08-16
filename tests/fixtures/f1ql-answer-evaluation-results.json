@@ -324,10 +324,10 @@
           },
           "by": "championship_position",
           "direction": "asc",
-          "limit": 30
+          "limit": 50
         }
       },
-      "program_hash": "651cd577da64d9b4155bbd71224821215e7fb3ace10d5f96919f267eff8d2c96",
+      "program_hash": "6ab343581c085320b32721366bc5ac449460d0aae4e1bd813d4c0ace00462256",
       "answer": {
         "headline": "Final 2025 driver standings result.",
         "facts": [
@@ -371,7 +371,7 @@
           "points": "25"
         }
       ],
-      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 30.",
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 50.",
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",
@@ -423,10 +423,10 @@
           },
           "by": "championship_position",
           "direction": "asc",
-          "limit": 30
+          "limit": 50
         }
       },
-      "program_hash": "651cd577da64d9b4155bbd71224821215e7fb3ace10d5f96919f267eff8d2c96",
+      "program_hash": "6ab343581c085320b32721366bc5ac449460d0aae4e1bd813d4c0ace00462256",
       "answer": {
         "headline": "Final 2025 driver standings result.",
         "facts": [
@@ -470,7 +470,106 @@
           "points": "25"
         }
       ],
-      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 30.",
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2025; rank by championship_position asc, top 50.",
+      "metadata": {
+        "source": "final_driver_standings",
+        "definitions_version": "v10",
+        "compiler_version": "core-v11",
+        "fact_space_version": "source-views-v3",
+        "coverage": {
+          "status": "sufficient",
+          "rows_returned": 3
+        },
+        "caveats": []
+      }
+    }
+  },
+  {
+    "id": "launch-historical-final-standings",
+    "envelope": {
+      "mode": "gated_execution",
+      "program": {
+        "version": 1,
+        "root": {
+          "op": "rank",
+          "input": {
+            "op": "aggregate",
+            "input": {
+              "op": "filter",
+              "input": {
+                "op": "source",
+                "source": "standings"
+              },
+              "where": {
+                "season": 2023
+              }
+            },
+            "group_by": [
+              "driver_id"
+            ],
+            "measures": [
+              {
+                "as": "championship_position",
+                "function": "min",
+                "field": "championship_position"
+              },
+              {
+                "as": "points",
+                "function": "max",
+                "field": "points"
+              }
+            ]
+          },
+          "by": "championship_position",
+          "direction": "asc",
+          "limit": 50
+        }
+      },
+      "program_hash": "f542043542d422a22cfea2051a06000e4bf0c36a3491dd0dfd05e1dc0d21fdab",
+      "answer": {
+        "headline": "Final 2023 driver standings result.",
+        "facts": [
+          {
+            "subject": "max-verstappen",
+            "values": {
+              "championship_position": "1",
+              "points": "575"
+            }
+          },
+          {
+            "subject": "lando-norris",
+            "values": {
+              "championship_position": "2",
+              "points": "205"
+            }
+          },
+          {
+            "subject": "lewis-hamilton",
+            "values": {
+              "championship_position": "3",
+              "points": "234"
+            }
+          }
+        ]
+      },
+      "rows": [
+        {
+          "driver_id": "max-verstappen",
+          "championship_position": 1,
+          "points": "575"
+        },
+        {
+          "driver_id": "lando-norris",
+          "championship_position": 2,
+          "points": "205"
+        },
+        {
+          "driver_id": "lewis-hamilton",
+          "championship_position": 3,
+          "points": "234"
+        }
+      ],
+      "rendering": "From official driver standings: min championship_position, max points, grouped by driver; season 2023; rank by championship_position asc, top 50.",
       "metadata": {
         "source": "final_driver_standings",
         "definitions_version": "v10",

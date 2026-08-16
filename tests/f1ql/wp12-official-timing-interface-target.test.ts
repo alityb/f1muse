@@ -315,8 +315,8 @@ describe('WP12 detached official timing interface target', () => {
     expect(ANSWER_AUTHORIZATION_CODE_VERSION).toBe('answer-authorization-v27');
     expect(ANSWER_AUTHORIZATION_VERSION).toBe(14);
     expect(ANSWER_RELEASE_ATTESTATION_VERSION).toBe(8);
-    expect(ANSWER_TEMPLATE_REGISTRY_VERSION).toBe('answer-templates-v14');
-    expect(ANSWER_TEMPLATE_REGISTRY_HASH).toBe('04df7e71f1d80aafa6bc524c55e4e6b410ff7da585a26d429806179b3e34480c');
+    expect(ANSWER_TEMPLATE_REGISTRY_VERSION).toBe('answer-templates-v15');
+    expect(ANSWER_TEMPLATE_REGISTRY_HASH).toBe('44480e82e45dd25482fcbc6f06f7e299c09b4ec575505c1c7bc752a575a360c6');
     const eventMean = authorizeAnswerProgram({
       version: 1,
       root: {
@@ -348,7 +348,7 @@ describe('WP12 detached official timing interface target', () => {
       }
     })).toEqual({ type: 'rejected', reason: 'classification_filter_combination_unsupported' });
     expect(createHash('sha256').update(readFileSync('src/f1ql/answer-policy.ts')).digest('hex'))
-      .toBe('36d087fc494859117fc9874bdcec91540592071890db255a4d127814f60e5e68');
+      .toBe('90a4548741cb82301fd276d1da0435f73fdc4b0cc0145825678c599d4e5e93c6');
   });
 
   it('has no execution/provider implementation imports or inbound production imports', () => {

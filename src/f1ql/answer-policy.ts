@@ -230,6 +230,9 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
       capability: { source: 'final_driver_standings', operation, season: aggregate.input.where.season, filters: [] }
     };
   }
+  if (isCompleteFinalStandingsLike(aggregate, operation, rank)) {
+    return { type: 'rejected', reason: 'capability_unsupported' };
+  }
   if (isFinalDriverRanking(aggregate, operation, rank)) {
     return {
       type: 'approved',
@@ -269,11 +272,24 @@ function authorizeStandings(aggregate: AggregateNode, operation: 'aggregate' | '
   };
 }
 
+function isCompleteFinalStandingsLike(
+  aggregate: AggregateNode,
+  operation: 'aggregate' | 'rank',
+  rank: Extract<F1QLProgram['root'], { op: 'rank' }> | undefined
+): boolean {
+  if (operation !== 'rank' || !rank || aggregate.input.op !== 'filter' || aggregate.input.input.op !== 'source' ||
+      aggregate.input.input.source !== 'standings' || typeof aggregate.input.where.season !== 'number' ||
+      !ANSWER_FINAL_STANDINGS_SEASONS.includes(aggregate.input.where.season) || aggregate.input.where.driver_id !== undefined) {
+    return false;
+  }
+  return rank.limit !== 1 && (rank.by === 'championship_position' || aggregate.measures.some(measure => measure.as === 'championship_position'));
+}
+
 function isCompleteFinalStandings(aggregate: AggregateNode, operation: 'aggregate' | 'rank', rank: Extract<F1QLProgram['root'], { op: 'rank' }> | undefined): boolean {
   if (operation !== 'rank' || !rank || aggregate.input.op !== 'filter' || aggregate.input.input.op !== 'source' || aggregate.input.input.source !== 'standings' ||
-      aggregate.input.where.season !== 2025 || Object.keys(aggregate.input.where).length !== 1 ||
+      typeof aggregate.input.where.season !== 'number' || !ANSWER_FINAL_STANDINGS_SEASONS.includes(aggregate.input.where.season) || Object.keys(aggregate.input.where).length !== 1 ||
       aggregate.group_by.length !== 1 || aggregate.group_by[0] !== 'driver_id' ||
-      rank.by !== 'championship_position' || rank.direction !== 'asc' || rank.limit !== 30) {
+      rank.by !== 'championship_position' || rank.direction !== 'asc' || rank.limit !== 50) {
     return false;
   }
   return aggregate.measures.length === 2

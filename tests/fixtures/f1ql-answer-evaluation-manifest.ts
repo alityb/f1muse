@@ -5,6 +5,7 @@ import { F1QLProgram } from '../../src/f1ql/ast';
 
 const programs = {
   completeFinal: materializeAnswerTemplate('final_standings', { season: 2025 }),
+  historicalComplete2023: materializeAnswerTemplate('final_standings', { season: 2023 }),
   points: materializeAnswerTemplate('final_standings_points', { season: 2025 }),
   pair: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['lando-norris', 'oscar-piastri'] }),
   maxPoints: materializeAnswerTemplate('final_standings_points', { season: 2025, driver_ids: ['max-verstappen'] }),
@@ -89,6 +90,7 @@ export const answerEvaluationManifest: readonly AnswerEvaluationCase[] = [
   answer('iid-points-pair', 'iid_holdout', 'Final 2025 standings points for Lando Norris and Oscar Piastri.', 'final_standings_points', programs.pair, ['driver_cardinality']),
   answer('launch-final-standings', 'iid_holdout', '2025 driver standings.', 'final_standings', programs.completeFinal, ['official_position', 'complete_table', 'final_vs_current']),
   answer('holdout-final-standings', 'temporal_entity_holdout', '2025 driver standings', 'final_standings', programs.completeFinal, ['official_position', 'complete_table', 'punctuation']),
+  answer('launch-historical-final-standings', 'temporal_entity_holdout', '2023 driver standings.', 'final_standings', programs.historicalComplete2023, ['official_position', 'complete_table', 'temporal_holdout', 'historical_position_ties']),
   answer('iid-points-all', 'iid_holdout', 'What were the final standings points in 2025?', 'final_standings_points', programs.points, ['clean']),
   answer('iid-leader', 'iid_holdout', 'Who was the final 2025 standings leader?', 'final_standings_leader', programs.leader, ['order_limit']),
   answer('holdout-leader', 'temporal_entity_holdout', 'In 2025, who was the standings leader?', 'final_standings_leader', programs.leader, ['year_placement']),

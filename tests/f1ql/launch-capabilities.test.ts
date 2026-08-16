@@ -18,6 +18,7 @@ describe('F1QL launch capability migration', () => {
     const requiredCases = [
       ['season-summary', 'Show Max Verstappen official 2025 season summary.', 'driver_season_official_summary'],
       ['complete-final-standings', '2025 driver standings.', 'final_standings'],
+      ['historical-complete-final-standings', '2023 driver standings.', 'final_standings'],
       ['career-summary', 'Show Lewis Hamilton official career summary.', 'driver_career_official_summary'],
       ['career-wins', 'At which circuits has Lewis Hamilton won races?', 'driver_career_wins_by_circuit'],
       ['profile-replacement', 'Show Lando Norris official 2025 driver summary.', 'driver_season_official_summary'],

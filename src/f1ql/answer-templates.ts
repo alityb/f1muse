@@ -9,7 +9,7 @@ import { OFFICIAL_DRIVER_RESULTS_COMPARISON_METRIC_ID } from './official-driver-
 import { RACE_EVENT_FINISHING_POSITION_COMPARISON_METRIC_ID } from './race-event-finishing-position-comparison';
 import { COMPLETED_QUALIFYING_SEASONS, DRIVER_CAREER_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_P1_COUNT_METRIC_ID, DRIVER_SEASON_QUALIFYING_TOP_TEN_COUNT_METRIC_ID, SEASON_QUALIFYING_TOP_TEN_RANKING_METRIC_ID } from './qualifying-counts';
 
-export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v14' as const;
+export const ANSWER_TEMPLATE_REGISTRY_VERSION = 'answer-templates-v15' as const;
 export const ANSWER_ALL_CLASSIFICATION_MIN_SEASON = 1996;
 export const ANSWER_ALL_CLASSIFICATION_MAX_SEASON = 2026;
 const SEASON_MIN = 1950;
@@ -65,7 +65,7 @@ const driverIdConstraint = { type: 'string', pattern: DRIVER_ID_PATTERN, max_len
 export const ANSWER_TEMPLATE_REGISTRY_CONTRACT = deepFreeze({
   final_standings: {
     variables: { season: finalSeasonConstraint },
-    semantic: 'complete official final driver standings for the exact reviewed 2025 shorthand; official championship position and points ordered by position, limit 30'
+    semantic: 'complete official final driver standings for the exact completed-season shorthand; official championship position and points ordered by position, limit 50'
   },
   final_standings_points: {
     variables: { season: finalSeasonConstraint, driver_ids: { type: 'array', item: driverIdConstraint, minimum_items: 1, maximum_items: 4, unique: true, optional: true } },
@@ -297,13 +297,20 @@ export function materializeAnswerTemplate(templateId: AnswerTemplateId, variable
       by: 'championship_position', direction: 'asc', limit: 3
     };
   } else if (templateId === 'final_standings' || templateId === 'final_standings_leader' || templateId === 'current_standings') {
+    let standingsLimit = 30;
+    if (templateId === 'final_standings_leader') {
+      standingsLimit = 1;
+    }
+    if (templateId === 'final_standings') {
+      standingsLimit = 50;
+    }
     root = {
       op: 'rank',
       input: {
         op: 'aggregate', input: { op: 'filter', input: { op: 'source', source: 'standings' }, where: { season: scoped.season } }, group_by: ['driver_id'],
         measures: [{ as: 'championship_position', function: 'min', field: 'championship_position' }, { as: 'points', function: 'max', field: 'points' }]
       },
-      by: 'championship_position', direction: 'asc', limit: templateId === 'final_standings_leader' ? 1 : 30
+      by: 'championship_position', direction: 'asc', limit: standingsLimit
     };
   } else if (templateId === 'race_date') {
     root = { op: 'event_metadata', season: scoped.season, round: scoped.round as number, session_scope: 'race' };

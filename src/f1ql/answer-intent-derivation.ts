@@ -1,7 +1,10 @@
 import { AnswerIntent, LiteralMentionReference, parseAnswerIntent } from './answer-intent';
 import { AnswerQuestionContract, AnswerQuestionMention } from './answer-question';
 
-export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v15' as const;
+export const ANSWER_INTENT_DERIVATION_VERSION = 'answer-intent-derivation-v16' as const;
+
+const COMPLETED_STANDINGS_MIN_SEASON = 1950;
+const COMPLETED_STANDINGS_MAX_SEASON = 2025;
 
 interface DriverInventoryMention {
   readonly text: string;
@@ -282,9 +285,10 @@ function standingsIntent(
       && contract.result_cues.length === 0 && matchesPinnedDriverRankingQuestion(contract.normalized_question);
     return valid ? { type: 'final_standings_driver_ranking', ...seasonFields, driver_references: drivers } : unsupported;
   }
-  const completeFinal = seasonFields.season === 2025 && drivers.length === 0 && metrics.size === 0
+  const completeFinal = seasonFields.season >= COMPLETED_STANDINGS_MIN_SEASON && seasonFields.season <= COMPLETED_STANDINGS_MAX_SEASON
+    && drivers.length === 0 && metrics.size === 0
     && contract.status_cues.length === 0 && contract.action_cues.length === 0 && contract.result_cues.length === 0
-    && /^2025 driver standings\.?$/iu.test(contract.normalized_question);
+    && /^(?:19[5-9]\d|20(?:0\d|1\d|2[0-5])) driver standings\.?$/iu.test(contract.normalized_question);
   if (completeFinal) {
     return { type: 'final_standings', ...seasonFields };
   }

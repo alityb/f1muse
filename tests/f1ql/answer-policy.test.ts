@@ -18,8 +18,8 @@ const standingsAggregate = (season: number | number[] | undefined, driver_id?: s
 describe('Phase 7 answer capability policy', () => {
   it.each([
     {
-      name: 'complete final 2025 standings',
-      program: materializeAnswerTemplate('final_standings', { season: 2025 }),
+      name: 'complete historical 2023 standings',
+      program: materializeAnswerTemplate('final_standings', { season: 2023 }),
       source: 'final_driver_standings'
     },
     {
@@ -95,6 +95,19 @@ describe('Phase 7 answer capability policy', () => {
   ])('approves $name', ({ program, source }) => {
     const decision = authorizeAnswerProgram(program);
     expect(decision).toMatchObject({ type: 'approved', capability: { source } });
+  });
+
+  it('authorizes only the exact completed-season complete-standings shape', () => {
+    const historical = materializeAnswerTemplate('final_standings', { season: 2023 });
+    if (historical.root.op !== 'rank' || historical.root.input.input.op !== 'filter') throw new Error('fixture must rank standings');
+    expect(authorizeAnswerProgram(historical).type).toBe('approved');
+    for (const root of [
+      { ...historical.root, limit: 30 },
+      { ...historical.root, direction: 'desc' as const },
+      { ...historical.root, input: { ...historical.root.input, input: { ...historical.root.input.input, where: { season: 2026 } } } }
+    ]) {
+      expect(authorizeAnswerProgram({ version: 1, root } as F1QLProgram).type).toBe('rejected');
+    }
   });
 
   it('rejects mutations of the final championship-position ranking', () => {
